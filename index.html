@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Life History">
+  <title>Life History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1117; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .tab-active { background: #3b82f6; color: #fff; }
+    .tab-inactive { background: #1e2130; color: #94a3b8; }
+    .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 12px; }
+    .progress-track { background: #2d3148; border-radius: 999px; height: 4px; }
+    .progress-fill { background: #f97316; border-radius: 999px; height: 4px; }
+    .tag { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 600; letter-spacing: 0.03em; }
+    .tag-music { background: #1e3a5f; color: #60a5fa; }
+    .tag-podcast { background: #3b1f0f; color: #fb923c; }
+    .stat-box { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 12px; text-align: center; }
+    .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
+    .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
+    .item-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #1e2130; }
+    .item-row:last-child { border-bottom: none; }
+    .icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+    .icon-music { background: #1e3a5f; }
+    .icon-podcast { background: #3b1f0f; }
+    .item-title { font-size: 14px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 2px; }
+    .item-sub { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+    .item-meta { font-size: 11px; color: #475569; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .filter-btn { border-radius: 8px; padding: 7px 18px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  </style>
+</head>
+<body>
+
+<div class="sticky-header px-4 pb-3 pt-4">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h1 class="text-xl font-bold text-white">Life History</h1>
+      <p id="updated-at" class="text-xs text-slate-500 mt-0.5"></p>
+    </div>
+    <div id="load-indicator" class="spinner" style="display:none"></div>
+  </div>
+  <!-- Filter tabs -->
+  <div class="flex gap-2">
+    <button class="filter-btn tab-active" id="btn-all" onclick="setFilter('all')">All</button>
+    <button class="filter-btn tab-inactive" id="btn-music" onclick="setFilter('music')">🎵 Music</button>
+    <button class="filter-btn tab-inactive" id="btn-podcast" onclick="setFilter('podcast')">🎙 Podcasts</button>
+  </div>
+</div>
+
+<div class="px-4 bottom-pad">
+  <!-- Stats -->
+  <div id="stats-row" class="grid grid-cols-2 gap-2 mb-4" style="display:none!important"></div>
+
+  <!-- Feed -->
+  <div id="feed" class="card px-4">
+    <div class="empty-state">
+      <div class="spinner mx-auto mb-3"></div>
+      <p class="text-sm">Loading your history…</p>
+    </div>
+  </div>
+
+  <p class="text-center text-xs text-slate-600 mt-4">Updated automatically · <a href="https://tasklet.ai" class="text-slate-500 underline">Tasklet</a></p>
+</div>
+
+<script>
+let allData = [];
+let filter = 'all';
+
+function setFilter(f) {
+  filter = f;
+  ['all','music','podcast'].forEach(k => {
+    const btn = document.getElementById('btn-' + k);
+    btn.className = 'filter-btn ' + (k === f ? 'tab-active' : 'tab-inactive');
+  });
+  renderFeed();
+  renderStats();
+}
+
+function relativeTime(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function fmtDuration(sec) {
+  if (!sec) return '';
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function renderStats() {
+  const items = filter === 'all' ? allData : allData.filter(i => i.type === filter);
+  const music = allData.filter(i => i.type === 'music');
+  const pods = allData.filter(i => i.type === 'podcast');
+  const statsEl = document.getElementById('stats-row');
+
+  if (allData.length === 0) { statsEl.style.display = 'none'; return; }
+  statsEl.style.removeProperty('display');
+
+  let boxes = [];
+  if (filter === 'all' || filter === 'music') {
+    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-blue-400">${music.length}</div><div class="text-xs text-slate-500 mt-1">Tracks</div></div>`);
+  }
+  if (filter === 'all' || filter === 'podcast') {
+    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${pods.length}</div><div class="text-xs text-slate-500 mt-1">Episodes</div></div>`);
+  }
+  if (filter === 'podcast' && pods.length > 0) {
+    const totalMin = Math.round(pods.reduce((s,i) => s + (i.progress_seconds||i.duration_seconds||0), 0) / 60);
+    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${totalMin > 60 ? Math.round(totalMin/60)+'h' : totalMin+'m'}</div><div class="text-xs text-slate-500 mt-1">Listened</div></div>`);
+  }
+  if (items.length > 0) {
+    const earliest = new Date(Math.min(...items.map(i => new Date(i.timestamp))));
+    const label = earliest.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    boxes.push(`<div class="stat-box"><div class="text-sm font-bold text-slate-300">${label}</div><div class="text-xs text-slate-500 mt-1">Since</div></div>`);
+  }
+
+  statsEl.innerHTML = boxes.join('');
+}
+
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  const items = (filter === 'all' ? allData : allData.filter(i => i.type === filter))
+    .slice(0, 200);
+
+  if (items.length === 0) {
+    feed.innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">🎧</p><p class="text-sm">No ${filter === 'all' ? '' : filter + ' '}history yet</p></div>`;
+    return;
+  }
+
+  feed.innerHTML = items.map(item => {
+    if (item.type === 'music') {
+      return `
+        <div class="item-row">
+          <div class="icon-wrap icon-music">🎵</div>
+          <div style="flex:1;min-width:0">
+            <div class="item-title">${escHtml(item.title)}</div>
+            <div class="item-sub">${escHtml(item.artist || '')}</div>
+            <div class="item-meta">${relativeTime(item.timestamp)}</div>
+          </div>
+        </div>`;
+    } else {
+      const pct = item.duration_seconds > 0 ? Math.min(100, Math.round((item.progress_seconds||0) / item.duration_seconds * 100)) : 0;
+      const dur = fmtDuration(item.duration_seconds);
+      return `
+        <div class="item-row">
+          <div class="icon-wrap icon-podcast">🎙</div>
+          <div style="flex:1;min-width:0">
+            <div class="item-title">${escHtml(item.title)}</div>
+            <div class="item-sub">${escHtml(item.show_name || '')}</div>
+            ${dur ? `<div style="margin:5px 0 3px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
+            <div class="item-meta">${dur ? `${pct}% · ${dur} · ` : ''}${relativeTime(item.timestamp)}</div>
+          </div>
+        </div>`;
+    }
+  }).join('');
+}
+
+function escHtml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadData() {
+  document.getElementById('load-indicator').style.display = 'inline-block';
+  try {
+    const res = await fetch('data.json?t=' + Date.now());
+    const json = await res.json();
+    allData = json.items || [];
+    if (json.generated_at) {
+      const d = new Date(json.generated_at);
+      document.getElementById('updated-at').textContent = 'Updated ' + relativeTime(json.generated_at);
+    }
+  } catch(e) {
+    document.getElementById('feed').innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">⚠️</p><p class="text-sm">Could not load data</p></div>`;
+  } finally {
+    document.getElementById('load-indicator').style.display = 'none';
+  }
+  renderStats();
+  renderFeed();
+}
+
+loadData();
+</script>
+</body>
+</html>
