@@ -464,7 +464,28 @@ def post_to_webhook(podcasts, browsing):
     return success_count == total
 
 
+def save_to_file(podcasts, browsing, output_path):
+    """Save all extracted data to a JSON file for manual upload."""
+    payload = {
+        "source_device_id": DEVICE_ID,
+        "schema_version": 1,
+        "chunk_index": 0,
+        "total_chunks": 1,
+        "podcasts": podcasts,
+        "browsing": browsing,
+    }
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    log(f"Saved {len(podcasts)} episodes to {output_path}")
+    log("Upload this file to Tasklet chat to import your podcast history.")
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="LifeLog iPhone Backup Extractor")
+    parser.add_argument("--output", metavar="FILE", help="Save extracted data to a JSON file instead of posting to webhook")
+    args = parser.parse_args()
+
     log("=" * 60)
     log(f"LifeLog extraction started on {DEVICE_ID}")
 
@@ -483,8 +504,6 @@ def main():
         sys.exit(1)
 
     # Step 3: Check encryption
-    # If a password is configured, always treat as encrypted (Apple Devices app
-    # backups may not set IsEncrypted in Manifest.plist reliably on first backup).
     encrypted = bool(BACKUP_PASSWORD) or is_backup_encrypted(backup_dir)
     if encrypted:
         log(f"Backup is encrypted -- will decrypt using stored password.")
@@ -502,15 +521,17 @@ def main():
         log("No data extracted. Exiting.")
         sys.exit(0)
 
-    # Step 5: Post to webhook in chunks
-    log(f"Posting {len(podcasts)} podcast episodes...")
-    success = post_to_webhook(podcasts, browsing)
-
-    if success:
-        log("Data posted successfully.")
+    # Step 5: Save to file or post to webhook
+    if args.output:
+        save_to_file(podcasts, browsing, args.output)
     else:
-        log("Failed to post data. Check log and retry.")
-        sys.exit(1)
+        log(f"Posting {len(podcasts)} podcast episodes...")
+        success = post_to_webhook(podcasts, browsing)
+        if success:
+            log("Data posted successfully.")
+        else:
+            log("Failed to post data. Check log and retry.")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
