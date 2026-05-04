@@ -407,7 +407,7 @@ def extract_safari(backup_dir, encrypted=False):
     return visits
 
 
-CHUNK_SIZE = 50  # episodes per POST (keeps payloads small and reliable)
+CHUNK_SIZE = 200  # episodes per POST (keeps payloads small and reliable)
 
 
 def post_chunk(chunk, chunk_index, total_chunks):
