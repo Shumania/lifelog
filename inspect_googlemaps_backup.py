@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 """
-inspect_googlemaps_backup.py
-Inspect Google Maps data in encrypted iPhone backup.
+inspect_googlemaps_backup.py v5
+Diagnostic: test decryption, enumerate all domains, find Google Maps files.
 Auto-uploads output to Tasklet webhook.
 """
 
-import os
-import sys
-import sqlite3
-import tempfile
-import json
-import io
-from contextlib import redirect_stdout
+import os, sys, sqlite3, tempfile, json, io, subprocess, struct, hashlib, plistlib
 from pathlib import Path
+from contextlib import redirect_stdout
 
 WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 BACKUP_PASSWORD = "#ngrierBill70"
@@ -30,190 +25,222 @@ def find_backup_dir():
                 return max(subdirs, key=lambda p: os.path.getmtime(p))
     return None
 
-def ensure_decrypt_lib():
+def ensure_pip_package(pkg_name, import_name=None):
+    import_name = import_name or pkg_name
     try:
-        import iphone_backup_decrypt
+        __import__(import_name)
         return True
     except ImportError:
-        print("Installing iphone-backup-decrypt...")
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "iphone-backup-decrypt", "-q"])
+        print(f"  Installing {pkg_name}...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg_name, "-q"])
         return True
 
-def main():
-    backup_dir = find_backup_dir()
-    if not backup_dir:
-        print("ERROR: No backup directory found.")
-        return
+def decrypt_manifest_raw(backup_dir, password):
+    """
+    Decrypt Manifest.db using raw plistlib + pycryptodome approach.
+    Returns path to decrypted temp file, or None.
+    """
+    manifest_plist = Path(backup_dir) / "Manifest.plist"
+    manifest_db   = Path(backup_dir) / "Manifest.db"
 
-    print(f"Using backup: {backup_dir}")
+    if not manifest_plist.exists():
+        print("  ERROR: Manifest.plist not found")
+        return None
 
-    ensure_decrypt_lib()
+    with open(manifest_plist, "rb") as f:
+        plist = plistlib.load(f)
 
-    from iphone_backup_decrypt import EncryptedBackup
+    if not plist.get("IsEncrypted"):
+        print("  Backup is NOT encrypted — Manifest.db should be readable directly")
+        return str(manifest_db)
 
-    print("Initializing encrypted backup...")
-    backup = EncryptedBackup(backup_directory=backup_dir, passphrase=BACKUP_PASSWORD)
+    print("  Backup IS encrypted. Decrypting manifest keybag...")
 
-    # Force unlock by extracting a known file (podcasts DB)
-    # This triggers manifest decryption internally
-    print("Unlocking backup by extracting a known file (this may take 30-60s)...")
-    tmp_dir = tempfile.mkdtemp()
-    tmp_known = os.path.join(tmp_dir, "podcasts_test.sqlite")
+    # Check for BackupKeyBag
+    keybag_data = plist.get("BackupKeyBag")
+    if not keybag_data:
+        print("  ERROR: No BackupKeyBag in Manifest.plist")
+        return None
+
+    # We'll use iphone_backup_decrypt library for the heavy lifting
+    ensure_pip_package("iphone-backup-decrypt", "iphone_backup_decrypt")
+
     try:
-        backup.extract_file(
-            relative_path="Documents/MTLibrary.sqlite",
-            output_filename=tmp_known,
-            domain_like="%groups.com.apple.podcasts"
-        )
-        if os.path.exists(tmp_known):
-            print(f"  Podcasts DB extracted OK ({os.path.getsize(tmp_known):,} bytes) — backup is unlocked!")
-        else:
-            print("  Podcasts DB not found, but continuing...")
-    except Exception as e:
-        print(f"  Extract attempt: {e} — continuing anyway...")
+        from iphone_backup_decrypt import EncryptedBackup
+        print("  iphone_backup_decrypt imported OK")
 
-    # Now check internal state
-    manifest_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
-    unlocked = getattr(backup, '_unlocked', None)
-    print(f"Unlocked: {unlocked}")
-    print(f"Manifest temp path: {manifest_path}")
+        backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=password)
 
-    if not manifest_path or not os.path.exists(manifest_path):
-        # Try alternate attribute names used in different library versions
-        for attr in ['_manifest_db_path', 'manifest_db', '_db_path']:
-            alt = getattr(backup, attr, None)
-            if alt and os.path.exists(str(alt)):
-                manifest_path = str(alt)
-                print(f"Found manifest via backup.{attr}: {manifest_path}")
-                break
-
-    if not manifest_path or not os.path.exists(str(manifest_path)):
-        print("\nERROR: Cannot locate decrypted manifest DB.")
-        print("Dumping backup object attributes for debugging:")
+        # Dump ALL attributes to find manifest path
+        attrs = {}
         for attr in dir(backup):
-            if not attr.startswith('__'):
+            if not attr.startswith("__"):
                 try:
                     val = getattr(backup, attr)
                     if not callable(val):
-                        print(f"  backup.{attr} = {val}")
+                        attrs[attr] = str(val)
                 except Exception:
                     pass
-        return
 
-    print(f"\nReading manifest from: {manifest_path}")
-    try:
-        conn = sqlite3.connect(str(manifest_path))
-        cursor = conn.cursor()
+        print("  Backup object attributes:")
+        for k, v in sorted(attrs.items()):
+            print(f"    {k} = {v}")
 
-        # List all domains
-        cursor.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-        all_domains = [row[0] for row in cursor.fetchall()]
-        print(f"\nTotal domains in backup: {len(all_domains)}")
+        # Try common attribute names for the manifest path
+        manifest_path = None
+        for attr in ['_temp_decrypted_manifest_db_path', '_manifest_db_path',
+                     '_manifest_path', 'manifest_db', '_db', '_temp_manifest']:
+            val = getattr(backup, attr, None)
+            if val and Path(str(val)).exists():
+                manifest_path = str(val)
+                print(f"  Found manifest at backup.{attr} = {manifest_path}")
+                break
 
-        # Find Google-related domains
-        google_domains = [d for d in all_domains if d and 'google' in d.lower()]
-        print(f"\n=== Google-related domains ({len(google_domains)}) ===")
-        for d in google_domains:
-            cursor.execute("SELECT COUNT(*) FROM Files WHERE domain=?", (d,))
-            count = cursor.fetchone()[0]
-            print(f"  {d}  ({count} files)")
+        # If not found yet, try extracting a file to force unlock
+        if not manifest_path:
+            print("  Trying to unlock by extracting podcasts DB...")
+            tmp = tempfile.mktemp(suffix=".sqlite")
+            try:
+                backup.extract_file(
+                    relative_path="Documents/MTLibrary.sqlite",
+                    output_filename=tmp,
+                    domain_like="%groups.com.apple.podcasts"
+                )
+                if Path(tmp).exists() and Path(tmp).stat().st_size > 0:
+                    print(f"  Podcasts DB extracted! ({Path(tmp).stat().st_size:,} bytes)")
+                else:
+                    print("  extract_file returned but file missing/empty")
+            except Exception as e:
+                print(f"  extract_file error: {e}")
 
-        # For each Google domain, list all files
-        for domain in google_domains:
-            print(f"\n--- Files in {domain} ---")
-            cursor.execute("""
-                SELECT relativePath, fileID, flags
-                FROM Files
-                WHERE domain=?
-                ORDER BY relativePath
-            """, (domain,))
-            rows = cursor.fetchall()
-            for rel_path, file_id, flags in rows:
-                print(f"  [{flags}] {rel_path}  (id={file_id[:8]}...)")
+            # Re-check attributes after extraction
+            for attr in ['_temp_decrypted_manifest_db_path', '_manifest_db_path',
+                         '_manifest_path', 'manifest_db', '_db', '_temp_manifest']:
+                val = getattr(backup, attr, None)
+                if val and Path(str(val)).exists():
+                    manifest_path = str(val)
+                    print(f"  Post-extraction: found manifest at backup.{attr}")
+                    break
 
-        # Try to extract and inspect any .sqlite or .db files in Google domains
-        if google_domains:
-            print(f"\n=== Attempting to extract Google SQLite databases ===")
-            for domain in google_domains:
-                cursor.execute("""
-                    SELECT relativePath, fileID
-                    FROM Files
-                    WHERE domain=? AND (
-                        relativePath LIKE '%.sqlite' OR
-                        relativePath LIKE '%.db' OR
-                        relativePath LIKE '%.sqlite3'
-                    )
-                """, (domain,))
-                db_files = cursor.fetchall()
-                for rel_path, file_id in db_files:
-                    print(f"\nExtracting: {domain}/{rel_path}")
-                    try:
-                        out_path = os.path.join(tmp_dir, "gmaps_extracted.db")
-                        if os.path.exists(out_path):
-                            os.remove(out_path)
-                        backup.extract_file(
-                            relative_path=rel_path,
-                            output_filename=out_path,
-                            domain_like=domain
-                        )
-                        if os.path.exists(out_path):
-                            size = os.path.getsize(out_path)
-                            print(f"  Extracted! Size: {size:,} bytes")
-                            try:
-                                db = sqlite3.connect(out_path)
-                                dc = db.cursor()
-                                dc.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                                tables = [r[0] for r in dc.fetchall()]
-                                print(f"  Tables: {tables}")
-                                for table in tables:
-                                    dc.execute(f"SELECT COUNT(*) FROM [{table}]")
-                                    cnt = dc.fetchone()[0]
-                                    dc.execute(f"PRAGMA table_info([{table}])")
-                                    cols = [r[1] for r in dc.fetchall()]
-                                    print(f"    {table}: {cnt} rows, columns: {cols}")
-                                    if 0 < cnt <= 5:
-                                        dc.execute(f"SELECT * FROM [{table}] LIMIT 3")
-                                        for row in dc.fetchall():
-                                            print(f"      {row}")
-                                db.close()
-                            except Exception as db_err:
-                                print(f"  Could not read as SQLite: {db_err}")
-                        else:
-                            print(f"  No output file produced.")
-                    except Exception as e:
-                        print(f"  Extraction failed: {e}")
+        # Scan temp dirs for any Manifest.db files
+        if not manifest_path:
+            print("  Scanning temp dirs for Manifest.db...")
+            tmpdir = tempfile.gettempdir()
+            for root, dirs, files in os.walk(tmpdir):
+                for f in files:
+                    if "manifest" in f.lower() and f.endswith(".db"):
+                        full = os.path.join(root, f)
+                        print(f"  Found temp manifest: {full} ({os.path.getsize(full):,} bytes)")
+                        manifest_path = full
+                        break
+                if manifest_path:
+                    break
 
-        # Show all domains for reference
-        print(f"\n=== ALL domains in backup ===")
-        for d in all_domains:
-            print(f"  {d}")
-
-        conn.close()
+        return manifest_path
 
     except Exception as e:
-        print(f"ERROR reading manifest: {e}")
         import traceback
+        print(f"  EncryptedBackup error: {e}")
         traceback.print_exc()
+        return None
 
-    print("\nDone!")
+def read_manifest(manifest_path):
+    """Read all files from a decrypted Manifest.db."""
+    conn = sqlite3.connect(manifest_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+    domains = [r[0] for r in cursor.fetchall()]
 
-if __name__ == "__main__":
-    # Capture all output
-    buffer = io.StringIO()
-    with redirect_stdout(buffer):
-        main()
-    output = buffer.getvalue()
+    cursor.execute("SELECT COUNT(*) FROM Files")
+    total = cursor.fetchone()[0]
+    conn.close()
+    return domains, total
+
+def search_manifest_for_google(manifest_path):
+    conn = sqlite3.connect(manifest_path)
+    cursor = conn.cursor()
+
+    # All google-related entries
+    cursor.execute("""
+        SELECT domain, relativePath, fileID, flags
+        FROM Files
+        WHERE domain LIKE '%google%' OR domain LIKE '%goog%'
+           OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%'
+           OR relativePath LIKE '%timeline%' OR relativePath LIKE '%gmm%'
+        ORDER BY domain, relativePath
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def main():
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print("=== LifeLog Google Maps Inspector v5 ===\n")
+
+        backup_dir = find_backup_dir()
+        if not backup_dir:
+            print("ERROR: No backup directory found.")
+        else:
+            print(f"Backup: {backup_dir}")
+            manifest_plist = Path(backup_dir) / "Manifest.plist"
+            if manifest_plist.exists():
+                with open(manifest_plist, "rb") as f:
+                    plist = plistlib.load(f)
+                print(f"IsEncrypted: {plist.get('IsEncrypted')}")
+                print(f"iOS Version: {plist.get('ProductVersion', 'unknown')}")
+                print(f"Device: {plist.get('DeviceName', 'unknown')}\n")
+
+            print("--- Decrypting manifest ---")
+            manifest_path = decrypt_manifest_raw(backup_dir, BACKUP_PASSWORD)
+
+            if manifest_path:
+                print(f"\nManifest DB: {manifest_path}")
+                try:
+                    domains, total = read_manifest(manifest_path)
+                    print(f"Total files in backup: {total:,}")
+                    print(f"Total domains: {len(domains)}")
+
+                    # Show all domains
+                    print("\n--- All domains ---")
+                    for d in domains:
+                        print(f"  {d}")
+
+                    # Search for Google Maps
+                    print("\n--- Google/Maps related files ---")
+                    google_files = search_manifest_for_google(manifest_path)
+                    if google_files:
+                        for domain, path, fid, flags in google_files:
+                            print(f"  [{domain}]")
+                            print(f"    {path}  (id={fid[:8]}..., flags={flags})")
+                    else:
+                        print("  (none found)")
+                except Exception as e:
+                    import traceback
+                    print(f"Error reading manifest: {e}")
+                    traceback.print_exc()
+            else:
+                print("\nCould not decrypt manifest. See errors above.")
+
+        print("\nDone!")
+
+    output = buf.getvalue()
     print(output)
 
-    # Upload to Tasklet
-    print("Uploading output to Tasklet...", end=" ", flush=True)
+    # Upload to webhook
+    import urllib.request
+    print("Uploading to Tasklet...", end="", flush=True)
     try:
-        import urllib.request
-        payload = json.dumps({"source": "inspect_googlemaps_backup", "output": output}).encode("utf-8")
-        req = urllib.request.Request(WEBHOOK_URL, data=payload,
-                                     headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            print(f"OK ({resp.status})")
+        body = json.dumps({
+            "source": "inspect_googlemaps_backup",
+            "output": output
+        }).encode()
+        req = urllib.request.Request(WEBHOOK_URL, data=body,
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=15)
+        print(" OK")
     except Exception as e:
-        print(f"FAILED: {e}")
+        print(f" FAILED: {e}")
+
+if __name__ == "__main__":
+    main()
