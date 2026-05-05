@@ -5,7 +5,7 @@
 
 $InstallDir = "C:\ProgramData\LifeLog"
 $BaseUrl    = "https://raw.githubusercontent.com/Shumania/lifelog/main"
-$Scripts    = @("lifelog_extract.py")
+$Scripts    = @("lifelog_extract.py", "inspect_googlemaps_backup.py")
 
 Write-Host ""
 Write-Host "=== LifeLog Updater ===" -ForegroundColor Cyan
@@ -57,4 +57,5 @@ if ($run -match '^[Yy]') {
 } else {
     Write-Host ""
     Write-Host "Done. Run 'python $InstallDir\lifelog_extract.py' whenever you're ready." -ForegroundColor Cyan
+    Write-Host "To inspect Google Maps backup data, run: python $InstallDir\inspect_googlemaps_backup.py" -ForegroundColor Cyan
 }
