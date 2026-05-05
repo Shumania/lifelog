@@ -23,6 +23,10 @@ BACKUP_PATHS = [
     Path(os.environ.get("LOCALAPPDATA", "")) / "Apple" / "MobileSync" / "Backup",
 ]
 
+# Known podcasts DB - we know this exists in the backup
+PODCASTS_DOMAIN = "AppDomainGroup-243LU875E5.groups.com.apple.podcasts"
+PODCASTS_PATH = "Library/Application Support/com.apple.podcasts/MTLibrary.sqlite"
+
 
 def find_backup_dir():
     candidates = []
@@ -57,6 +61,141 @@ def ensure_decrypt_lib():
             return False
 
 
+def get_manifest_db(backup):
+    """Try every known way to access the manifest DB."""
+    # Try all possible attribute names
+    for attr in ["_manifest_db", "_db", "manifest_db", "_manifest", "manifest"]:
+        val = getattr(backup, attr, None)
+        if val is not None:
+            return val
+
+    # Try extracting the podcasts DB (known to exist) to force manifest loading
+    print("Forcing manifest load via known podcasts DB extraction...")
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
+            tmp_path = tmp.name
+        backup.extract_file(
+            relative_path=PODCASTS_PATH,
+            output_filename=tmp_path,
+            domain_like=PODCASTS_DOMAIN
+        )
+        print(f"  Extracted podcasts DB ({os.path.getsize(tmp_path):,} bytes)")
+        os.unlink(tmp_path)
+    except Exception as e:
+        print(f"  Podcasts extraction: {e}")
+
+    # Try attributes again after extraction
+    for attr in ["_manifest_db", "_db", "manifest_db", "_manifest", "manifest"]:
+        val = getattr(backup, attr, None)
+        if val is not None:
+            return val
+
+    # Debug: print all non-callable attributes to find the right one
+    print("\nDebug - backup object attributes:")
+    for attr in sorted(dir(backup)):
+        if not attr.startswith('__') and not callable(getattr(backup, attr, None)):
+            val = getattr(backup, attr, None)
+            print(f"  {attr}: {type(val).__name__} = {str(val)[:80]}")
+
+    return None
+
+
+def search_manifest(manifest_db):
+    """Search the manifest for Google Maps and location-related files."""
+    cur = manifest_db.cursor()
+
+    # Get all unique domains
+    print("\n=== All app domains in backup ===")
+    cur.execute("SELECT DISTINCT domain FROM Files WHERE domain LIKE 'AppDomain%' ORDER BY domain")
+    domains = [r[0] for r in cur.fetchall()]
+    print(f"Total app domains: {len(domains)}")
+
+    # Filter for anything Google or Maps related
+    google_domains = [d for d in domains if 'google' in d.lower() or 'maps' in d.lower() or 'location' in d.lower()]
+    print(f"\nGoogle/Maps/Location domains: {len(google_domains)}")
+    for d in google_domains:
+        print(f"  {d}")
+
+    if not google_domains:
+        print("  (none found)")
+        # Print all domains so we can manually find Google Maps
+        print("\nAll AppDomain entries (to manually spot Google):")
+        for d in domains:
+            print(f"  {d}")
+        return
+
+    # For each Google/Maps domain, list files
+    for domain in google_domains:
+        print(f"\n=== Files in {domain} ===")
+        cur.execute("""
+            SELECT relativePath, fileID, flags
+            FROM Files
+            WHERE domain = ?
+            ORDER BY relativePath
+        """, (domain,))
+        rows = cur.fetchall()
+        print(f"  {len(rows)} files total")
+        for rel_path, file_id, flags in rows[:100]:
+            size_info = ""
+            print(f"  [{flags}] {rel_path}")
+
+        # Check for SQLite files specifically
+        sqlite_files = [(r, f) for r, f, _ in rows if r.endswith('.sqlite') or r.endswith('.db')]
+        if sqlite_files:
+            print(f"\n  SQLite/DB files:")
+            for rel, fid in sqlite_files:
+                print(f"    {rel} (ID: {fid})")
+
+
+def try_extract_google_db(backup, domain, rel_path):
+    """Try to extract and inspect a specific database file."""
+    print(f"\n  Trying to extract: {rel_path}")
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
+            tmp_path = tmp.name
+        backup.extract_file(
+            relative_path=rel_path,
+            output_filename=tmp_path,
+            domain_like=domain
+        )
+        size = os.path.getsize(tmp_path)
+        print(f"  Extracted: {size:,} bytes")
+
+        # Try to open as SQLite
+        try:
+            conn = sqlite3.connect(tmp_path)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            tables = [r[0] for r in cur.fetchall()]
+            print(f"  Tables: {tables}")
+            for table in tables[:10]:
+                try:
+                    cur.execute(f"SELECT COUNT(*) FROM [{table}]")
+                    count = cur.fetchone()[0]
+                    cur.execute(f"PRAGMA table_info([{table}])")
+                    cols = [r[1] for r in cur.fetchall()]
+                    print(f"    {table}: {count} rows, cols: {cols[:8]}")
+                    if count > 0 and count < 5:
+                        cur.execute(f"SELECT * FROM [{table}] LIMIT 3")
+                        for row in cur.fetchall():
+                            print(f"      {row}")
+                except Exception as e:
+                    print(f"    {table}: error - {e}")
+            conn.close()
+        except Exception as e:
+            print(f"  Not a SQLite DB: {e}")
+            # Try reading as plist
+            try:
+                with open(tmp_path, 'rb') as f:
+                    content = f.read(200)
+                print(f"  First bytes: {content[:50]}")
+            except:
+                pass
+        os.unlink(tmp_path)
+    except Exception as e:
+        print(f"  Extraction failed: {e}")
+
+
 def main():
     backup_dir = find_backup_dir()
     if not backup_dir:
@@ -77,156 +216,33 @@ def main():
         print(f"ERROR: Failed to open backup: {e}")
         sys.exit(1)
 
-    # Access the internal decrypted manifest database
-    # The library stores it as _manifest_db after decryption
-    manifest_db = None
-    for attr in ["_manifest_db", "_db", "manifest_db"]:
-        manifest_db = getattr(backup, attr, None)
-        if manifest_db:
-            break
-
-    if not manifest_db:
-        # Try to find it by triggering a dummy extraction which opens manifest
-        print("Trying to access manifest via extraction...")
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-                tmp_path = tmp.name
-            backup.extract_file(
-                relative_path="Library/Preferences/com.apple.Maps.plist",
-                output_filename=tmp_path,
-                domain_like="AppDomain-com.apple.Maps"
-            )
-        except Exception:
-            pass
-
-        for attr in ["_manifest_db", "_db", "manifest_db"]:
-            manifest_db = getattr(backup, attr, None)
-            if manifest_db:
-                break
+    manifest_db = get_manifest_db(backup)
 
     if manifest_db:
-        print("\n=== Searching manifest for Google Maps files ===")
-        try:
-            cur = manifest_db.cursor()
-
-            # Search for any Google-related domains
-            cur.execute("""
-                SELECT domain, relativePath, fileID
-                FROM Files
-                WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
-                ORDER BY domain, relativePath
-            """)
-            rows = cur.fetchall()
-            print(f"Google-related files: {len(rows)}")
-            for domain, rel_path, file_id in rows[:50]:
-                print(f"  [{domain}] {rel_path}")
-
-            # Also search for Maps
-            cur.execute("""
-                SELECT domain, relativePath, fileID
-                FROM Files
-                WHERE domain LIKE '%Maps%' OR domain LIKE '%maps%'
-                ORDER BY domain, relativePath
-                LIMIT 50
-            """)
-            maps_rows = cur.fetchall()
-            print(f"\nMaps-related files: {len(maps_rows)}")
-            for domain, rel_path, file_id in maps_rows[:50]:
-                print(f"  [{domain}] {rel_path}")
-
-        except Exception as e:
-            print(f"Manifest query error: {e}")
+        print("Manifest DB accessible!")
+        search_manifest(manifest_db)
     else:
-        print("Could not access manifest DB directly. Trying known paths...")
+        print("\nERROR: Could not access manifest DB via any method.")
+        print("Trying brute-force extraction of likely Google Maps paths...")
 
-    # Try extracting known Google Maps database locations
-    print("\n=== Trying known Google Maps database locations ===")
-
-    google_maps_candidates = [
-        ("AppDomain-com.google.Maps", "Library/Application Support/Offline/offline.db"),
-        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/timeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Library/Application Support/timeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Library/Caches/com.google.Maps/timeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Documents/timeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Documents/offline.db"),
-        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/GMMTimeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/Timeline.sqlite"),
-        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/PlacesVisited.sqlite"),
-    ]
-
-    found_any = False
-    for domain, rel_path in google_maps_candidates:
-        print(f"Trying {rel_path}...", end=" ")
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
-                tmp_path = tmp.name
-
-            backup.extract_file(
-                relative_path=rel_path,
-                output_filename=tmp_path,
-                domain_like=domain
-            )
-
-            if Path(tmp_path).exists() and Path(tmp_path).stat().st_size > 100:
-                size = Path(tmp_path).stat().st_size
-                print(f"FOUND! ({size:,} bytes)")
-                found_any = True
-
-                # Inspect the database
-                try:
-                    db = sqlite3.connect(tmp_path)
-                    cur = db.cursor()
-                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-                    tables = [r[0] for r in cur.fetchall()]
-                    print(f"  Tables: {tables}")
-
-                    for table in tables:
-                        cur.execute(f"SELECT COUNT(*) FROM [{table}]")
-                        count = cur.fetchone()[0]
-                        cur.execute(f"PRAGMA table_info([{table}])")
-                        cols = [r[1] for r in cur.fetchall()]
-                        marker = "***" if any(kw in table.lower() for kw in ['location', 'timeline', 'place', 'visit', 'trip', 'route', 'history', 'travel']) else "   "
-                        print(f"  {marker} {table}: {count} rows | cols: {cols}")
-
-                    db.close()
-                except Exception as e:
-                    print(f"  Could not inspect DB: {e}")
-
-                try:
-                    os.unlink(tmp_path)
-                except Exception:
-                    pass
-            else:
-                print("not found")
-                try:
-                    os.unlink(tmp_path)
-                except Exception:
-                    pass
-
-        except Exception as e:
-            print(f"error: {e}")
-
-    # Dump all files in com.google.Maps domain if manifest accessible
-    if manifest_db:
-        print("\n=== All files in com.google.Maps domain ===")
-        try:
-            cur = manifest_db.cursor()
-            cur.execute("""
-                SELECT domain, relativePath, fileID
-                FROM Files
-                WHERE domain = 'AppDomain-com.google.Maps'
-                ORDER BY relativePath
-            """)
-            all_rows = cur.fetchall()
-            print(f"Total files: {len(all_rows)}")
-            for domain, rel_path, file_id in all_rows:
-                print(f"  {rel_path}")
-        except Exception as e:
-            print(f"Error: {e}")
-
-    if not found_any:
-        print("\nNo Google Maps databases found at known locations.")
-        print("Google may store Timeline data differently on this iOS version.")
+        google_domain_guesses = [
+            "AppDomain-com.google.Maps",
+            "AppDomain-com.google.maps",
+            "AppDomainGroup-com.google.Maps",
+            "AppDomainGroup-com.google.maps",
+        ]
+        path_guesses = [
+            "Library/Application Support/timeline.sqlite",
+            "Library/Application Support/GMMTimeline/timeline.sqlite",
+            "Library/Application Support/GMMTimeline/GMMTimeline.sqlite",
+            "Library/Application Support/Offline/offline.db",
+            "Library/Application Support/com.google.Maps/timeline.sqlite",
+            "Documents/GMMTimeline.sqlite",
+            "Documents/timeline.sqlite",
+        ]
+        for domain in google_domain_guesses:
+            for path in path_guesses:
+                try_extract_google_db(backup, domain, path)
 
     print("\nDone! Paste this output back to Tasklet.")
 
