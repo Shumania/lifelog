@@ -1,144 +1,110 @@
-# dev_next.ps1 v3 - controlled by LifeLog agent
-# Fix: use _temp_manifest_db_conn, parse binary plist, unlock via extract_file
+# dev_next.ps1 - agent-controlled, auto-updated
+# Step 1: Ensure Python is installed
 
-$WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 
-$python = $null
-foreach ($cmd in @("python", "python3", "C:\ProgramData\LifeLog\python\python.exe")) {
-    try { $v = & $cmd --version 2>&1; if ($v -match 'Python') { $python = $cmd; break } } catch {}
+function Send-Output($text) {
+    $body = @{ output = $text; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $env:COMPUTERNAME; source = 'LifeLog-DevLoop' } | ConvertTo-Json
+    try { Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null } catch {}
 }
-if (-not $python) {
-    $body = @{ output="ERROR: Python not found"; computer=$env:COMPUTERNAME; source="dev_next_v3" } | ConvertTo-Json
-    Invoke-RestMethod -Uri $WEBHOOK -Method POST -Body $body -ContentType "application/json"
+
+$log = "=== Dev Loop - Python Install Check ===`nTime: $(Get-Date)`nMachine: $env:COMPUTERNAME`n`n"
+
+# Disable the Microsoft Store Python alias
+try {
+    $aliasPath = "$env:LOCALAPPDATA\Microsoft\WindowsApps"
+    $stubs = @("python.exe", "python3.exe")
+    foreach ($stub in $stubs) {
+        $full = Join-Path $aliasPath $stub
+        if (Test-Path $full) {
+            # Check if it's a stub (tiny file <10KB)
+            $size = (Get-Item $full).Length
+            if ($size -lt 10240) {
+                Rename-Item $full "$full.disabled" -Force -ErrorAction SilentlyContinue
+                $log += "Disabled Store alias: $full`n"
+            }
+        }
+    }
+} catch {
+    $log += "Could not disable Store aliases: $_`n"
+}
+
+# Check if Python is actually installed
+$pythonExe = $null
+$candidates = @(
+    "C:\Python312\python.exe",
+    "C:\Python311\python.exe",
+    "C:\Python310\python.exe",
+    "C:\Program Files\Python312\python.exe",
+    "C:\Program Files\Python311\python.exe",
+    "C:\ProgramData\LifeLog\python\python.exe",
+    (& { try { (Get-Command python -ErrorAction Stop).Source } catch { $null } })
+)
+foreach ($c in $candidates) {
+    if ($c -and (Test-Path $c -ErrorAction SilentlyContinue)) {
+        # Verify it actually works
+        $ver = & $c --version 2>&1
+        if ($ver -match 'Python 3') {
+            $pythonExe = $c
+            $log += "Python found at: $c ($ver)`n"
+            break
+        }
+    }
+}
+
+if (-not $pythonExe) {
+    $log += "Python not found. Attempting winget install...`n"
+    try {
+        $result = & winget install --id Python.Python.3.12 --silent --accept-source-agreements --accept-package-agreements 2>&1
+        $log += "winget result: $result`n"
+        # Refresh PATH
+        $env:PATH = [System.Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('PATH','User')
+        Start-Sleep -Seconds 5
+        # Try again
+        $pythonExe = & { try { (Get-Command python -ErrorAction Stop).Source } catch { $null } }
+        if ($pythonExe) {
+            $log += "Python now available at: $pythonExe`n"
+        } else {
+            $log += "Python still not found after winget. Trying direct path...`n"
+            $newPaths = @(
+                "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+                "C:\Program Files\Python312\python.exe",
+                "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python312\python.exe"
+            )
+            foreach ($p in $newPaths) {
+                if (Test-Path $p) { $pythonExe = $p; $log += "Found at: $p`n"; break }
+            }
+        }
+    } catch {
+        $log += "winget failed: $_`n"
+    }
+}
+
+if (-not $pythonExe) {
+    $log += "PYTHON NOT AVAILABLE - cannot run inspection script.`nPlease run: winget install Python.Python.3.12`nOr run Install-LifeLog.ps1 first.`n"
+    Send-Output $log
     exit 1
 }
 
-$script = @'
-import sys, os, sqlite3, tempfile, json, plistlib
-sys.path.insert(0, r"C:\ProgramData\LifeLog\python\Lib\site-packages")
-
-try:
-    import iphone_backup_decrypt
-except ImportError:
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "iphone_backup_decrypt", "-q"])
-    import iphone_backup_decrypt
-from iphone_backup_decrypt import EncryptedBackup
-
-PASSWORD = "#ngrierBill70"
-
-def find_backup():
-    candidates = []
-    for base in [
-        os.path.expandvars(r"%USERPROFILE%\Apple\MobileSync\Backup"),
-        os.path.expandvars(r"%USERPROFILE%\Apple Devices\Backup"),
-    ]:
-        if os.path.isdir(base):
-            for d in os.listdir(base):
-                full = os.path.join(base, d)
-                mp = os.path.join(full, "Manifest.plist")
-                if os.path.exists(mp):
-                    candidates.append((os.path.getmtime(mp), full))
-    return sorted(candidates)[-1][1] if candidates else None
-
-backup_dir = find_backup()
-print(f"Backup dir: {backup_dir}")
-if not backup_dir:
-    print("ERROR: No backup found")
-    sys.exit(1)
-
-backup = EncryptedBackup(backup_directory=backup_dir, passphrase=PASSWORD)
-
-# Step 1: Trigger unlock by extracting the podcasts DB (known to exist)
-print("\n=== Step 1: Unlock backup ===")
-with tempfile.TemporaryDirectory() as tmp:
-    unlock_file = os.path.join(tmp, "unlock_test.sqlite")
-    try:
-        backup.extract_file(
-            domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-            relative_path="Library/Caches/MTLibrary.sqlite",
-            output_filename=unlock_file
-        )
-        if os.path.exists(unlock_file):
-            print(f"Unlock SUCCESS (podcasts DB: {os.path.getsize(unlock_file)} bytes)")
-            print(f"_unlocked = {backup._unlocked}")
-        else:
-            print("extract_file ran but output not found")
-    except Exception as e:
-        print(f"Unlock error: {e}")
-        import traceback; traceback.print_exc()
-
-# Step 2: Query manifest for all Google Maps files
-print("\n=== Step 2: Query manifest for Google Maps files ===")
-try:
-    conn = backup._temp_manifest_db_conn
-    print(f"_temp_manifest_db_conn: {conn}")
-    if conn:
-        cur = conn.cursor()
-        cur.execute("SELECT domain, relativePath, fileID FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%timeline%' OR relativePath LIKE '%gmm%' ORDER BY domain, relativePath")
-        rows = cur.fetchall()
-        print(f"Found {len(rows)} Google/Maps files:")
-        for domain, path, fid in rows:
-            print(f"  [{domain}] {path}")
-        # Also list ALL domains to see what's available
-        print("\n=== All domains in backup ===")
-        cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-        domains = cur.fetchall()
-        for (d,) in domains:
-            print(f"  {d}")
-    else:
-        print("ERROR: _temp_manifest_db_conn still None after unlock!")
-except Exception as e:
-    print(f"Manifest query error: {e}")
-    import traceback; traceback.print_exc()
-
-# Step 3: Parse the Google Maps plist (binary plist)
-print("\n=== Step 3: Parse com.google.Maps.plist ===")
-with tempfile.TemporaryDirectory() as tmp:
-    plist_file = os.path.join(tmp, "googlemaps.plist")
-    try:
-        backup.extract_file(
-            domain="AppDomain-com.google.Maps",
-            relative_path="Library/Preferences/com.google.Maps.plist",
-            output_filename=plist_file
-        )
-        if os.path.exists(plist_file):
-            with open(plist_file, "rb") as f:
-                data = plistlib.load(f)
-            keys = list(data.keys())
-            print(f"Plist parsed OK! {len(keys)} keys.")
-            # Print all keys - look for timeline-related ones
-            for k in sorted(keys):
-                v = data[k]
-                print(f"  {k}: {repr(v)[:120]}")
-        else:
-            print("Plist file not extracted")
-    except Exception as e:
-        print(f"Plist error: {e}")
-        import traceback; traceback.print_exc()
-
-print("\n=== Done ===")
-'@
-
-$scriptFile = "$env:TEMP\lifelog_gmaps_v3.py"
-$script | Set-Content $scriptFile -Encoding UTF8
-
-Write-Host "[dev_next v3] Running..."
-$output = & $python $scriptFile 2>&1 | Out-String
-Write-Host $output
-
-Remove-Item $scriptFile -ErrorAction SilentlyContinue
-
-$body = @{
-    output    = "[dev_next v3]`n" + $output
-    timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-    computer  = $env:COMPUTERNAME
-    source    = "dev_next_v3"
-} | ConvertTo-Json -Depth 3
-
+# Step 2: Download and run inspect script
+$log += "`nRunning Google Maps inspection...`n"
+$tmpScript = "$env:TEMP\inspect_googlemaps_backup.py"
+$ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 try {
-    Invoke-RestMethod -Uri $WEBHOOK -Method POST -Body $body -ContentType "application/json"
-    Write-Host "Sent to Tasklet."
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$ts" -OutFile $tmpScript -UseBasicParsing
+    $log += "Script downloaded OK`n"
 } catch {
-    Write-Host "WARNING: webhook failed: $_"
+    $log += "Download failed: $_`n"
+    Send-Output $log
+    exit 1
 }
+
+# Install dependencies
+try {
+    & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+} catch {}
+
+$scriptOutput = & $pythonExe $tmpScript 2>&1 | Out-String
+$log += "`n=== Script Output ===`n$scriptOutput"
+
+Send-Output $log
