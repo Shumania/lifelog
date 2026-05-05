@@ -1,6 +1,10 @@
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+# dev_next.ps1 - controlled by Tasklet agent
+# Output goes to pipeline so LifeLog-DevLoop.ps1 captures and sends it
+
 $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Write-Output "FROM: $computerName at $timestamp"
+Write-Output ""
 
 $pyScript = @'
 import sys, os, tempfile, sqlite3
@@ -59,28 +63,21 @@ try:
     attrs = [a for a in dir(backup) if not a.startswith('__')]
     print("Attributes:", attrs)
     
-    # Try common manifest access patterns
-    for attr in ['_manifest_db', '_manifest_db_conn', '_db', 'manifest_db', '_conn']:
-        if hasattr(backup, attr):
-            val = getattr(backup, attr)
-            print(f"  {attr} = {val}")
-    
 except Exception as e:
     print(f"Error: {e}")
     import traceback; traceback.print_exc()
 
-# Step 3: Try querying Manifest.db directly after unlock
+# Step 3: Try querying Manifest.db directly
 print("\n=== Step 3: Query Manifest.db for Google Maps files ===")
 manifest_path = backup_dir / "Manifest.db"
 try:
     conn = sqlite3.connect(str(manifest_path))
-    # Try to find Google Maps related files
     cur = conn.execute("""
         SELECT domain, relativePath, flags, fileID
         FROM Files
         WHERE domain LIKE '%google%' OR domain LIKE '%maps%'
-           OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%'
-           OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Maps%'
+           OR relativePath LIKE '%oogle%' OR relativePath LIKE '%Maps%'
+           OR relativePath LIKE '%timeline%'
         LIMIT 50
     """)
     rows = cur.fetchall()
@@ -91,7 +88,6 @@ try:
     else:
         print("No Google Maps entries in manifest")
     
-    # Also show all unique domains
     cur2 = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
     domains = [r[0] for r in cur2.fetchall()]
     print(f"\nAll {len(domains)} domains in manifest:")
@@ -104,40 +100,26 @@ except Exception as e:
 print("\nDone!")
 '@
 
-try {
-    $tmpPy = [System.IO.Path]::GetTempFileName() + ".py"
-    $pyScript | Out-File -FilePath $tmpPy -Encoding utf8
-    
-    $pythonExe = Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-    if (-not $pythonExe) { $pythonExe = Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source }
-    if (-not $pythonExe) {
-        $candidates = @(
-            "C:\\ProgramData\\LifeLog\\python\\python.exe",
-            "C:\\Python312\\python.exe",
-            "C:\\Python311\\python.exe",
-            "$env:LOCALAPPDATA\\Programs\\Python\\Python312\\python.exe",
-            "$env:LOCALAPPDATA\\Programs\\Python\\Python311\\python.exe"
-        )
-        foreach ($c in $candidates) { if (Test-Path $c) { $pythonExe = $c; break } }
-    }
-    
-    if (-not $pythonExe) {
-        $output = "ERROR: Python not found. Run Install-LifeLog.ps1 first."
-    } else {
-        # Ensure iphone_backup_decrypt is installed
-        & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
-        $output = & $pythonExe $tmpPy 2>&1 | Out-String
-    }
-    Remove-Item $tmpPy -ErrorAction SilentlyContinue
-} catch {
-    $output = "Script error: $_"
+$tmpPy = [System.IO.Path]::GetTempFileName() + ".py"
+$pyScript | Out-File -FilePath $tmpPy -Encoding utf8
+
+$pythonExe = $null
+$candidates = @(
+    (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
+    (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
+    "C:\ProgramData\LifeLog\python\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+    "C:\Python312\python.exe"
+)
+foreach ($c in $candidates) { if ($c -and (Test-Path $c -ErrorAction SilentlyContinue)) { $pythonExe = $c; break } }
+
+if (-not $pythonExe) {
+    Write-Output "ERROR: Python not found. Run Install-LifeLog.ps1 first."
+} else {
+    Write-Output "Python: $pythonExe"
+    & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+    & $pythonExe $tmpPy 2>&1
 }
 
-$body = "FROM: $computerName at $timestamp`n`n=== Script Output ===`n$output"
-
-try {
-    Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "text/plain" | Out-Null
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Output sent to webhook"
-} catch {
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Webhook failed: $_"
-}
+Remove-Item $tmpPy -ErrorAction SilentlyContinue
