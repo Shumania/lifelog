@@ -1,14 +1,12 @@
 # dev_next.ps1 - controlled by Tasklet agent
-# Current task: run inspect_googlemaps_backup.py and return output
+# v6: run inspect_googlemaps_backup.py (mirrors lifelog_extract.py decryption)
 
 $installDir = "C:\ProgramData\LifeLog"
 
-# Download latest inspect script
+# Always download fresh copy
 $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$inspectUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$ts"
-Invoke-WebRequest -Uri $inspectUrl -OutFile "$installDir\inspect_googlemaps_backup.py" -UseBasicParsing
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$ts" `
+    -OutFile "$installDir\inspect_googlemaps_backup.py" -UseBasicParsing
 
-# Run it and capture output
-$output = & python "$installDir\inspect_googlemaps_backup.py" 2>&1 | Out-String
-
-Write-Output $output
+# Run it (output goes to webhook automatically via script)
+python "$installDir\inspect_googlemaps_backup.py"
