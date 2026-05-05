@@ -1,158 +1,235 @@
 #!/usr/bin/env python3
 """
-Inspect Google Maps data in iPhone backup.
-Lists all Google Maps files and inspects any SQLite databases found.
+Inspect Google Maps data in an encrypted iPhone backup.
+Uses the same iphone_backup_decrypt library as lifelog_extract.py.
 """
 
-import sqlite3
 import os
 import sys
 import json
 import shutil
-import hashlib
+import sqlite3
+import subprocess
+import tempfile
+import plistlib
+from pathlib import Path
+from datetime import datetime, timezone
 
-# Find backup directory
+BACKUP_PASSWORD = "#ngrierBill70"
+
 BACKUP_PATHS = [
-    r"C:\Users\andre\Apple\MobileSync\Backup",
-    r"C:\Users\andre\AppData\Roaming\Apple Computer\MobileSync\Backup",
-    os.path.expanduser(r"~\Apple\MobileSync\Backup"),
-    os.path.expanduser(r"~\AppData\Roaming\Apple Computer\MobileSync\Backup"),
+    Path(os.environ.get("USERPROFILE", "")) / "Apple" / "MobileSync" / "Backup",
+    Path(os.environ.get("APPDATA", "")) / "Apple Computer" / "MobileSync" / "Backup",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "Apple" / "MobileSync" / "Backup",
 ]
 
-def find_backup():
-    for path in BACKUP_PATHS:
-        if os.path.exists(path):
-            backups = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
-            if backups:
-                # Pick most recently modified
-                backups.sort(key=lambda d: os.path.getmtime(os.path.join(path, d)), reverse=True)
-                return os.path.join(path, backups[0])
-    return None
 
-def get_backup_file(backup_dir, domain, relative_path):
-    """Get the hashed filename for a backup file."""
-    combined = f"{domain}-{relative_path}"
-    hash_val = hashlib.sha1(combined.encode()).hexdigest()
-    return os.path.join(backup_dir, hash_val[:2], hash_val)
+def find_backup_dir():
+    candidates = []
+    for base in BACKUP_PATHS:
+        if base.exists():
+            for d in base.iterdir():
+                if d.is_dir():
+                    manifest = d / "Manifest.plist"
+                    if manifest.exists():
+                        mtime = manifest.stat().st_mtime
+                        candidates.append((mtime, d))
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def ensure_decrypt_lib():
+    try:
+        import iphone_backup_decrypt
+        return True
+    except ImportError:
+        print("Installing iphone_backup_decrypt...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "iphone_backup_decrypt", "--quiet"],
+                check=True, capture_output=True
+            )
+            return True
+        except Exception as e:
+            print(f"Failed to install: {e}")
+            return False
+
 
 def main():
-    backup_dir = find_backup()
+    backup_dir = find_backup_dir()
     if not backup_dir:
-        print("ERROR: Could not find iPhone backup directory")
+        print("ERROR: No iPhone backup found.")
         sys.exit(1)
-    
     print(f"Using backup: {backup_dir}")
-    
-    manifest_path = os.path.join(backup_dir, "Manifest.db")
-    if not os.path.exists(manifest_path):
-        print("ERROR: Manifest.db not found - backup may be encrypted or incomplete")
+
+    if not ensure_decrypt_lib():
+        print("ERROR: Cannot proceed without iphone_backup_decrypt library.")
         sys.exit(1)
-    
-    # Find all Google Maps files
-    conn = sqlite3.connect(manifest_path)
-    cursor = conn.cursor()
-    
-    print("\n=== Google Maps files in backup ===")
-    cursor.execute("""
-        SELECT domain, relativePath, fileID, flags
-        FROM Files 
-        WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
-        ORDER BY domain, relativePath
-    """)
-    
-    rows = cursor.fetchall()
-    if not rows:
-        print("No Google-related domains found.")
-        # Try broader search
-        cursor.execute("SELECT DISTINCT domain FROM Files WHERE domain LIKE '%com.google%'")
-        domains = cursor.fetchall()
-        print(f"Domains with 'com.google': {domains}")
+
+    from iphone_backup_decrypt import EncryptedBackup
+
+    print("Decrypting backup manifest (this may take 30-60 seconds first time)...")
+    try:
+        backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=BACKUP_PASSWORD)
+    except Exception as e:
+        print(f"ERROR: Failed to open backup: {e}")
+        sys.exit(1)
+
+    # Access the internal decrypted manifest database
+    # The library stores it as _manifest_db after decryption
+    manifest_db = None
+    for attr in ["_manifest_db", "_db", "manifest_db"]:
+        manifest_db = getattr(backup, attr, None)
+        if manifest_db:
+            break
+
+    if not manifest_db:
+        # Try to find it by triggering a dummy extraction which opens manifest
+        print("Trying to access manifest via extraction...")
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+                tmp_path = tmp.name
+            backup.extract_file(
+                relative_path="Library/Preferences/com.apple.Maps.plist",
+                output_filename=tmp_path,
+                domain_like="AppDomain-com.apple.Maps"
+            )
+        except Exception:
+            pass
+
+        for attr in ["_manifest_db", "_db", "manifest_db"]:
+            manifest_db = getattr(backup, attr, None)
+            if manifest_db:
+                break
+
+    if manifest_db:
+        print("\n=== Searching manifest for Google Maps files ===")
+        try:
+            cur = manifest_db.cursor()
+
+            # Search for any Google-related domains
+            cur.execute("""
+                SELECT domain, relativePath, fileID
+                FROM Files
+                WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
+                ORDER BY domain, relativePath
+            """)
+            rows = cur.fetchall()
+            print(f"Google-related files: {len(rows)}")
+            for domain, rel_path, file_id in rows[:50]:
+                print(f"  [{domain}] {rel_path}")
+
+            # Also search for Maps
+            cur.execute("""
+                SELECT domain, relativePath, fileID
+                FROM Files
+                WHERE domain LIKE '%Maps%' OR domain LIKE '%maps%'
+                ORDER BY domain, relativePath
+                LIMIT 50
+            """)
+            maps_rows = cur.fetchall()
+            print(f"\nMaps-related files: {len(maps_rows)}")
+            for domain, rel_path, file_id in maps_rows[:50]:
+                print(f"  [{domain}] {rel_path}")
+
+        except Exception as e:
+            print(f"Manifest query error: {e}")
     else:
-        print(f"Found {len(rows)} files in Google domains:")
-        for domain, rel_path, file_id, flags in rows:
-            print(f"  [{domain}] {rel_path}")
-    
-    print("\n=== Looking for SQLite databases in Google Maps ===")
-    cursor.execute("""
-        SELECT domain, relativePath, fileID
-        FROM Files 
-        WHERE (domain LIKE '%google.Maps%' OR domain LIKE '%com.google.Maps%')
-        AND (relativePath LIKE '%.sqlite' OR relativePath LIKE '%.db' OR relativePath LIKE '%.sqlite3')
-        ORDER BY relativePath
-    """)
-    
-    sqlite_files = cursor.fetchall()
-    if sqlite_files:
-        print(f"Found {len(sqlite_files)} SQLite files:")
-        for domain, rel_path, file_id in sqlite_files:
-            backup_file = os.path.join(backup_dir, file_id[:2], file_id)
-            size = os.path.getsize(backup_file) if os.path.exists(backup_file) else 0
-            print(f"  {rel_path} ({size:,} bytes) [fileID: {file_id}]")
-            
-            # Try to inspect the database
-            if os.path.exists(backup_file) and size > 0:
+        print("Could not access manifest DB directly. Trying known paths...")
+
+    # Try extracting known Google Maps database locations
+    print("\n=== Trying known Google Maps database locations ===")
+
+    google_maps_candidates = [
+        ("AppDomain-com.google.Maps", "Library/Application Support/Offline/offline.db"),
+        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/timeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Library/Application Support/timeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Library/Caches/com.google.Maps/timeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Documents/timeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Documents/offline.db"),
+        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/GMMTimeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/Timeline.sqlite"),
+        ("AppDomain-com.google.Maps", "Library/Application Support/GMMTimeline/PlacesVisited.sqlite"),
+    ]
+
+    found_any = False
+    for domain, rel_path in google_maps_candidates:
+        print(f"Trying {rel_path}...", end=" ")
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            backup.extract_file(
+                relative_path=rel_path,
+                output_filename=tmp_path,
+                domain_like=domain
+            )
+
+            if Path(tmp_path).exists() and Path(tmp_path).stat().st_size > 100:
+                size = Path(tmp_path).stat().st_size
+                print(f"FOUND! ({size:,} bytes)")
+                found_any = True
+
+                # Inspect the database
                 try:
-                    tmp_copy = f"/tmp/gmaps_inspect_{file_id[:8]}.sqlite"
-                    shutil.copy2(backup_file, tmp_copy)
-                    db = sqlite3.connect(tmp_copy)
-                    db_cursor = db.cursor()
-                    db_cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-                    tables = [r[0] for r in db_cursor.fetchall()]
-                    print(f"    Tables: {tables}")
-                    
-                    # Look for location/timeline related tables
+                    db = sqlite3.connect(tmp_path)
+                    cur = db.cursor()
+                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    tables = [r[0] for r in cur.fetchall()]
+                    print(f"  Tables: {tables}")
+
                     for table in tables:
-                        if any(kw in table.lower() for kw in ['location', 'timeline', 'place', 'visit', 'trip', 'route', 'history']):
-                            db_cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
-                            count = db_cursor.fetchone()[0]
-                            db_cursor.execute(f"PRAGMA table_info([{table}])")
-                            cols = [r[1] for r in db_cursor.fetchall()]
-                            print(f"    *** {table}: {count} rows, columns: {cols}")
+                        cur.execute(f"SELECT COUNT(*) FROM [{table}]")
+                        count = cur.fetchone()[0]
+                        cur.execute(f"PRAGMA table_info([{table}])")
+                        cols = [r[1] for r in cur.fetchall()]
+                        marker = "***" if any(kw in table.lower() for kw in ['location', 'timeline', 'place', 'visit', 'trip', 'route', 'history', 'travel']) else "   "
+                        print(f"  {marker} {table}: {count} rows | cols: {cols}")
+
                     db.close()
                 except Exception as e:
-                    print(f"    Could not inspect: {e}")
-    else:
-        print("No SQLite databases found in Google Maps domain.")
-    
-    print("\n=== All files in Google Maps domain ===")
-    cursor.execute("""
-        SELECT domain, relativePath, fileID
-        FROM Files 
-        WHERE domain LIKE '%com.google.Maps%'
-        ORDER BY relativePath
-        LIMIT 100
-    """)
-    all_files = cursor.fetchall()
-    for domain, rel_path, file_id in all_files:
-        backup_file = os.path.join(backup_dir, file_id[:2], file_id)
-        size = os.path.getsize(backup_file) if os.path.exists(backup_file) else 0
-        print(f"  {rel_path} ({size:,} bytes)")
-    
-    # Also look for JSON files that might contain timeline data
-    print("\n=== JSON files in Google Maps domain ===")
-    cursor.execute("""
-        SELECT domain, relativePath, fileID
-        FROM Files 
-        WHERE domain LIKE '%com.google.Maps%'
-        AND relativePath LIKE '%.json'
-        ORDER BY relativePath
-    """)
-    json_files = cursor.fetchall()
-    for domain, rel_path, file_id in json_files:
-        backup_file = os.path.join(backup_dir, file_id[:2], file_id)
-        size = os.path.getsize(backup_file) if os.path.exists(backup_file) else 0
-        print(f"  {rel_path} ({size:,} bytes)")
-        if size > 0 and size < 100000:
-            try:
-                shutil.copy2(backup_file, f"/tmp/gmaps_{file_id[:8]}.json")
-                with open(f"/tmp/gmaps_{file_id[:8]}.json") as f:
-                    data = json.load(f)
-                print(f"    Keys: {list(data.keys()) if isinstance(data, dict) else 'array'}")
-            except:
-                pass
-    
-    conn.close()
-    print("\nDone! Share this output to identify Google Maps data structure.")
+                    print(f"  Could not inspect DB: {e}")
+
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            else:
+                print("not found")
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+        except Exception as e:
+            print(f"error: {e}")
+
+    # Dump all files in com.google.Maps domain if manifest accessible
+    if manifest_db:
+        print("\n=== All files in com.google.Maps domain ===")
+        try:
+            cur = manifest_db.cursor()
+            cur.execute("""
+                SELECT domain, relativePath, fileID
+                FROM Files
+                WHERE domain = 'AppDomain-com.google.Maps'
+                ORDER BY relativePath
+            """)
+            all_rows = cur.fetchall()
+            print(f"Total files: {len(all_rows)}")
+            for domain, rel_path, file_id in all_rows:
+                print(f"  {rel_path}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    if not found_any:
+        print("\nNo Google Maps databases found at known locations.")
+        print("Google may store Timeline data differently on this iOS version.")
+
+    print("\nDone! Paste this output back to Tasklet.")
+
 
 if __name__ == "__main__":
     main()
