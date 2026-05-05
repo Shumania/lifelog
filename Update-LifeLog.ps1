@@ -6,6 +6,7 @@
 $InstallDir = "C:\ProgramData\LifeLog"
 $BaseUrl    = "https://raw.githubusercontent.com/Shumania/lifelog/main"
 $Scripts    = @("lifelog_extract.py", "inspect_googlemaps_backup.py")
+$CacheBust  = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 Write-Host ""
 Write-Host "=== LifeLog Updater ===" -ForegroundColor Cyan
@@ -22,7 +23,7 @@ if (-not (Test-Path $InstallDir)) {
 $updated = @()
 foreach ($script in $Scripts) {
     $dest = Join-Path $InstallDir $script
-    $url  = "$BaseUrl/$script"
+    $url  = "$BaseUrl/$($script)?v=$CacheBust"
 
     Write-Host "Downloading $script ... " -NoNewline
     try {
@@ -31,7 +32,8 @@ foreach ($script in $Scripts) {
             Copy-Item $dest "$dest.bak" -Force
         }
         Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
-        Write-Host "OK" -ForegroundColor Green
+        $lines = (Get-Content $dest).Count
+        Write-Host "OK ($lines lines)" -ForegroundColor Green
         $updated += $script
     } catch {
         Write-Host "FAILED: $_" -ForegroundColor Red
