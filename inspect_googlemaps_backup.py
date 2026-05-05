@@ -2,20 +2,24 @@
 """
 Inspect Google Maps data in an encrypted iPhone backup.
 Uses the same iphone_backup_decrypt library as lifelog_extract.py.
+Auto-uploads output to Tasklet via webhook.
 """
 
 import os
 import sys
+import io
 import json
 import shutil
 import sqlite3
 import subprocess
 import tempfile
 import plistlib
+import urllib.request
 from pathlib import Path
 from datetime import datetime, timezone
 
 BACKUP_PASSWORD = "#ngrierBill70"
+WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 
 BACKUP_PATHS = [
     Path(os.environ.get("USERPROFILE", "")) / "Apple" / "MobileSync" / "Backup",
@@ -26,6 +30,18 @@ BACKUP_PATHS = [
 # Known podcasts DB - we know this exists in the backup
 PODCASTS_DOMAIN = "AppDomainGroup-243LU875E5.groups.com.apple.podcasts"
 PODCASTS_PATH = "Library/Application Support/com.apple.podcasts/MTLibrary.sqlite"
+
+
+class Tee:
+    """Write to multiple streams simultaneously."""
+    def __init__(self, *files):
+        self.files = files
+    def write(self, text):
+        for f in self.files:
+            f.write(text)
+    def flush(self):
+        for f in self.files:
+            f.flush()
 
 
 def find_backup_dir():
@@ -136,7 +152,6 @@ def search_manifest(manifest_db):
         rows = cur.fetchall()
         print(f"  {len(rows)} files total")
         for rel_path, file_id, flags in rows[:100]:
-            size_info = ""
             print(f"  [{flags}] {rel_path}")
 
         # Check for SQLite files specifically
@@ -184,7 +199,6 @@ def try_extract_google_db(backup, domain, rel_path):
             conn.close()
         except Exception as e:
             print(f"  Not a SQLite DB: {e}")
-            # Try reading as plist
             try:
                 with open(tmp_path, 'rb') as f:
                     content = f.read(200)
@@ -196,55 +210,92 @@ def try_extract_google_db(backup, domain, rel_path):
         print(f"  Extraction failed: {e}")
 
 
-def main():
-    backup_dir = find_backup_dir()
-    if not backup_dir:
-        print("ERROR: No iPhone backup found.")
-        sys.exit(1)
-    print(f"Using backup: {backup_dir}")
-
-    if not ensure_decrypt_lib():
-        print("ERROR: Cannot proceed without iphone_backup_decrypt library.")
-        sys.exit(1)
-
-    from iphone_backup_decrypt import EncryptedBackup
-
-    print("Decrypting backup manifest (this may take 30-60 seconds first time)...")
+def upload_output(output_text):
+    """POST output to Tasklet webhook."""
     try:
-        backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=BACKUP_PASSWORD)
+        print("\nUploading output to Tasklet...", end="", flush=True)
+        payload = json.dumps({
+            "source": "inspect_googlemaps_backup",
+            "output": output_text
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            WEBHOOK_URL,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            print(f" OK (HTTP {resp.status})")
     except Exception as e:
-        print(f"ERROR: Failed to open backup: {e}")
-        sys.exit(1)
+        print(f" FAILED: {e}")
+        print("(Output was printed above — copy and paste it manually if needed)")
 
-    manifest_db = get_manifest_db(backup)
 
-    if manifest_db:
-        print("Manifest DB accessible!")
-        search_manifest(manifest_db)
-    else:
-        print("\nERROR: Could not access manifest DB via any method.")
-        print("Trying brute-force extraction of likely Google Maps paths...")
+def main():
+    # Capture all output while also printing it
+    captured = io.StringIO()
+    original_stdout = sys.stdout
+    sys.stdout = Tee(original_stdout, captured)
 
-        google_domain_guesses = [
-            "AppDomain-com.google.Maps",
-            "AppDomain-com.google.maps",
-            "AppDomainGroup-com.google.Maps",
-            "AppDomainGroup-com.google.maps",
-        ]
-        path_guesses = [
-            "Library/Application Support/timeline.sqlite",
-            "Library/Application Support/GMMTimeline/timeline.sqlite",
-            "Library/Application Support/GMMTimeline/GMMTimeline.sqlite",
-            "Library/Application Support/Offline/offline.db",
-            "Library/Application Support/com.google.Maps/timeline.sqlite",
-            "Documents/GMMTimeline.sqlite",
-            "Documents/timeline.sqlite",
-        ]
-        for domain in google_domain_guesses:
-            for path in path_guesses:
-                try_extract_google_db(backup, domain, path)
+    try:
+        backup_dir = find_backup_dir()
+        if not backup_dir:
+            print("ERROR: No iPhone backup found.")
+            sys.stdout = original_stdout
+            sys.exit(1)
+        print(f"Using backup: {backup_dir}")
 
-    print("\nDone! Paste this output back to Tasklet.")
+        if not ensure_decrypt_lib():
+            print("ERROR: Cannot proceed without iphone_backup_decrypt library.")
+            sys.stdout = original_stdout
+            sys.exit(1)
+
+        from iphone_backup_decrypt import EncryptedBackup
+
+        print("Decrypting backup manifest (this may take 30-60 seconds first time)...")
+        try:
+            backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=BACKUP_PASSWORD)
+        except Exception as e:
+            print(f"ERROR: Failed to open backup: {e}")
+            sys.stdout = original_stdout
+            sys.exit(1)
+
+        manifest_db = get_manifest_db(backup)
+
+        if manifest_db:
+            print("Manifest DB accessible!")
+            search_manifest(manifest_db)
+        else:
+            print("\nERROR: Could not access manifest DB via any method.")
+            print("Trying brute-force extraction of likely Google Maps paths...")
+
+            google_domain_guesses = [
+                "AppDomain-com.google.Maps",
+                "AppDomain-com.google.maps",
+                "AppDomainGroup-com.google.Maps",
+                "AppDomainGroup-com.google.maps",
+            ]
+            path_guesses = [
+                "Library/Application Support/timeline.sqlite",
+                "Library/Application Support/GMMTimeline/timeline.sqlite",
+                "Library/Application Support/GMMTimeline/GMMTimeline.sqlite",
+                "Library/Application Support/Offline/offline.db",
+                "Library/Application Support/com.google.Maps/timeline.sqlite",
+                "Documents/GMMTimeline.sqlite",
+                "Documents/timeline.sqlite",
+            ]
+            for domain in google_domain_guesses:
+                for path in path_guesses:
+                    try_extract_google_db(backup, domain, path)
+
+        print("\nDone!")
+
+    finally:
+        sys.stdout = original_stdout
+        output_text = captured.getvalue()
+
+    # Upload to Tasklet
+    upload_output(output_text)
 
 
 if __name__ == "__main__":
