@@ -2,9 +2,11 @@ $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqm
 $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-$pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+$pythonExe = if ($pythonCmd) { $pythonCmd.Source } else { $null }
 if (-not $pythonExe) {
-    $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source
+    $pythonCmd3 = Get-Command python3 -ErrorAction SilentlyContinue
+    $pythonExe = if ($pythonCmd3) { $pythonCmd3.Source } else { $null }
 }
 
 if (-not $pythonExe) {
@@ -18,8 +20,8 @@ if (-not $pythonExe) {
     $backupDir = $null
     foreach ($root in $backupRoots) {
         if (Test-Path $root) {
-            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-            if ($backupDir) { break }
+            $latest = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($latest) { $backupDir = $latest.FullName; break }
         }
     }
 
@@ -60,10 +62,8 @@ except Exception as e:
 # Now query manifest for Google Maps files
 try:
     import sqlite3
-    # Try to find decrypted manifest
     manifest_conn = getattr(backup, '_manifest_db_conn', None)
     if manifest_conn is None:
-        # Try direct path
         import os
         manifest_path = os.path.join(r'$backupDir', 'Manifest.db')
         if os.path.exists(manifest_path):
@@ -74,14 +74,12 @@ try:
 
     if manifest_conn:
         cur = manifest_conn.cursor()
-        # Search for Google/Maps related files
         cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Google%' OR relativePath LIKE '%google%' OR relativePath LIKE '%Maps%' OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%' ORDER BY domain, relativePath LIMIT 100")
         rows = cur.fetchall()
         print(f'\nFound {len(rows)} Google/Maps related files:')
         for row in rows:
             print(f'  domain={row[1]} | path={row[2]} | id={row[0][:8]}...')
         if not rows:
-            # Show all domains for reference
             cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
             domains = [r[0] for r in cur.fetchall()]
             print(f'\nNo Google/Maps files found. All {len(domains)} domains in backup:')
