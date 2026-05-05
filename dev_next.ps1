@@ -35,73 +35,97 @@ if not backup_dir:
     sys.exit(1)
 print(f"Backup: {backup_dir}")
 
-# Step 1: Create EncryptedBackup - this decrypts manifest into memory
-print("\n=== Step 1: Decrypt manifest ===")
+# Step 1: Print all attributes of EncryptedBackup to understand its API
+print("\n=== Step 1: EncryptedBackup attributes ===")
 try:
     from iphone_backup_decrypt import EncryptedBackup
     backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=PASSWORD)
-    print("EncryptedBackup created OK")
+    attrs = [a for a in dir(backup) if not a.startswith('__')]
+    print(f"Attributes: {attrs}")
+    # Check _manifest_db_path specifically
+    if hasattr(backup, '_manifest_db_path'):
+        p = backup._manifest_db_path
+        print(f"_manifest_db_path = {p}")
+        if p and Path(p).exists():
+            print(f"  -> File exists, size={Path(p).stat().st_size}")
+            # Try connecting
+            try:
+                conn = sqlite3.connect(p)
+                cur = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+                domains = [r[0] for r in cur.fetchall()]
+                print(f"  -> {len(domains)} domains found")
+                for d in domains:
+                    print(f"     {d}")
+                conn.close()
+            except Exception as e:
+                print(f"  -> sqlite3 connect error: {e}")
+        else:
+            print(f"  -> File does not exist at that path")
 except Exception as e:
     import traceback
-    print(f"ERROR creating backup: {e}")
+    print(f"ERROR: {e}")
     traceback.print_exc()
     sys.exit(1)
 
-# Step 2: Query _manifest_db_conn directly (already decrypted in memory)
-print("\n=== Step 2: List all domains ===")
+# Step 2: Try extracting podcasts DB to force unlock
+print("\n=== Step 2: Extract podcasts DB ===")
 try:
-    conn = backup._manifest_db_conn
-    cur = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-    domains = [r[0] for r in cur.fetchall()]
-    print(f"Total domains: {len(domains)}")
-    for d in domains:
-        print(f"  {d}")
-except Exception as e:
-    print(f"ERROR listing domains: {e}")
-    import traceback; traceback.print_exc()
-
-# Step 3: Find Google Maps files
-print("\n=== Step 3: Google Maps files ===")
-try:
-    conn = backup._manifest_db_conn
-    cur = conn.execute("""
-        SELECT domain, relativePath, fileID
-        FROM Files
-        WHERE domain LIKE '%oogle%'
-           OR domain LIKE '%Maps%'
-           OR domain LIKE '%maps%'
-           OR relativePath LIKE '%timeline%'
-           OR relativePath LIKE '%Timeline%'
-           OR relativePath LIKE '%oogle%'
-        ORDER BY domain, relativePath
-        LIMIT 200
-    """)
-    rows = cur.fetchall()
-    if rows:
-        print(f"Found {len(rows)} Google/Maps entries:")
-        for row in rows:
-            print(f"  domain={row[0]}")
-            print(f"    path={row[1]}")
-            print(f"    fileID={row[2][:8]}...")
-    else:
-        print("No Google/Maps entries found")
-except Exception as e:
-    print(f"ERROR searching maps: {e}")
-
-# Step 4: Also try extracting podcasts DB with correct wildcard syntax
-print("\n=== Step 4: Test extract podcasts DB (wildcard fix) ===")
-try:
+    import inspect
+    sig = inspect.signature(backup.extract_file)
+    print(f"extract_file signature: {sig}")
+    
     with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
         tmp_path = tmp.name
-    backup.extract_file(
-        relative_path="Library/Database/MTLibrary.sqlite",
-        output_filename=tmp_path,
-        domain_like="%podcasts%"
-    )
-    size = Path(tmp_path).stat().st_size
-    print(f"Extract OK - {size} bytes")
+    
+    # Try different domain_like values
+    for domain_like in ["AppDomainGroup-243LU875E5.groups.com.apple.podcasts", "%podcasts%", None]:
+        try:
+            print(f"Trying domain_like={domain_like!r}")
+            if domain_like is None:
+                backup.extract_file(
+                    relative_path="Library/Database/MTLibrary.sqlite",
+                    output_filename=tmp_path
+                )
+            else:
+                backup.extract_file(
+                    relative_path="Library/Database/MTLibrary.sqlite",
+                    output_filename=tmp_path,
+                    domain_like=domain_like
+                )
+            size = Path(tmp_path).stat().st_size
+            print(f"  -> Success! {size} bytes")
+            break
+        except Exception as e:
+            print(f"  -> Failed: {e}")
 except Exception as e:
-    print(f"Extract error: {e}")
+    import traceback
+    print(f"ERROR in extract: {e}")
+    traceback.print_exc()
+
+# Step 3: After extraction, try manifest path again
+print("\n=== Step 3: Manifest after extraction ===")
+try:
+    if hasattr(backup, '_manifest_db_path'):
+        p = backup._manifest_db_path
+        print(f"_manifest_db_path = {p}")
+        if p and Path(p).exists():
+            conn = sqlite3.connect(p)
+            cur = conn.execute("SELECT COUNT(*) FROM Files")
+            print(f"Files count: {cur.fetchone()[0]}")
+            # Find Google Maps
+            cur = conn.execute("""
+                SELECT domain, relativePath FROM Files
+                WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%'
+                   OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%'
+                LIMIT 50
+            """)
+            rows = cur.fetchall()
+            print(f"Google/Maps rows: {len(rows)}")
+            for r in rows:
+                print(f"  {r[0]} | {r[1]}")
+            conn.close()
+except Exception as e:
+    print(f"ERROR: {e}")
 
 print("\nDone!")
 '@
