@@ -3,7 +3,7 @@ $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 try {
-    # Find Python (PS5 compatible - no ?. operator) v3
+    # Find Python (PS5 compatible - no ?. operator) v4
     $pythonExe = $null
     $cmd = Get-Command python -ErrorAction SilentlyContinue
     if ($cmd) { $pythonExe = $cmd.Source }
@@ -19,10 +19,11 @@ try {
         elseif (Test-Path $p312) { $pythonExe = $p312 }
         elseif (Test-Path $p311) { $pythonExe = $p311 }
     }
+    if (-not $pythonExe) { throw "Python not found. Install from https://www.python.org/downloads/ (check 'Add to PATH')" }
 
-    if (-not $pythonExe) {
-        throw "Python not found. Install from https://www.python.org/downloads/ (check 'Add to PATH')"
-    }
+    # Install required packages
+    Write-Host "Installing dependencies..."
+    & $pythonExe -m pip install iphone_backup_decrypt --quiet --disable-pip-version-check 2>&1 | Out-Null
 
     # Find backup
     $backupRoots = @(
@@ -48,7 +49,7 @@ password = '#ngrierBill70'
 print('Python: ' + sys.executable)
 print('Backup: ' + backup_path)
 
-# Correct constructor: backup_directory (not backup_path)
+# Correct constructor: backup_directory
 backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
 # Unlock by extracting a known-good file first
@@ -69,10 +70,10 @@ with backup.manifest_db_cursor() as cursor:
     cursor.execute('SELECT COUNT(*) FROM Files')
     total = cursor.fetchone()[0]
     print('Total files in manifest: ' + str(total))
-    
-    cursor.execute('''SELECT domain, relativePath, flags 
-                      FROM Files 
-                      WHERE domain LIKE "%google%" 
+
+    cursor.execute('''SELECT domain, relativePath, flags
+                      FROM Files
+                      WHERE domain LIKE "%google%"
                          OR domain LIKE "%maps%"
                          OR relativePath LIKE "%google%"
                          OR relativePath LIKE "%maps%"
@@ -83,13 +84,13 @@ with backup.manifest_db_cursor() as cursor:
     rows = cursor.fetchall()
     print('Google/Maps related files: ' + str(len(rows)))
     print()
-    
+
     domains = {}
     for domain, relpath, flags in rows:
         if domain not in domains:
             domains[domain] = []
         domains[domain].append(relpath)
-    
+
     for domain, paths in sorted(domains.items()):
         print('DOMAIN: ' + domain + ' (' + str(len(paths)) + ' files)')
         for p in paths[:20]:
@@ -97,9 +98,9 @@ with backup.manifest_db_cursor() as cursor:
         if len(paths) > 20:
             print('  ... and ' + str(len(paths)-20) + ' more')
         print()
-    
-    cursor.execute('''SELECT domain, relativePath 
-                      FROM Files 
+
+    cursor.execute('''SELECT domain, relativePath
+                      FROM Files
                       WHERE (domain LIKE "%google%" OR domain LIKE "%maps%")
                         AND (relativePath LIKE "%.sqlite" OR relativePath LIKE "%.db")
                       ORDER BY domain, relativePath''')
