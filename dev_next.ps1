@@ -1,9 +1,11 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $machine = $env:COMPUTERNAME
 
-$pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+$cmd = Get-Command python -ErrorAction SilentlyContinue
+$pythonExe = if ($cmd) { $cmd.Source } else { $null }
 if (-not $pythonExe) {
-    $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source
+    $cmd3 = Get-Command python3 -ErrorAction SilentlyContinue
+    $pythonExe = if ($cmd3) { $cmd3.Source } else { $null }
 }
 
 $pyVersion = if ($pythonExe) { & $pythonExe --version 2>&1 } else { "NOT FOUND" }
@@ -36,7 +38,20 @@ backup = EncryptedBackup(backup_directory=backup_dir, password=password)
 print(f"Backup object created: {type(backup)}")
 print(f"Backup attrs: {[a for a in dir(backup) if not a.startswith('__')]}")
 
-# Try _open_manifest_db directly
+# First try extract_file to force unlock
+print("\n=== Trying extract_file for podcasts (forces unlock) ===")
+try:
+    tmp = tempfile.mktemp(suffix=".sqlite")
+    backup.extract_file(
+        relative_name="AppDomainGroup-243LU875E5.groups.com.apple.podcasts/Library/Database/MTLibrary.sqlite",
+        output_filename=tmp
+    )
+    print(f"extract_file succeeded, file size: {os.path.getsize(tmp)}")
+except Exception as e:
+    print(f"extract_file error: {repr(e)}")
+    traceback.print_exc()
+
+# Now try _open_manifest_db
 print("\n=== Trying _open_manifest_db() ===")
 try:
     backup._open_manifest_db()
@@ -52,31 +67,17 @@ except Exception as e:
     print(f"_open_manifest_db error: {repr(e)}")
     traceback.print_exc()
 
-# Also try extract_file with full exception info
-print("\n=== Trying extract_file for podcasts ===")
-try:
-    import tempfile
-    tmp = tempfile.mktemp(suffix=".sqlite")
-    backup.extract_file(
-        relative_name="AppDomainGroup-243LU875E5.groups.com.apple.podcasts/Library/Database/MTLibrary.sqlite",
-        output_filename=tmp
-    )
-    print(f"extract_file succeeded, file size: {os.path.getsize(tmp)}")
-except Exception as e:
-    print(f"extract_file error: {repr(e)}")
-    traceback.print_exc()
-
 print("\nDone!")
 '@
 
-$tmpScript = Join-Path $env:TEMP "gmaps_inspect_v4.py"
+$tmpScript = Join-Path $env:TEMP "gmaps_inspect_v5.py"
 $script | Set-Content -Path $tmpScript -Encoding UTF8
 
 $output = if ($pythonExe) {
     "Machine: $machine`nPython: $pythonExe ($pyVersion)`n`n" + (& $pythonExe $tmpScript 2>&1 | Out-String)
 } else {
-    "Machine: $machine`nPython NOT FOUND`n"
+    "Machine: $machine`nPython NOT FOUND - run Install-LifeLog.ps1 first`n"
 }
 
-$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $machine; source = "gmaps_inspect_v4" } | ConvertTo-Json
+$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $machine; source = "gmaps_inspect_v5" } | ConvertTo-Json
 Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
