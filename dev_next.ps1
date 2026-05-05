@@ -1,136 +1,120 @@
-# dev_next.ps1 - controlled by Tasklet agent
+$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-Output "FROM: $computerName at $timestamp"
-Write-Output ""
 
-$pyScript = @'
-import sys, os, tempfile, sqlite3
-from pathlib import Path
+try {
+    # Find Python
+    $pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+    if (-not $pythonExe) {
+        $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source
+    }
+    if (-not $pythonExe) {
+        $pythonExe = "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe"
+        if (-not (Test-Path $pythonExe)) { $pythonExe = $null }
+    }
 
-PASSWORD = "#ngrierBill70"
+    if (-not $pythonExe) {
+        throw "Python not found. Run Install-LifeLog.ps1 first."
+    }
 
-def find_backup():
-    candidates = []
-    for base in [
-        os.path.expandvars(r"%USERPROFILE%\Apple\MobileSync\Backup"),
-        os.path.expandvars(r"%USERPROFILE%\AppData\Roaming\Apple Computer\MobileSync\Backup"),
-        r"C:\Users\andre\Apple\MobileSync\Backup",
-    ]:
-        p = Path(base)
-        if p.exists():
-            for d in p.iterdir():
-                manifest = d / "Manifest.db"
-                plist = d / "Manifest.plist"
-                if manifest.exists() or plist.exists():
-                    mtime = (manifest if manifest.exists() else plist).stat().st_mtime
-                    candidates.append((mtime, d))
-    if not candidates:
-        return None
-    return sorted(candidates)[-1][1]
+    # Find backup
+    $backupRoots = @(
+        "$env:USERPROFILE\Apple\MobileSync\Backup",
+        "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
+    )
+    $backupDir = $null
+    foreach ($root in $backupRoots) {
+        if (Test-Path $root) {
+            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if ($backupDir) { break }
+        }
+    }
+    if (-not $backupDir) { throw "No iPhone backup found" }
 
-backup_dir = find_backup()
-if not backup_dir:
-    print("ERROR: No backup found")
-    sys.exit(1)
-print(f"Backup: {backup_dir}")
+    $pyScript = @"
+import sys, json
+from iphone_backup_decrypt import EncryptedBackup, RelativePath
 
-from iphone_backup_decrypt import EncryptedBackup
-print("Constructing EncryptedBackup...")
-backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=PASSWORD)
+backup_path = r'$backupDir'
+password = '#ngrierBill70'
 
-# Check unlock status
-print(f"_unlocked = {backup._unlocked}")
-print(f"_temp_decrypted_manifest_db_path = {backup._temp_decrypted_manifest_db_path}")
-print(f"_temporary_folder = {backup._temporary_folder}")
+print(f'Python: {sys.executable}')
+print(f'Backup: {backup_path}')
 
-# Check if temp decrypted manifest exists
-tmp_manifest = backup._temp_decrypted_manifest_db_path
-if tmp_manifest and Path(tmp_manifest).exists():
-    size = Path(tmp_manifest).stat().st_size
-    print(f"Decrypted manifest exists! Size = {size} bytes")
-    try:
-        conn = sqlite3.connect(tmp_manifest)
-        cur = conn.execute("SELECT COUNT(*) FROM Files")
-        total = cur.fetchone()[0]
-        print(f"Total files in manifest: {total}")
-        # Find Google/Maps related
-        cur = conn.execute("""
-            SELECT domain, relativePath FROM Files
-            WHERE domain LIKE '%oogle%' OR domain LIKE '%Maps%' OR domain LIKE '%maps%'
-               OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%'
-               OR relativePath LIKE '%GoogleMaps%'
-            LIMIT 100
-        """)
-        rows = cur.fetchall()
-        print(f"\nGoogle/Maps files ({len(rows)} found):")
-        for r in rows:
-            print(f"  {r[0]} | {r[1]}")
-        conn.close()
-    except Exception as e:
-        print(f"sqlite3 error on decrypted manifest: {e}")
-else:
-    print(f"Decrypted manifest NOT found at: {tmp_manifest}")
+backup = EncryptedBackup(backup_path=backup_path, passphrase=password)
 
-# Try test_decryption()
-print("\n=== test_decryption() ===")
+# Unlock by extracting a known-good file first
+print('Unlocking backup...')
 try:
-    result = backup.test_decryption()
-    print(f"test_decryption result: {result}")
+    import tempfile, os
+    tmp = tempfile.mktemp(suffix='.sqlite')
+    backup.extract_file(
+        relative_name='Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist',
+        output_filename=tmp
+    )
+    if os.path.exists(tmp): os.remove(tmp)
 except Exception as e:
-    print(f"test_decryption error: {e}")
+    print(f'Unlock probe failed (ok): {e}')
 
-# Try manifest_db_cursor() public method
-print("\n=== manifest_db_cursor() ===")
-try:
-    cur = backup.manifest_db_cursor()
-    print(f"Got cursor: {cur}")
-    results = cur.execute("""
-        SELECT domain, relativePath FROM Files
-        WHERE domain LIKE '%oogle%' OR domain LIKE '%Maps%'
-        LIMIT 50
-    """).fetchall()
-    print(f"Google/Maps rows: {len(results)}")
-    for r in results:
-        print(f"  {r[0]} | {r[1]}")
-except Exception as e:
-    print(f"manifest_db_cursor error: {e}")
+print('Querying manifest...')
+# Use context manager correctly
+with backup.manifest_db_cursor() as cursor:
+    # Show total file count
+    cursor.execute('SELECT COUNT(*) FROM Files')
+    total = cursor.fetchone()[0]
+    print(f'Total files in manifest: {total}')
+    
+    # Search for Google Maps related domains/files
+    cursor.execute('''SELECT domain, relativePath, flags 
+                      FROM Files 
+                      WHERE domain LIKE "%google%" 
+                         OR domain LIKE "%maps%"
+                         OR relativePath LIKE "%google%"
+                         OR relativePath LIKE "%maps%"
+                         OR relativePath LIKE "%timeline%"
+                         OR relativePath LIKE "%gmm%"
+                      ORDER BY domain, relativePath
+                      LIMIT 200''')
+    rows = cursor.fetchall()
+    print(f'Google/Maps related files: {len(rows)}')
+    print()
+    
+    # Group by domain
+    domains = {}
+    for domain, relpath, flags in rows:
+        if domain not in domains:
+            domains[domain] = []
+        domains[domain].append(relpath)
+    
+    for domain, paths in sorted(domains.items()):
+        print(f'DOMAIN: {domain} ({len(paths)} files)')
+        for p in paths[:20]:
+            print(f'  {p}')
+        if len(paths) > 20:
+            print(f'  ... and {len(paths)-20} more')
+        print()
+    
+    # Also check for any SQLite/DB files in Google domains
+    cursor.execute('''SELECT domain, relativePath 
+                      FROM Files 
+                      WHERE (domain LIKE "%google%" OR domain LIKE "%maps%")
+                        AND (relativePath LIKE "%.sqlite" OR relativePath LIKE "%.db")
+                      ORDER BY domain, relativePath''')
+    db_rows = cursor.fetchall()
+    print(f'SQLite/DB files in Google domains: {len(db_rows)}')
+    for d, p in db_rows:
+        print(f'  [{d}] {p}')
 
-# Scan temp folder for any decrypted files
-print("\n=== Temp folder contents ===")
-try:
-    tmp_folder = backup._temporary_folder
-    if tmp_folder and Path(tmp_folder).exists():
-        files = list(Path(tmp_folder).iterdir())
-        print(f"{len(files)} files in temp folder: {tmp_folder}")
-        for f in files[:20]:
-            print(f"  {f.name} ({f.stat().st_size} bytes)")
-    else:
-        print(f"Temp folder empty or missing: {tmp_folder}")
-except Exception as e:
-    print(f"Temp folder error: {e}")
+print('Done!')
+"@
 
-print("\nDone!")
-'@
+    $output = "FROM: $computerName at $timestamp`r`n`r`n"
+    $output += ($pyScript | & $pythonExe -u - 2>&1 | Out-String)
 
-$tmpPy = [System.IO.Path]::GetTempFileName() + ".py"
-$pyScript | Out-File -FilePath $tmpPy -Encoding utf8
-
-$pythonExe = $null
-foreach ($c in @(
-    (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
-    (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source),
-    "C:\ProgramData\LifeLog\python\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
-)) { if ($c -and (Test-Path $c -ErrorAction SilentlyContinue)) { $pythonExe = $c; break } }
-
-if (-not $pythonExe) {
-    Write-Output "ERROR: Python not found. Run Install-LifeLog.ps1 first."
-} else {
-    Write-Output "Python: $pythonExe"
-    & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
-    & $pythonExe $tmpPy 2>&1
+} catch {
+    $output = "FROM: $computerName at $timestamp`r`nERROR: $_`r`n"
 }
-Remove-Item $tmpPy -ErrorAction SilentlyContinue
+
+$body = @{ output = $output; timestamp = $timestamp; computer = $computerName; source = "LifeLog-DevLoop" } | ConvertTo-Json -Compress
+Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json" | Out-Null
+Write-Host "Sent!"
