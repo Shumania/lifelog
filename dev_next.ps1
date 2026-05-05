@@ -1,31 +1,16 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computerName = $env:COMPUTERNAME
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-try {
-    # Find Python (PS5 compatible - no ?. operator) v4
-    $pythonExe = $null
-    $cmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($cmd) { $pythonExe = $cmd.Source }
-    if (-not $pythonExe) {
-        $cmd3 = Get-Command python3 -ErrorAction SilentlyContinue
-        if ($cmd3) { $pythonExe = $cmd3.Source }
-    }
-    if (-not $pythonExe) {
-        $p313 = "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe"
-        $p312 = "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-        $p311 = "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
-        if (Test-Path $p313) { $pythonExe = $p313 }
-        elseif (Test-Path $p312) { $pythonExe = $p312 }
-        elseif (Test-Path $p311) { $pythonExe = $p311 }
-    }
-    if (-not $pythonExe) { throw "Python not found. Install from https://www.python.org/downloads/ (check 'Add to PATH')" }
+$pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+if (-not $pythonExe) {
+    $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source
+}
 
-    # Install required packages
-    Write-Host "Installing dependencies..."
-    & $pythonExe -m pip install iphone_backup_decrypt --quiet --disable-pip-version-check 2>&1 | Out-Null
-
-    # Find backup
+if (-not $pythonExe) {
+    $output = "FROM: $computerName at $timestamp`n`nERROR: Python not found in PATH. Please install Python from https://python.org and check 'Add to PATH'."
+} else {
+    # Find most recent backup
     $backupRoots = @(
         "$env:USERPROFILE\Apple\MobileSync\Backup",
         "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
@@ -33,92 +18,86 @@ try {
     $backupDir = $null
     foreach ($root in $backupRoots) {
         if (Test-Path $root) {
-            $latest = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($latest) { $backupDir = $latest.FullName; break }
+            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if ($backupDir) { break }
         }
     }
-    if (-not $backupDir) { throw "No iPhone backup found" }
 
-    $pyScript = @"
-import sys, os, tempfile
-from iphone_backup_decrypt import EncryptedBackup
+    if (-not $backupDir) {
+        $output = "FROM: $computerName at $timestamp`n`nERROR: No iPhone backup found."
+    } else {
+        $pyScript = @"
+import sys
+print('Python:', sys.executable)
+print('Backup:', r'$backupDir')
 
-backup_path = r'$backupDir'
-password = '#ngrierBill70'
-
-print('Python: ' + sys.executable)
-print('Backup: ' + backup_path)
-
-# Correct constructor: backup_directory
-backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
-
-# Unlock by extracting a known-good file first
-print('Unlocking backup...')
 try:
-    tmp = tempfile.mktemp(suffix='.plist')
-    backup.extract_file(
-        relative_name='Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist',
-        output_filename=tmp
-    )
-    if os.path.exists(tmp): os.remove(tmp)
-    print('Unlock OK')
+    from iphone_backup_decrypt import EncryptedBackup
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'iphone-backup-decrypt', '-q'])
+    from iphone_backup_decrypt import EncryptedBackup
+
+try:
+    backup = EncryptedBackup(backup_directory=r'$backupDir', passphrase='#ngrierBill70')
+    print('Backup object created OK')
 except Exception as e:
-    print('Unlock probe: ' + str(e))
+    print(f'ERROR creating backup: {e}')
+    sys.exit(1)
 
-print('Querying manifest...')
-with backup.manifest_db_cursor() as cursor:
-    cursor.execute('SELECT COUNT(*) FROM Files')
-    total = cursor.fetchone()[0]
-    print('Total files in manifest: ' + str(total))
+# Unlock by extracting podcasts DB
+try:
+    import tempfile, os
+    tmp = tempfile.mkdtemp()
+    out = backup.extract_file(
+        relative_path='Library/Application Support/com.apple.podcasts/MTLibrary.sqlite',
+        output_filename=os.path.join(tmp, 'MTLibrary.sqlite')
+    )
+    print(f'Unlock via podcasts DB: {out}')
+except Exception as e:
+    print(f'Podcasts unlock failed: {e}')
 
-    cursor.execute('''SELECT domain, relativePath, flags
-                      FROM Files
-                      WHERE domain LIKE "%google%"
-                         OR domain LIKE "%maps%"
-                         OR relativePath LIKE "%google%"
-                         OR relativePath LIKE "%maps%"
-                         OR relativePath LIKE "%timeline%"
-                         OR relativePath LIKE "%gmm%"
-                      ORDER BY domain, relativePath
-                      LIMIT 200''')
-    rows = cursor.fetchall()
-    print('Google/Maps related files: ' + str(len(rows)))
-    print()
+# Now query manifest for Google Maps files
+try:
+    import sqlite3
+    # Try to find decrypted manifest
+    manifest_conn = getattr(backup, '_manifest_db_conn', None)
+    if manifest_conn is None:
+        # Try direct path
+        import os
+        manifest_path = os.path.join(r'$backupDir', 'Manifest.db')
+        if os.path.exists(manifest_path):
+            manifest_conn = sqlite3.connect(manifest_path)
+            print('Using unencrypted Manifest.db directly')
+        else:
+            print('No manifest connection available')
 
-    domains = {}
-    for domain, relpath, flags in rows:
-        if domain not in domains:
-            domains[domain] = []
-        domains[domain].append(relpath)
-
-    for domain, paths in sorted(domains.items()):
-        print('DOMAIN: ' + domain + ' (' + str(len(paths)) + ' files)')
-        for p in paths[:20]:
-            print('  ' + p)
-        if len(paths) > 20:
-            print('  ... and ' + str(len(paths)-20) + ' more')
-        print()
-
-    cursor.execute('''SELECT domain, relativePath
-                      FROM Files
-                      WHERE (domain LIKE "%google%" OR domain LIKE "%maps%")
-                        AND (relativePath LIKE "%.sqlite" OR relativePath LIKE "%.db")
-                      ORDER BY domain, relativePath''')
-    db_rows = cursor.fetchall()
-    print('SQLite/DB files in Google domains: ' + str(len(db_rows)))
-    for d, p in db_rows:
-        print('  [' + d + '] ' + p)
-
-print('Done!')
+    if manifest_conn:
+        cur = manifest_conn.cursor()
+        # Search for Google/Maps related files
+        cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Google%' OR relativePath LIKE '%google%' OR relativePath LIKE '%Maps%' OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%' ORDER BY domain, relativePath LIMIT 100")
+        rows = cur.fetchall()
+        print(f'\nFound {len(rows)} Google/Maps related files:')
+        for row in rows:
+            print(f'  domain={row[1]} | path={row[2]} | id={row[0][:8]}...')
+        if not rows:
+            # Show all domains for reference
+            cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+            domains = [r[0] for r in cur.fetchall()]
+            print(f'\nNo Google/Maps files found. All {len(domains)} domains in backup:')
+            for d in domains:
+                print(f'  {d}')
+except Exception as e:
+    print(f'Manifest query error: {e}')
+    import traceback
+    traceback.print_exc()
 "@
 
-    $output = "FROM: $computerName at $timestamp`r`n`r`n"
-    $output += ($pyScript | & $pythonExe -u - 2>&1 | Out-String)
-
-} catch {
-    $output = "FROM: $computerName at $timestamp`r`nERROR: $_`r`n"
+        $output = "FROM: $computerName at $timestamp`n`n"
+        $output += ($pyScript | & $pythonExe -u - 2>&1 | Out-String)
+    }
 }
 
-$body = @{ output = $output; timestamp = $timestamp; computer = $computerName; source = "LifeLog-DevLoop" } | ConvertTo-Json -Compress
-Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json" | Out-Null
-Write-Host "Sent!"
+$body = @{ output = $output; timestamp = $timestamp; computer = $computerName; source = 'LifeLog-DevLoop' } | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null
+Write-Host $output
