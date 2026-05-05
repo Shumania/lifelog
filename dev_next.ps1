@@ -13,13 +13,13 @@ $pyVersion = if ($pythonExe) { & $pythonExe --version 2>&1 } else { "NOT FOUND" 
 $script = @'
 import os, sys, json, tempfile, traceback
 
-password = "#ngrierBill70"
+passphrase = "#ngrierBill70"  # v0.9 API uses passphrase=
 
 # Find backup dir
 backup_dir = None
 for base in [
     os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
-    os.path.join(os.environ.get("USERPROFILE",""), "AppData", "Roaming", "Apple Computer", "MobileSync", "Backup"),
+    os.path.join(os.environ.get("APPDATA",""), "Apple Computer", "MobileSync", "Backup"),
 ]:
     if os.path.isdir(base):
         entries = [os.path.join(base, d) for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))]
@@ -28,49 +28,66 @@ for base in [
             break
 
 print(f"Backup dir: {backup_dir}")
+if not backup_dir:
+    print("ERROR: No backup directory found!")
+    sys.exit(1)
 
 import subprocess
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "iphone_backup_decrypt"], capture_output=True)
 
 from iphone_backup_decrypt import EncryptedBackup
+print(f"iphone_backup_decrypt imported OK")
 
-backup = EncryptedBackup(backup_directory=backup_dir, password=password)
-print(f"Backup object created: {type(backup)}")
-print(f"Backup attrs: {[a for a in dir(backup) if not a.startswith('__')]}")
-
-# First try extract_file to force unlock
-print("\n=== Trying extract_file for podcasts (forces unlock) ===")
+# Step 1: Create backup object and force unlock by extracting podcasts DB
+print("\n=== Creating backup + extracting podcasts DB (forces manifest unlock) ===")
+backup = EncryptedBackup(backup_directory=backup_dir, passphrase=passphrase)
+tmp_podcasts = tempfile.mktemp(suffix="_podcasts.sqlite")
 try:
-    tmp = tempfile.mktemp(suffix=".sqlite")
     backup.extract_file(
-        relative_name="AppDomainGroup-243LU875E5.groups.com.apple.podcasts/Library/Database/MTLibrary.sqlite",
-        output_filename=tmp
+        relative_path="Library/Database/MTLibrary.sqlite",
+        output_filename=tmp_podcasts,
+        domain_like="%groups.com.apple.podcasts"
     )
-    print(f"extract_file succeeded, file size: {os.path.getsize(tmp)}")
+    size = os.path.getsize(tmp_podcasts) if os.path.exists(tmp_podcasts) else 0
+    print(f"Podcasts DB extracted OK, size={size}")
 except Exception as e:
-    print(f"extract_file error: {repr(e)}")
+    print(f"Podcasts extract error: {repr(e)}")
     traceback.print_exc()
 
-# Now try _open_manifest_db
-print("\n=== Trying _open_manifest_db() ===")
+# Step 2: Save manifest to temp file and open it to enumerate Google Maps files
+print("\n=== Saving manifest DB and searching for Google Maps files ===")
+tmp_manifest = tempfile.mktemp(suffix="_manifest.db")
 try:
-    backup._open_manifest_db()
-    print("_open_manifest_db() succeeded")
-    conn = backup._manifest_db_conn
-    print(f"Connection: {conn}")
-    cur = conn.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%Google%' OR domain LIKE '%Maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' OR relativePath LIKE '%Maps%' LIMIT 50")
+    backup.save_manifest_file(output_filename=tmp_manifest)
+    print(f"save_manifest_file OK, size={os.path.getsize(tmp_manifest)}")
+    import sqlite3
+    conn = sqlite3.connect(tmp_manifest)
+    cur = conn.execute("""
+        SELECT fileID, domain, relativePath FROM Files
+        WHERE domain LIKE '%Google%' OR domain LIKE '%Maps%'
+           OR relativePath LIKE '%google%' OR relativePath LIKE '%Maps%'
+           OR relativePath LIKE '%timeline%'
+        LIMIT 100
+    """)
     rows = cur.fetchall()
     print(f"Google/Maps files found: {len(rows)}")
     for r in rows:
         print(f"  {r[1]} | {r[2]} | {r[0]}")
+    # Also dump all unique domains for context
+    cur2 = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+    domains = [r[0] for r in cur2.fetchall()]
+    print(f"\n=== All domains in backup ({len(domains)} total) ===")
+    for d in domains:
+        print(f"  {d}")
+    conn.close()
 except Exception as e:
-    print(f"_open_manifest_db error: {repr(e)}")
+    print(f"Manifest error: {repr(e)}")
     traceback.print_exc()
 
 print("\nDone!")
 '@
 
-$tmpScript = Join-Path $env:TEMP "gmaps_inspect_v5.py"
+$tmpScript = Join-Path $env:TEMP "gmaps_inspect_v6.py"
 $script | Set-Content -Path $tmpScript -Encoding UTF8
 
 $output = if ($pythonExe) {
@@ -79,5 +96,5 @@ $output = if ($pythonExe) {
     "Machine: $machine`nPython NOT FOUND - run Install-LifeLog.ps1 first`n"
 }
 
-$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $machine; source = "gmaps_inspect_v5" } | ConvertTo-Json
+$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $machine; source = "gmaps_inspect_v6" } | ConvertTo-Json -Depth 3
 Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
