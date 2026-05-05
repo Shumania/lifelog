@@ -35,97 +35,80 @@ if not backup_dir:
     sys.exit(1)
 print(f"Backup: {backup_dir}")
 
-# Step 1: Print all attributes of EncryptedBackup to understand its API
-print("\n=== Step 1: EncryptedBackup attributes ===")
-try:
-    from iphone_backup_decrypt import EncryptedBackup
-    backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=PASSWORD)
-    attrs = [a for a in dir(backup) if not a.startswith('__')]
-    print(f"Attributes: {attrs}")
-    # Check _manifest_db_path specifically
-    if hasattr(backup, '_manifest_db_path'):
-        p = backup._manifest_db_path
-        print(f"_manifest_db_path = {p}")
-        if p and Path(p).exists():
-            print(f"  -> File exists, size={Path(p).stat().st_size}")
-            # Try connecting
-            try:
-                conn = sqlite3.connect(p)
-                cur = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-                domains = [r[0] for r in cur.fetchall()]
-                print(f"  -> {len(domains)} domains found")
-                for d in domains:
-                    print(f"     {d}")
-                conn.close()
-            except Exception as e:
-                print(f"  -> sqlite3 connect error: {e}")
-        else:
-            print(f"  -> File does not exist at that path")
-except Exception as e:
-    import traceback
-    print(f"ERROR: {e}")
-    traceback.print_exc()
-    sys.exit(1)
+from iphone_backup_decrypt import EncryptedBackup
+print("Constructing EncryptedBackup...")
+backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=PASSWORD)
 
-# Step 2: Try extracting podcasts DB to force unlock
-print("\n=== Step 2: Extract podcasts DB ===")
-try:
-    import inspect
-    sig = inspect.signature(backup.extract_file)
-    print(f"extract_file signature: {sig}")
-    
-    with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
-        tmp_path = tmp.name
-    
-    # Try different domain_like values
-    for domain_like in ["AppDomainGroup-243LU875E5.groups.com.apple.podcasts", "%podcasts%", None]:
-        try:
-            print(f"Trying domain_like={domain_like!r}")
-            if domain_like is None:
-                backup.extract_file(
-                    relative_path="Library/Database/MTLibrary.sqlite",
-                    output_filename=tmp_path
-                )
-            else:
-                backup.extract_file(
-                    relative_path="Library/Database/MTLibrary.sqlite",
-                    output_filename=tmp_path,
-                    domain_like=domain_like
-                )
-            size = Path(tmp_path).stat().st_size
-            print(f"  -> Success! {size} bytes")
-            break
-        except Exception as e:
-            print(f"  -> Failed: {e}")
-except Exception as e:
-    import traceback
-    print(f"ERROR in extract: {e}")
-    traceback.print_exc()
+# Check unlock status
+print(f"_unlocked = {backup._unlocked}")
+print(f"_temp_decrypted_manifest_db_path = {backup._temp_decrypted_manifest_db_path}")
+print(f"_temporary_folder = {backup._temporary_folder}")
 
-# Step 3: After extraction, try manifest path again
-print("\n=== Step 3: Manifest after extraction ===")
+# Check if temp decrypted manifest exists
+tmp_manifest = backup._temp_decrypted_manifest_db_path
+if tmp_manifest and Path(tmp_manifest).exists():
+    size = Path(tmp_manifest).stat().st_size
+    print(f"Decrypted manifest exists! Size = {size} bytes")
+    try:
+        conn = sqlite3.connect(tmp_manifest)
+        cur = conn.execute("SELECT COUNT(*) FROM Files")
+        total = cur.fetchone()[0]
+        print(f"Total files in manifest: {total}")
+        # Find Google/Maps related
+        cur = conn.execute("""
+            SELECT domain, relativePath FROM Files
+            WHERE domain LIKE '%oogle%' OR domain LIKE '%Maps%' OR domain LIKE '%maps%'
+               OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%'
+               OR relativePath LIKE '%GoogleMaps%'
+            LIMIT 100
+        """)
+        rows = cur.fetchall()
+        print(f"\nGoogle/Maps files ({len(rows)} found):")
+        for r in rows:
+            print(f"  {r[0]} | {r[1]}")
+        conn.close()
+    except Exception as e:
+        print(f"sqlite3 error on decrypted manifest: {e}")
+else:
+    print(f"Decrypted manifest NOT found at: {tmp_manifest}")
+
+# Try test_decryption()
+print("\n=== test_decryption() ===")
 try:
-    if hasattr(backup, '_manifest_db_path'):
-        p = backup._manifest_db_path
-        print(f"_manifest_db_path = {p}")
-        if p and Path(p).exists():
-            conn = sqlite3.connect(p)
-            cur = conn.execute("SELECT COUNT(*) FROM Files")
-            print(f"Files count: {cur.fetchone()[0]}")
-            # Find Google Maps
-            cur = conn.execute("""
-                SELECT domain, relativePath FROM Files
-                WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%'
-                   OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Timeline%'
-                LIMIT 50
-            """)
-            rows = cur.fetchall()
-            print(f"Google/Maps rows: {len(rows)}")
-            for r in rows:
-                print(f"  {r[0]} | {r[1]}")
-            conn.close()
+    result = backup.test_decryption()
+    print(f"test_decryption result: {result}")
 except Exception as e:
-    print(f"ERROR: {e}")
+    print(f"test_decryption error: {e}")
+
+# Try manifest_db_cursor() public method
+print("\n=== manifest_db_cursor() ===")
+try:
+    cur = backup.manifest_db_cursor()
+    print(f"Got cursor: {cur}")
+    results = cur.execute("""
+        SELECT domain, relativePath FROM Files
+        WHERE domain LIKE '%oogle%' OR domain LIKE '%Maps%'
+        LIMIT 50
+    """).fetchall()
+    print(f"Google/Maps rows: {len(results)}")
+    for r in results:
+        print(f"  {r[0]} | {r[1]}")
+except Exception as e:
+    print(f"manifest_db_cursor error: {e}")
+
+# Scan temp folder for any decrypted files
+print("\n=== Temp folder contents ===")
+try:
+    tmp_folder = backup._temporary_folder
+    if tmp_folder and Path(tmp_folder).exists():
+        files = list(Path(tmp_folder).iterdir())
+        print(f"{len(files)} files in temp folder: {tmp_folder}")
+        for f in files[:20]:
+            print(f"  {f.name} ({f.stat().st_size} bytes)")
+    else:
+        print(f"Temp folder empty or missing: {tmp_folder}")
+except Exception as e:
+    print(f"Temp folder error: {e}")
 
 print("\nDone!")
 '@
