@@ -3,7 +3,7 @@ $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 try {
-    # Find Python (PS5 compatible - no ?. operator) v2
+    # Find Python (PS5 compatible - no ?. operator) v3
     $pythonExe = $null
     $cmd = Get-Command python -ErrorAction SilentlyContinue
     if ($cmd) { $pythonExe = $cmd.Source }
@@ -48,7 +48,8 @@ password = '#ngrierBill70'
 print('Python: ' + sys.executable)
 print('Backup: ' + backup_path)
 
-backup = EncryptedBackup(backup_path=backup_path, passphrase=password)
+# Correct constructor: backup_directory (not backup_path)
+backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
 # Unlock by extracting a known-good file first
 print('Unlocking backup...')
@@ -59,6 +60,7 @@ try:
         output_filename=tmp
     )
     if os.path.exists(tmp): os.remove(tmp)
+    print('Unlock OK')
 except Exception as e:
     print('Unlock probe: ' + str(e))
 
