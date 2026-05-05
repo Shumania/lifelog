@@ -79,34 +79,35 @@ def ensure_decrypt_lib():
 
 def get_manifest_db(backup):
     """Try every known way to access the manifest DB."""
-    # Try all possible attribute names
+    # Try all possible attribute names for a live connection
     for attr in ["_manifest_db", "_db", "manifest_db", "_manifest", "manifest"]:
         val = getattr(backup, attr, None)
         if val is not None:
             return val
 
-    # Try extracting the podcasts DB (known to exist) to force manifest loading
-    print("Forcing manifest load via known podcasts DB extraction...")
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
-            tmp_path = tmp.name
-        backup.extract_file(
-            relative_path=PODCASTS_PATH,
-            output_filename=tmp_path,
-            domain_like=PODCASTS_DOMAIN
-        )
-        print(f"  Extracted podcasts DB ({os.path.getsize(tmp_path):,} bytes)")
-        os.unlink(tmp_path)
-    except Exception as e:
-        print(f"  Podcasts extraction: {e}")
+    # Try _temp_decrypted_manifest_db_path (confirmed present in debug output)
+    temp_path = getattr(backup, "_temp_decrypted_manifest_db_path", None)
+    if temp_path and os.path.exists(temp_path):
+        print(f"Opening decrypted manifest from temp path: {temp_path}")
+        try:
+            conn = sqlite3.connect(temp_path)
+            conn.execute("SELECT COUNT(*) FROM Files")  # quick sanity check
+            return conn
+        except Exception as e:
+            print(f"  Failed to open temp manifest: {e}")
 
-    # Try attributes again after extraction
-    for attr in ["_manifest_db", "_db", "manifest_db", "_manifest", "manifest"]:
-        val = getattr(backup, attr, None)
-        if val is not None:
-            return val
+    # Fallback: try the raw Manifest.db directly (may be encrypted, worth trying)
+    raw_path = getattr(backup, "_manifest_db_path", None)
+    if raw_path and os.path.exists(raw_path):
+        print(f"Trying raw manifest DB: {raw_path}")
+        try:
+            conn = sqlite3.connect(raw_path)
+            conn.execute("SELECT COUNT(*) FROM Files")
+            return conn
+        except Exception as e:
+            print(f"  Raw manifest not readable (encrypted): {e}")
 
-    # Debug: print all non-callable attributes to find the right one
+    # Debug dump to help diagnose further
     print("\nDebug - backup object attributes:")
     for attr in sorted(dir(backup)):
         if not attr.startswith('__') and not callable(getattr(backup, attr, None)):
