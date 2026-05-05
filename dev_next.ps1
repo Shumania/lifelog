@@ -3,7 +3,7 @@ $computerName = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 try {
-    # Find Python (PS5 compatible - no ?. operator)
+    # Find Python (PS5 compatible - no ?. operator) v2
     $pythonExe = $null
     $cmd = Get-Command python -ErrorAction SilentlyContinue
     if ($cmd) { $pythonExe = $cmd.Source }
