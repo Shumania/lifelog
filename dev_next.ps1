@@ -1,100 +1,143 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$machine = $env:COMPUTERNAME
+$computerName = $env:COMPUTERNAME
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-$cmd = Get-Command python -ErrorAction SilentlyContinue
-$pythonExe = if ($cmd) { $cmd.Source } else { $null }
-if (-not $pythonExe) {
-    $cmd3 = Get-Command python3 -ErrorAction SilentlyContinue
-    $pythonExe = if ($cmd3) { $cmd3.Source } else { $null }
-}
+$pyScript = @'
+import sys, os, tempfile, sqlite3
+from pathlib import Path
 
-$pyVersion = if ($pythonExe) { & $pythonExe --version 2>&1 } else { "NOT FOUND" }
+PASSWORD = "#ngrierBill70"
 
-$script = @'
-import os, sys, json, tempfile, traceback
+def find_backup():
+    candidates = []
+    for base in [
+        os.path.expandvars(r"%USERPROFILE%\Apple\MobileSync\Backup"),
+        os.path.expandvars(r"%USERPROFILE%\AppData\Roaming\Apple Computer\MobileSync\Backup"),
+        r"C:\Users\andre\Apple\MobileSync\Backup",
+    ]:
+        p = Path(base)
+        if p.exists():
+            for d in p.iterdir():
+                manifest = d / "Manifest.db"
+                plist = d / "Manifest.plist"
+                if manifest.exists() or plist.exists():
+                    mtime = (manifest if manifest.exists() else plist).stat().st_mtime
+                    candidates.append((mtime, d))
+    if not candidates:
+        return None
+    return sorted(candidates)[-1][1]
 
-passphrase = "#ngrierBill70"  # v0.9 API uses passphrase=
-
-# Find backup dir
-backup_dir = None
-for base in [
-    os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
-    os.path.join(os.environ.get("APPDATA",""), "Apple Computer", "MobileSync", "Backup"),
-]:
-    if os.path.isdir(base):
-        entries = [os.path.join(base, d) for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))]
-        if entries:
-            backup_dir = max(entries, key=os.path.getmtime)
-            break
-
-print(f"Backup dir: {backup_dir}")
+backup_dir = find_backup()
 if not backup_dir:
-    print("ERROR: No backup directory found!")
+    print("ERROR: No backup found")
     sys.exit(1)
 
-import subprocess
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "iphone_backup_decrypt"], capture_output=True)
+print(f"Backup: {backup_dir}")
 
-from iphone_backup_decrypt import EncryptedBackup
-print(f"iphone_backup_decrypt imported OK")
-
-# Step 1: Create backup object and force unlock by extracting podcasts DB
-print("\n=== Creating backup + extracting podcasts DB (forces manifest unlock) ===")
-backup = EncryptedBackup(backup_directory=backup_dir, passphrase=passphrase)
-tmp_podcasts = tempfile.mktemp(suffix="_podcasts.sqlite")
+# Step 1: Unlock by extracting podcasts DB
+print("\n=== Step 1: Unlock backup ===")
 try:
+    from iphone_backup_decrypt import EncryptedBackup
+    backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=PASSWORD)
+    
+    with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
+        tmp_path = tmp.name
+    
     backup.extract_file(
         relative_path="Library/Database/MTLibrary.sqlite",
-        output_filename=tmp_podcasts,
-        domain_like="%groups.com.apple.podcasts"
+        output_filename=tmp_path,
+        domain_like="AppDomainGroup-243LU875E5.groups.com.apple.podcasts"
     )
-    size = os.path.getsize(tmp_podcasts) if os.path.exists(tmp_podcasts) else 0
-    print(f"Podcasts DB extracted OK, size={size}")
+    
+    if Path(tmp_path).exists() and Path(tmp_path).stat().st_size > 0:
+        print(f"Unlock SUCCESS - extracted podcasts DB ({Path(tmp_path).stat().st_size} bytes)")
+    else:
+        print("Unlock FAILED - empty output")
+    
+    # Step 2: Inspect backup object attributes
+    print("\n=== Step 2: Backup object attributes ===")
+    attrs = [a for a in dir(backup) if not a.startswith('__')]
+    print("Attributes:", attrs)
+    
+    # Try common manifest access patterns
+    for attr in ['_manifest_db', '_manifest_db_conn', '_db', 'manifest_db', '_conn']:
+        if hasattr(backup, attr):
+            val = getattr(backup, attr)
+            print(f"  {attr} = {val}")
+    
 except Exception as e:
-    print(f"Podcasts extract error: {repr(e)}")
-    traceback.print_exc()
+    print(f"Error: {e}")
+    import traceback; traceback.print_exc()
 
-# Step 2: Save manifest to temp file and open it to enumerate Google Maps files
-print("\n=== Saving manifest DB and searching for Google Maps files ===")
-tmp_manifest = tempfile.mktemp(suffix="_manifest.db")
+# Step 3: Try querying Manifest.db directly after unlock
+print("\n=== Step 3: Query Manifest.db for Google Maps files ===")
+manifest_path = backup_dir / "Manifest.db"
 try:
-    backup.save_manifest_file(output_filename=tmp_manifest)
-    print(f"save_manifest_file OK, size={os.path.getsize(tmp_manifest)}")
-    import sqlite3
-    conn = sqlite3.connect(tmp_manifest)
+    conn = sqlite3.connect(str(manifest_path))
+    # Try to find Google Maps related files
     cur = conn.execute("""
-        SELECT fileID, domain, relativePath FROM Files
-        WHERE domain LIKE '%Google%' OR domain LIKE '%Maps%'
-           OR relativePath LIKE '%google%' OR relativePath LIKE '%Maps%'
-           OR relativePath LIKE '%timeline%'
-        LIMIT 100
+        SELECT domain, relativePath, flags, fileID
+        FROM Files
+        WHERE domain LIKE '%google%' OR domain LIKE '%maps%'
+           OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%'
+           OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Maps%'
+        LIMIT 50
     """)
     rows = cur.fetchall()
-    print(f"Google/Maps files found: {len(rows)}")
-    for r in rows:
-        print(f"  {r[1]} | {r[2]} | {r[0]}")
-    # Also dump all unique domains for context
+    if rows:
+        print(f"Found {len(rows)} Google/Maps entries:")
+        for row in rows:
+            print(f"  domain={row[0]} path={row[1]} fileID={row[3][:8]}...")
+    else:
+        print("No Google Maps entries in manifest")
+    
+    # Also show all unique domains
     cur2 = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
     domains = [r[0] for r in cur2.fetchall()]
-    print(f"\n=== All domains in backup ({len(domains)} total) ===")
+    print(f"\nAll {len(domains)} domains in manifest:")
     for d in domains:
         print(f"  {d}")
     conn.close()
 except Exception as e:
-    print(f"Manifest error: {repr(e)}")
-    traceback.print_exc()
+    print(f"Direct manifest error: {e}")
 
 print("\nDone!")
 '@
 
-$tmpScript = Join-Path $env:TEMP "gmaps_inspect_v6.py"
-$script | Set-Content -Path $tmpScript -Encoding UTF8
-
-$output = if ($pythonExe) {
-    "Machine: $machine`nPython: $pythonExe ($pyVersion)`n`n" + (& $pythonExe $tmpScript 2>&1 | Out-String)
-} else {
-    "Machine: $machine`nPython NOT FOUND - run Install-LifeLog.ps1 first`n"
+try {
+    $tmpPy = [System.IO.Path]::GetTempFileName() + ".py"
+    $pyScript | Out-File -FilePath $tmpPy -Encoding utf8
+    
+    $pythonExe = Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $pythonExe) { $pythonExe = Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source }
+    if (-not $pythonExe) {
+        $candidates = @(
+            "C:\\ProgramData\\LifeLog\\python\\python.exe",
+            "C:\\Python312\\python.exe",
+            "C:\\Python311\\python.exe",
+            "$env:LOCALAPPDATA\\Programs\\Python\\Python312\\python.exe",
+            "$env:LOCALAPPDATA\\Programs\\Python\\Python311\\python.exe"
+        )
+        foreach ($c in $candidates) { if (Test-Path $c) { $pythonExe = $c; break } }
+    }
+    
+    if (-not $pythonExe) {
+        $output = "ERROR: Python not found. Run Install-LifeLog.ps1 first."
+    } else {
+        # Ensure iphone_backup_decrypt is installed
+        & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+        $output = & $pythonExe $tmpPy 2>&1 | Out-String
+    }
+    Remove-Item $tmpPy -ErrorAction SilentlyContinue
+} catch {
+    $output = "Script error: $_"
 }
 
-$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $machine; source = "gmaps_inspect_v6" } | ConvertTo-Json -Depth 3
-Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
+$body = "FROM: $computerName at $timestamp`n`n=== Script Output ===`n$output"
+
+try {
+    Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "text/plain" | Out-Null
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Output sent to webhook"
+} catch {
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Webhook failed: $_"
+}
