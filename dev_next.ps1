@@ -1,62 +1,35 @@
-# dev_next.ps1 - VERSION: 2026-05-06-v6-googlemaps
-# Tasklet-controlled script. Run by LifeLog-DevLoop.ps1 every 5 min.
-
+# dev_next.ps1 - VERSION: 2026-05-06-v7-googlemaps
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-Write-Host "dev_next v6 running on $computer at $timestamp"
-
-# Find Python - try where.exe first, skip WindowsApps stub
+# Find Python - skip WindowsApps stub
 $pythonExe = $null
 try {
-    $candidates = where.exe python 2>$null
+    $candidates = @(where.exe python 2>$null)
     foreach ($c in $candidates) {
-        if ($c -notlike "*WindowsApps*") {
-            $pythonExe = $c.Trim()
-            break
-        }
+        if ($c -notlike "*WindowsApps*") { $pythonExe = $c.Trim(); break }
     }
-    # If all are WindowsApps, still try the first one
-    if (-not $pythonExe -and $candidates) {
-        $pythonExe = ($candidates | Select-Object -First 1).Trim()
-    }
+    if (-not $pythonExe -and $candidates) { $pythonExe = $candidates[0].Trim() }
 } catch {}
-
-# Fallback: common install paths
 if (-not $pythonExe) {
     $fallbacks = @(
-        "C:\Python314\python.exe",
-        "C:\Python313\python.exe",
-        "C:\Python312\python.exe",
-        "C:\Python311\python.exe",
-        "C:\Python310\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
+        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
     )
-    foreach ($p in $fallbacks) {
-        if (Test-Path $p) { $pythonExe = $p; break }
-    }
+    foreach ($p in $fallbacks) { if (Test-Path $p) { $pythonExe = $p; break } }
 }
-
 if (-not $pythonExe) {
-    $errMsg = "Python not found on $computer"
-    Write-Host $errMsg
-    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output=$errMsg } | ConvertTo-Json -Compress
+    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output="v7 ERROR: Python not found" } | ConvertTo-Json -Compress
     Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
     exit
 }
 
-Write-Host "Using Python: $pythonExe"
+& $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
-try {
-    # Install dependency quietly
-    & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
-
-    $scriptContent = @'
-import os, sys, glob, sqlite3, tempfile, shutil
+$scriptContent = @'
+import os, sys, glob, tempfile, shutil
 
 PASSWORD = "#ngrierBill70"
 
@@ -74,37 +47,33 @@ def find_backup():
 
 backup_path = find_backup()
 if not backup_path:
-    print("ERROR: No backup found")
-    sys.exit(1)
+    print("ERROR: No backup found"); sys.exit(1)
 
 print(f"Backup: {backup_path}")
 
-from iphone_backup_decrypt import EncryptedBackup, RelativePath
+from iphone_backup_decrypt import EncryptedBackup
 
 backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSWORD)
 
-# Step 1: unlock by extracting podcasts DB
+# Step 1: unlock by extracting podcasts DB (forces manifest decryption)
 tmpdir = tempfile.mkdtemp()
 try:
     out = os.path.join(tmpdir, "podcasts.sqlite")
     backup.extract_file(
-        relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite",
+        relative_path="Library/Application Support/Podcasts/MTLibrary.sqlite",
         domain_like="AppDomainGroup-%groups.com.apple.podcasts",
         output_filename=out
     )
     print(f"Unlock OK: {os.path.getsize(out)} bytes")
 except Exception as e:
-    print(f"Unlock failed: {e}")
+    print(f"Unlock warning: {e}")
 
-# Step 2: query Manifest.db directly
-manifest_src = os.path.join(backup_path, "Manifest.db")
-manifest_tmp = os.path.join(tmpdir, "Manifest.db")
-
-if os.path.exists(manifest_src):
-    shutil.copy2(manifest_src, manifest_tmp)
-    try:
-        conn = sqlite3.connect(manifest_tmp)
+# Step 2: use the library's internal decrypted manifest connection
+try:
+    with backup._manifest_db_conn as conn:
         cur = conn.cursor()
+
+        # Search for Google/Maps related files
         cur.execute("""
             SELECT fileID, domain, relativePath
             FROM Files
@@ -114,12 +83,13 @@ if os.path.exists(manifest_src):
             ORDER BY domain, relativePath
         """)
         rows = cur.fetchall()
-        print(f"\nFound {len(rows)} Google/Maps files in Manifest.db:")
+        print(f"\nFound {len(rows)} Google/Maps files:")
         for fileID, domain, relpath in rows:
-            print(f"  [{domain}] {relpath}")
+            print(f"  [{domain}] {relpath}  (id={fileID[:8]}...)")
 
+        # All distinct domains that contain 'google' or 'maps'
         cur.execute("""
-            SELECT DISTINCT domain FROM Files 
+            SELECT DISTINCT domain FROM Files
             WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%'
             ORDER BY domain
         """)
@@ -128,37 +98,24 @@ if os.path.exists(manifest_src):
         for (d,) in domains:
             print(f"  {d}")
 
-        conn.close()
-    except Exception as e:
-        print(f"Manifest.db query error: {e}")
-else:
-    print("Manifest.db not found at backup root")
+except Exception as e:
+    print(f"Manifest query error: {e}")
+    import traceback; traceback.print_exc()
 
 shutil.rmtree(tmpdir, ignore_errors=True)
 print("\nDone.")
 '@
 
-    $scriptPath = "$env:TEMP\inspect_maps_v6.py"
-    $scriptContent | Out-File -FilePath $scriptPath -Encoding UTF8
+$scriptPath = "$env:TEMP\inspect_maps_v7.py"
+$scriptContent | Out-File -FilePath $scriptPath -Encoding UTF8
 
-    $output = & $pythonExe $scriptPath 2>&1 | Out-String
-    Write-Host $output
+$output = & $pythonExe $scriptPath 2>&1 | Out-String
 
-    $body = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = "LifeLog-DevLoop"
-        output    = "v6 | Python: $pythonExe`n$output"
-    } | ConvertTo-Json -Compress
+$body = @{
+    computer  = $computer
+    timestamp = $timestamp
+    source    = "LifeLog-DevLoop"
+    output    = "v7 | Python: $pythonExe`n$output"
+} | ConvertTo-Json -Compress
 
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
-}
-catch {
-    $errBody = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = "LifeLog-DevLoop"
-        output    = "v6 ERROR on $computer`: $_"
-    } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $errBody -ContentType "application/json"
-}
+Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
