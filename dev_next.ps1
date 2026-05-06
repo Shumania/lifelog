@@ -1,94 +1,108 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 
 $pythonExe = $null
-$cmd = Get-Command python -ErrorAction SilentlyContinue
-if ($cmd) { $pythonExe = $cmd.Source }
-if (-not $pythonExe) {
-    $cmd3 = Get-Command python3 -ErrorAction SilentlyContinue
-    if ($cmd3) { $pythonExe = $cmd3.Source }
+foreach ($cmd in @('python','python3')) {
+    $c = Get-Command $cmd -ErrorAction SilentlyContinue
+    if ($c) { $pythonExe = $c.Source; break }
 }
 if (-not $pythonExe) {
-    $candidates = @(
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-        "C:\ProgramData\LifeLog\python\python.exe"
-    )
-    foreach ($c in $candidates) { if (Test-Path $c) { $pythonExe = $c; break } }
+    foreach ($p in @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe","$env:LOCALAPPDATA\Programs\Python\Python312\python.exe","C:\ProgramData\LifeLog\python\python.exe")) {
+        if (Test-Path $p) { $pythonExe = $p; break }
+    }
 }
-
-$output = "Python: $pythonExe`n"
 
 $backupRoot = "$env:USERPROFILE\Apple\MobileSync\Backup"
-if (-not (Test-Path $backupRoot)) {
-    $backupRoot = "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
-}
+if (-not (Test-Path $backupRoot)) { $backupRoot = "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup" }
 $backupDir = Get-ChildItem $backupRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($backupDir) {
-    $output += "Backup: $($backupDir.FullName)`n"
-} else {
-    $output += "Backup: NOT FOUND`n"
-}
 
-if (-not $pythonExe -or -not $backupDir) {
-    $output += "ERROR: Missing Python or backup directory`n"
-} else {
-    $pyScript = @"
-import sys, os, traceback, sqlite3, tempfile
+$output = "Python: $pythonExe`nBackup: $($backupDir.FullName)`n"
+
+$pyScript = @"
+import sys, os, traceback, sqlite3, tempfile, inspect
 sys.path.insert(0, r'C:\ProgramData\LifeLog')
+
 try:
     import iphone_backup_decrypt
+    print('Library version:', getattr(iphone_backup_decrypt, '__version__', 'unknown'))
+    print('Library file:', iphone_backup_decrypt.__file__)
 except ImportError:
     import subprocess
     subprocess.run([sys.executable, '-m', 'pip', 'install', 'iphone-backup-decrypt', '--quiet'])
     import iphone_backup_decrypt
+    print('Library installed fresh')
 
 backup_path = sys.argv[1]
 password = sys.argv[2]
-print('Backup path: ' + backup_path)
 
 try:
     backup = iphone_backup_decrypt.EncryptedBackup(backup_directory=backup_path, passphrase=password)
     print('Backup object created OK')
 except Exception as e:
-    print('Backup creation failed: ' + str(e))
+    print('Backup creation failed:', e)
+    traceback.print_exc()
     sys.exit(1)
 
-# Unlock by extracting podcasts DB
+print('\n--- Backup object methods/attributes ---')
+for name in sorted(dir(backup)):
+    print(' ', name)
+
+print('\n--- Attempting podcasts extract ---')
 tmp = tempfile.mkdtemp()
+podcasts_out = os.path.join(tmp, 'podcasts.sqlite')
+try:
+    sig = inspect.signature(backup.extract_file)
+    print('extract_file signature:', sig)
+except:
+    pass
+
 try:
     backup.extract_file(
         relative_path='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
-        output_filename=os.path.join(tmp, 'podcasts.sqlite')
+        output_filename=podcasts_out
     )
-    print('Podcasts DB extracted OK - backup is unlocked')
+    print('Podcasts extracted OK to:', podcasts_out)
 except Exception as e:
-    print('Podcasts unlock attempt: ' + str(e))
-
-# Open the manifest DB directly
-try:
-    manifest_path = backup._manifest_db_path
-    print('Manifest DB path: ' + str(manifest_path))
-    conn = sqlite3.connect(manifest_path)
-    cur = conn.cursor()
-    cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%oogle%' OR relativePath LIKE '%imeline%' OR relativePath LIKE '%Maps%' LIMIT 100")
-    rows = cur.fetchall()
-    print('Google/Maps manifest entries: ' + str(len(rows)))
-    for r in rows:
-        print('  ' + str(r[0])[:8] + '... | ' + str(r[1]) + ' | ' + str(r[2]))
-    cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-    domains = [r[0] for r in cur.fetchall()]
-    print('\nAll domains (' + str(len(domains)) + ' total):')
-    for d in domains:
-        print('  ' + str(d))
-    conn.close()
-except Exception as e:
-    print('Manifest access failed: ' + str(e))
+    print('extract_file failed:', repr(e))
     traceback.print_exc()
+
+# Try alternate domain-based extraction
+try:
+    sig2 = inspect.signature(backup.extract_file)
+    params = list(sig2.parameters.keys())
+    print('extract_file params:', params)
+    if 'domain' in params:
+        backup.extract_file(
+            domain='AppDomainGroup-243LU875E5.groups.com.apple.podcasts',
+            relative_path='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
+            output_filename=podcasts_out
+        )
+        print('Domain-based extraction OK')
+except Exception as e:
+    print('Domain extraction failed:', repr(e))
+    traceback.print_exc()
+
+# Look for decrypted manifest in temp dirs
+print('\n--- Searching temp dirs for decrypted manifest ---')
+for base in [tempfile.gettempdir(), tmp]:
+    for root, dirs, files in os.walk(base):
+        for f in files:
+            if 'manifest' in f.lower() or f.endswith('.db') or f.endswith('.sqlite'):
+                full = os.path.join(root, f)
+                size = os.path.getsize(full)
+                print(f'  Found: {full} ({size} bytes)')
+                if size > 1000:
+                    try:
+                        conn = sqlite3.connect(full)
+                        cur = conn.cursor()
+                        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                        tables = [r[0] for r in cur.fetchall()]
+                        print(f'    Tables: {tables}')
+                        conn.close()
+                    except Exception as e:
+                        print(f'    Not readable: {e}')
 "@
 
-    $output += ($pyScript | & $pythonExe -u - $backupDir.FullName '#ngrierBill70' 2>&1 | Out-String)
-}
+$output += ($pyScript | & $pythonExe -u - $backupDir.FullName '#ngrierBill70' 2>&1 | Out-String)
 
 $body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $env:COMPUTERNAME; source = 'LifeLog-DevLoop' } | ConvertTo-Json
 Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null
