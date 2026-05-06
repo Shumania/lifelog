@@ -1,21 +1,21 @@
-$WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$computer = $env:COMPUTERNAME
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:MM:ss"
+# dev_next.ps1 - controlled by Tasklet agent
+# Writes all output to stdout so LifeLog-DevLoop captures and posts it.
 
-function Send-Output($text) {
-    $body = @{ log = $text; exitCode = 0; computer = $computer; timestamp = $timestamp } | ConvertTo-Json
-    Invoke-RestMethod -Uri $WEBHOOK -Method Post -Body $body -ContentType "application/json" | Out-Null
-}
+$computer = $env:COMPUTERNAME
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Write-Output "FROM: $computer at $timestamp"
 
 try {
     $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
     if ($pythonCmd) { $python = $pythonCmd.Source } else { $python = $null }
     if (-not $python) {
-        Send-Output "Python not found. Please install from https://www.python.org/downloads/"
+        Write-Output "Python not found. Please install from https://www.python.org/downloads/"
         exit 0
     }
-
     $pyVersion = & $python --version 2>&1
+    Write-Output "Python: $pyVersion"
+
+    # Install dependency quietly
     & $python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
     $script = @'
@@ -23,7 +23,6 @@ import os, sys, sqlite3, plistlib, tempfile
 from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
 
 PASSWORD = '#ngrierBill70'
-results = []
 
 def find_backup():
     for base in [
@@ -44,7 +43,7 @@ if not backup_dir:
 
 print(f'Backup: {backup_dir}')
 
-# Step 1: Unlock by extracting a known file
+# Step 1: Unlock by extracting podcasts DB
 print('\n=== Unlocking backup ===')
 try:
     backup = EncryptedBackup(backup_directory=backup_dir, passphrase=PASSWORD)
@@ -58,30 +57,40 @@ try:
 except Exception as e:
     print(f'Unlock error: {e}')
 
-# Step 2: Enumerate ALL com.google.Maps files from manifest
+# Step 2: Enumerate ALL com.google.Maps files
 print('\n=== All files in AppDomain-com.google.Maps ===')
 try:
-    manifest_conn = backup._temp_manifest_db_conn
+    manifest_conn = getattr(backup, '_temp_manifest_db_conn', None)
     if not manifest_conn:
-        # Try direct connection to decrypted manifest
-        manifest_path = backup._temp_decrypted_manifest_db_path
-        if os.path.exists(manifest_path):
+        manifest_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
+        if manifest_path and os.path.exists(manifest_path):
             manifest_conn = sqlite3.connect(manifest_path)
-            print(f'Connected directly to: {manifest_path}')
-    
+            print(f'Connected directly to decrypted manifest: {manifest_path}')
     if manifest_conn:
         cur = manifest_conn.cursor()
-        cur.execute("SELECT domain, relativePath, flags, file FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' ORDER BY domain, relativePath")
+        cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' ORDER BY domain, relativePath")
         rows = cur.fetchall()
-        print(f'Found {len(rows)} Google-related files:')
-        for domain, path, flags, _ in rows:
+        print(f'Found {len(rows)} Google/Maps files:')
+        for domain, path in rows:
             print(f'  [{domain}] {path}')
     else:
-        print('No manifest connection available after unlock')
+        print('No manifest connection available - trying direct Manifest.db read')
+        manifest_raw = os.path.join(backup_dir, 'Manifest.db')
+        if os.path.exists(manifest_raw):
+            try:
+                conn2 = sqlite3.connect(manifest_raw)
+                cur2 = conn2.cursor()
+                cur2.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' ORDER BY domain, relativePath")
+                rows2 = cur2.fetchall()
+                print(f'Found {len(rows2)} Google/Maps files (from raw Manifest.db):')
+                for domain, path in rows2:
+                    print(f'  [{domain}] {path}')
+            except Exception as e2:
+                print(f'Raw manifest error: {e2}')
 except Exception as e:
     print(f'Manifest error: {e}')
 
-# Step 3: Extract and parse the plist we know exists
+# Step 3: Extract and parse the plist
 print('\n=== Parsing com.google.Maps.plist ===')
 try:
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -93,11 +102,9 @@ try:
         )
         with open(out, 'rb') as f:
             data = plistlib.load(f)
-        # Print all keys
         print(f'Plist keys ({len(data)}):')
         for k, v in sorted(data.items()):
-            val_str = str(v)[:120]
-            print(f'  {k}: {val_str}')
+            print(f'  {k}: {str(v)[:120]}')
 except Exception as e:
     print(f'Plist error: {e}')
 
@@ -107,7 +114,8 @@ print('\nDone!')
     $tmpPy = "$env:TEMP\inspect_maps2.py"
     $script | Set-Content -Path $tmpPy -Encoding UTF8
     $output = & $python $tmpPy 2>&1 | Out-String
-    Send-Output "$pyVersion`n`n$output"
+    Write-Output $output
+
 } catch {
-    Send-Output "ERROR: $_"
+    Write-Output "ERROR: $_"
 }
