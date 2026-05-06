@@ -1,237 +1,202 @@
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$computer = $env:COMPUTERNAME
-$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+# Write Python script to a temp file to avoid all PowerShell quoting issues
+$pyScript = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.py'
 
-$pythonExe = $null
-try {
-    $wherePython = where.exe python 2>$null
-    if ($wherePython) {
-        $candidates = $wherePython -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
-        foreach ($candidate in $candidates) {
-            if ($candidate -notlike '*WindowsApps*') { $pythonExe = $candidate; break }
-        }
-        if (-not $pythonExe) { $pythonExe = $candidates[0] }
-    }
-} catch {}
-if (-not $pythonExe) {
-    foreach ($p in @(
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-    )) { if (Test-Path $p) { $pythonExe = $p; break } }
-}
+@'
+import sys, os, tempfile, shutil, traceback, sqlite3, plistlib, json
 
-$script = @'
-import os, sys, struct, tempfile, subprocess
+print("v21 | Python: " + sys.executable)
+print("USERPROFILE: " + os.environ.get("USERPROFILE", "<not set>"))
 
-print(f"v20 | Python: {sys.executable}")
-print(f"USERPROFILE: {os.environ.get('USERPROFILE', 'N/A')}")
-print()
+# Enumerate all candidate backup locations
+up = os.environ.get("USERPROFILE", "")
+candidates = [
+    os.path.join(up, "Apple", "MobileSync", "Backup"),
+    os.path.join(up, "AppData", "Roaming", "Apple Computer", "MobileSync", "Backup"),
+    os.path.join(up, "AppData", "Roaming", "Apple", "MobileSync", "Backup"),
+    os.path.join(up, "AppData", "Local", "Apple Computer", "MobileSync", "Backup"),
+    os.path.join(up, "AppData", "Local", "Apple", "MobileSync", "Backup"),
+    r"C:\ProgramData\Apple Computer\MobileSync\Backup",
+    r"C:\ProgramData\Apple\MobileSync\Backup",
+]
 
-# Install deps
-for pkg in ['iphone_backup_decrypt', 'blackboxprotobuf']:
-    try:
-        __import__(pkg.replace('-','_'))
-    except ImportError:
-        subprocess.run([sys.executable, '-m', 'pip', 'install', '--quiet', pkg], capture_output=True)
+backup_path = None
+for base in candidates:
+    exists = os.path.isdir(base)
+    print("  " + ("[EXISTS]" if exists else "[missing]") + " " + base)
+    if exists and not backup_path:
+        try:
+            for d in os.listdir(base):
+                full = os.path.join(base, d)
+                if os.path.isfile(os.path.join(full, "Manifest.db")):
+                    print("    -> Found backup: " + d)
+                    backup_path = full
+                    break
+        except Exception as e:
+            print("    -> listdir error: " + str(e))
 
-from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
-import blackboxprotobuf
-
-# Find backup
-def find_backup():
-    userprofile = os.environ.get('USERPROFILE', '')
-    candidates = [
-        os.path.join(userprofile, 'Apple', 'MobileSync', 'Backup'),
-        os.path.join(userprofile, 'AppData', 'Roaming', 'Apple Computer', 'MobileSync', 'Backup'),
-    ]
-    for base in candidates:
-        if os.path.exists(base):
-            for item in os.listdir(base):
-                full = os.path.join(base, item)
-                if os.path.isdir(full) and os.path.exists(os.path.join(full, 'Manifest.db')):
-                    return full
-    return None
-
-backup_path = find_backup()
 if not backup_path:
-    print("No backup found")
-    sys.exit()
+    print("No backup in candidates, doing deep walk...")
+    try:
+        for root, dirs, files in os.walk(up, topdown=True):
+            depth = root[len(up):].count(os.sep)
+            if depth > 6:
+                dirs[:] = []
+                continue
+            if "MobileSync" in root and "Manifest.db" in files:
+                parent = os.path.dirname(root)
+                if os.path.basename(parent) == "Backup":
+                    print("    -> Found: " + root)
+                    backup_path = root
+                    break
+    except Exception as e:
+        print("Walk error: " + str(e))
 
-print(f"Using backup: {backup_path}")
-backup = EncryptedBackup(backup_directory=backup_path, passphrase='#ngrierBill70')
+if not backup_path:
+    print("ERROR: No backup found anywhere")
+    sys.exit(1)
 
-tmp = tempfile.mkdtemp()
+print("\nUsing backup: " + backup_path)
 
-# First unlock via podcasts DB
-podcasts_out = os.path.join(tmp, 'MTLibrary.sqlite')
 try:
-    backup.extract_file(
-        relative_path='MTLibrary.sqlite',
-        output_filename=podcasts_out,
-        domain_like='AppDomainGroup-%',
-    )
-    print(f"Podcasts DB extracted: {os.path.getsize(podcasts_out)} bytes")
-except Exception as e:
-    print(f"Podcasts extract: {e}")
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "iphone-backup-decrypt", "--quiet"])
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath
 
-# Extract tlogs_offline
-tlogs_out = os.path.join(tmp, 'tlogs_offline')
 try:
-    backup.extract_file(
-        relative_path='tlogs_offline',
-        output_filename=tlogs_out,
-        domain_like='AppDomainGroup-%',
-    )
-    size = os.path.getsize(tlogs_out)
-    print(f"tlogs_offline: {size} bytes")
-except Exception as e:
-    print(f"tlogs extract error: {e}")
-    sys.exit()
+    import blackboxprotobuf
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "blackboxprotobuf", "--quiet"])
+    import blackboxprotobuf
 
-# Read raw bytes
-with open(tlogs_out, 'rb') as f:
-    raw = f.read()
+PASSPHRASE = "#ngrierBill70"
+tmpdir = tempfile.mkdtemp()
 
-print(f"\nFile size: {len(raw)} bytes")
-print(f"\n=== HEX DUMP (first 256 bytes) ===")
-for i in range(0, min(256, len(raw)), 16):
-    chunk = raw[i:i+16]
-    hex_str = ' '.join(f'{b:02x}' for b in chunk)
-    ascii_str = ''.join(chr(b) if 32 <= b < 127 else '.' for b in chunk)
-    print(f"  {i:04x}: {hex_str:<48}  {ascii_str}")
-
-print(f"\n=== SEARCH FOR COORDINATE PATTERNS ===")
-
-def search_float32(data, lat_min, lat_max, lon_min, lon_max):
-    hits = []
-    for i in range(0, len(data) - 3):
-        for endian in ['<', '>']:
-            v = struct.unpack_from(f'{endian}f', data, i)[0]
-            if lat_min <= v <= lat_max:
-                hits.append((i, 'lat_f32', endian, v))
-            if lon_min <= v <= lon_max:
-                hits.append((i, 'lon_f32', endian, v))
-    return hits
-
-def search_float64(data, lat_min, lat_max, lon_min, lon_max):
-    hits = []
-    for i in range(0, len(data) - 7):
-        for endian in ['<', '>']:
-            v = struct.unpack_from(f'{endian}d', data, i)[0]
-            if lat_min <= v <= lat_max:
-                hits.append((i, 'lat_f64', endian, v))
-            if lon_min <= v <= lon_max:
-                hits.append((i, 'lon_f64', endian, v))
-    return hits
-
-def search_int32_e7(data, lat_min, lat_max, lon_min, lon_max):
-    hits = []
-    lat_min_i, lat_max_i = int(lat_min * 1e7), int(lat_max * 1e7)
-    lon_min_i, lon_max_i = int(lon_min * 1e7), int(lon_max * 1e7)
-    for i in range(0, len(data) - 3):
-        for endian in ['<', '>']:
-            v = struct.unpack_from(f'{endian}i', data, i)[0]
-            if lat_min_i <= v <= lat_max_i:
-                hits.append((i, f'lat_e7_{endian}', v, v/1e7))
-            if lon_min_i <= v <= lon_max_i:
-                hits.append((i, f'lon_e7_{endian}', v, v/1e7))
-    return hits
-
-print("Searching for Seattle-area coordinates (lat 47.0-48.5, lon -123.0 to -121.5)...")
-
-f32_hits = search_float32(raw, 47.0, 48.5, -123.0, -121.5)
-print(f"  float32 hits: {len(f32_hits)}")
-for hit in f32_hits[:10]:
-    print(f"    offset={hit[0]:#06x} {hit[1]} {hit[2]}: {hit[3]:.6f}")
-
-f64_hits = search_float64(raw, 47.0, 48.5, -123.0, -121.5)
-print(f"  float64 hits: {len(f64_hits)}")
-for hit in f64_hits[:10]:
-    print(f"    offset={hit[0]:#06x} {hit[1]} {hit[2]}: {hit[3]:.8f}")
-
-i32_hits = search_int32_e7(raw, 47.0, 48.5, -123.0, -121.5)
-print(f"  int32 E7 hits: {len(i32_hits)}")
-for hit in i32_hits[:10]:
-    print(f"    offset={hit[0]:#06x} {hit[1]}: raw={hit[2]} -> {hit[3]:.6f}")
-
-# Also search broader: Washington State
-print("\nSearching broader: Washington State (lat 45.5-49.0, lon -124.5 to -116.9)...")
-f64_hits2 = search_float64(raw, 45.5, 49.0, -124.5, -116.9)
-print(f"  float64 hits: {len(f64_hits2)}")
-for hit in f64_hits2[:20]:
-    print(f"    offset={hit[0]:#06x} {hit[1]} {hit[2]}: {hit[3]:.8f}")
-
-i32_hits2 = search_int32_e7(raw, 45.5, 49.0, -124.5, -116.9)
-print(f"  int32 E7 hits: {len(i32_hits2)}")
-for hit in i32_hits2[:20]:
-    print(f"    offset={hit[0]:#06x} {hit[1]}: raw={hit[2]} -> {hit[3]:.6f}")
-
-# Search for recent Unix timestamps
-print(f"\n=== SEARCH FOR RECENT TIMESTAMPS ===")
-import datetime
-ts_min, ts_max = 1577836800, 1800000000  # 2020-2026
-ts_hits = []
-for i in range(0, len(raw) - 3):
-    for endian in ['<', '>']:
-        v = struct.unpack_from(f'{endian}I', raw, i)[0]
-        if ts_min <= v <= ts_max:
-            dt = datetime.datetime.utcfromtimestamp(v)
-            ts_hits.append((i, endian, v, str(dt)))
-
-print(f"Unix timestamp hits (2020-2026): {len(ts_hits)}")
-for hit in ts_hits[:20]:
-    print(f"  offset={hit[0]:#06x} {hit[1]}: {hit[2]} = {hit[3]}")
-
-# Millisecond timestamps
-ts_min_ms, ts_max_ms = ts_min * 1000, ts_max * 1000
-ms_hits = []
-for i in range(0, len(raw) - 7):
-    for endian in ['<', '>']:
-        v = struct.unpack_from(f'{endian}Q', raw, i)[0]
-        if ts_min_ms <= v <= ts_max_ms:
-            dt = datetime.datetime.utcfromtimestamp(v/1000)
-            ms_hits.append((i, endian, v, str(dt)))
-
-print(f"Millisecond timestamp hits: {len(ms_hits)}")
-for hit in ms_hits[:20]:
-    print(f"  offset={hit[0]:#06x} {hit[1]}: {hit[2]} = {hit[3]}")
-
-# Full protobuf decode
-print(f"\n=== FULL PROTOBUF DECODE ===")
 try:
+    backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSPHRASE)
+    # Force unlock by extracting a known file
+    try:
+        backup.extract_file(
+            relative_path="Library/Application Support/MTLibrary.sqlite",
+            output_filename=os.path.join(tmpdir, "MTLibrary.sqlite")
+        )
+        print("Unlock OK")
+    except Exception as e:
+        print("Unlock attempt: " + str(e))
+
+    # Extract tlogs_offline
+    proto_path = os.path.join(tmpdir, "tlogs_offline")
+    try:
+        backup.extract_file(
+            relative_path="Library/Application Support/tlogs_offline_storage.binaryproto",
+            output_filename=proto_path
+        )
+    except Exception as e:
+        print("tlogs extract error: " + str(e))
+        sys.exit(1)
+
+    if not os.path.exists(proto_path):
+        print("tlogs file not found in backup")
+        sys.exit(1)
+
+    with open(proto_path, "rb") as f:
+        raw = f.read()
+    print("tlogs size: " + str(len(raw)) + " bytes")
+
     msg, typedef = blackboxprotobuf.decode_message(raw)
-    def show(d, prefix='', depth=0):
-        if depth > 6:
-            print(f"{prefix}...")
-            return
-        if isinstance(d, dict):
-            for k, v in list(d.items())[:20]:
-                if isinstance(v, (dict, list)):
-                    print(f"{prefix}{k}:")
-                    show(v, prefix + '  ', depth+1)
-                elif isinstance(v, bytes) and len(v) > 4:
-                    print(f"{prefix}{k}: bytes[{len(v)}] = {v[:16].hex()}...")
-                else:
-                    print(f"{prefix}{k}: {repr(v)[:80]}")
-        elif isinstance(d, list):
-            for i, v in enumerate(d[:5]):
-                print(f"{prefix}[{i}]:")
-                show(v, prefix + '  ', depth+1)
-            if len(d) > 5:
-                print(f"{prefix}... ({len(d)-5} more)")
-    show(msg)
+
+    def flatten(obj, path=""):
+        results = []
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                results.extend(flatten(v, path + "." + str(k)))
+        elif isinstance(obj, list):
+            for i, item in enumerate(obj):
+                results.extend(flatten(item, path + "[" + str(i) + "]"))
+        elif isinstance(obj, bytes):
+            try:
+                inner, _ = blackboxprotobuf.decode_message(obj)
+                results.extend(flatten(inner, path + "(bytes->proto)"))
+            except:
+                pass
+            try:
+                s = obj.decode("utf-8")
+                results.append((path, "str", s[:100]))
+            except:
+                results.append((path, "bytes", obj[:16].hex()))
+        elif isinstance(obj, int):
+            results.append((path, "int", obj))
+        elif isinstance(obj, float):
+            results.append((path, "float", obj))
+        else:
+            results.append((path, type(obj).__name__, str(obj)[:100]))
+        return results
+
+    leaves = flatten(msg)
+
+    latlons = []
+    timestamps = []
+    for path, typ, val in leaves:
+        if typ == "int":
+            if 1000000 < abs(val) < 1800000000:
+                latlons.append((path, val, val/1e7))
+            elif 1000000000 < val < 9999999999:
+                timestamps.append((path, val))
+            elif 1000000000000 < val < 9999999999999:
+                timestamps.append((path, val, "ms"))
+        elif typ == "float":
+            if -180 <= val <= 180:
+                latlons.append((path, val, "float"))
+
+    print("\n=== CANDIDATE LAT/LON VALUES ===")
+    for item in latlons[:30]:
+        print(item)
+
+    print("\n=== CANDIDATE TIMESTAMPS ===")
+    for item in timestamps[:20]:
+        print(item)
+
+    print("\n=== STRUCTURE (top level) ===")
+    if isinstance(msg, dict):
+        for k, v in list(msg.items())[:5]:
+            vlen = len(v) if hasattr(v, "__len__") else "n/a"
+            print("  field_" + str(k) + ": " + type(v).__name__ + " len=" + str(vlen))
+            if isinstance(v, dict):
+                for k2, v2 in list(v.items())[:5]:
+                    v2len = len(v2) if hasattr(v2, "__len__") else "n/a"
+                    print("    field_" + str(k2) + ": " + type(v2).__name__ + " len=" + str(v2len))
+                    if isinstance(v2, dict):
+                        for k3, v3 in list(v2.items())[:3]:
+                            v3str = str(v3)[:80] if not isinstance(v3, list) else "list(" + str(len(v3)) + ")"
+                            print("      field_" + str(k3) + ": " + type(v3).__name__ + " val=" + v3str)
+                            if isinstance(v3, list) and len(v3) > 0:
+                                item0 = v3[0]
+                                if isinstance(item0, dict):
+                                    for k4, v4 in list(item0.items())[:8]:
+                                        v4str = str(v4)[:80] if not isinstance(v4, (list, dict, bytes)) else type(v4).__name__ + "(" + str(len(v4)) + ")"
+                                        print("        [0].field_" + str(k4) + ": " + type(v4).__name__ + " val=" + v4str)
+
 except Exception as e:
-    print(f"Decode error: {e}")
+    print("FATAL: " + str(e))
+    traceback.print_exc()
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("\nDone.")
+'@ | Set-Content -Path $pyScript -Encoding UTF8
 
-print("\nDone.")
-'@
-
-if (-not $pythonExe) {
-    $output = "v20 | ERROR: Python not found"
-} else {
-    $output = & $pythonExe -c $script 2>&1 | Out-String
+# Find Python - use where.exe, skip WindowsApps stub
+$pythonExe = $null
+$candidates = @()
+try { $candidates = @(where.exe python 2>$null) } catch {}
+foreach ($p in $candidates) {
+    if ($p -notmatch "WindowsApps") {
+        $pythonExe = $p
+        break
+    }
 }
+if (-not $pythonExe) { $pythonExe = "python" }
 
-$body = @{ output = $output; timestamp = $timestamp; computer = $computer; source = 'LifeLog-DevLoop' } | ConvertTo-Json -Depth 3
-Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null
-Write-Host "[$timestamp] Sent output from $computer"
+& $pythonExe $pyScript 2>&1
+Remove-Item $pyScript -ErrorAction SilentlyContinue
