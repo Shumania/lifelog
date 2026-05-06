@@ -1,125 +1,90 @@
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+$WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
-$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-$py = @"
-import sys, os, json, tempfile, sqlite3
-from pathlib import Path
+try {
+    $python = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+    if (-not $python) { throw "Python not found in PATH" }
 
-try:
-    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
-except ImportError as e:
-    print(f'IMPORT ERROR: {e}')
-    sys.exit(1)
+    # Find backup
+    $backupRoots = @(
+        "$env:USERPROFILE\Apple\MobileSync\Backup",
+        "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
+    )
+    $backupDir = $null
+    foreach ($root in $backupRoots) {
+        if (Test-Path $root) {
+            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if ($backupDir) { break }
+        }
+    }
+    if (-not $backupDir) { throw "No backup directory found" }
 
-# Find backup
-backup_root = Path(os.environ.get('USERPROFILE', '')) / 'Apple' / 'MobileSync' / 'Backup'
-if not backup_root.exists():
-    backup_root = Path(os.environ.get('APPDATA', '')) / 'Apple Computer' / 'MobileSync' / 'Backup'
+    $script = @"
+import sys, os, json, sqlite3, tempfile
+from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
 
-if not backup_root.exists():
-    print('ERROR: No backup root found')
-    sys.exit(1)
-
-backups = sorted([d for d in backup_root.iterdir() if d.is_dir()], key=lambda d: d.stat().st_mtime, reverse=True)
-if not backups:
-    print('ERROR: No backups found')
-    sys.exit(1)
-
-backup_path = str(backups[0])
-print(f'Backup: {backup_path}')
-
+backup_path = r'$backupDir'
 password = '#ngrierBill70'
 
+print(f'Backup path: {backup_path}')
+
 try:
-    backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
+    backup = EncryptedBackup(backup_path=backup_path, passphrase=password)
+    print('EncryptedBackup created')
 except Exception as e:
-    print(f'ERROR creating backup object: {e}')
+    print(f'ERROR creating backup: {e}')
     sys.exit(1)
 
-# UNLOCK: extract a known file to trigger decryption
-print('Unlocking backup...')
-tmpdir = tempfile.mkdtemp()
+# Force unlock by extracting podcasts DB
+tmp = tempfile.mkdtemp()
 try:
     backup.extract_file(
-        relative_name='Library/Preferences/com.apple.springboard.plist',
-        output_filename=os.path.join(tmpdir, 'unlock_test.plist')
+        relative_name='Library/Application Support/CrashReporter/MTLibrary.sqlite',
+        domain_like='AppDomainGroup-243LU875E5.groups.com.apple.podcasts',
+        output_filename=os.path.join(tmp, 'podcasts_test.sqlite')
     )
-    print('Unlock succeeded via springboard.plist')
+    print('Podcasts DB extracted - backup is now unlocked')
 except Exception as e:
-    print(f'Springboard unlock failed: {e}, trying podcasts DB...')
-    try:
-        backup.extract_file(
-            relative_name='Library/Application Support/Podcasts/MTLibrary.sqlite',
-            domain='AppDomainGroup-243LU875E5.groups.com.apple.podcasts',
-            output_filename=os.path.join(tmpdir, 'podcasts.sqlite')
-        )
-        print('Unlock succeeded via podcasts DB')
-    except Exception as e2:
-        print(f'Podcasts unlock also failed: {e2}')
+    print(f'WARNING: Could not extract podcasts DB: {e}')
 
-print(f'_unlocked = {backup._unlocked}')
-
-# Now enumerate ALL Google Maps domain files
-print('\n=== QUERYING MANIFEST FOR GOOGLE MAPS FILES ===')
+# Now query the manifest DB directly
 try:
-    # Try manifest DB
-    manifest_db = Path(backup_path) / 'Manifest.db'
-    conn = sqlite3.connect(str(manifest_db))
+    manifest_db = os.path.join(backup_path, 'Manifest.db')
+    conn = sqlite3.connect(manifest_db)
     cur = conn.cursor()
     
-    # Get all domains first
-    cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-    domains = [r[0] for r in cur.fetchall()]
-    google_domains = [d for d in domains if d and 'google' in d.lower()]
-    print(f'Google-related domains: {google_domains}')
+    # Get ALL domains and file counts
+    print('\n=== ALL DOMAINS IN MANIFEST ===')
+    cur.execute('SELECT domain, COUNT(*) as cnt FROM Files GROUP BY domain ORDER BY cnt DESC LIMIT 30')
+    for row in cur.fetchall():
+        print(f'  {row[1]:5d} files: {row[0]}')
     
-    # Get all files in Google Maps domains
-    for domain in google_domains:
-        cur.execute("SELECT relativePath, fileID, flags FROM Files WHERE domain = ? ORDER BY relativePath", (domain,))
-        rows = cur.fetchall()
-        print(f'\nDomain: {domain} ({len(rows)} files)')
-        for path, fid, flags in rows[:50]:
-            print(f'  {path} [{fid[:8] if fid else "none"}]')
-        if len(rows) > 50:
-            print(f'  ... and {len(rows)-50} more')
+    # Search for Google/Maps related
+    print('\n=== GOOGLE/MAPS FILES ===')
+    cur.execute("SELECT domain, relativePath, flags, file FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%maps%' OR relativePath LIKE '%timeline%' OR relativePath LIKE '%location%' ORDER BY domain, relativePath")
+    rows = cur.fetchall()
+    print(f'Found {len(rows)} Google/Maps/Location related files:')
+    for row in rows:
+        domain, path, flags, filedata = row
+        size_info = f'{len(filedata)} bytes metadata' if filedata else 'no metadata'
+        print(f'  [{domain}] {path} (flags={flags}, {size_info})')
     
     conn.close()
 except Exception as e:
-    print(f'Manifest DB query failed: {e}')
-    # Try via backup object if manifest DB didn't work
-    print('Trying backup._manifest_db_conn...')
-    try:
-        cur = backup._manifest_db_conn.cursor()
-        cur.execute("SELECT DISTINCT domain FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' ORDER BY domain")
-        domains = [r[0] for r in cur.fetchall()]
-        print(f'Google/Maps domains via object: {domains}')
-        for domain in domains:
-            cur.execute("SELECT relativePath, fileID FROM Files WHERE domain = ? ORDER BY relativePath", (domain,))
-            rows = cur.fetchall()
-            print(f'Domain {domain}: {len(rows)} files')
-            for path, fid in rows[:30]:
-                print(f'  {path}')
-    except Exception as e2:
-        print(f'Object manifest also failed: {e2}')
-
-print('\nDone.')
+    print(f'ERROR querying manifest: {e}')
+    import traceback
+    traceback.print_exc()
 "@
 
-try {
-    $pyPath = (Get-Command python -ErrorAction SilentlyContinue).Source
-    if (-not $pyPath) { $pyPath = (Get-Command python3 -ErrorAction SilentlyContinue).Source }
-    if (-not $pyPath) { throw 'Python not found in PATH' }
-    
-    Write-Host "Python: $pyPath"
-    $scriptFile = [System.IO.Path]::GetTempFileName() + '.py'
-    $py | Set-Content -Path $scriptFile -Encoding UTF8
-    $output = & $pyPath $scriptFile 2>&1 | Out-String
-    Remove-Item $scriptFile -ErrorAction SilentlyContinue
+    $tmpScript = [System.IO.Path]::GetTempFileName() + '.py'
+    $script | Out-File -FilePath $tmpScript -Encoding utf8
+    $output = & $python $tmpScript 2>&1 | Out-String
+    Remove-Item $tmpScript -Force -ErrorAction SilentlyContinue
+
+    $body = @{ log = "FROM: $computer at $ts`n`n$output"; exitCode = 0 } | ConvertTo-Json
 } catch {
-    $output = "ERROR: $_"
+    $body = @{ log = "FROM: $computer at $ts`n`nERROR: $_"; exitCode = 1 } | ConvertTo-Json
 }
 
-$body = @{ log = "FROM: $computer at $timestamp`n`n$output"; exitCode = 0 } | ConvertTo-Json
-Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType 'application/json'
-Write-Host "Sent at $timestamp"
+Invoke-RestMethod -Uri $WEBHOOK -Method POST -Body $body -ContentType 'application/json'
