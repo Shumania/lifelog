@@ -2,141 +2,104 @@ $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqm
 $computer = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-try {
-    # Install dependencies
-    pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+function Send-Output($text) {
+    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output=$text } | ConvertTo-Json
+    Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
+}
 
-    $scriptContent = @'
-import os, sys, glob, sqlite3, tempfile, shutil, struct, json, requests
-from iphone_backup_decrypt import EncryptedBackup, RelativePath
+# Check Python
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    Send-Output "ERROR: Python not found on $computer. Please install from https://python.org and check 'Add to PATH'."
+    exit 1
+}
 
-WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-PASSWORD = "#ngrierBill70"
+# Install iphone-backup-decrypt if needed
+python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
-def find_backup():
-    for base in [
-        os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
-        os.path.join(os.environ.get("APPDATA",""), "Apple Computer", "MobileSync", "Backup"),
-    ]:
-        if os.path.isdir(base):
-            dirs = sorted([d for d in glob.glob(os.path.join(base, "*")) if os.path.isdir(d)],
-                          key=lambda d: os.path.getmtime(d), reverse=True)
-            if dirs:
-                return dirs[0]
-    return None
+$script = @'
+import os, sys, tempfile, json, sqlite3, glob
 
-backup_path = find_backup()
-if not backup_path:
-    print("No backup found")
+try:
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
+except ImportError:
+    print("ERROR: iphone-backup-decrypt not installed")
     sys.exit(1)
 
-print(f"Backup: {backup_path}")
+# Find backup
+backup_root = None
+for base in [
+    os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
+    os.path.join(os.environ.get("USERPROFILE",""), "AppData", "Roaming", "Apple Computer", "MobileSync", "Backup"),
+    os.path.join(os.environ.get("USERPROFILE",""), "AppData", "Roaming", "Apple", "MobileSync", "Backup"),
+]:
+    if os.path.isdir(base):
+        candidates = [os.path.join(base,d) for d in os.listdir(base) if os.path.isdir(os.path.join(base,d))]
+        if candidates:
+            backup_root = max(candidates, key=lambda p: os.path.getmtime(p))
+            break
 
-backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSWORD)
+if not backup_root:
+    print("ERROR: No backup found")
+    sys.exit(1)
 
-# Step 1: unlock by extracting podcasts DB
-tmpdir = tempfile.mkdtemp()
-try:
+print(f"Backup: {backup_root}")
+
+password = "#ngrierBill70"
+backup = EncryptedBackup(backup_directory=backup_root, passphrase=password)
+
+# Unlock by extracting podcasts DB
+with tempfile.TemporaryDirectory() as tmpdir:
     out = os.path.join(tmpdir, "podcasts.sqlite")
-    backup.extract_file(
-        relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite",
-        domain_like="AppDomainGroup-%groups.com.apple.podcasts",
-        output_filename=out
-    )
-    print(f"Podcasts unlock OK: {os.path.getsize(out)} bytes")
-except Exception as e:
-    print(f"Podcasts unlock failed: {e}")
-
-# Step 2: Extract Manifest.db to temp and query it directly with sqlite3
-manifest_src = os.path.join(backup_path, "Manifest.db")
-manifest_tmp = os.path.join(tmpdir, "Manifest.db")
-
-output_lines = []
-
-if os.path.exists(manifest_src):
-    shutil.copy2(manifest_src, manifest_tmp)
     try:
-        conn = sqlite3.connect(manifest_tmp)
-        cur = conn.cursor()
-        # Search for Google Maps related files
-        cur.execute("""
-            SELECT fileID, domain, relativePath, file
-            FROM Files
-            WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%'
-               OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' OR relativePath LIKE '%timeline%'
-               OR relativePath LIKE '%tlogs%' OR relativePath LIKE '%Maps%'
-            ORDER BY domain, relativePath
-        """)
-        rows = cur.fetchall()
-        print(f"\nFound {len(rows)} Google/Maps files in Manifest.db:")
-        for fileID, domain, relpath, fileblob in rows:
-            # Try to get file size from plist blob
-            size_str = ""
-            try:
-                blob_str = str(fileblob)
-                size_str = f" (blob {len(fileblob)} bytes)"
-            except:
-                pass
-            line = f"  [{domain}] {relpath}{size_str}"
-            print(line)
-            output_lines.append({"fileID": fileID, "domain": domain, "relativePath": relpath})
-        
-        # Also check all unique domains containing 'google' or 'maps'
-        cur.execute("""
-            SELECT DISTINCT domain FROM Files 
-            WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%'
-            ORDER BY domain
-        """)
-        domains = cur.fetchall()
-        print(f"\nAll matching domains ({len(domains)}):")
-        for (d,) in domains:
-            print(f"  {d}")
-        
-        conn.close()
+        backup.extract_file(
+            relative_name="Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Documents/MTLibrary.sqlite",
+            domain_like="AppDomainGroup-243LU875E5",
+            output_filename=out
+        )
+        size = os.path.getsize(out)
+        print(f"Podcasts unlock: {size:,} bytes - OK")
     except Exception as e:
-        print(f"Manifest.db query error: {e}")
-else:
-    print("Manifest.db not found at backup root - may be fully encrypted")
-    # Try to find it via backup object
-    try:
-        # List all files via the backup's internal manifest
-        import contextlib
-        print("\nTrying backup._manifest_db_conn context manager...")
-        with backup._manifest_db_conn as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%' LIMIT 50")
-            rows = cur.fetchall()
-            print(f"Found {len(rows)} rows via context manager")
-            for row in rows:
-                print(f"  {row}")
-    except Exception as e2:
-        print(f"Context manager also failed: {e2}")
+        print(f"Podcasts unlock failed: {e}")
 
-shutil.rmtree(tmpdir, ignore_errors=True)
-print("\nDone.")
+# Query manifest using context manager correctly
+print("\nQuerying manifest for Google Maps files...")
+try:
+    with backup._manifest_db_conn as conn:
+        rows = conn.execute("""
+            SELECT fileID, domain, relativePath 
+            FROM Files 
+            WHERE (domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' OR relativePath LIKE '%timeline%')
+            ORDER BY domain, relativePath
+        """).fetchall()
+        if rows:
+            print(f"Found {len(rows)} Google/Maps related files:")
+            for fileID, domain, relPath in rows:
+                print(f"  [{domain}] {relPath} => {fileID}")
+        else:
+            print("No Google Maps files found in manifest.")
+            # Show all unique domains so we can see what's there
+            domains = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain").fetchall()
+            print(f"\nAll {len(domains)} domains in backup:")
+            for (d,) in domains:
+                print(f"  {d}")
+except Exception as e:
+    print(f"Manifest query error: {e}")
+    import traceback
+    traceback.print_exc()
+    # Try direct sqlite on Manifest.db
+    manifest_path = os.path.join(backup_root, "Manifest.db")
+    if os.path.exists(manifest_path):
+        try:
+            conn2 = sqlite3.connect(manifest_path)
+            rows = conn2.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR relativePath LIKE '%google%' LIMIT 20").fetchall()
+            print(f"Direct Manifest.db query: {len(rows)} rows")
+            for r in rows:
+                print(f"  {r}")
+        except Exception as e2:
+            print(f"Direct manifest also failed: {e2}")
 '@
 
-    $scriptPath = "$env:TEMP\inspect_maps.py"
-    $scriptContent | Out-File -FilePath $scriptPath -Encoding UTF8
-
-    $output = python $scriptPath 2>&1 | Out-String
-    Write-Host $output
-
-    $body = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = "LifeLog-DevLoop"
-        output    = $output
-    } | ConvertTo-Json -Compress
-
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
-}
-catch {
-    $errBody = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = "LifeLog-DevLoop"
-        output    = "ERROR: $_"
-    } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $errBody -ContentType "application/json"
-}
+$output = python -c $script 2>&1 | Out-String
+Write-Host $output
+Send-Output $output
