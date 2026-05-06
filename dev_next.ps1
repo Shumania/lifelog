@@ -19,7 +19,6 @@ if (-not $pythonExe) {
 
 $output = "Python: $pythonExe`n"
 
-# Find backup
 $backupRoot = "$env:USERPROFILE\Apple\MobileSync\Backup"
 if (-not (Test-Path $backupRoot)) {
     $backupRoot = "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
@@ -35,7 +34,7 @@ if (-not $pythonExe -or -not $backupDir) {
     $output += "ERROR: Missing Python or backup directory`n"
 } else {
     $pyScript = @"
-import sys, os, traceback
+import sys, os, traceback, sqlite3, tempfile
 sys.path.insert(0, r'C:\ProgramData\LifeLog')
 try:
     import iphone_backup_decrypt
@@ -47,44 +46,42 @@ except ImportError:
 backup_path = sys.argv[1]
 password = sys.argv[2]
 print('Backup path: ' + backup_path)
-print('Password length: ' + str(len(password)))
 
 try:
     backup = iphone_backup_decrypt.EncryptedBackup(backup_directory=backup_path, passphrase=password)
     print('Backup object created OK')
 except Exception as e:
     print('Backup creation failed: ' + str(e))
-    traceback.print_exc()
     sys.exit(1)
 
+# Unlock by extracting podcasts DB
+tmp = tempfile.mkdtemp()
 try:
-    import tempfile
-    tmp = tempfile.mkdtemp()
     backup.extract_file(
-        relative_name='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
+        relative_path='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
         output_filename=os.path.join(tmp, 'podcasts.sqlite')
     )
     print('Podcasts DB extracted OK - backup is unlocked')
 except Exception as e:
-    print('Podcasts unlock failed: ' + str(e))
-    traceback.print_exc()
+    print('Podcasts unlock attempt: ' + str(e))
 
+# Open the manifest DB directly
 try:
-    conn = backup._manifest_db_conn
-    if conn:
-        cur = conn.cursor()
-        cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Maps%' LIMIT 50")
-        rows = cur.fetchall()
-        print('Google Maps manifest entries: ' + str(len(rows)))
-        for r in rows:
-            print('  ' + r[0][:8] + '... | ' + str(r[1]) + ' | ' + str(r[2]))
-        cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-        domains = [r[0] for r in cur.fetchall()]
-        print('All domains (' + str(len(domains)) + ' total):')
-        for d in domains:
-            print('  ' + str(d))
-    else:
-        print('manifest_db_conn is None')
+    manifest_path = backup._manifest_db_path
+    print('Manifest DB path: ' + str(manifest_path))
+    conn = sqlite3.connect(manifest_path)
+    cur = conn.cursor()
+    cur.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%oogle%' OR relativePath LIKE '%imeline%' OR relativePath LIKE '%Maps%' LIMIT 100")
+    rows = cur.fetchall()
+    print('Google/Maps manifest entries: ' + str(len(rows)))
+    for r in rows:
+        print('  ' + str(r[0])[:8] + '... | ' + str(r[1]) + ' | ' + str(r[2]))
+    cur.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+    domains = [r[0] for r in cur.fetchall()]
+    print('\nAll domains (' + str(len(domains)) + ' total):')
+    for d in domains:
+        print('  ' + str(d))
+    conn.close()
 except Exception as e:
     print('Manifest access failed: ' + str(e))
     traceback.print_exc()
