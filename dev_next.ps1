@@ -1,7 +1,7 @@
 $script = @'
-import sys, os, tempfile, shutil, traceback
+import sys, os, tempfile, shutil, traceback, sqlite3, struct
 
-print(f"v11 | Python: {sys.executable}")
+print(f"v12 | Python: {sys.executable}")
 
 # Find backup
 backup_path = None
@@ -36,110 +36,157 @@ PASSPHRASE = "#ngrierBill70"
 tmpdir = tempfile.mkdtemp()
 print(f"Temp dir: {tmpdir}")
 
+# Candidate Google Maps files to extract and inspect
+CANDIDATES = [
+    ("FrequentTripsData",       "Library/Application Support/FrequentTripsData"),
+    ("DirectionsData",          "Library/Application Support/DirectionsData"),
+    ("PlacesheetVisits",        "Library/Application Support/PlacesheetVisits"),
+    ("tlogs_offline.binaryproto","Library/Application Support/tlogs_offline_storage.binaryproto"),
+    ("LocalSuggestions",        "Library/Application Support/LocalSuggestions"),
+    ("OnDeviceAliasData",       "Library/Application Support/OnDeviceAliasData"),
+    ("UserParametersData",      "Library/Application Support/UserParametersData"),
+    ("circumstantial.state",    "Library/Application Support/circumstantial.state"),
+]
+
+def inspect_file(label, path):
+    if not os.path.exists(path):
+        print(f"  [NOT EXTRACTED]")
+        return
+    size = os.path.getsize(path)
+    print(f"  Size: {size} bytes")
+    if size == 0:
+        print(f"  [EMPTY]")
+        return
+
+    # Try SQLite
+    try:
+        conn = sqlite3.connect(path)
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = [r[0] for r in cur.fetchall()]
+        print(f"  SQLite tables: {tables}")
+        for t in tables:
+            try:
+                cur.execute(f"SELECT COUNT(*) FROM [{t}]")
+                cnt = cur.fetchone()[0]
+                cur.execute(f"PRAGMA table_info([{t}])")
+                cols = [r[1] for r in cur.fetchall()]
+                print(f"    {t}: {cnt} rows, cols: {cols}")
+                if cnt > 0:
+                    cur.execute(f"SELECT * FROM [{t}] LIMIT 3")
+                    for row in cur.fetchall():
+                        print(f"      {row}")
+            except Exception as e:
+                print(f"    {t}: error {e}")
+        conn.close()
+        return
+    except Exception:
+        pass
+
+    # Try reading as text/JSON
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read(2000)
+        print(f"  Text preview: {repr(content[:500])}")
+        return
+    except:
+        pass
+
+    # Binary: show first 64 bytes as hex
+    with open(path, 'rb') as f:
+        header = f.read(64)
+    print(f"  Binary header (hex): {header.hex()}")
+    print(f"  Binary header (repr): {repr(header)}")
+
 try:
     backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSPHRASE)
-    print(f"Backup object created. _unlocked={getattr(backup,'_unlocked',None)}")
 
-    # Step 1: Extract podcasts DB using CORRECT API (relative_path, not relative_name)
-    podcasts_out = os.path.join(tmpdir, "MTLibrary.sqlite")
-    print("Extracting podcasts DB to force manifest load...")
-    try:
-        backup.extract_file(
-            relative_path="Library/Application Support/MTLibrary.sqlite",
-            output_filename=podcasts_out
-        )
-        podcasts_size = os.path.getsize(podcasts_out) if os.path.exists(podcasts_out) else 0
-        print(f"Podcasts DB extracted: {podcasts_size} bytes")
-    except Exception as e:
-        print(f"Podcasts extract error (non-fatal): {e}")
-        # Try alternate extract_file signature
+    # Force unlock by extracting a known file first
+    # Use extract_file_raw by fileID for podcasts to unlock
+    podcasts_fileID = None
+    mdb_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
+
+    # Try to find manifest DB (may already exist from previous run)
+    if mdb_path and os.path.exists(mdb_path):
+        print(f"Manifest DB already available: {mdb_path}")
+    else:
+        # Need to force unlock - try extracting with the correct relative_path
+        print("Forcing unlock via podcasts extract...")
+        podcasts_out = os.path.join(tmpdir, "MTLibrary.sqlite")
         try:
             backup.extract_file(
-                relative_path=RelativePath.AppDomainGroup_Podcasts,
+                relative_path="Library/Application Support/MTLibrary.sqlite",
                 output_filename=podcasts_out
             )
-            podcasts_size = os.path.getsize(podcasts_out) if os.path.exists(podcasts_out) else 0
-            print(f"Podcasts DB extracted (alt): {podcasts_size} bytes")
-        except Exception as e2:
-            print(f"Podcasts extract alt error: {e2}")
+        except Exception as e:
+            print(f"  Unlock attempt error (non-fatal): {e}")
+        mdb_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
 
-    print(f"After extraction: _unlocked={getattr(backup,'_unlocked',None)}, decrypted={getattr(backup,'decrypted',None)}")
+    print(f"_unlocked={getattr(backup,'_unlocked',None)}")
 
-    # Dump all backup attributes to understand unlock state
-    print("\n--- EncryptedBackup attributes ---")
-    for attr in sorted(dir(backup)):
-        if not attr.startswith('__'):
-            try:
-                val = getattr(backup, attr)
-                if not callable(val):
-                    print(f"  {attr} = {repr(val)[:200]}")
-            except:
-                pass
+    # Get the domain for com.google.Maps by querying manifest
+    mdb_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
+    if not mdb_path or not os.path.exists(mdb_path):
+        print("ERROR: Manifest DB not found")
+        sys.exit(1)
 
-    # Step 2: Query manifest DB for Google Maps files
-    import sqlite3
-    manifest_db = None
-    for attr in ['_temp_decrypted_manifest_db_path', '_manifest_db_path', '_decrypted_manifest_path']:
-        v = getattr(backup, attr, None)
-        if v and os.path.exists(str(v)):
-            manifest_db = str(v)
-            break
+    mconn = sqlite3.connect(mdb_path)
+    mcur = mconn.cursor()
 
-    print(f"\nManifest DB path: {manifest_db}")
+    print("\n=== Extracting Google Maps candidate files ===")
+    for label, rel_path in CANDIDATES:
+        print(f"\n--- {label} ---")
+        print(f"  Path: {rel_path}")
 
-    if manifest_db and os.path.exists(manifest_db):
-        conn = sqlite3.connect(manifest_db)
-        cur = conn.cursor()
+        # Find fileID from manifest
+        mcur.execute("SELECT fileID, domain FROM Files WHERE relativePath=? AND domain='AppDomain-com.google.Maps'", (rel_path,))
+        row = mcur.fetchone()
+        if not row:
+            mcur.execute("SELECT fileID, domain FROM Files WHERE relativePath=?", (rel_path,))
+            row = mcur.fetchone()
 
-        # Search for Google Maps related files
-        print("\n--- Google Maps files in manifest ---")
-        cur.execute("""
-            SELECT fileID, domain, relativePath, flags
-            FROM Files
-            WHERE domain LIKE '%google%maps%' OR domain LIKE '%Maps%'
-               OR relativePath LIKE '%maps%timeline%' OR relativePath LIKE '%googlemaps%'
-               OR domain LIKE '%com.google.Maps%'
-            ORDER BY domain, relativePath
-            LIMIT 100
-        """)
-        rows = cur.fetchall()
-        print(f"Found {len(rows)} rows matching Google Maps")
-        for fileID, domain, relpath, flags in rows:
-            print(f"  domain={domain}")
-            print(f"  relpath={relpath}")
-            print(f"  fileID={fileID}, flags={flags}")
-            print()
+        if not row:
+            print(f"  [NOT IN MANIFEST]")
+            continue
 
-        # Also check all domains for anything Google-related
-        print("\n--- All Google-related domains ---")
-        cur.execute("""
-            SELECT DISTINCT domain FROM Files
-            WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
-            ORDER BY domain
-        """)
-        for (domain,) in cur.fetchall():
-            print(f"  {domain}")
+        fileID, domain = row
+        print(f"  fileID: {fileID}, domain: {domain}")
 
-        # Count files per Google domain
-        print("\n--- File counts per Google domain ---")
-        cur.execute("""
-            SELECT domain, COUNT(*) as cnt FROM Files
-            WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
-            GROUP BY domain ORDER BY cnt DESC
-        """)
-        for (domain, cnt) in cur.fetchall():
-            print(f"  {cnt:4d}  {domain}")
+        # Try to extract via backup
+        out_path = os.path.join(tmpdir, label)
+        try:
+            backup.extract_file(
+                relative_path=rel_path,
+                output_filename=out_path
+            )
+            inspect_file(label, out_path)
+        except Exception as e:
+            print(f"  extract_file error: {e}")
+            # Try reading raw backup file (will be encrypted but let's see)
+            raw_path = os.path.join(backup_path, fileID[:2], fileID)
+            if os.path.exists(raw_path):
+                size = os.path.getsize(raw_path)
+                print(f"  Raw backup file exists: {size} bytes (encrypted)")
+            else:
+                print(f"  Raw backup file not found at {raw_path}")
 
-        conn.close()
-    else:
-        print("ERROR: Manifest DB not accessible after extraction")
+    mconn.close()
+
+    # Also check AppDomainGroup-group.com.google.Maps files
+    print("\n=== AppDomainGroup-group.com.google.Maps files ===")
+    mconn2 = sqlite3.connect(mdb_path)
+    mcur2 = mconn2.cursor()
+    mcur2.execute("SELECT fileID, relativePath, flags FROM Files WHERE domain='AppDomainGroup-group.com.google.Maps' ORDER BY relativePath")
+    for fileID, relpath, flags in mcur2.fetchall():
+        print(f"  {relpath} | flags={flags} | fileID={fileID[:8]}...")
+    mconn2.close()
 
 except Exception as e:
     print(f"FATAL ERROR: {e}")
     traceback.print_exc()
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
-    print("Done.")
+    print("\nDone.")
 '@
 
 $script | python - 2>&1
