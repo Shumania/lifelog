@@ -1,104 +1,75 @@
-$webhookUrl = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5'
+$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
-$timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-function Send-Output($output) {
-    $body = @{ output = $output; timestamp = $timestamp; computer = $computer; source = 'LifeLog-DevLoop' } | ConvertTo-Json -Depth 3
-    try { Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType 'application/json' | Out-Null } catch {}
+# Capture everything
+$output = @()
+$output += "=== DEV_NEXT START on $computer at $timestamp ==="
+
+# Check Python
+try {
+    $pyVersion = & python --version 2>&1
+    $output += "Python: $pyVersion"
+    $pyPath = (Get-Command python -ErrorAction SilentlyContinue).Source
+    $output += "Python path: $pyPath"
+} catch {
+    $output += "Python: NOT FOUND - $_"
 }
 
-# Find Python
-$pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
-if (-not $pythonExe) { $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source }
-if (-not $pythonExe) { Send-Output "ERROR: Python not found on $computer"; exit 1 }
-
-# Find backup dir (most recently modified)
-$searchPaths = @(
-    "$env:USERPROFILE\Apple\MobileSync\Backup",
-    "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
-)
-$backupDir = $null
-foreach ($p in $searchPaths) {
-    if (Test-Path $p) {
-        $backupDir = Get-ChildItem $p -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($backupDir) { break }
+# Check pip packages
+try {
+    $pipList = & pip list 2>&1 | Select-String -Pattern 'iphone|backup|decrypt|pycrypto'
+    if ($pipList) {
+        $output += "Relevant pip packages: $pipList"
+    } else {
+        $output += "No iphone/backup/decrypt packages found in pip list"
     }
+} catch {
+    $output += "pip check failed: $_"
 }
-if (-not $backupDir) { Send-Output "ERROR: No backup directory found on $computer"; exit 1 }
 
-$pyScript = @'
-import sys, sqlite3, traceback
-try:
-    from iphone_backup_decrypt import EncryptedBackup
-except ImportError as e:
-    print(f'ImportError: {e}')
-    sys.exit(1)
+# Find backup
+try {
+    $backupRoots = @(
+        "$env:USERPROFILE\Apple\MobileSync\Backup",
+        "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup",
+        "$env:LOCALAPPDATA\Apple\MobileSync\Backup"
+    )
+    $backupDir = $null
+    foreach ($root in $backupRoots) {
+        if (Test-Path $root) {
+            $dirs = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue
+            if ($dirs) {
+                $backupDir = ($dirs | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
+                $output += "Backup found at: $backupDir"
+                break
+            }
+        }
+    }
+    if (-not $backupDir) {
+        $output += "No backup directory found in any standard location"
+    }
+} catch {
+    $output += "Backup search failed: $_"
+}
 
-backup_dir = sys.argv[1]
-password = sys.argv[2]
-print(f'Python: {sys.executable}')
-print(f'Backup: {backup_dir}')
+# Download and run inspection script
+try {
+    $scriptUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$(Get-Date -UFormat %s)"
+    $tmpScript = Join-Path $env:TEMP "inspect_googlemaps_backup.py"
+    Invoke-WebRequest -Uri $scriptUrl -OutFile $tmpScript -UseBasicParsing
+    $output += "Script downloaded to $tmpScript"
+    $scriptOutput = & python $tmpScript 2>&1
+    $output += "--- Script output ---"
+    $output += $scriptOutput
+} catch {
+    $output += "Script execution failed: $_"
+}
 
-try:
-    backup = EncryptedBackup(backup_directory=backup_dir, passphrase=password)
-    print('Backup object created OK')
-except Exception as e:
-    print(f'Backup creation failed: {e}')
-    traceback.print_exc()
-    sys.exit(1)
+$output += "=== DEV_NEXT END ==="
+$fullOutput = $output -join "`n"
 
-# Decrypt the manifest DB
-try:
-    backup._decrypt_manifest_db_file()
-    print('Manifest decrypted OK')
-except Exception as e:
-    print(f'Manifest decrypt failed: {e}')
-    traceback.print_exc()
-
-# Query manifest for all domains and Google Maps files
-try:
-    cursor = backup.manifest_db_cursor()
-    print('Got manifest cursor OK')
-
-    # All unique domains
-    cursor.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
-    domains = [r[0] for r in cursor.fetchall()]
-    print(f'\nTotal domains: {len(domains)}')
-    print('\n--- Domains matching google/maps/location/geo ---')
-    matches = [d for d in domains if any(k in (d or '').lower() for k in ['google','maps','location','geo','timeline'])]
-    if matches:
-        for d in matches:
-            print(f'  {d}')
-    else:
-        print('  (none matched)')
-        print('\n--- All domains (for reference) ---')
-        for d in domains:
-            print(f'  {d}')
-
-    # Google Maps specific files
-    print('\n--- Files in Google Maps domains ---')
-    cursor.execute("""
-        SELECT domain, relativePath, flags
-        FROM Files
-        WHERE domain LIKE '%google%' OR domain LIKE '%maps%'
-           OR relativePath LIKE '%google%maps%'
-           OR relativePath LIKE '%Timeline%'
-        ORDER BY domain, relativePath
-    """)
-    rows = cursor.fetchall()
-    if rows:
-        for r in rows:
-            print(f'  [{r[0]}] {r[1]}')
-    else:
-        print('  (none found)')
-
-except Exception as e:
-    print(f'Cursor query failed: {e}')
-    traceback.print_exc()
-
-print('\nDone.')
-'@
-
-$output = $pyScript | & $pythonExe -u - $backupDir.FullName '#ngrierBill70' 2>&1 | Out-String
-Write-Host $output
-Send-Output $output
+# Always post
+$body = @{ computer = $computer; timestamp = $timestamp; source = 'LifeLog-DevLoop'; output = $fullOutput } | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null
+Write-Host $fullOutput
