@@ -118,7 +118,8 @@ except Exception as e:
 print("\n".join(lines))
 '@
 
-$py = (Get-Command python -ErrorAction SilentlyContinue) ?? (Get-Command python3 -ErrorAction SilentlyContinue)
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
 if (-not $py) { Send-Output "FROM: $computer at $timestamp`nERROR: Python not found"; exit 1 }
 
 $tmpScript = [System.IO.Path]::GetTempFileName() + '.py'
