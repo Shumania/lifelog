@@ -1,25 +1,16 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $sysinfo = "=== SYSINFO ===`nComputer: $env:COMPUTERNAME | User: $env:USERNAME | Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-# Find Python
-$pythonExe = $null
-try {
-    $allPython = @(where.exe python 2>$null)
-    foreach ($p in $allPython) {
-        if ($p -and (Test-Path $p) -and $p -notlike "*WindowsApps*") { $pythonExe = $p; break }
-    }
-} catch {}
-if (-not $pythonExe) {
-    foreach ($root in @("$env:LOCALAPPDATA\Programs\Python", "$env:LOCALAPPDATA\Python", "C:\Python")) {
-        if (Test-Path $root) {
-            $found = Get-ChildItem $root -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*WindowsApps*' } | Select-Object -First 1
-            if ($found) { $pythonExe = $found.FullName; break }
-        }
-    }
-}
+# Just use 'python' from PATH directly - works whether it's a stub or real install
+$pythonExe = "python"
 
-if (-not $pythonExe) {
-    $msg = "$sysinfo`n`nERROR: No real Python found."
+# Quick sanity check - does it work?
+try {
+    $pyVer = & python --version 2>&1 | Out-String
+    $sysinfo += "`nPython: $($pyVer.Trim())"
+} catch {
+    # Report failure and exit
+    $msg = "$sysinfo`n`nERROR: 'python' not found in PATH. Install from https://python.org and check 'Add to PATH'"
     Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
     exit
 }
@@ -29,15 +20,15 @@ $backupRoots = @(
     "$env:USERPROFILE\Apple\MobileSync\Backup",
     "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
 )
-$backupInfo = "\n=== BACKUP SEARCH ===\n"
+$backupInfo = "`n=== BACKUP SEARCH ==="
 $backupDir = $null
 foreach ($root in $backupRoots) {
     if (Test-Path $root) {
-        $backupInfo += "Searching: $root\n"
+        $backupInfo += "`nSearching: $root"
         $candidates = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending
         foreach ($c in $candidates) {
             $hasManifest = Test-Path (Join-Path $c.FullName "Manifest.plist")
-            $backupInfo += "  $($c.Name) | Modified: $($c.LastWriteTime) | HasManifest: $hasManifest\n"
+            $backupInfo += "`n  $($c.Name) | Modified: $($c.LastWriteTime) | HasManifest: $hasManifest"
             if ($hasManifest -and -not $backupDir) {
                 $backupDir = $c.FullName
             }
@@ -46,12 +37,12 @@ foreach ($root in $backupRoots) {
 }
 
 if (-not $backupDir) {
-    $msg = "$sysinfo`nPython: $pythonExe$backupInfo\nERROR: No valid backup found with Manifest.plist"
+    $msg = "$sysinfo$backupInfo`n`nERROR: No valid backup found with Manifest.plist"
     Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
     exit
 }
 
-$backupInfo += "Selected: $backupDir\n"
+$backupInfo += "`nSelected: $backupDir"
 
 $script = @'
 import sys, os
@@ -86,7 +77,7 @@ try:
             "SELECT domain, relativePath FROM Files WHERE domain LIKE '%oogle%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' OR relativePath LIKE '%oogle%' OR relativePath LIKE '%Maps%'"
         ).fetchall()
         print(f"Found {len(maps)} Google/Maps files")
-        for r in maps[:50]:
+        for r in maps[:100]:
             print(f"  {r[0]} | {r[1]}")
 except Exception as e:
     import traceback
@@ -98,11 +89,11 @@ print("Done.")
 $tmpFile = [System.IO.Path]::GetTempFileName() + ".py"
 $script | Out-File -FilePath $tmpFile -Encoding utf8
 
-& $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
-$pyOut = & $pythonExe $tmpFile $backupDir 2>&1 | Out-String
+python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+$pyOut = & python $tmpFile $backupDir 2>&1 | Out-String
 Remove-Item $tmpFile -ErrorAction SilentlyContinue
 
-$output = "$sysinfo`nPython: $pythonExe$backupInfo`n$pyOut"
+$output = "$sysinfo$backupInfo`n`n$pyOut"
 Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{
     source='LifeLog-DevLoop'; timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer=$env:COMPUTERNAME; output=$output
 } | ConvertTo-Json -Depth 3)
