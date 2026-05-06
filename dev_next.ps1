@@ -1,121 +1,127 @@
-# dev_next.ps1 - controlled by Tasklet agent
-# Writes all output to stdout so LifeLog-DevLoop captures and posts it.
-
+$WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-Output "FROM: $computer at $timestamp"
+$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
-try {
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCmd) { $python = $pythonCmd.Source } else { $python = $null }
-    if (-not $python) {
-        Write-Output "Python not found. Please install from https://www.python.org/downloads/"
-        exit 0
-    }
-    $pyVersion = & $python --version 2>&1
-    Write-Output "Python: $pyVersion"
+function Send-Output($text) {
+    $body = @{ log = $text; exitCode = 0 } | ConvertTo-Json -Depth 3
+    try { Invoke-RestMethod -Uri $WEBHOOK -Method POST -Body $body -ContentType 'application/json' | Out-Null } catch {}
+}
 
-    # Install dependency quietly
-    & $python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+$script = @'
+import sys, os, subprocess, json, struct
+subprocess.run([sys.executable, '-m', 'pip', 'install', 'iphone-backup-decrypt', 'biplist', '-q'], capture_output=True)
 
-    $script = @'
-import os, sys, sqlite3, plistlib, tempfile
-from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
+import iphone_backup_decrypt
+import plistlib
 
+computer = os.environ.get('COMPUTERNAME', 'UNKNOWN')
+from datetime import datetime
+timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+lines = [f"FROM: {computer} at {timestamp}"]
+
+# Find backup
+backup_base = os.path.join(os.environ.get('USERPROFILE',''), 'Apple', 'MobileSync', 'Backup')
+if not os.path.exists(backup_base):
+    appdata = os.environ.get('APPDATA','')
+    backup_base = os.path.join(os.path.dirname(appdata), 'Apple', 'Apple Application Support', 'MobileSync', 'Backup')
+
+backups = []
+if os.path.exists(backup_base):
+    for d in os.listdir(backup_base):
+        full = os.path.join(backup_base, d)
+        if os.path.isdir(full):
+            backups.append((os.path.getmtime(full), full))
+
+if not backups:
+    lines.append("ERROR: No backups found")
+    print("\n".join(lines))
+    sys.exit(0)
+
+backup_dir = sorted(backups)[-1][1]
+lines.append(f"Backup: {backup_dir}")
+
+# Check Manifest.plist
+manifest_plist = os.path.join(backup_dir, 'Manifest.plist')
+if os.path.exists(manifest_plist):
+    with open(manifest_plist, 'rb') as f:
+        mp = plistlib.load(f)
+    is_encrypted = mp.get('IsEncrypted', False)
+    backup_key_bag = mp.get('BackupKeyBag') is not None
+    lines.append(f"IsEncrypted: {is_encrypted}")
+    lines.append(f"Has BackupKeyBag: {backup_key_bag}")
+    lines.append(f"Manifest.plist keys: {list(mp.keys())}")
+else:
+    lines.append("ERROR: Manifest.plist not found")
+
+# Try unlock with verbose error catching
 PASSWORD = '#ngrierBill70'
-
-def find_backup():
-    for base in [
-        os.path.join(os.environ.get('USERPROFILE',''), 'Apple', 'MobileSync', 'Backup'),
-        os.path.join(os.environ.get('USERPROFILE',''), 'AppData', 'Roaming', 'Apple Computer', 'MobileSync', 'Backup'),
-    ]:
-        if os.path.isdir(base):
-            backups = [d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))]
-            if backups:
-                backups.sort(key=lambda d: os.path.getmtime(os.path.join(base, d)), reverse=True)
-                return os.path.join(base, backups[0])
-    return None
-
-backup_dir = find_backup()
-if not backup_dir:
-    print('ERROR: No backup found')
-    sys.exit(1)
-
-print(f'Backup: {backup_dir}')
-
-# Step 1: Unlock by extracting podcasts DB
-print('\n=== Unlocking backup ===')
+lines.append(f"\nAttempting unlock with password...")
 try:
-    backup = EncryptedBackup(backup_directory=backup_dir, passphrase=PASSWORD)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        backup.extract_file(
-            relative_path='Library/Database/MTLibrary.sqlite',
-            domain_like='AppDomainGroup-243LU875E5.groups.com.apple.podcasts',
-            output_filename=os.path.join(tmpdir, 'unlock_test.db')
-        )
-    print(f'Unlocked! _unlocked={backup._unlocked}')
+    backup = iphone_backup_decrypt.EncryptedBackup(backup_directory=backup_dir, passphrase=PASSWORD)
+    lines.append(f"  backup object created OK")
+    lines.append(f"  _unlocked: {backup._unlocked}")
+    lines.append(f"  _keybag: {type(backup._keybag).__name__}")
 except Exception as e:
-    print(f'Unlock error: {e}')
+    lines.append(f"  ERROR creating backup object: {type(e).__name__}: {e}")
+    print("\n".join(lines))
+    sys.exit(0)
 
-# Step 2: Enumerate ALL com.google.Maps files
-print('\n=== All files in AppDomain-com.google.Maps ===')
+# Try extract to trigger actual unlock
+import tempfile
+tmp = tempfile.mkdtemp()
 try:
-    manifest_conn = getattr(backup, '_temp_manifest_db_conn', None)
-    if not manifest_conn:
-        manifest_path = getattr(backup, '_temp_decrypted_manifest_db_path', None)
-        if manifest_path and os.path.exists(manifest_path):
-            manifest_conn = sqlite3.connect(manifest_path)
-            print(f'Connected directly to decrypted manifest: {manifest_path}')
-    if manifest_conn:
-        cur = manifest_conn.cursor()
-        cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' ORDER BY domain, relativePath")
-        rows = cur.fetchall()
-        print(f'Found {len(rows)} Google/Maps files:')
-        for domain, path in rows:
-            print(f'  [{domain}] {path}')
-    else:
-        print('No manifest connection available - trying direct Manifest.db read')
-        manifest_raw = os.path.join(backup_dir, 'Manifest.db')
-        if os.path.exists(manifest_raw):
-            try:
-                conn2 = sqlite3.connect(manifest_raw)
-                cur2 = conn2.cursor()
-                cur2.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' ORDER BY domain, relativePath")
-                rows2 = cur2.fetchall()
-                print(f'Found {len(rows2)} Google/Maps files (from raw Manifest.db):')
-                for domain, path in rows2:
-                    print(f'  [{domain}] {path}')
-            except Exception as e2:
-                print(f'Raw manifest error: {e2}')
+    backup.extract_file(
+        relative_path="Library/Preferences/com.apple.podcasts.plist",
+        domain_like="AppDomainGroup%podcasts%",
+        output_filename=os.path.join(tmp, "test.plist")
+    )
+    lines.append("  Extract test: SUCCESS - backup is unlocked!")
 except Exception as e:
-    print(f'Manifest error: {e}')
+    lines.append(f"  Extract test FAILED: {type(e).__name__}: {e}")
+    lines.append(f"  _unlocked after attempt: {backup._unlocked}")
+    lines.append(f"  _keybag after attempt: {type(backup._keybag).__name__}")
 
-# Step 3: Extract and parse the plist
-print('\n=== Parsing com.google.Maps.plist ===')
+# Try to extract Google Maps plist
+lines.append("\nTrying to extract Google Maps plist...")
 try:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        out = os.path.join(tmpdir, 'maps.plist')
-        backup.extract_file(
-            relative_path='Library/Preferences/com.google.Maps.plist',
-            domain_like='AppDomain-com.google.Maps',
-            output_filename=out
-        )
-        with open(out, 'rb') as f:
-            data = plistlib.load(f)
-        print(f'Plist keys ({len(data)}):')
-        for k, v in sorted(data.items()):
-            print(f'  {k}: {str(v)[:120]}')
+    gmaps_out = os.path.join(tmp, "com.google.Maps.plist")
+    backup.extract_file(
+        relative_path="Library/Preferences/com.google.Maps.plist",
+        domain_like="AppDomain-com.google.Maps",
+        output_filename=gmaps_out
+    )
+    lines.append(f"  Extracted OK! Size: {os.path.getsize(gmaps_out)} bytes")
+    with open(gmaps_out, 'rb') as f:
+        data = f.read()
+    try:
+        plist_data = plistlib.loads(data)
+        keys = list(plist_data.keys())[:30]
+        lines.append(f"  Plist keys ({len(plist_data)} total): {keys}")
+        # Look for timeline/location keys
+        for k in plist_data:
+            if any(word in k.lower() for word in ['timeline','location','history','place','visit']):
+                lines.append(f"  ** INTERESTING KEY: {k} = {str(plist_data[k])[:200]}")
+    except Exception as pe:
+        lines.append(f"  Parse error: {pe}")
+        lines.append(f"  First 100 bytes (hex): {data[:100].hex()}")
 except Exception as e:
-    print(f'Plist error: {e}')
+    lines.append(f"  Failed: {type(e).__name__}: {e}")
 
-print('\nDone!')
+print("\n".join(lines))
 '@
 
-    $tmpPy = "$env:TEMP\inspect_maps2.py"
-    $script | Set-Content -Path $tmpPy -Encoding UTF8
-    $output = & $python $tmpPy 2>&1 | Out-String
-    Write-Output $output
-
-} catch {
-    Write-Output "ERROR: $_"
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+if (-not $py) {
+    Send-Output "FROM: $computer at $timestamp`nERROR: Python not found"
+    exit 1
 }
+
+$tmpScript = [System.IO.Path]::GetTempFileName() + '.py'
+$script | Set-Content $tmpScript -Encoding UTF8
+
+$output = & $py.Source $tmpScript 2>&1 | Out-String
+Remove-Item $tmpScript -Force -ErrorAction SilentlyContinue
+
+Send-Output "$output"
