@@ -1,112 +1,137 @@
+# dev_next.ps1 - Extract Google Maps Timeline protobuf and upload to webhook
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
 try {
-    $backupRoots = @(
-        "$env:USERPROFILE\Apple\MobileSync\Backup",
-        "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
-    )
-    $backupDir = $null
-    foreach ($root in $backupRoots) {
-        if (Test-Path $root) {
-            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-            if ($backupDir) { break }
-        }
-    }
-    if (-not $backupDir) { throw "No backup directory found!" }
+    # Find Python
+    $python = Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+    if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source }
+    if (-not $python) { $python = "C:\ProgramData\LifeLog\python\python.exe" }
 
-    $pyScript = @'
-import sys, os, tempfile, inspect
-sys.path.insert(0, r'C:\ProgramData\LifeLog')
-from iphone_backup_decrypt import EncryptedBackup, RelativePath
+    # Download extraction script
+    $scriptPath = "$env:TEMP\extract_tlogs.py"
+    $scriptContent = @'
+import sys, os, base64, json, urllib.request, urllib.error
 
-backup_path = sys.argv[1]
-password = '#ngrierBill70'
+webhook_url = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+computer = os.environ.get("COMPUTERNAME", "unknown")
 
-print(f'Backup: {backup_path}')
+try:
+    import iphone_backup_decrypt
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "iphone-backup-decrypt", "-q"])
+    import iphone_backup_decrypt
 
-# Print extract_file signature
-print('\nextract_file signature:', inspect.signature(EncryptedBackup.extract_file))
-print('extract_file docstring:', EncryptedBackup.extract_file.__doc__)
+from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
 
-# Check for other useful methods
-methods = [m for m in dir(EncryptedBackup) if not m.startswith('__')]
-print('\nAll methods:', methods)
+# Find backup
+backup_path = None
+for base in [
+    os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
+    os.path.join(os.environ.get("USERPROFILE",""), "AppData", "Roaming", "Apple Computer", "MobileSync", "Backup"),
+]:
+    if os.path.isdir(base):
+        subdirs = [os.path.join(base, d) for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))]
+        if subdirs:
+            backup_path = max(subdirs, key=lambda p: os.path.getmtime(p))
+            break
 
-# Also check RelativePath constants for Maps
-maps_paths = [attr for attr in dir(RelativePath) if 'MAP' in attr.upper() or 'GOOGLE' in attr.upper()]
-print('\nRelativePath Maps constants:', maps_paths)
+if not backup_path:
+    print("ERROR: No backup found")
+    sys.exit(1)
 
-# Print ALL RelativePath constants to see the format
-print('\nAll RelativePath constants:')
-for attr in dir(RelativePath):
-    if not attr.startswith('_'):
-        print(f'  {attr} = {getattr(RelativePath, attr)}')
+print(f"Backup: {backup_path}")
 
-print('\nUnlocking backup...')
-backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
+backup = EncryptedBackup(backup_directory=backup_path, passphrase="#ngrierBill70")
 
-# Force unlock with podcasts
-tmp = tempfile.mkdtemp()
+# Unlock by extracting a known file first
 try:
     backup.extract_file(
-        relative_path=RelativePath.PODCASTS,
-        output_filename=os.path.join(tmp, 'podcasts.sqlite')
+        relative_path="Library/ApplicationSupport/MTLibrary.sqlite",
+        domain_like="%podcasts%",
+        output_filename=os.path.join(os.environ.get("TEMP","/tmp"), "_unlock_test.sqlite")
     )
-    print('Unlocked OK via RelativePath.PODCASTS')
+    print("Unlocked via podcasts DB")
 except Exception as e:
-    print(f'Podcasts extract error: {e}')
+    print(f"Podcasts unlock attempt: {e}")
 
-# Now try Google Maps files - try different path formats
-targets = [
-    'Library/Application Support/tlogs_offline_storage.binaryproto',
-    'Library/Application Support/DirectionsData',
-    'Library/Application Support/FrequentTripsData',
-    'Library/Application Support/PlacesheetVisits',
-]
-
-for rel in targets:
-    out = os.path.join(tmp, os.path.basename(rel))
-    # Try 1: plain relative path
+# Try extracting the tlogs file
+tlogs_path = os.path.join(os.environ.get("TEMP","/tmp"), "tlogs_offline_storage.binaryproto")
+try:
+    backup.extract_file(
+        relative_path="Library/Application Support/tlogs_offline_storage.binaryproto",
+        domain_like="%google%maps%",
+        output_filename=tlogs_path
+    )
+    print(f"Extracted tlogs: {os.path.getsize(tlogs_path):,} bytes")
+except Exception as e:
+    print(f"Extract with domain failed: {e}")
+    # Try without domain restriction
     try:
-        backup.extract_file(relative_path=rel, output_filename=out)
-        size = os.path.getsize(out)
-        print(f'\nExtracted (plain path) {rel}: {size:,} bytes')
-        if rel.endswith('.binaryproto') and size > 0:
-            with open(out, 'rb') as f:
-                data = f.read(500)
-            print('Hex:', data.hex())
-            print('Chars:', ''.join(chr(b) if 32<=b<127 else '.' for b in data))
-        continue
-    except Exception as e1:
-        print(f'Plain path failed for {os.path.basename(rel)}: {e1}')
+        backup.extract_file(
+            relative_path="Library/Application Support/tlogs_offline_storage.binaryproto",
+            output_filename=tlogs_path
+        )
+        print(f"Extracted tlogs (no domain): {os.path.getsize(tlogs_path):,} bytes")
+    except Exception as e2:
+        print(f"Extract without domain also failed: {e2}")
 
-print('\nDone.')
+# Also try extract_files with domain pattern to list all Google Maps files
+print("\nListing all Google Maps files in manifest...")
+try:
+    cursor = backup.manifest_db_cursor()
+    cursor.execute("SELECT fileID, domain, relativePath FROM Files WHERE domain LIKE '%google%maps%' OR domain LIKE '%GoogleMaps%' ORDER BY relativePath")
+    rows = cursor.fetchall()
+    print(f"Found {len(rows)} Google Maps files:")
+    for r in rows:
+        print(f"  [{r[1]}] {r[2]}")
+except Exception as e:
+    print(f"Manifest query error: {e}")
+
+# Upload tlogs file as base64
+if os.path.exists(tlogs_path):
+    with open(tlogs_path, "rb") as f:
+        raw = f.read()
+    b64 = base64.b64encode(raw).decode("ascii")
+    payload = json.dumps({
+        "source": "LifeLog-DevLoop",
+        "computer": computer,
+        "timestamp": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "file": "tlogs_offline_storage.binaryproto",
+        "size": len(raw),
+        "data_b64": b64
+    }).encode()
+    req = urllib.request.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    urllib.request.urlopen(req, timeout=30)
+    print(f"Uploaded {len(raw):,} bytes of tlogs data")
+else:
+    # Send diagnostic output anyway
+    payload = json.dumps({
+        "source": "LifeLog-DevLoop",
+        "computer": computer,
+        "timestamp": __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "file": "tlogs_offline_storage.binaryproto",
+        "size": 0,
+        "error": "File not extracted"
+    }).encode()
+    req = urllib.request.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    urllib.request.urlopen(req, timeout=30)
+    print("Sent diagnostic (no file)")
 '@
+    Set-Content -Path $scriptPath -Value $scriptContent -Encoding UTF8
 
-    $pyPath = Join-Path $env:TEMP 'extract_maps.py'
-    $pyScript | Set-Content $pyPath -Encoding UTF8
+    $output = & $python $scriptPath 2>&1 | Out-String
+    Write-Host $output
 
-    $output = & python $pyPath $backupDir 2>&1 | Out-String
-
-    $body = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = 'LifeLog-DevLoop'
-        output    = $output
-    } | ConvertTo-Json -Compress
-
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json'
-    Write-Host "Sent!"
+    # Also send stdout summary via normal webhook
+    $body = @{ source="LifeLog-DevLoop"; computer=$computer; timestamp=$timestamp; output=$output } | ConvertTo-Json -Compress
+    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json" | Out-Null
 
 } catch {
-    $errBody = @{
-        computer  = $computer
-        timestamp = $timestamp
-        source    = 'LifeLog-DevLoop'
-        output    = "ERROR: $_"
-    } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $errBody -ContentType 'application/json'
-    Write-Host "Error: $_"
+    $errMsg = $_.Exception.Message
+    Write-Host "ERROR: $errMsg"
+    $body = @{ source="LifeLog-DevLoop"; computer=$computer; timestamp=$timestamp; output="ERROR: $errMsg" } | ConvertTo-Json -Compress
+    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json" | Out-Null
 }
