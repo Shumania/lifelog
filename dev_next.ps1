@@ -1,10 +1,9 @@
 $script = @'
 import sys, os, tempfile, shutil, traceback, sqlite3, plistlib, json
 
-print(f"v16 | Python: {sys.executable}")
+print(f"v17 | Python: {sys.executable}")
 print(f"USERPROFILE: {os.environ.get('USERPROFILE','<not set>')}")
 
-# Enumerate all candidate backup locations
 up = os.environ.get("USERPROFILE", "")
 candidates = [
     os.path.join(up, "Apple", "MobileSync", "Backup"),
@@ -16,37 +15,37 @@ candidates = [
     r"C:\ProgramData\Apple\MobileSync\Backup",
 ]
 
+print("\n--- Searching for backups ---")
 backup_path = None
 for base in candidates:
     exists = os.path.isdir(base)
     print(f"  {'[EXISTS]' if exists else '[missing]'} {base}")
-    if exists and not backup_path:
+    if exists:
         try:
-            for d in os.listdir(base):
+            entries = os.listdir(base)
+            print(f"    Contents ({len(entries)} items): {entries[:10]}")
+            for d in entries:
                 full = os.path.join(base, d)
-                if os.path.isfile(os.path.join(full, "Manifest.db")):
-                    print(f"    -> Found backup: {d}")
+                has_manifest = os.path.isfile(os.path.join(full, "Manifest.db"))
+                is_dir = os.path.isdir(full)
+                print(f"      {d}: isdir={is_dir}, has_Manifest.db={has_manifest}")
+                if has_manifest and not backup_path:
+                    print(f"    -> Using backup: {d}")
                     backup_path = full
-                    break
         except Exception as e:
             print(f"    -> listdir error: {e}")
 
 if not backup_path:
-    print("No backup in candidates, doing deep walk...")
-    try:
-        for root, dirs, files in os.walk(up, topdown=True):
-            depth = root[len(up):].count(os.sep)
-            if depth > 6:
-                dirs[:] = []
-                continue
-            if "MobileSync" in root and "Manifest.db" in files:
-                parent = os.path.dirname(root)
-                if os.path.basename(parent) == "Backup":
-                    print(f"    -> Found: {root}")
-                    backup_path = root
-                    break
-    except Exception as e:
-        print(f"Walk error: {e}")
+    print("\nNo backup found in candidates. Trying deep walk...")
+    for root, dirs, files in os.walk(up, topdown=True):
+        depth = root[len(up):].count(os.sep)
+        if depth > 7:
+            dirs[:] = []
+            continue
+        if "Manifest.db" in files:
+            print(f"  Walk found: {root}")
+            if not backup_path:
+                backup_path = root
 
 if not backup_path:
     print("ERROR: No backup found anywhere")
@@ -73,7 +72,6 @@ tmpdir = tempfile.mkdtemp()
 
 try:
     backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSPHRASE)
-    # Force unlock
     try:
         backup.extract_file(
             relative_path="Library/Application Support/MTLibrary.sqlite",
@@ -83,7 +81,6 @@ try:
     except Exception as e:
         print(f"Unlock attempt: {e}")
 
-    # Extract tlogs_offline
     proto_path = os.path.join(tmpdir, "tlogs_offline")
     try:
         backup.extract_file(
@@ -104,7 +101,6 @@ try:
 
     msg, typedef = blackboxprotobuf.decode_message(raw)
 
-    # Helper: find all leaf values recursively, with path
     def flatten(obj, path=""):
         results = []
         if isinstance(obj, dict):
@@ -114,13 +110,11 @@ try:
             for i, item in enumerate(obj):
                 results.extend(flatten(item, f"{path}[{i}]"))
         elif isinstance(obj, bytes):
-            # Try nested proto
             try:
                 inner, _ = blackboxprotobuf.decode_message(obj)
                 results.extend(flatten(inner, f"{path}(bytes->proto)"))
             except:
                 pass
-            # Try as UTF-8 string
             try:
                 s = obj.decode('utf-8')
                 results.append((path, 'str', s[:100]))
@@ -136,22 +130,20 @@ try:
 
     leaves = flatten(msg)
 
-    # Identify candidate lat/lon (E7 integers: abs val 0..1800000000, or floats -180..180)
     latlons = []
     timestamps = []
     for path, typ, val in leaves:
         if typ == 'int':
             if 1000000 < abs(val) < 1800000000:
                 latlons.append((path, val, val/1e7))
-            elif 1000000000 < val < 9999999999:  # possible unix ts seconds
+            elif 1000000000 < val < 9999999999:
                 timestamps.append((path, val))
-            elif 1000000000000 < val < 9999999999999:  # possible unix ts milliseconds
+            elif 1000000000000 < val < 9999999999999:
                 timestamps.append((path, val, 'ms'))
         elif typ == 'float':
             if -180 <= val <= 180:
                 latlons.append((path, val, 'float'))
 
-    # Print top 30 latlons
     print("\n=== CANDIDATE LAT/LON VALUES ===")
     for item in latlons[:30]:
         print(item)
@@ -160,7 +152,6 @@ try:
     for item in timestamps[:20]:
         print(item)
 
-    # Also print full structure of first 3 items if it's a list
     print("\n=== STRUCTURE (top level) ===")
     if isinstance(msg, dict):
         for k, v in list(msg.items())[:5]:
@@ -185,7 +176,6 @@ finally:
     print("\nDone.")
 '@
 
-# Find Python - use where.exe, skip WindowsApps stub
 $pythonExe = $null
 $candidates = @()
 try { $candidates = @(where.exe python 2>$null) } catch {}
