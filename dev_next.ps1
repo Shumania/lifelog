@@ -16,7 +16,7 @@ import sys, os, glob, sqlite3, tempfile
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 try:
-    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
+    from iphone_backup_decrypt import EncryptedBackup
 except ImportError:
     print("ERROR: iphone_backup_decrypt not installed")
     sys.exit(1)
@@ -47,20 +47,34 @@ if not backup_path:
 
 print(f"Backup path: {backup_path}")
 
-# Unlock backup
+# Unlock backup by extracting podcasts DB (correct path from lifelog_extract.py)
 password = "#ngrierBill70"
 backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
-print("Extracting podcasts DB to unlock...")
+print("Extracting podcasts DB to unlock backup...")
 tmpdir = tempfile.mkdtemp()
-backup.extract_file(
-    relative_path="Library/Application Support/CrashReporter/MTLibrary.sqlite",
-    domain_like="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-    output_filename=os.path.join(tmpdir, "podcasts.sqlite")
-)
-print("Unlock successful!")
+try:
+    backup.extract_file(
+        relative_path="Documents/MTLibrary.sqlite",
+        domain_like="%groups.com.apple.podcasts",
+        output_filename=os.path.join(tmpdir, "podcasts.sqlite")
+    )
+    print("Unlock successful via Documents/MTLibrary.sqlite!")
+except FileNotFoundError:
+    print("Primary path not found, trying fallback...")
+    try:
+        backup.extract_file(
+            relative_path="Documents/MTLibrary.sqlite",
+            domain_like="AppDomain-com.apple.podcasts",
+            output_filename=os.path.join(tmpdir, "podcasts.sqlite")
+        )
+        print("Unlock successful via AppDomain fallback!")
+    except FileNotFoundError:
+        print("Both podcast DB paths failed - trying to proceed anyway")
+except Exception as e:
+    print(f"Unlock error: {e}")
 
-# Dump ALL attributes of backup object
+# Dump ALL attributes of backup object to find manifest connection
 print("\n=== BACKUP OBJECT ATTRIBUTES ===")
 for attr in sorted(dir(backup)):
     if attr.startswith('__'):
@@ -78,7 +92,7 @@ for attr in sorted(dir(backup)):
     except Exception as e:
         print(f"  {attr}: ERROR - {e}")
 
-# Try to find any sqlite connections
+# Try to find sqlite connections on the backup object
 print("\n=== LOOKING FOR SQLITE CONNECTIONS ===")
 for attr in dir(backup):
     if attr.startswith('__'):
@@ -91,18 +105,22 @@ for attr in dir(backup):
             cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [r[0] for r in cur.fetchall()]
             print(f"  Tables: {tables}")
+            if 'Files' in tables:
+                cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' ORDER BY relativePath LIMIT 50")
+                rows = cur.fetchall()
+                print(f"  Google/Maps files ({len(rows)}):")
+                for row in rows:
+                    print(f"    {row[0]} | {row[1]}")
     except:
         pass
 
-# Scan temp dirs for any .sqlite or .db files created recently
+# Scan temp dirs for any manifest .sqlite or .db files created recently
 print("\n=== TEMP DIR SQLITE FILES ===")
 for tmp in [tempfile.gettempdir(), tmpdir]:
     for f in glob.glob(os.path.join(tmp, '**', '*.sqlite'), recursive=True) + glob.glob(os.path.join(tmp, '**', '*.db'), recursive=True):
         try:
-            mtime = os.path.getmtime(f)
             size = os.path.getsize(f)
-            print(f"  {f} (size={size}, mtime={mtime})")
-            # Try opening it
+            print(f"  {f} (size={size})")
             try:
                 conn = sqlite3.connect(f)
                 cur = conn.cursor()
@@ -113,7 +131,7 @@ for tmp in [tempfile.gettempdir(), tmpdir]:
                 if 'Files' in tables:
                     conn2 = sqlite3.connect(f)
                     cur2 = conn2.cursor()
-                    cur2.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' ORDER BY relativePath LIMIT 50")
+                    cur2.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' ORDER BY relativePath LIMIT 50")
                     rows = cur2.fetchall()
                     conn2.close()
                     print(f"    Google/Maps files ({len(rows)}):")
