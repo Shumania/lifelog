@@ -3,8 +3,9 @@ $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 Write-Host "=== DEV_NEXT START on $computer at $ts ==="
 
 try {
-    $python = (Get-Command python -ErrorAction SilentlyContinue)?.Source
-    if (-not $python) { throw "Python not found in PATH" }
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $pythonCmd) { throw "Python not found in PATH" }
+    $python = $pythonCmd.Source
     Write-Host "Python: $(& $python --version 2>&1)"
 
     # Find most recent backup
@@ -15,8 +16,8 @@ try {
     $backupDir = $null
     foreach ($root in $backupRoots) {
         if (Test-Path $root) {
-            $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-            if ($backupDir) { break }
+            $found = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($found) { $backupDir = $found.FullName; break }
         }
     }
     if (-not $backupDir) { throw "No backup directory found" }
