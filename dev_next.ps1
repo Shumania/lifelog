@@ -15,7 +15,7 @@ if (-not $python) {
 
 python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
-$script = @'
+$pyScript = @'
 import os, sys, tempfile, sqlite3
 
 try:
@@ -46,7 +46,7 @@ print(f"Backup: {backup_root}")
 password = "#ngrierBill70"
 backup = EncryptedBackup(backup_directory=backup_root, passphrase=password)
 
-# Unlock by extracting podcasts DB (correct param: relative_path)
+# Unlock by extracting podcasts DB
 with tempfile.TemporaryDirectory() as tmpdir:
     out = os.path.join(tmpdir, "podcasts.sqlite")
     try:
@@ -59,7 +59,6 @@ with tempfile.TemporaryDirectory() as tmpdir:
         print(f"Podcasts unlock: {size:,} bytes - OK")
     except Exception as e:
         print(f"Podcasts unlock failed: {e}")
-        # Try alternate unlock via any file
         try:
             backup.extract_file(
                 relative_path="Library/Preferences/com.apple.mobilephone.plist",
@@ -70,22 +69,20 @@ with tempfile.TemporaryDirectory() as tmpdir:
         except Exception as e2:
             print(f"Alternate unlock also failed: {e2}")
 
-# Now query manifest
+# Query manifest for Google/Maps files
 print("\nQuerying manifest for Google/Maps files...")
 try:
     with backup._manifest_db_conn as conn:
-        # First show all domains
         domains = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain").fetchall()
         print(f"Total domains in backup: {len(domains)}")
-        google_domains = [d[0] for d in domains if 'google' in d[0].lower() or 'maps' in d[0].lower()]
+        google_domains = [d[0] for d in domains if 'google' in (d[0] or '').lower() or 'maps' in (d[0] or '').lower()]
         print(f"Google/Maps domains: {google_domains}")
-        
-        # Search for Google Maps files
+
         rows = conn.execute("""
-            SELECT fileID, domain, relativePath 
-            FROM Files 
+            SELECT fileID, domain, relativePath
+            FROM Files
             WHERE domain LIKE '%google%' OR domain LIKE '%maps%'
-               OR relativePath LIKE '%timeline%' OR relativePath LIKE '%maps%'
+               OR relativePath LIKE '%timeline%' OR relativePath LIKE '%Maps%'
             ORDER BY domain, relativePath
             LIMIT 100
         """).fetchall()
@@ -100,6 +97,12 @@ except Exception as e:
 print("\nDone.")
 '@
 
-$output = python -c $script 2>&1 | Out-String
+# Write to temp file and run
+$tmpFile = [System.IO.Path]::GetTempFileName() + ".py"
+$pyScript | Set-Content -Path $tmpFile -Encoding UTF8
+
+$output = python $tmpFile 2>&1 | Out-String
+Remove-Item $tmpFile -ErrorAction SilentlyContinue
+
 Write-Host $output
 Send-Output $output
