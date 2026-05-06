@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-inspect_googlemaps_backup.py v7
+inspect_googlemaps_backup.py v8
 - Forces decryption by extracting PODCASTS DB (proven to work)
+- Uses correct API: domain_like= and output_filename= (not domain= / output_folder=)
 - Then queries manifest DB for ALL Google Maps domain files
 - Auto-uploads output to Tasklet webhook
 """
@@ -12,7 +13,6 @@ import glob
 import sqlite3
 import tempfile
 import shutil
-import plistlib
 import json
 import urllib.request
 
@@ -51,13 +51,25 @@ def post_output(text, source="inspect_googlemaps_backup"):
     except Exception as e:
         print(f"Upload failed: {e}")
 
+def extract_file(backup, relative_path, domain_like, tmp_dir, name):
+    """Extract a file using the correct API (output_filename= + domain_like=)."""
+    out_path = os.path.join(tmp_dir, name)
+    backup.extract_file(
+        relative_path=relative_path,
+        output_filename=out_path,
+        domain_like=domain_like
+    )
+    if os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
+        return out_path
+    return None
+
 def main():
     lines = []
     def p(s=""):
         print(s)
         lines.append(str(s))
 
-    p("inspect_googlemaps_backup.py v7")
+    p("inspect_googlemaps_backup.py v8")
     p(f"Machine: {os.environ.get('COMPUTERNAME', 'unknown')}")
     p()
 
@@ -83,21 +95,14 @@ def main():
     try:
         backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
-        # === Step 1: Force unlock via PODCASTS DB (proven to work) ===
+        # === Step 1: Force unlock via PODCASTS DB ===
         p("=== Step 1: Force unlock via podcasts DB ===")
-        podcasts_out = os.path.join(tmp_dir, "podcasts_unlock")
-        os.makedirs(podcasts_out, exist_ok=True)
         try:
-            backup.extract_file(
-                relative_path=PODCASTS_PATH,
-                domain=PODCASTS_DOMAIN,
-                output_folder=podcasts_out
-            )
-            extracted = [f for f in glob.glob(os.path.join(podcasts_out, "**", "*"), recursive=True) if os.path.isfile(f)]
-            if extracted:
-                p(f"Podcasts DB extracted: {os.path.getsize(extracted[0])} bytes — backup is UNLOCKED ✓")
+            out = extract_file(backup, PODCASTS_PATH, PODCASTS_DOMAIN, tmp_dir, "podcasts_unlock.sqlite")
+            if out:
+                p(f"Podcasts DB extracted: {os.path.getsize(out)} bytes — backup is UNLOCKED ✓")
             else:
-                p("WARNING: Podcasts DB extraction returned no files")
+                p("WARNING: Podcasts DB extraction returned no file")
         except Exception as e:
             p(f"WARNING: Podcasts DB extraction failed: {e}")
 
@@ -161,7 +166,7 @@ def main():
 
         p()
 
-        # === Step 3: Try to extract any sqlite found in Google Maps domain ===
+        # === Step 3: Try to extract sqlite/db files from Google Maps domain ===
         p("=== Step 3: Try to extract sqlite/db files from Google Maps domain ===")
         sqlite_paths = [
             "Library/Application Support/GMMTimeline/timeline.sqlite",
@@ -175,29 +180,20 @@ def main():
             "Documents/timeline.sqlite",
             "Library/Caches/timeline.sqlite",
         ]
-        for sp in sqlite_paths:
-            out = os.path.join(tmp_dir, "sqlite_probe")
-            os.makedirs(out, exist_ok=True)
+        for i, sp in enumerate(sqlite_paths):
             try:
-                backup.extract_file(
-                    relative_path=sp,
-                    domain="AppDomain-com.google.Maps",
-                    output_folder=out
-                )
-                found = [f for f in glob.glob(os.path.join(out, "**", "*"), recursive=True) if os.path.isfile(f)]
-                if found:
+                out = extract_file(backup, sp, "AppDomain-com.google.Maps", tmp_dir, f"gmaps_{i}.sqlite")
+                if out:
                     p(f"[FOUND] {sp}")
-                    for f in found:
-                        fsize = os.path.getsize(f)
-                        p(f"  Size: {fsize} bytes")
-                        try:
-                            c = sqlite3.connect(f)
-                            tables = c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-                            p(f"  Tables: {[t[0] for t in tables]}")
-                            c.close()
-                        except Exception as e:
-                            p(f"  Not valid sqlite: {e}")
-                    shutil.rmtree(out, ignore_errors=True)
+                    fsize = os.path.getsize(out)
+                    p(f"  Size: {fsize} bytes")
+                    try:
+                        c = sqlite3.connect(out)
+                        tables = c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+                        p(f"  Tables: {[t[0] for t in tables]}")
+                        c.close()
+                    except Exception as e:
+                        p(f"  Not valid sqlite: {e}")
                 else:
                     p(f"  [not found] {sp}")
             except Exception as e:
