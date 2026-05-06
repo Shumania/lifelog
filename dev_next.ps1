@@ -16,12 +16,14 @@ if (-not $python) {
 python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
 $pyScript = @'
-import os, sys, tempfile, sqlite3
+import os, sys, tempfile, sqlite3, traceback
 
 try:
     from iphone_backup_decrypt import EncryptedBackup, RelativePath, DomainLike
-except ImportError:
-    print("ERROR: iphone-backup-decrypt not installed")
+    import iphone_backup_decrypt
+    print(f"iphone_backup_decrypt version: {iphone_backup_decrypt.__version__ if hasattr(iphone_backup_decrypt, '__version__') else 'unknown'}")
+except ImportError as e:
+    print(f"ERROR: iphone-backup-decrypt not installed: {e}")
     sys.exit(1)
 
 # Find most recent backup
@@ -43,39 +45,40 @@ if not backup_root:
 
 print(f"Backup: {backup_root}")
 
-password = "#ngrierBill70"
-backup = EncryptedBackup(backup_directory=backup_root, passphrase=password)
+backup = EncryptedBackup(backup_directory=backup_root, passphrase="#ngrierBill70")
 
-# Unlock by extracting podcasts DB
+# Print all attributes to understand the API
+attrs = [a for a in dir(backup) if not a.startswith('__')]
+print(f"\nBackup object attributes: {attrs}")
+
+# Print manifest path
+if hasattr(backup, '_manifest_db_path'):
+    print(f"Manifest DB path: {backup._manifest_db_path}")
+    print(f"Manifest DB exists: {os.path.exists(backup._manifest_db_path)}")
+
+# Try to unlock by extracting podcasts DB (no domain_like)
 with tempfile.TemporaryDirectory() as tmpdir:
     out = os.path.join(tmpdir, "podcasts.sqlite")
     try:
         backup.extract_file(
             relative_path="Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Documents/MTLibrary.sqlite",
-            domain_like="AppDomainGroup-243LU875E5",
             output_filename=out
         )
         size = os.path.getsize(out)
-        print(f"Podcasts unlock: {size:,} bytes - OK")
+        print(f"\nPodcasts unlock: {size:,} bytes - OK")
     except Exception as e:
-        print(f"Podcasts unlock failed: {e}")
-        try:
-            backup.extract_file(
-                relative_path="Library/Preferences/com.apple.mobilephone.plist",
-                domain_like="AppDomain-com.apple.mobilephone",
-                output_filename=os.path.join(tmpdir, "phone.plist")
-            )
-            print("Alternate unlock OK")
-        except Exception as e2:
-            print(f"Alternate unlock also failed: {e2}")
+        print(f"\nPodcasts unlock failed: {type(e).__name__}: {e}")
+        traceback.print_exc()
 
-# Query manifest for Google/Maps files
-print("\nQuerying manifest for Google/Maps files...")
+# Now try to query manifest using _manifest_db_path
+print("\nQuerying manifest DB...")
 try:
-    with backup._manifest_db_conn as conn:
+    manifest_path = backup._manifest_db_path
+    conn = sqlite3.connect(manifest_path)
+    try:
         domains = conn.execute("SELECT DISTINCT domain FROM Files ORDER BY domain").fetchall()
-        print(f"Total domains in backup: {len(domains)}")
-        google_domains = [d[0] for d in domains if 'google' in (d[0] or '').lower() or 'maps' in (d[0] or '').lower()]
+        print(f"Total domains: {len(domains)}")
+        google_domains = [d[0] for d in domains if d[0] and ('google' in d[0].lower() or 'maps' in d[0].lower())]
         print(f"Google/Maps domains: {google_domains}")
 
         rows = conn.execute("""
@@ -86,23 +89,27 @@ try:
             ORDER BY domain, relativePath
             LIMIT 100
         """).fetchall()
-        print(f"\nGoogle/Maps files found: {len(rows)}")
+        print(f"Google/Maps files: {len(rows)}")
         for fileID, domain, relPath in rows:
             print(f"  [{domain}] {relPath}")
+    except sqlite3.DatabaseError as e:
+        print(f"Manifest DB not readable directly (likely encrypted): {e}")
+        # Try alternate: look for decrypted manifest in temp
+        import glob
+        tmps = glob.glob(os.path.join(tempfile.gettempdir(), '**', 'Manifest*.db'), recursive=True)
+        print(f"Decrypted manifest candidates in temp: {tmps}")
+    finally:
+        conn.close()
 except Exception as e:
-    print(f"Manifest query error: {e}")
-    import traceback
+    print(f"Manifest error: {type(e).__name__}: {e}")
     traceback.print_exc()
 
 print("\nDone.")
 '@
 
-# Write to temp file and run
 $tmpFile = [System.IO.Path]::GetTempFileName() + ".py"
 $pyScript | Set-Content -Path $tmpFile -Encoding UTF8
-
 $output = python $tmpFile 2>&1 | Out-String
 Remove-Item $tmpFile -ErrorAction SilentlyContinue
-
 Write-Host $output
 Send-Output $output
