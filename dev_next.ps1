@@ -1,4 +1,4 @@
-# dev_next.ps1 - VERSION: 2026-05-06-v8-googlemaps
+# dev_next.ps1 - VERSION: 2026-05-06-v9-googlemaps
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 $computer = $env:COMPUTERNAME
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -21,7 +21,7 @@ if (-not $pythonExe) {
     foreach ($p in $fallbacks) { if (Test-Path $p) { $pythonExe = $p; break } }
 }
 if (-not $pythonExe) {
-    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output="v8 ERROR: Python not found" } | ConvertTo-Json -Compress
+    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output="v9 ERROR: Python not found" } | ConvertTo-Json -Compress
     Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
     exit
 }
@@ -29,7 +29,7 @@ if (-not $pythonExe) {
 & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 
 $scriptContent = @'
-import os, sys, glob, tempfile, shutil, sqlite3
+import os, sys, glob, tempfile, shutil, sqlite3, time
 
 PASSWORD = "#ngrierBill70"
 
@@ -48,15 +48,15 @@ def find_backup():
 backup_path = find_backup()
 if not backup_path:
     print("ERROR: No backup found"); sys.exit(1)
-
 print(f"Backup: {backup_path}")
 
 from iphone_backup_decrypt import EncryptedBackup
 
 backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSWORD)
 
-# Step 1: unlock by extracting podcasts DB (forces manifest decryption)
+# Step 1: unlock by extracting podcasts DB
 tmpdir = tempfile.mkdtemp()
+t_before = time.time()
 try:
     out = os.path.join(tmpdir, "podcasts.sqlite")
     backup.extract_file(
@@ -68,49 +68,36 @@ try:
 except Exception as e:
     print(f"Unlock warning: {e}")
 
-# Step 2: open the decrypted manifest DB via sqlite3
-try:
-    manifest_path = backup._manifest_db_path
-    print(f"Manifest DB path: {manifest_path}")
-    conn = sqlite3.connect(manifest_path)
-    cur = conn.cursor()
+# Step 2: dump all attributes of the backup object to find manifest connection
+print("\n--- backup object attributes ---")
+for attr in sorted(dir(backup)):
+    if not attr.startswith('__'):
+        try:
+            val = getattr(backup, attr)
+            if not callable(val):
+                print(f"  {attr} = {repr(val)[:120]}")
+        except Exception as e:
+            print(f"  {attr} => ERROR: {e}")
 
-    # Search for Google/Maps related files
-    cur.execute("""
-        SELECT fileID, domain, relativePath
-        FROM Files
-        WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%'
-           OR relativePath LIKE '%google%' OR relativePath LIKE '%maps%' OR relativePath LIKE '%timeline%'
-           OR relativePath LIKE '%tlogs%' OR relativePath LIKE '%Maps%'
-        ORDER BY domain, relativePath
-    """)
-    rows = cur.fetchall()
-    print(f"\nFound {len(rows)} Google/Maps files:")
-    for fileID, domain, relpath in rows:
-        print(f"  [{domain}] {relpath}  (id={fileID[:8]}...)")
-
-    # All distinct domains containing 'google' or 'aps' (captures Maps/Apple)
-    cur.execute("""
-        SELECT DISTINCT domain FROM Files
-        WHERE domain LIKE '%oogle%' OR domain LIKE '%aps%'
-        ORDER BY domain
-    """)
-    domains = cur.fetchall()
-    print(f"\nAll matching domains ({len(domains)}):")
-    for (d,) in domains:
-        print(f"  {d}")
-
-    conn.close()
-
-except Exception as e:
-    print(f"Manifest query error: {e}")
-    import traceback; traceback.print_exc()
+# Step 3: scan temp dir for .db files created/modified after backup init
+print("\n--- Temp dir .db/.sqlite files modified in last 120s ---")
+tempbase = tempfile.gettempdir()
+now = time.time()
+for fname in os.listdir(tempbase):
+    fpath = os.path.join(tempbase, fname)
+    if fname.lower().endswith(('.db', '.sqlite')):
+        try:
+            mtime = os.path.getmtime(fpath)
+            if now - mtime < 120:
+                print(f"  {fpath}  ({os.path.getsize(fpath)} bytes, age={now-mtime:.0f}s)")
+        except:
+            pass
 
 shutil.rmtree(tmpdir, ignore_errors=True)
 print("\nDone.")
 '@
 
-$scriptPath = "$env:TEMP\inspect_maps_v8.py"
+$scriptPath = "$env:TEMP\inspect_maps_v9.py"
 $scriptContent | Out-File -FilePath $scriptPath -Encoding UTF8
 
 $output = & $pythonExe $scriptPath 2>&1 | Out-String
@@ -119,7 +106,7 @@ $body = @{
     computer  = $computer
     timestamp = $timestamp
     source    = "LifeLog-DevLoop"
-    output    = "v8 | Python: $pythonExe`n$output"
+    output    = "v9 | Python: $pythonExe`n$output"
 } | ConvertTo-Json -Compress
 
 Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
