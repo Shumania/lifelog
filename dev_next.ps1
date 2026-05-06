@@ -1,79 +1,76 @@
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-
 $sysinfo = "=== SYSINFO ===`nComputer: $env:COMPUTERNAME | User: $env:USERNAME | Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
-# Find Python - prefer non-WindowsApps, but fall back to it if that's all we have
+# Find Python
 $pythonExe = $null
 try {
     $allPython = @(where.exe python 2>$null)
-    # First pass: prefer non-WindowsApps
     foreach ($p in $allPython) {
-        if ($p -and (Test-Path $p) -and $p -notlike "*WindowsApps*") {
-            $pythonExe = $p; break
-        }
-    }
-    # Second pass: fall back to WindowsApps (Store install - works fine)
-    if (-not $pythonExe) {
-        foreach ($p in $allPython) {
-            if ($p -and $p -like "*WindowsApps*") {
-                $pythonExe = "python"; break  # Use bare 'python' - Store redirector handles it
-            }
-        }
+        if ($p -and (Test-Path $p) -and $p -notlike "*WindowsApps*") { $pythonExe = $p; break }
     }
 } catch {}
-
-# Also try bare 'python' as last resort
 if (-not $pythonExe) {
-    try {
-        $ver = & python --version 2>&1
-        if ($ver -match 'Python') { $pythonExe = "python" }
-    } catch {}
+    foreach ($root in @("$env:LOCALAPPDATA\Programs\Python", "$env:LOCALAPPDATA\Python", "C:\Python")) {
+        if (Test-Path $root) {
+            $found = Get-ChildItem $root -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*WindowsApps*' } | Select-Object -First 1
+            if ($found) { $pythonExe = $found.FullName; break }
+        }
+    }
 }
 
 if (-not $pythonExe) {
-    $msg = "$sysinfo`n`nERROR: No Python found. Please install from https://python.org"
+    $msg = "$sysinfo`n`nERROR: No real Python found."
     Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
     exit
 }
 
-Write-Host "Python: $pythonExe"
-
-# Find backup
+# Find backup with Manifest.plist
 $backupRoots = @(
     "$env:USERPROFILE\Apple\MobileSync\Backup",
     "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
 )
+$backupInfo = "\n=== BACKUP SEARCH ===\n"
 $backupDir = $null
 foreach ($root in $backupRoots) {
     if (Test-Path $root) {
-        $backupDir = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-        if ($backupDir) { break }
+        $backupInfo += "Searching: $root\n"
+        $candidates = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending
+        foreach ($c in $candidates) {
+            $hasManifest = Test-Path (Join-Path $c.FullName "Manifest.plist")
+            $backupInfo += "  $($c.Name) | Modified: $($c.LastWriteTime) | HasManifest: $hasManifest\n"
+            if ($hasManifest -and -not $backupDir) {
+                $backupDir = $c.FullName
+            }
+        }
     }
 }
 
+if (-not $backupDir) {
+    $msg = "$sysinfo`nPython: $pythonExe$backupInfo\nERROR: No valid backup found with Manifest.plist"
+    Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
+    exit
+}
+
+$backupInfo += "Selected: $backupDir\n"
+
 $script = @'
 import sys, os
-
 backup_path = sys.argv[1]
 print(f"Backup: {backup_path}")
 
 try:
     from iphone_backup_decrypt import EncryptedBackup
 except ImportError:
-    print("ERROR: iphone_backup_decrypt not installed. Run: pip install iphone-backup-decrypt")
+    print("ERROR: iphone_backup_decrypt not installed")
     sys.exit(1)
 
-password = "#ngrierBill70"
-
 try:
-    backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
+    backup = EncryptedBackup(backup_directory=backup_path, passphrase="#ngrierBill70")
     print("Unlocking keybag...")
-    result = backup.test_decryption()
-    print(f"test_decryption() result: {result}")
+    backup.test_decryption()
+    print("Unlocked OK")
 except Exception as e:
-    import traceback
     print(f"ERROR during unlock: {e}")
-    traceback.print_exc()
     sys.exit(1)
 
 print("\nQuerying manifest...")
@@ -84,40 +81,28 @@ try:
         print("\n=== ALL DOMAINS ===")
         for (d,) in domains:
             print(f"  {d}")
-        
-        print("\n=== GOOGLE MAPS FILES ===")
-        maps_files = cursor.execute(
-            "SELECT domain, relativePath FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' OR relativePath LIKE '%google%' OR relativePath LIKE '%Maps%'"
+        print("\n=== GOOGLE/MAPS FILES ===")
+        maps = cursor.execute(
+            "SELECT domain, relativePath FROM Files WHERE domain LIKE '%oogle%' OR domain LIKE '%maps%' OR domain LIKE '%Maps%' OR relativePath LIKE '%oogle%' OR relativePath LIKE '%Maps%'"
         ).fetchall()
-        print(f"Found {len(maps_files)} Google/Maps related files")
-        for row in maps_files[:50]:
-            print(f"  domain={row[0]} | path={row[1]}")
+        print(f"Found {len(maps)} Google/Maps files")
+        for r in maps[:50]:
+            print(f"  {r[0]} | {r[1]}")
 except Exception as e:
     import traceback
-    print(f"manifest query failed: {e}")
+    print(f"Manifest query failed: {e}")
     traceback.print_exc()
-
-print("\nDone.")
+print("Done.")
 '@
 
 $tmpFile = [System.IO.Path]::GetTempFileName() + ".py"
 $script | Out-File -FilePath $tmpFile -Encoding utf8
 
-$output = "$sysinfo`n`nPython: $pythonExe`n"
-
-if (-not $backupDir) {
-    $output += "ERROR: No backup directory found"
-} else {
-    $output += "Backup dir: $backupDir`n"
-    & $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
-    $output += & $pythonExe $tmpFile $backupDir 2>&1 | Out-String
-}
-
+& $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+$pyOut = & $pythonExe $tmpFile $backupDir 2>&1 | Out-String
 Remove-Item $tmpFile -ErrorAction SilentlyContinue
 
+$output = "$sysinfo`nPython: $pythonExe$backupInfo`n$pyOut"
 Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{
-    source = 'LifeLog-DevLoop'
-    timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-    computer = $env:COMPUTERNAME
-    output = $output
+    source='LifeLog-DevLoop'; timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer=$env:COMPUTERNAME; output=$output
 } | ConvertTo-Json -Depth 3)
