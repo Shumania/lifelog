@@ -1,7 +1,7 @@
 $script = @'
 import sys, os, tempfile, shutil, traceback
 
-print(f"v10 | Python: {sys.executable}")
+print(f"v11 | Python: {sys.executable}")
 
 # Find backup
 backup_path = None
@@ -40,26 +40,52 @@ try:
     backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSPHRASE)
     print(f"Backup object created. _unlocked={getattr(backup,'_unlocked',None)}")
 
-    # Step 1: Extract podcasts DB to force full manifest load
+    # Step 1: Extract podcasts DB using CORRECT API (relative_path, not relative_name)
     podcasts_out = os.path.join(tmpdir, "MTLibrary.sqlite")
     print("Extracting podcasts DB to force manifest load...")
     try:
         backup.extract_file(
-            relative_name="Library/Application Support/MTLibrary.sqlite",
-            domain_like="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            relative_path="Library/Application Support/MTLibrary.sqlite",
             output_filename=podcasts_out
         )
         podcasts_size = os.path.getsize(podcasts_out) if os.path.exists(podcasts_out) else 0
         print(f"Podcasts DB extracted: {podcasts_size} bytes")
     except Exception as e:
         print(f"Podcasts extract error (non-fatal): {e}")
+        # Try alternate extract_file signature
+        try:
+            backup.extract_file(
+                relative_path=RelativePath.AppDomainGroup_Podcasts,
+                output_filename=podcasts_out
+            )
+            podcasts_size = os.path.getsize(podcasts_out) if os.path.exists(podcasts_out) else 0
+            print(f"Podcasts DB extracted (alt): {podcasts_size} bytes")
+        except Exception as e2:
+            print(f"Podcasts extract alt error: {e2}")
 
     print(f"After extraction: _unlocked={getattr(backup,'_unlocked',None)}, decrypted={getattr(backup,'decrypted',None)}")
 
+    # Dump all backup attributes to understand unlock state
+    print("\n--- EncryptedBackup attributes ---")
+    for attr in sorted(dir(backup)):
+        if not attr.startswith('__'):
+            try:
+                val = getattr(backup, attr)
+                if not callable(val):
+                    print(f"  {attr} = {repr(val)[:200]}")
+            except:
+                pass
+
     # Step 2: Query manifest DB for Google Maps files
     import sqlite3
-    manifest_db = getattr(backup, '_temp_decrypted_manifest_db_path', None) or getattr(backup, '_manifest_db_path', None)
-    print(f"Manifest DB path: {manifest_db}")
+    manifest_db = None
+    for attr in ['_temp_decrypted_manifest_db_path', '_manifest_db_path', '_decrypted_manifest_path']:
+        v = getattr(backup, attr, None)
+        if v and os.path.exists(str(v)):
+            manifest_db = str(v)
+            break
+
+    print(f"\nManifest DB path: {manifest_db}")
 
     if manifest_db and os.path.exists(manifest_db):
         conn = sqlite3.connect(manifest_db)
@@ -68,7 +94,7 @@ try:
         # Search for Google Maps related files
         print("\n--- Google Maps files in manifest ---")
         cur.execute("""
-            SELECT fileID, domain, relativePath, flags, file
+            SELECT fileID, domain, relativePath, flags
             FROM Files
             WHERE domain LIKE '%google%maps%' OR domain LIKE '%Maps%'
                OR relativePath LIKE '%maps%timeline%' OR relativePath LIKE '%googlemaps%'
@@ -78,8 +104,7 @@ try:
         """)
         rows = cur.fetchall()
         print(f"Found {len(rows)} rows matching Google Maps")
-        for row in rows:
-            fileID, domain, relpath, flags, file_blob = row
+        for fileID, domain, relpath, flags in rows:
             print(f"  domain={domain}")
             print(f"  relpath={relpath}")
             print(f"  fileID={fileID}, flags={flags}")
@@ -107,20 +132,7 @@ try:
 
         conn.close()
     else:
-        print("ERROR: Manifest DB not accessible")
-        # Try reading raw Manifest.db
-        raw_manifest = os.path.join(backup_path, "Manifest.db")
-        print(f"Trying raw (unencrypted) manifest at {raw_manifest}")
-        if os.path.exists(raw_manifest):
-            try:
-                conn2 = sqlite3.connect(raw_manifest)
-                cur2 = conn2.cursor()
-                cur2.execute("SELECT DISTINCT domain FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%Google%' ORDER BY domain")
-                for (d,) in cur2.fetchall():
-                    print(f"  RAW: {d}")
-                conn2.close()
-            except Exception as e2:
-                print(f"Raw manifest error: {e2}")
+        print("ERROR: Manifest DB not accessible after extraction")
 
 except Exception as e:
     print(f"FATAL ERROR: {e}")
