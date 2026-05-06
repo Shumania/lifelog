@@ -15,7 +15,6 @@ try {
 } catch {}
 if (-not $pythonExe) {
     foreach ($p in @(
-        "$env:LOCALAPPDATA\Python\pythoncore-3.14-64\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
     )) { if (Test-Path $p) { $pythonExe = $p; break } }
@@ -24,7 +23,7 @@ if (-not $pythonExe) {
 $script = @'
 import os, sys, struct, tempfile, subprocess
 
-print(f"v19 | Python: {sys.executable}")
+print(f"v20 | Python: {sys.executable}")
 print(f"USERPROFILE: {os.environ.get('USERPROFILE', 'N/A')}")
 print()
 
@@ -61,12 +60,13 @@ if not backup_path:
 print(f"Using backup: {backup_path}")
 backup = EncryptedBackup(backup_directory=backup_path, passphrase='#ngrierBill70')
 
-# First unlock via podcasts
 tmp = tempfile.mkdtemp()
+
+# First unlock via podcasts DB
 podcasts_out = os.path.join(tmp, 'MTLibrary.sqlite')
 try:
     backup.extract_file(
-        relative_name='MTLibrary.sqlite',
+        relative_path='MTLibrary.sqlite',
         output_filename=podcasts_out,
         domain_like='AppDomainGroup-%',
     )
@@ -78,7 +78,7 @@ except Exception as e:
 tlogs_out = os.path.join(tmp, 'tlogs_offline')
 try:
     backup.extract_file(
-        relative_name='tlogs_offline',
+        relative_path='tlogs_offline',
         output_filename=tlogs_out,
         domain_like='AppDomainGroup-%',
     )
@@ -101,10 +101,6 @@ for i in range(0, min(256, len(raw)), 16):
     print(f"  {i:04x}: {hex_str:<48}  {ascii_str}")
 
 print(f"\n=== SEARCH FOR COORDINATE PATTERNS ===")
-
-# Seattle area bounds
-# Lat: 47.0 - 48.5, Lon: -123.0 - -121.5
-# Bellevue/Mercer Island area too
 
 def search_float32(data, lat_min, lat_max, lon_min, lon_max):
     hits = []
@@ -158,7 +154,7 @@ print(f"  int32 E7 hits: {len(i32_hits)}")
 for hit in i32_hits[:10]:
     print(f"    offset={hit[0]:#06x} {hit[1]}: raw={hit[2]} -> {hit[3]:.6f}")
 
-# Also search broader: anywhere in Washington State
+# Also search broader: Washington State
 print("\nSearching broader: Washington State (lat 45.5-49.0, lon -124.5 to -116.9)...")
 f64_hits2 = search_float64(raw, 45.5, 49.0, -124.5, -116.9)
 print(f"  float64 hits: {len(f64_hits2)}")
@@ -170,16 +166,15 @@ print(f"  int32 E7 hits: {len(i32_hits2)}")
 for hit in i32_hits2[:20]:
     print(f"    offset={hit[0]:#06x} {hit[1]}: raw={hit[2]} -> {hit[3]:.6f}")
 
-# Also try: search for any recent Unix timestamps in the file
+# Search for recent Unix timestamps
 print(f"\n=== SEARCH FOR RECENT TIMESTAMPS ===")
-# Recent = 2020-2026: Unix 1577836800 to 1800000000
-ts_min, ts_max = 1577836800, 1800000000
+import datetime
+ts_min, ts_max = 1577836800, 1800000000  # 2020-2026
 ts_hits = []
 for i in range(0, len(raw) - 3):
     for endian in ['<', '>']:
-        v = struct.unpack_from(f'{endian}I', raw, i)[0]  # unsigned 32-bit
+        v = struct.unpack_from(f'{endian}I', raw, i)[0]
         if ts_min <= v <= ts_max:
-            import datetime
             dt = datetime.datetime.utcfromtimestamp(v)
             ts_hits.append((i, endian, v, str(dt)))
 
@@ -187,14 +182,13 @@ print(f"Unix timestamp hits (2020-2026): {len(ts_hits)}")
 for hit in ts_hits[:20]:
     print(f"  offset={hit[0]:#06x} {hit[1]}: {hit[2]} = {hit[3]}")
 
-# Try millisecond timestamps
+# Millisecond timestamps
 ts_min_ms, ts_max_ms = ts_min * 1000, ts_max * 1000
 ms_hits = []
 for i in range(0, len(raw) - 7):
     for endian in ['<', '>']:
-        v = struct.unpack_from(f'{endian}Q', raw, i)[0]  # unsigned 64-bit
+        v = struct.unpack_from(f'{endian}Q', raw, i)[0]
         if ts_min_ms <= v <= ts_max_ms:
-            import datetime
             dt = datetime.datetime.utcfromtimestamp(v/1000)
             ms_hits.append((i, endian, v, str(dt)))
 
@@ -202,8 +196,8 @@ print(f"Millisecond timestamp hits: {len(ms_hits)}")
 for hit in ms_hits[:20]:
     print(f"  offset={hit[0]:#06x} {hit[1]}: {hit[2]} = {hit[3]}")
 
-# Also show full protobuf decode (all fields)
-print(f"\n=== FULL PROTOBUF DECODE (truncated) ===")
+# Full protobuf decode
+print(f"\n=== FULL PROTOBUF DECODE ===")
 try:
     msg, typedef = blackboxprotobuf.decode_message(raw)
     def show(d, prefix='', depth=0):
@@ -233,10 +227,9 @@ print("\nDone.")
 '@
 
 if (-not $pythonExe) {
-    $output = "v19 | ERROR: Python not found"
+    $output = "v20 | ERROR: Python not found"
 } else {
-    $output = $script | & $pythonExe - 2>&1 | Out-String
-    $output = "v19 | Python: $pythonExe`n" + $output
+    $output = & $pythonExe -c $script 2>&1 | Out-String
 }
 
 $body = @{ output = $output; timestamp = $timestamp; computer = $computer; source = 'LifeLog-DevLoop' } | ConvertTo-Json -Depth 3
