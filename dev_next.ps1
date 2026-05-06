@@ -1,17 +1,16 @@
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$sysinfo = "=== SYSINFO ===`nComputer: $env:COMPUTERNAME | User: $env:USERNAME | Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+# dev_next.ps1 - controlled by Tasklet agent
+# Prints all output to stdout; dev loop captures and posts to webhook.
+# Do NOT call Invoke-RestMethod here - that causes double-post and overwrites good data.
 
-# Just use 'python' from PATH directly - works whether it's a stub or real install
-$pythonExe = "python"
+$sysinfo = "FROM: $env:COMPUTERNAME at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+Write-Output $sysinfo
 
-# Quick sanity check - does it work?
+# Quick sanity check - does python work?
 try {
     $pyVer = & python --version 2>&1 | Out-String
-    $sysinfo += "`nPython: $($pyVer.Trim())"
+    Write-Output "Python: $($pyVer.Trim())"
 } catch {
-    # Report failure and exit
-    $msg = "$sysinfo`n`nERROR: 'python' not found in PATH. Install from https://python.org and check 'Add to PATH'"
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
+    Write-Output "ERROR: 'python' not found in PATH. Install from https://python.org and check 'Add to PATH'"
     exit
 }
 
@@ -20,15 +19,15 @@ $backupRoots = @(
     "$env:USERPROFILE\Apple\MobileSync\Backup",
     "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
 )
-$backupInfo = "`n=== BACKUP SEARCH ==="
+Write-Output "`n=== BACKUP SEARCH ==="
 $backupDir = $null
 foreach ($root in $backupRoots) {
     if (Test-Path $root) {
-        $backupInfo += "`nSearching: $root"
+        Write-Output "Searching: $root"
         $candidates = Get-ChildItem $root -Directory | Sort-Object LastWriteTime -Descending
         foreach ($c in $candidates) {
             $hasManifest = Test-Path (Join-Path $c.FullName "Manifest.plist")
-            $backupInfo += "`n  $($c.Name) | Modified: $($c.LastWriteTime) | HasManifest: $hasManifest"
+            Write-Output "  $($c.Name) | Modified: $($c.LastWriteTime) | HasManifest: $hasManifest"
             if ($hasManifest -and -not $backupDir) {
                 $backupDir = $c.FullName
             }
@@ -37,12 +36,11 @@ foreach ($root in $backupRoots) {
 }
 
 if (-not $backupDir) {
-    $msg = "$sysinfo$backupInfo`n`nERROR: No valid backup found with Manifest.plist"
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{source='LifeLog-DevLoop';timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss');computer=$env:COMPUTERNAME;output=$msg} | ConvertTo-Json)
+    Write-Output "ERROR: No valid backup found with Manifest.plist"
     exit
 }
 
-$backupInfo += "`nSelected: $backupDir"
+Write-Output "Selected: $backupDir"
 
 $script = @'
 import sys, os
@@ -93,7 +91,4 @@ python -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
 $pyOut = & python $tmpFile $backupDir 2>&1 | Out-String
 Remove-Item $tmpFile -ErrorAction SilentlyContinue
 
-$output = "$sysinfo$backupInfo`n`n$pyOut"
-Invoke-RestMethod -Uri $webhookUrl -Method POST -ContentType 'application/json' -Body (@{
-    source='LifeLog-DevLoop'; timestamp=(Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer=$env:COMPUTERNAME; output=$output
-} | ConvertTo-Json -Depth 3)
+Write-Output $pyOut
