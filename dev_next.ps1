@@ -1,4 +1,4 @@
-# Run podcast extraction from iPhone backup
+# v24: Run podcast extraction + Google Maps inspection
 # Find Python - use where.exe, skip WindowsApps stub
 $pythonExe = $null
 $candidates = @()
@@ -11,15 +11,22 @@ foreach ($p in $candidates) {
 }
 if (-not $pythonExe) { $pythonExe = "python" }
 
-Write-Host "v23 | Python: $pythonExe"
-Write-Host "Machine: $env:COMPUTERNAME"
+Write-Host "v24 | Python: $pythonExe | Machine: $env:COMPUTERNAME"
 
-# Download latest lifelog_extract.py
-$scriptUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?t=$(Get-Date -UFormat %s)"
-$scriptPath = "$env:TEMP\lifelog_extract.py"
-Invoke-WebRequest -Uri $scriptUrl -OutFile $scriptPath -UseBasicParsing
+$ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
-Write-Host "Downloaded lifelog_extract.py ($(Get-Item $scriptPath).Length bytes)"
+# Download latest scripts
+$extractUrl  = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?t=$ts"
+$inspectUrl  = "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$ts"
+$extractPath = "$env:TEMP\lifelog_extract.py"
+$inspectPath = "$env:TEMP\inspect_googlemaps_backup.py"
 
-# Run extraction - output goes to stdout so dev loop captures it
-& $pythonExe $scriptPath 2>&1
+Invoke-WebRequest -Uri $extractUrl -OutFile $extractPath -UseBasicParsing
+Invoke-WebRequest -Uri $inspectUrl -OutFile $inspectPath -UseBasicParsing
+
+Write-Host "Downloaded scripts. Running podcast extraction..."
+& $pythonExe $extractPath 2>&1
+
+Write-Host ""
+Write-Host "=== GOOGLE MAPS INSPECTION ==="
+& $pythonExe $inspectPath 2>&1
