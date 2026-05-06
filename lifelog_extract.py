@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Configuration (injected by installer) -----------------------------------
-WEBHOOK_URL = "https://tasklet.ai/webhook/whe_53am4mf5n5afky5t8xeq"
+WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=2a1433f1fa487e647ee1d12c7f26a497"
 BACKUP_PASSWORD = "#ngrierBill70"
 DEVICE_ID = socket.gethostname()
 
