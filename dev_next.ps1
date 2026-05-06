@@ -17,57 +17,70 @@ try {
     if (-not $backupDir) { throw "No backup directory found!" }
 
     $pyScript = @'
-import sys, os, tempfile, subprocess, json
+import sys, os, tempfile, inspect
 sys.path.insert(0, r'C:\ProgramData\LifeLog')
-from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
+from iphone_backup_decrypt import EncryptedBackup, RelativePath
 
 backup_path = sys.argv[1]
 password = '#ngrierBill70'
 
 print(f'Backup: {backup_path}')
-print('Unlocking...')
+
+# Print extract_file signature
+print('\nextract_file signature:', inspect.signature(EncryptedBackup.extract_file))
+print('extract_file docstring:', EncryptedBackup.extract_file.__doc__)
+
+# Check for other useful methods
+methods = [m for m in dir(EncryptedBackup) if not m.startswith('__')]
+print('\nAll methods:', methods)
+
+# Also check RelativePath constants for Maps
+maps_paths = [attr for attr in dir(RelativePath) if 'MAP' in attr.upper() or 'GOOGLE' in attr.upper()]
+print('\nRelativePath Maps constants:', maps_paths)
+
+# Print ALL RelativePath constants to see the format
+print('\nAll RelativePath constants:')
+for attr in dir(RelativePath):
+    if not attr.startswith('_'):
+        print(f'  {attr} = {getattr(RelativePath, attr)}')
+
+print('\nUnlocking backup...')
 backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
-# Force unlock by extracting podcasts DB
+# Force unlock with podcasts
 tmp = tempfile.mkdtemp()
 try:
     backup.extract_file(
-        relative_path='Library/Preferences/com.google.Maps.plist',
-        domain='AppDomain-com.google.Maps',
-        output_filename=os.path.join(tmp, 'maps.plist')
+        relative_path=RelativePath.PODCASTS,
+        output_filename=os.path.join(tmp, 'podcasts.sqlite')
     )
-    print('Unlock confirmed.')
+    print('Unlocked OK via RelativePath.PODCASTS')
 except Exception as e:
-    print(f'Unlock note: {e}')
+    print(f'Podcasts extract error: {e}')
 
-# Files to extract and inspect
+# Now try Google Maps files - try different path formats
 targets = [
-    ('AppDomain-com.google.Maps', 'Library/Application Support/tlogs_offline_storage.binaryproto', 'tlogs.binaryproto'),
-    ('AppDomain-com.google.Maps', 'Library/Application Support/DirectionsData', 'DirectionsData'),
-    ('AppDomain-com.google.Maps', 'Library/Application Support/FrequentTripsData', 'FrequentTripsData'),
-    ('AppDomain-com.google.Maps', 'Library/Application Support/PlacesheetVisits', 'PlacesheetVisits'),
+    'Library/Application Support/tlogs_offline_storage.binaryproto',
+    'Library/Application Support/DirectionsData',
+    'Library/Application Support/FrequentTripsData',
+    'Library/Application Support/PlacesheetVisits',
 ]
 
-for domain, rel_path, out_name in targets:
-    out_path = os.path.join(tmp, out_name)
+for rel in targets:
+    out = os.path.join(tmp, os.path.basename(rel))
+    # Try 1: plain relative path
     try:
-        backup.extract_file(relative_path=rel_path, domain=domain, output_filename=out_path)
-        size = os.path.getsize(out_path)
-        print(f'\nExtracted {out_name}: {size:,} bytes')
-        # For binaryproto: hex dump first 200 bytes
-        if out_name.endswith('.binaryproto') and size > 0:
-            with open(out_path, 'rb') as f:
+        backup.extract_file(relative_path=rel, output_filename=out)
+        size = os.path.getsize(out)
+        print(f'\nExtracted (plain path) {rel}: {size:,} bytes')
+        if rel.endswith('.binaryproto') and size > 0:
+            with open(out, 'rb') as f:
                 data = f.read(500)
-            print('First 500 bytes (hex):')
-            print(data.hex())
-            print('Printable chars:', ''.join(chr(b) if 32<=b<127 else '.' for b in data))
-        elif size > 0 and size < 50000:
-            # Try to read as text/plist
-            with open(out_path, 'rb') as f:
-                raw = f.read(2000)
-            print('Preview:', ''.join(chr(b) if 32<=b<127 else '.' for b in raw))
-    except Exception as e:
-        print(f'Error extracting {out_name}: {e}')
+            print('Hex:', data.hex())
+            print('Chars:', ''.join(chr(b) if 32<=b<127 else '.' for b in data))
+        continue
+    except Exception as e1:
+        print(f'Plain path failed for {os.path.basename(rel)}: {e1}')
 
 print('\nDone.')
 '@
@@ -75,7 +88,6 @@ print('\nDone.')
     $pyPath = Join-Path $env:TEMP 'extract_maps.py'
     $pyScript | Set-Content $pyPath -Encoding UTF8
 
-    & python -m pip install iphone-backup-decrypt -q 2>&1 | Out-Null
     $output = & python $pyPath $backupDir 2>&1 | Out-String
 
     $body = @{
