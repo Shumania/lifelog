@@ -1,112 +1,133 @@
-# dev_next.ps1 - VERSION: 2026-05-06-v9-googlemaps
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$computer = $env:COMPUTERNAME
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$script = @'
+import sys, os, tempfile, shutil, traceback
 
-# Find Python - skip WindowsApps stub
-$pythonExe = $null
-try {
-    $candidates = @(where.exe python 2>$null)
-    foreach ($c in $candidates) {
-        if ($c -notlike "*WindowsApps*") { $pythonExe = $c.Trim(); break }
-    }
-    if (-not $pythonExe -and $candidates) { $pythonExe = $candidates[0].Trim() }
-} catch {}
-if (-not $pythonExe) {
-    $fallbacks = @(
-        "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe"
-    )
-    foreach ($p in $fallbacks) { if (Test-Path $p) { $pythonExe = $p; break } }
-}
-if (-not $pythonExe) {
-    $body = @{ computer=$computer; timestamp=$timestamp; source="LifeLog-DevLoop"; output="v9 ERROR: Python not found" } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
-    exit
-}
+print(f"v10 | Python: {sys.executable}")
 
-& $pythonExe -m pip install iphone-backup-decrypt --quiet 2>&1 | Out-Null
+# Find backup
+backup_path = None
+for base in [
+    os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
+    os.path.join(os.environ.get("USERPROFILE",""), "AppData", "Roaming", "Apple Computer", "MobileSync", "Backup"),
+]:
+    if os.path.isdir(base):
+        for d in os.listdir(base):
+            full = os.path.join(base, d)
+            if os.path.isfile(os.path.join(full, "Manifest.db")):
+                backup_path = full
+                break
+    if backup_path:
+        break
 
-$scriptContent = @'
-import os, sys, glob, tempfile, shutil, sqlite3, time
-
-PASSWORD = "#ngrierBill70"
-
-def find_backup():
-    for base in [
-        os.path.join(os.environ.get("USERPROFILE",""), "Apple", "MobileSync", "Backup"),
-        os.path.join(os.environ.get("APPDATA",""), "Apple Computer", "MobileSync", "Backup"),
-    ]:
-        if os.path.isdir(base):
-            dirs = sorted([d for d in glob.glob(os.path.join(base, "*")) if os.path.isdir(d)],
-                          key=lambda d: os.path.getmtime(d), reverse=True)
-            if dirs:
-                return dirs[0]
-    return None
-
-backup_path = find_backup()
 if not backup_path:
-    print("ERROR: No backup found"); sys.exit(1)
+    print("ERROR: No backup found")
+    sys.exit(1)
+
 print(f"Backup: {backup_path}")
 
-from iphone_backup_decrypt import EncryptedBackup
-
-backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSWORD)
-
-# Step 1: unlock by extracting podcasts DB
-tmpdir = tempfile.mkdtemp()
-t_before = time.time()
 try:
-    out = os.path.join(tmpdir, "podcasts.sqlite")
-    backup.extract_file(
-        relative_path="Library/Application Support/Podcasts/MTLibrary.sqlite",
-        domain_like="AppDomainGroup-%groups.com.apple.podcasts",
-        output_filename=out
-    )
-    print(f"Unlock OK: {os.path.getsize(out)} bytes")
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
+except ImportError:
+    print("Installing iphone_backup_decrypt...")
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "iphone-backup-decrypt"])
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
+
+PASSPHRASE = "#ngrierBill70"
+tmpdir = tempfile.mkdtemp()
+print(f"Temp dir: {tmpdir}")
+
+try:
+    backup = EncryptedBackup(backup_directory=backup_path, passphrase=PASSPHRASE)
+    print(f"Backup object created. _unlocked={getattr(backup,'_unlocked',None)}")
+
+    # Step 1: Extract podcasts DB to force full manifest load
+    podcasts_out = os.path.join(tmpdir, "MTLibrary.sqlite")
+    print("Extracting podcasts DB to force manifest load...")
+    try:
+        backup.extract_file(
+            relative_name="Library/Application Support/MTLibrary.sqlite",
+            domain_like="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            output_filename=podcasts_out
+        )
+        podcasts_size = os.path.getsize(podcasts_out) if os.path.exists(podcasts_out) else 0
+        print(f"Podcasts DB extracted: {podcasts_size} bytes")
+    except Exception as e:
+        print(f"Podcasts extract error (non-fatal): {e}")
+
+    print(f"After extraction: _unlocked={getattr(backup,'_unlocked',None)}, decrypted={getattr(backup,'decrypted',None)}")
+
+    # Step 2: Query manifest DB for Google Maps files
+    import sqlite3
+    manifest_db = getattr(backup, '_temp_decrypted_manifest_db_path', None) or getattr(backup, '_manifest_db_path', None)
+    print(f"Manifest DB path: {manifest_db}")
+
+    if manifest_db and os.path.exists(manifest_db):
+        conn = sqlite3.connect(manifest_db)
+        cur = conn.cursor()
+
+        # Search for Google Maps related files
+        print("\n--- Google Maps files in manifest ---")
+        cur.execute("""
+            SELECT fileID, domain, relativePath, flags, file
+            FROM Files
+            WHERE domain LIKE '%google%maps%' OR domain LIKE '%Maps%'
+               OR relativePath LIKE '%maps%timeline%' OR relativePath LIKE '%googlemaps%'
+               OR domain LIKE '%com.google.Maps%'
+            ORDER BY domain, relativePath
+            LIMIT 100
+        """)
+        rows = cur.fetchall()
+        print(f"Found {len(rows)} rows matching Google Maps")
+        for row in rows:
+            fileID, domain, relpath, flags, file_blob = row
+            print(f"  domain={domain}")
+            print(f"  relpath={relpath}")
+            print(f"  fileID={fileID}, flags={flags}")
+            print()
+
+        # Also check all domains for anything Google-related
+        print("\n--- All Google-related domains ---")
+        cur.execute("""
+            SELECT DISTINCT domain FROM Files
+            WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
+            ORDER BY domain
+        """)
+        for (domain,) in cur.fetchall():
+            print(f"  {domain}")
+
+        # Count files per Google domain
+        print("\n--- File counts per Google domain ---")
+        cur.execute("""
+            SELECT domain, COUNT(*) as cnt FROM Files
+            WHERE domain LIKE '%google%' OR domain LIKE '%Google%'
+            GROUP BY domain ORDER BY cnt DESC
+        """)
+        for (domain, cnt) in cur.fetchall():
+            print(f"  {cnt:4d}  {domain}")
+
+        conn.close()
+    else:
+        print("ERROR: Manifest DB not accessible")
+        # Try reading raw Manifest.db
+        raw_manifest = os.path.join(backup_path, "Manifest.db")
+        print(f"Trying raw (unencrypted) manifest at {raw_manifest}")
+        if os.path.exists(raw_manifest):
+            try:
+                conn2 = sqlite3.connect(raw_manifest)
+                cur2 = conn2.cursor()
+                cur2.execute("SELECT DISTINCT domain FROM Files WHERE domain LIKE '%google%' OR domain LIKE '%Google%' ORDER BY domain")
+                for (d,) in cur2.fetchall():
+                    print(f"  RAW: {d}")
+                conn2.close()
+            except Exception as e2:
+                print(f"Raw manifest error: {e2}")
+
 except Exception as e:
-    print(f"Unlock warning: {e}")
-
-# Step 2: dump all attributes of the backup object to find manifest connection
-print("\n--- backup object attributes ---")
-for attr in sorted(dir(backup)):
-    if not attr.startswith('__'):
-        try:
-            val = getattr(backup, attr)
-            if not callable(val):
-                print(f"  {attr} = {repr(val)[:120]}")
-        except Exception as e:
-            print(f"  {attr} => ERROR: {e}")
-
-# Step 3: scan temp dir for .db files created/modified after backup init
-print("\n--- Temp dir .db/.sqlite files modified in last 120s ---")
-tempbase = tempfile.gettempdir()
-now = time.time()
-for fname in os.listdir(tempbase):
-    fpath = os.path.join(tempbase, fname)
-    if fname.lower().endswith(('.db', '.sqlite')):
-        try:
-            mtime = os.path.getmtime(fpath)
-            if now - mtime < 120:
-                print(f"  {fpath}  ({os.path.getsize(fpath)} bytes, age={now-mtime:.0f}s)")
-        except:
-            pass
-
-shutil.rmtree(tmpdir, ignore_errors=True)
-print("\nDone.")
+    print(f"FATAL ERROR: {e}")
+    traceback.print_exc()
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    print("Done.")
 '@
 
-$scriptPath = "$env:TEMP\inspect_maps_v9.py"
-$scriptContent | Out-File -FilePath $scriptPath -Encoding UTF8
-
-$output = & $pythonExe $scriptPath 2>&1 | Out-String
-
-$body = @{
-    computer  = $computer
-    timestamp = $timestamp
-    source    = "LifeLog-DevLoop"
-    output    = "v9 | Python: $pythonExe`n$output"
-} | ConvertTo-Json -Compress
-
-Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType "application/json"
+$script | python - 2>&1
