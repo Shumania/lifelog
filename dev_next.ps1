@@ -1,109 +1,104 @@
-$webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+$webhookUrl = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5'
+$computer = $env:COMPUTERNAME
+$timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 
-$pythonExe = $null
-foreach ($cmd in @('python','python3')) {
-    $c = Get-Command $cmd -ErrorAction SilentlyContinue
-    if ($c) { $pythonExe = $c.Source; break }
+function Send-Output($output) {
+    $body = @{ output = $output; timestamp = $timestamp; computer = $computer; source = 'LifeLog-DevLoop' } | ConvertTo-Json -Depth 3
+    try { Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType 'application/json' | Out-Null } catch {}
 }
-if (-not $pythonExe) {
-    foreach ($p in @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe","$env:LOCALAPPDATA\Programs\Python\Python312\python.exe","C:\ProgramData\LifeLog\python\python.exe")) {
-        if (Test-Path $p) { $pythonExe = $p; break }
+
+# Find Python
+$pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+if (-not $pythonExe) { $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue)?.Source }
+if (-not $pythonExe) { Send-Output "ERROR: Python not found on $computer"; exit 1 }
+
+# Find backup dir (most recently modified)
+$searchPaths = @(
+    "$env:USERPROFILE\Apple\MobileSync\Backup",
+    "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
+)
+$backupDir = $null
+foreach ($p in $searchPaths) {
+    if (Test-Path $p) {
+        $backupDir = Get-ChildItem $p -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($backupDir) { break }
     }
 }
+if (-not $backupDir) { Send-Output "ERROR: No backup directory found on $computer"; exit 1 }
 
-$backupRoot = "$env:USERPROFILE\Apple\MobileSync\Backup"
-if (-not (Test-Path $backupRoot)) { $backupRoot = "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup" }
-$backupDir = Get-ChildItem $backupRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-$output = "Python: $pythonExe`nBackup: $($backupDir.FullName)`n"
-
-$pyScript = @"
-import sys, os, traceback, sqlite3, tempfile, inspect
-sys.path.insert(0, r'C:\ProgramData\LifeLog')
-
+$pyScript = @'
+import sys, sqlite3, traceback
 try:
-    import iphone_backup_decrypt
-    print('Library version:', getattr(iphone_backup_decrypt, '__version__', 'unknown'))
-    print('Library file:', iphone_backup_decrypt.__file__)
-except ImportError:
-    import subprocess
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'iphone-backup-decrypt', '--quiet'])
-    import iphone_backup_decrypt
-    print('Library installed fresh')
+    from iphone_backup_decrypt import EncryptedBackup
+except ImportError as e:
+    print(f'ImportError: {e}')
+    sys.exit(1)
 
-backup_path = sys.argv[1]
+backup_dir = sys.argv[1]
 password = sys.argv[2]
+print(f'Python: {sys.executable}')
+print(f'Backup: {backup_dir}')
 
 try:
-    backup = iphone_backup_decrypt.EncryptedBackup(backup_directory=backup_path, passphrase=password)
+    backup = EncryptedBackup(backup_directory=backup_dir, passphrase=password)
     print('Backup object created OK')
 except Exception as e:
-    print('Backup creation failed:', e)
+    print(f'Backup creation failed: {e}')
     traceback.print_exc()
     sys.exit(1)
 
-print('\n--- Backup object methods/attributes ---')
-for name in sorted(dir(backup)):
-    print(' ', name)
-
-print('\n--- Attempting podcasts extract ---')
-tmp = tempfile.mkdtemp()
-podcasts_out = os.path.join(tmp, 'podcasts.sqlite')
+# Decrypt the manifest DB
 try:
-    sig = inspect.signature(backup.extract_file)
-    print('extract_file signature:', sig)
-except:
-    pass
-
-try:
-    backup.extract_file(
-        relative_path='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
-        output_filename=podcasts_out
-    )
-    print('Podcasts extracted OK to:', podcasts_out)
+    backup._decrypt_manifest_db_file()
+    print('Manifest decrypted OK')
 except Exception as e:
-    print('extract_file failed:', repr(e))
+    print(f'Manifest decrypt failed: {e}')
     traceback.print_exc()
 
-# Try alternate domain-based extraction
+# Query manifest for all domains and Google Maps files
 try:
-    sig2 = inspect.signature(backup.extract_file)
-    params = list(sig2.parameters.keys())
-    print('extract_file params:', params)
-    if 'domain' in params:
-        backup.extract_file(
-            domain='AppDomainGroup-243LU875E5.groups.com.apple.podcasts',
-            relative_path='Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite',
-            output_filename=podcasts_out
-        )
-        print('Domain-based extraction OK')
+    cursor = backup.manifest_db_cursor()
+    print('Got manifest cursor OK')
+
+    # All unique domains
+    cursor.execute("SELECT DISTINCT domain FROM Files ORDER BY domain")
+    domains = [r[0] for r in cursor.fetchall()]
+    print(f'\nTotal domains: {len(domains)}')
+    print('\n--- Domains matching google/maps/location/geo ---')
+    matches = [d for d in domains if any(k in (d or '').lower() for k in ['google','maps','location','geo','timeline'])]
+    if matches:
+        for d in matches:
+            print(f'  {d}')
+    else:
+        print('  (none matched)')
+        print('\n--- All domains (for reference) ---')
+        for d in domains:
+            print(f'  {d}')
+
+    # Google Maps specific files
+    print('\n--- Files in Google Maps domains ---')
+    cursor.execute("""
+        SELECT domain, relativePath, flags
+        FROM Files
+        WHERE domain LIKE '%google%' OR domain LIKE '%maps%'
+           OR relativePath LIKE '%google%maps%'
+           OR relativePath LIKE '%Timeline%'
+        ORDER BY domain, relativePath
+    """)
+    rows = cursor.fetchall()
+    if rows:
+        for r in rows:
+            print(f'  [{r[0]}] {r[1]}')
+    else:
+        print('  (none found)')
+
 except Exception as e:
-    print('Domain extraction failed:', repr(e))
+    print(f'Cursor query failed: {e}')
     traceback.print_exc()
 
-# Look for decrypted manifest in temp dirs
-print('\n--- Searching temp dirs for decrypted manifest ---')
-for base in [tempfile.gettempdir(), tmp]:
-    for root, dirs, files in os.walk(base):
-        for f in files:
-            if 'manifest' in f.lower() or f.endswith('.db') or f.endswith('.sqlite'):
-                full = os.path.join(root, f)
-                size = os.path.getsize(full)
-                print(f'  Found: {full} ({size} bytes)')
-                if size > 1000:
-                    try:
-                        conn = sqlite3.connect(full)
-                        cur = conn.cursor()
-                        cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                        tables = [r[0] for r in cur.fetchall()]
-                        print(f'    Tables: {tables}')
-                        conn.close()
-                    except Exception as e:
-                        print(f'    Not readable: {e}')
-"@
+print('\nDone.')
+'@
 
-$output += ($pyScript | & $pythonExe -u - $backupDir.FullName '#ngrierBill70' 2>&1 | Out-String)
-
-$body = @{ output = $output; timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'); computer = $env:COMPUTERNAME; source = 'LifeLog-DevLoop' } | ConvertTo-Json
-Invoke-RestMethod -Uri $webhookUrl -Method POST -Body $body -ContentType 'application/json' | Out-Null
-Write-Host "Sent! Output length: $($output.Length)"
+$output = $pyScript | & $pythonExe -u - $backupDir.FullName '#ngrierBill70' 2>&1 | Out-String
+Write-Host $output
+Send-Output $output
