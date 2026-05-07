@@ -464,7 +464,7 @@ def post_to_webhook(podcasts, browsing):
         else:
             log(f"  Chunk {idx + 1}/{total}: FAILED (status {status})")
         if idx < total - 1:
-            time.sleep(2)  # small delay between chunks
+            time.sleep(15)  # wait for server to finish processing each chunk before sending next
 
     log(f"Posted {success_count}/{total} chunks successfully.")
     return success_count == total
