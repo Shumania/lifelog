@@ -1,72 +1,53 @@
-# dev_next.ps1 v30 - inline setup with Python auto-install via winget
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
-$ErrorActionPreference = "Continue"
+# dev_next.ps1 v29 - re-run extraction to pick up failed chunk 9
+$computer = $env:COMPUTERNAME
+Write-Host "[$computer] Re-running lifelog_extract.py to pick up any missing chunks..."
 
-Write-Host "=== LifeLog Extract === Machine: $env:COMPUTERNAME"
+$pythonExe = $null
 
-$installDir = "C:\ProgramData\LifeLog"
-New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+# Find real Python (skip Windows Store stubs)
+$candidates = @(
+    "C:\Python312\python.exe",
+    "C:\Python311\python.exe",
+    "C:\Python310\python.exe",
+    "C:\Python39\python.exe",
+    "C:\Python38\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python39\python.exe",
+    "C:\ProgramData\LifeLog\python-embed\python.exe"
+)
 
-# --- Find real Python (skip Windows Store stub) ---
-function Get-PythonExe {
-    $py = Get-Command py -ErrorAction SilentlyContinue
-    if ($py) {
-        $ver = & py --version 2>&1
-        if ($ver -match "Python 3\.([89]|1[0-9])") { return "py" }
+foreach ($p in $candidates) {
+    if (Test-Path $p) {
+        $pythonExe = $p
+        Write-Host "[$computer] Using Python: $p"
+        break
     }
-    $sys = Get-Command python -ErrorAction SilentlyContinue
-    if ($sys -and $sys.Source -notlike "*WindowsApps*") {
-        $ver = & $sys.Source --version 2>&1
-        if ($ver -match "Python 3\.([89]|1[0-9])") { return $sys.Source }
-    }
-    $candidates = @(
-        "C:\Python314\python.exe",
-        "C:\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Python\pythoncore-3.14-64\python.exe",
-        "$env:LOCALAPPDATA\Python\pythoncore-3.12-64\python.exe"
-    )
-    foreach ($c in $candidates) {
-        if (Test-Path $c) {
-            $ver = & $c --version 2>&1
-            if ($ver -match "Python 3\.([89]|1[0-9])") { return $c }
-        }
-    }
-    return $null
 }
 
-$pythonExe = Get-PythonExe
 if (-not $pythonExe) {
-    Write-Host "No Python found — trying winget install..."
-    & winget install --id Python.Python.3.12 --silent --accept-source-agreements --accept-package-agreements 2>&1 | Write-Host
-    # Refresh PATH
-    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
-    $pythonExe = Get-PythonExe
-    if (-not $pythonExe) {
-        Write-Host "ERROR: Python install failed or PATH not updated. Please install Python 3.12 from python.org and re-run."
-        exit 1
-    }
-    Write-Host "Python installed OK."
-}
-$verOut = & $pythonExe --version 2>&1
-Write-Host "Python: $pythonExe ($verOut)"
-
-# --- Ensure iphone_backup_decrypt is installed ---
-$pipOut = & $pythonExe -m pip show iphone_backup_decrypt 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installing iphone_backup_decrypt..."
-    & $pythonExe -m pip install --user -q iphone_backup_decrypt 2>&1 | Write-Host
+    # Try PATH but skip WindowsApps
+    try {
+        $found = (Get-Command python -ErrorAction SilentlyContinue).Source
+        if ($found -and $found -notlike "*WindowsApps*") {
+            $pythonExe = $found
+            Write-Host "[$computer] Using Python from PATH: $found"
+        }
+    } catch {}
 }
 
-# --- Download latest lifelog_extract.py ---
-$ts = Get-Date -Format 'yyyyMMddHHmmss'
-$scriptUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?v=$ts"
-Invoke-WebRequest -Uri $scriptUrl -OutFile "$installDir\lifelog_extract.py" -UseBasicParsing
-$lineCount = (Get-Content "$installDir\lifelog_extract.py").Count
-Write-Host "Script downloaded: $lineCount lines"
+if (-not $pythonExe) {
+    Write-Host "[$computer] ERROR: No real Python found. Please install Python from python.org"
+    exit 1
+}
 
-# --- Run extraction ---
-Write-Host "Running extraction..."
-& $pythonExe "$installDir\lifelog_extract.py"
-Write-Host "Done. Exit: $LASTEXITCODE"
+$scriptPath = "C:\ProgramData\LifeLog\lifelog_extract.py"
+if (-not (Test-Path $scriptPath)) {
+    Write-Host "[$computer] ERROR: $scriptPath not found. Please run Update-LifeLog.ps1 first."
+    exit 1
+}
+
+Write-Host "[$computer] Running extraction..."
+& $pythonExe $scriptPath 2>&1
+Write-Host "[$computer] Done."
