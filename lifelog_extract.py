@@ -497,8 +497,8 @@ def extract_podcasts_raw(backup_dir, encrypted=False, limit=50):
     if encrypted:
         tmp_path = get_file_from_backup(
             backup_dir,
-            "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-            "Library/Application Support/com.apple.podcasts/MTLibrary.sqlite",
+            "%groups.com.apple.podcasts",
+            "Documents/MTLibrary.sqlite",
             encrypted=True
         )
         if not tmp_path:
