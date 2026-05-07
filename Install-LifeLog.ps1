@@ -30,10 +30,32 @@ function Write-Log {
 }
 
 function Get-PythonExe {
+    # Try 'py' launcher first (most reliable on Windows)
+    $py = Get-Command py -ErrorAction SilentlyContinue
+    if ($py) {
+        $ver = & py --version 2>&1
+        if ($ver -match "Python 3\.([89]|1[0-9])") { return "py" }
+    }
+    # Try 'python' but skip Windows Store stub (WindowsApps path can't run pip)
     $sys = Get-Command python -ErrorAction SilentlyContinue
-    if ($sys) {
+    if ($sys -and $sys.Source -notlike "*WindowsApps*") {
         $ver = & $sys.Source --version 2>&1
         if ($ver -match "Python 3\.([89]|1[0-9])") { return $sys.Source }
+    }
+    # Try common real install paths
+    $candidates = @(
+        "C:\Python312\python.exe",
+        "C:\Python311\python.exe",
+        "C:\Python310\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path $c) {
+            $ver = & $c --version 2>&1
+            if ($ver -match "Python 3\.([89]|1[0-9])") { return $c }
+        }
     }
     return $null
 }

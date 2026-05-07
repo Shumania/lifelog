@@ -1,32 +1,13 @@
-# v24: Run podcast extraction + Google Maps inspection
-# Find Python - use where.exe, skip WindowsApps stub
-$pythonExe = $null
-$candidates = @()
-try { $candidates = @(where.exe python 2>$null) } catch {}
-foreach ($p in $candidates) {
-    if ($p -notmatch "WindowsApps") {
-        $pythonExe = $p
-        break
-    }
-}
-if (-not $pythonExe) { $pythonExe = "python" }
+# dev_next.ps1 v25 - Fix installer Python stub detection + run installer
+$WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+$machine = $env:COMPUTERNAME
 
-Write-Host "v24 | Python: $pythonExe | Machine: $env:COMPUTERNAME"
+# Download latest installer (cache-bust)
+$installerPath = "$env:TEMP\Install-LifeLog.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/Install-LifeLog.ps1?v=$(Get-Date -Format 'yyyyMMddHHmmss')" -OutFile $installerPath -UseBasicParsing
 
-$ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+# Run it and capture output
+$output = powershell -ExecutionPolicy Bypass -File $installerPath 2>&1 | Out-String
 
-# Download latest scripts
-$extractUrl  = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?t=$ts"
-$inspectUrl  = "https://raw.githubusercontent.com/Shumania/lifelog/main/inspect_googlemaps_backup.py?t=$ts"
-$extractPath = "$env:TEMP\lifelog_extract.py"
-$inspectPath = "$env:TEMP\inspect_googlemaps_backup.py"
-
-Invoke-WebRequest -Uri $extractUrl -OutFile $extractPath -UseBasicParsing
-Invoke-WebRequest -Uri $inspectUrl -OutFile $inspectPath -UseBasicParsing
-
-Write-Host "Downloaded scripts. Running podcast extraction..."
-& $pythonExe $extractPath 2>&1
-
-Write-Host ""
-Write-Host "=== GOOGLE MAPS INSPECTION ==="
-& $pythonExe $inspectPath 2>&1
+$body = @{ computer = $machine; output = $output } | ConvertTo-Json -Compress
+Invoke-WebRequest -Uri $WEBHOOK -Method POST -Body $body -ContentType "application/json" -UseBasicParsing | Out-Null
