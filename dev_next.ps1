@@ -1,4 +1,4 @@
-# dev_next.ps1 v29 - just run extraction (setup already done)
+# dev_next.ps1 v30 - inline setup with Python auto-install via winget
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
 $ErrorActionPreference = "Continue"
 
@@ -38,8 +38,16 @@ function Get-PythonExe {
 
 $pythonExe = Get-PythonExe
 if (-not $pythonExe) {
-    Write-Host "ERROR: No Python 3.8+ found."
-    exit 1
+    Write-Host "No Python found — trying winget install..."
+    & winget install --id Python.Python.3.12 --silent --accept-source-agreements --accept-package-agreements 2>&1 | Write-Host
+    # Refresh PATH
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+    $pythonExe = Get-PythonExe
+    if (-not $pythonExe) {
+        Write-Host "ERROR: Python install failed or PATH not updated. Please install Python 3.12 from python.org and re-run."
+        exit 1
+    }
+    Write-Host "Python installed OK."
 }
 $verOut = & $pythonExe --version 2>&1
 Write-Host "Python: $pythonExe ($verOut)"
