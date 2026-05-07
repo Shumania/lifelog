@@ -44,6 +44,41 @@ IDEVICEBACKUP2_PATHS = [
 ]
 
 LOG_FILE = Path(r"C:\ProgramData\LifeLog\lifelog.log")
+STATE_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_hash.txt")
+
+
+def get_backup_hash(backup_dir):
+    """Return a hash representing the current state of the backup (based on Manifest.db mtime + size)."""
+    try:
+        manifest = backup_dir / "Manifest.db"
+        if not manifest.exists():
+            manifest = backup_dir / "Manifest.plist"
+        if manifest.exists():
+            stat = manifest.stat()
+            raw = f"{backup_dir}|{stat.st_mtime}|{stat.st_size}"
+            return hashlib.md5(raw.encode()).hexdigest()
+    except Exception:
+        pass
+    return None
+
+
+def load_last_hash():
+    """Load the last successfully posted backup hash."""
+    try:
+        if STATE_FILE.exists():
+            return STATE_FILE.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    return None
+
+
+def save_last_hash(h):
+    """Save the current backup hash after a successful post."""
+    try:
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STATE_FILE.write_text(h, encoding="utf-8")
+    except Exception:
+        pass
 
 
 def log(msg):
@@ -624,7 +659,14 @@ def main():
             post_debug_report(raw_rows)
         sys.exit(0)
 
-    # Step 4: Extract data
+    # Step 4: Check if backup has changed since last successful post
+    current_hash = get_backup_hash(backup_dir)
+    last_hash = load_last_hash()
+    if not args.output and current_hash and current_hash == last_hash:
+        log("Backup unchanged since last sync. Nothing to do.")
+        sys.exit(0)
+
+    # Step 5: Extract data
     podcasts = extract_podcasts(backup_dir, encrypted=encrypted)
     browsing = extract_safari(backup_dir, encrypted=encrypted)
 
@@ -632,7 +674,7 @@ def main():
         log("No data extracted. Exiting.")
         sys.exit(0)
 
-    # Step 5: Save to file or post to webhook
+    # Step 6: Save to file or post to webhook
     if args.output:
         save_to_file(podcasts, browsing, args.output)
     else:
@@ -640,6 +682,9 @@ def main():
         success = post_to_webhook(podcasts, browsing)
         if success:
             log("Data posted successfully.")
+            if current_hash:
+                save_last_hash(current_hash)
+                log("Backup hash saved. Future runs will skip if unchanged.")
         else:
             log("Failed to post data. Check log and retry.")
             sys.exit(1)
