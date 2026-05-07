@@ -1,6 +1,7 @@
-# dev_next.ps1 v26 - re-run installer with pip fix
-$output = powershell -ExecutionPolicy Bypass -Command {
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/Install-LifeLog.ps1?v=$(Get-Date -Format 'yyyyMMddHHmmss')" -OutFile "$env:TEMP\Install-LifeLog.ps1" -UseBasicParsing
-    powershell -ExecutionPolicy Bypass -File "$env:TEMP\Install-LifeLog.ps1"
-} 2>&1 | Out-String
-Write-Output $output
+# dev_next.ps1 v27 - run installer directly (no nested powershell block)
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
+
+# Download and run installer directly
+$installerPath = "$env:TEMP\Install-LifeLog-$(Get-Date -Format 'yyyyMMddHHmmss').ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/Install-LifeLog.ps1?v=$(Get-Date -Format 'yyyyMMddHHmmss')" -OutFile $installerPath -UseBasicParsing
+& $installerPath

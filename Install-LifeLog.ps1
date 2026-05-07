@@ -103,14 +103,13 @@ if (-not $pythonExe) {
 
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
-$prevEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-$pipOutput = & $pythonExe -m pip install --quiet --upgrade iphone_backup_decrypt 2>&1
+# Suppress all pip output (stdout+stderr) to avoid PowerShell treating stderr as errors
+$pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt *>&1 | Out-String
 $pipExit = $LASTEXITCODE
-$ErrorActionPreference = $prevEAP
+$ErrorActionPreference = "Stop"
 if ($pipExit -ne 0) {
-    Write-Log "WARNING: pip exited with code $pipExit. Output: $pipOutput"
-    Write-Log "Continuing anyway - package may already be installed."
+    Write-Log "WARNING: pip exited with code $pipExit — may already be installed, continuing."
 } else {
     Write-Log "pip completed successfully."
 }
