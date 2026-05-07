@@ -486,10 +486,119 @@ def save_to_file(podcasts, browsing, output_path):
     log("Upload this file to Tasklet chat to import your podcast history.")
 
 
+DEBUG_WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+
+
+def extract_podcasts_raw(backup_dir, encrypted=False, limit=50):
+    """Extract raw podcast rows for debugging — no filtering, all fields."""
+    tmp_path = None
+    cleanup = False
+
+    if encrypted:
+        tmp_path = get_file_from_backup(
+            backup_dir,
+            "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            "Library/Application Support/com.apple.podcasts/MTLibrary.sqlite",
+            encrypted=True
+        )
+        if not tmp_path:
+            log("DEBUG: Could not extract podcasts DB from backup.")
+            return []
+        cleanup = True
+    else:
+        # unencrypted path not implemented for debug
+        log("DEBUG: Unencrypted backup not supported in debug mode.")
+        return []
+
+    rows_out = []
+    try:
+        conn = sqlite3.connect(tmp_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT
+                e.ZTITLE as title,
+                p.ZTITLE as show_name,
+                e.ZLASTDATEPLAYED as last_played_raw,
+                e.ZPLAYHEAD as playhead,
+                e.ZDURATION as duration,
+                e.ZHASBEENPLAYED as has_been_played,
+                e.ZMARKASPLAYED as mark_as_played,
+                e.ZPLAYCOUNT as play_count
+            FROM ZMTEPISODE e
+            LEFT JOIN ZMTPODCAST p ON e.ZPODCAST = p.Z_PK
+            ORDER BY e.ZLASTDATEPLAYED DESC
+            LIMIT {limit}
+        """)
+        apple_epoch_offset = 978307200
+        for row in cur.fetchall():
+            raw_ts = row["last_played_raw"]
+            if raw_ts and float(raw_ts) > 0:
+                unix_ts = float(raw_ts) + apple_epoch_offset
+                dt = datetime.fromtimestamp(unix_ts, tz=timezone.utc)
+                played_at = dt.strftime("%Y-%m-%d %H:%M UTC")
+            else:
+                played_at = "never"
+            rows_out.append({
+                "title": row["title"] or "(no title)",
+                "show": row["show_name"] or "(no show)",
+                "played_at": played_at,
+                "playhead_sec": row["playhead"],
+                "duration_sec": row["duration"],
+                "has_been_played": row["has_been_played"],
+                "mark_as_played": row["mark_as_played"],
+                "play_count": row["play_count"],
+            })
+        conn.close()
+    except Exception as e:
+        log(f"DEBUG extract error: {e}")
+    finally:
+        if cleanup and tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
+    return rows_out
+
+
+def post_debug_report(rows):
+    """Post raw debug rows to the PC output webhook as plain text."""
+    lines = [f"=== PODCAST DEBUG REPORT from {DEVICE_ID} — top {len(rows)} most recent ===\n"]
+    for i, r in enumerate(rows, 1):
+        lines.append(
+            f"{i:3}. [{r['played_at']}] {r['show']} — {r['title']}\n"
+            f"     playhead={r['playhead_sec']}s  duration={r['duration_sec']}s  "
+            f"has_been_played={r['has_been_played']}  mark_as_played={r['mark_as_played']}  "
+            f"play_count={r['play_count']}"
+        )
+    report = "\n".join(lines)
+    log(report)
+
+    payload = json.dumps({
+        "computer": DEVICE_ID,
+        "output": report,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        DEBUG_WEBHOOK_URL,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            status = resp.status
+            log(f"Debug report posted (HTTP {status}).")
+    except Exception as e:
+        log(f"Failed to post debug report: {e}")
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="LifeLog iPhone Backup Extractor")
     parser.add_argument("--output", metavar="FILE", help="Save extracted data to a JSON file instead of posting to webhook")
+    parser.add_argument("--debug", action="store_true", help="Post raw top-50 podcast rows to debug webhook instead of ingesting")
     args = parser.parse_args()
 
     log("=" * 60)
@@ -518,6 +627,16 @@ def main():
             sys.exit(1)
     else:
         log("Backup is unencrypted -- reading directly.")
+
+    # Debug mode: dump raw rows and exit
+    if args.debug:
+        log("DEBUG MODE: extracting raw top-50 episodes...")
+        raw_rows = extract_podcasts_raw(backup_dir, encrypted=encrypted, limit=50)
+        if not raw_rows:
+            log("DEBUG: No rows returned.")
+        else:
+            post_debug_report(raw_rows)
+        sys.exit(0)
 
     # Step 4: Extract data
     podcasts = extract_podcasts(backup_dir, encrypted=encrypted)
