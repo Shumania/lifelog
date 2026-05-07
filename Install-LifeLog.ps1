@@ -103,8 +103,17 @@ if (-not $pythonExe) {
 
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
-$pipResult = & $pythonExe -m pip install -q -q iphone_backup_decrypt 2>&1
-Write-Log "pip completed (exit code: $LASTEXITCODE)"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$pipOutput = & $pythonExe -m pip install --quiet --upgrade iphone_backup_decrypt 2>&1
+$pipExit = $LASTEXITCODE
+$ErrorActionPreference = $prevEAP
+if ($pipExit -ne 0) {
+    Write-Log "WARNING: pip exited with code $pipExit. Output: $pipOutput"
+    Write-Log "Continuing anyway - package may already be installed."
+} else {
+    Write-Log "pip completed successfully."
+}
 
 # -- Download latest scripts from GitHub ---------------------------------------
 Write-Log "Downloading latest lifelog_extract.py from GitHub..."
