@@ -103,8 +103,8 @@ if (-not $pythonExe) {
 
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
-& $pythonExe -m pip install --quiet --upgrade iphone_backup_decrypt 2>&1 | ForEach-Object { Write-Log $_ }
-Write-Log "Python packages installed."
+$pipResult = & $pythonExe -m pip install -q -q iphone_backup_decrypt 2>&1
+Write-Log "pip completed (exit code: $LASTEXITCODE)"
 
 # -- Download latest scripts from GitHub ---------------------------------------
 Write-Log "Downloading latest lifelog_extract.py from GitHub..."
