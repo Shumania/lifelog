@@ -62,6 +62,6 @@ Write-Host "[$env:COMPUTERNAME] Ensuring iphone_backup_decrypt is installed..."
 & $pythonExe -m pip install --quiet --upgrade iphone_backup_decrypt 2>&1 | Out-Null
 
 # Run extraction
-Write-Host "[$env:COMPUTERNAME] Running extraction (this takes ~3 min for 10 chunks)..."
+Write-Host "[$env:COMPUTERNAME] Running extraction (single-request mode)..."
 & $pythonExe $scriptPath 2>&1
 Write-Host "[$env:COMPUTERNAME] Extraction complete."
