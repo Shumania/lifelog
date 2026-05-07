@@ -413,17 +413,21 @@ def extract_safari(backup_dir, encrypted=False):
     return visits
 
 
-CHUNK_SIZE = 200  # episodes per POST (keeps payloads small and reliable)
+BATCH_SIZE = 200  # rows per SQL INSERT batch (server-side)
 
 
-def post_chunk(chunk, chunk_index, total_chunks):
-    """POST a single chunk of episodes to the webhook."""
+def post_to_webhook(podcasts, browsing):
+    """POST all data to LifeLog webhook in a single request."""
+    if not podcasts:
+        log("No podcasts to post.")
+        return True
+
+    log(f"Posting {len(podcasts)} episodes in a single request...")
     payload = {
         "source_device_id": DEVICE_ID,
-        "schema_version": 1,
-        "chunk_index": chunk_index,
-        "total_chunks": total_chunks,
-        "podcasts": chunk,
+        "schema_version": 2,
+        "batch_size": BATCH_SIZE,
+        "podcasts": podcasts,
         "browsing": [],
     }
 
@@ -436,38 +440,20 @@ def post_chunk(chunk, chunk_index, total_chunks):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             status = resp.status
-            return status < 300, status
+            if status < 300:
+                log(f"Posted successfully (HTTP {status}).")
+                return True
+            else:
+                log(f"Post failed (HTTP {status}).")
+                return False
     except urllib.error.HTTPError as e:
-        return False, e.code
+        log(f"Post failed (HTTP {e.code}).")
+        return False
     except Exception as e:
-        return False, str(e)
-
-
-def post_to_webhook(podcasts, browsing):
-    """POST all data to LifeLog webhook in chunks."""
-    if not podcasts:
-        log("No podcasts to post.")
-        return True
-
-    chunks = [podcasts[i:i + CHUNK_SIZE] for i in range(0, len(podcasts), CHUNK_SIZE)]
-    total = len(chunks)
-    log(f"Posting {len(podcasts)} episodes in {total} chunks of up to {CHUNK_SIZE}...")
-
-    success_count = 0
-    for idx, chunk in enumerate(chunks):
-        ok, status = post_chunk(chunk, idx, total)
-        if ok:
-            success_count += 1
-            log(f"  Chunk {idx + 1}/{total}: OK (HTTP {status})")
-        else:
-            log(f"  Chunk {idx + 1}/{total}: FAILED (status {status})")
-        if idx < total - 1:
-            time.sleep(15)  # wait for server to finish processing each chunk before sending next
-
-    log(f"Posted {success_count}/{total} chunks successfully.")
-    return success_count == total
+        log(f"Post failed: {e}")
+        return False
 
 
 def save_to_file(podcasts, browsing, output_path):
