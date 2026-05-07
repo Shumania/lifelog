@@ -261,6 +261,8 @@ def extract_podcasts(backup_dir, encrypted=False):
                 e.ZAUTHOR as author,
                 e.ZDURATION as duration_seconds,
                 e.ZPLAYHEAD as progress_seconds,
+                e.ZHASBEENPLAYED as has_been_played,
+                e.ZMARKASPLAYED as mark_as_played,
                 e.ZLASTDATEPLAYED as last_played_apple_epoch,
                 e.ZPLAYCOUNT as play_count,
                 e.ZENCLOSUREURL as download_url,
@@ -290,6 +292,10 @@ def extract_podcasts(backup_dir, encrypted=False):
 
             duration = row["duration_seconds"] or 0
             progress = row["progress_seconds"] or 0
+            # If playhead is 0 but episode was marked as played/completed, treat as 100%
+            if progress == 0 and duration > 0:
+                if row["has_been_played"] or row["mark_as_played"]:
+                    progress = duration
             percent = round(progress / duration, 3) if duration > 0 else 0.0
 
             episodes.append({
