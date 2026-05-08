@@ -1,8 +1,8 @@
-# dev_next.ps1 v32 - safe version, no Python install (reports back if missing)
+# dev_next.ps1 v33 - force re-extraction by deleting hash file
 $computer = $env:COMPUTERNAME
 $lifelogDir = "C:\ProgramData\LifeLog"
 
-Write-Output "[$computer] dev_next.ps1 v32"
+Write-Output "[$computer] dev_next.ps1 v33"
 
 # Find existing real Python (skip WindowsApps stub)
 $python = $null
@@ -36,6 +36,15 @@ $testImport = & $python -c "import iphone_backup_decrypt; print('ok')" 2>&1
 if ($testImport -notmatch "ok") {
     Write-Output "[$computer] Installing iphone_backup_decrypt..."
     & $python -m pip install --quiet iphone_backup_decrypt 2>&1
+}
+
+# FORCE re-extraction by deleting hash file
+$hashFile = "$lifelogDir\last_backup_hash.txt"
+if (Test-Path $hashFile) {
+    Remove-Item $hashFile -Force
+    Write-Output "[$computer] Cleared backup hash - forcing fresh extraction."
+} else {
+    Write-Output "[$computer] No hash file found - will extract fresh."
 }
 
 # Download latest lifelog_extract.py
