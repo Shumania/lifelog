@@ -1,5 +1,5 @@
-# dev_next.ps1 v46 - run full lifelog_extract.py extraction
-$version = "dev_next.ps1 v46 - run full lifelog_extract.py extraction"
+# dev_next.ps1 v47 - list exact podcast file paths from manifest
+$version = "dev_next.ps1 v47 - list exact podcast file paths from manifest"
 Write-Host "[$env:COMPUTERNAME] $version"
 
 $python = $null
@@ -14,12 +14,24 @@ foreach ($c in $candidates) { if (Test-Path $c) { $python = $c; break } }
 if (-not $python) { throw "Python not found" }
 Write-Host "[$env:COMPUTERNAME] Python: $python"
 
-$extractScript = "C:\ProgramData\LifeLog\lifelog_extract.py"
-if (-not (Test-Path $extractScript)) {
-    Write-Host "[$env:COMPUTERNAME] Downloading lifelog_extract.py..."
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py" -OutFile $extractScript -UseBasicParsing
-}
+$backupBase = "C:\Users\andre\Apple\MobileSync\Backup"
+$backupDir = Get-ChildItem $backupBase -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+Write-Host "[$env:COMPUTERNAME] Backup: $backupDir"
 
-Write-Host "[$env:COMPUTERNAME] Running extraction..."
-& $python $extractScript
-Write-Host "[$env:COMPUTERNAME] v46 complete."
+$pyScript = "$env:TEMP\list_paths.py"
+@'
+import sys
+from iphone_backup_decrypt import EncryptedBackup
+
+backup = EncryptedBackup(backup_directory=sys.argv[1], passphrase="#ngrierBill70")
+cur = backup._manifest_db.cursor()
+cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%podcast%' ORDER BY domain, relativePath")
+rows = cur.fetchall()
+print(f"Found {len(rows)} files in podcasts domain(s):")
+for r in rows:
+    print(f"  [{r[0]}] {r[1]}")
+'@ | Set-Content $pyScript -Encoding UTF8
+
+Write-Host "[$env:COMPUTERNAME] Querying manifest..."
+& $python $pyScript $backupDir
+Write-Host "[$env:COMPUTERNAME] v47 complete."
