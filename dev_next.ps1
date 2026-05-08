@@ -1,139 +1,140 @@
-# dev_next.ps1 v37 - Direct WAL merge diagnostic
-$Machine = $env:COMPUTERNAME
-Write-Host "[$Machine] dev_next.ps1 v37 - Direct WAL merge diagnostic"
+# dev_next.ps1 v38 - WAL merge diagnostic (fixed SQL quoting)
+$machine = $env:COMPUTERNAME
+Write-Host "[$machine] dev_next.ps1 v38 - WAL merge diagnostic"
 
-# Find Python
-$PythonPath = $null
+$python = $null
 $candidates = @(
     "C:\Users\andre\AppData\Local\Programs\Python\Python312\python.exe",
-    "C:\Users\andre\AppData\Local\Programs\Python\Python313\python.exe",
-    "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python312\python.exe",
     "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python314\python.exe",
-    "C:\ProgramData\LifeLog\python\python.exe"
+    "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python313\python.exe"
 )
 foreach ($p in $candidates) {
-    if (Test-Path $p) { $PythonPath = $p; break }
+    if (Test-Path $p) { $python = $p; break }
 }
-Write-Host "[$Machine] Python: $PythonPath"
+if (-not $python) {
+    throw "[$machine] No Python found"
+}
+Write-Host "[$machine] Python: $python"
 
-# Find backup dir
+# Find backup
 $backupRoots = @(
     "C:\Users\andre\Apple\MobileSync\Backup",
     "C:\Users\Shumadmin\Apple\MobileSync\Backup",
-    "$env:APPDATA\Apple Computer\MobileSync\Backup",
-    "$env:LOCALAPPDATA\Apple Computer\MobileSync\Backup"
+    "$env:APPDATA\Apple Computer\MobileSync\Backup"
 )
-
 $backupDir = $null
 foreach ($root in $backupRoots) {
     if (Test-Path $root) {
-        $dirs = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue
+        $dirs = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue
         foreach ($d in $dirs) {
             $backupDir = $d.FullName
-            Write-Host "[$Machine] Found backup: $backupDir"
+            break
         }
     }
+    if ($backupDir) { break }
 }
-
 if (-not $backupDir) {
-    Write-Host "[$Machine] ERROR: No backup directory found!"
-} else {
-    $diagScript = @"
-import sys, os, tempfile, shutil, sqlite3
+    throw "[$machine] No backup directory found"
+}
+Write-Host "[$machine] Found backup: $backupDir"
 
-backup_dir = r'$backupDir'
-password = '#ngrierBill70'
-print(f'Backup dir: {backup_dir}')
+# Write Python diagnostic script to a temp file
+$pyScript = @'
+import sys, os, tempfile, shutil, sqlite3
+sys.path.insert(0, r'C:\ProgramData\LifeLog')
 
 try:
-    from iphone_backup_decrypt import WrappedBackup, RelativePath, RelativePathsLike
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
 except ImportError:
-    print('ERROR: iphone_backup_decrypt not installed')
+    print("ERROR: iphone_backup_decrypt not installed")
     sys.exit(1)
 
-print('Decrypting backup...')
-backup = WrappedBackup(backup_folder=backup_dir, passphrase=password)
+backup_dir = sys.argv[1]
+password = "#ngrierBill70"
+
+print(f"Decrypting backup at: {backup_dir}")
+try:
+    backup = EncryptedBackup(backup_directory=backup_dir, passphrase=password)
+except Exception as e:
+    print(f"ERROR decrypting: {e}")
+    sys.exit(1)
 
 tmpdir = tempfile.mkdtemp()
-print(f'Temp dir: {tmpdir}')
-
 try:
     # Extract main DB
-    print('Extracting MTLibrary.sqlite...')
-    backup.extract_file(relative_path='Library/Application Support/MTLibrary.sqlite',
-                        domain_like='%podcast%',
-                        output_filename=os.path.join(tmpdir, 'MTLibrary.sqlite'))
+    db_out = os.path.join(tmpdir, "MTLibrary.sqlite")
+    backup.extract_file(
+        relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite",
+        domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+        output_filename=db_out
+    )
+    print(f"Main DB extracted: {os.path.getsize(db_out):,} bytes")
 
-    main_size = os.path.getsize(os.path.join(tmpdir, 'MTLibrary.sqlite'))
-    print(f'Main DB size: {main_size:,} bytes ({main_size//1024//1024} MB)')
-
-    # Try to extract WAL
-    wal_found = False
+    # Try WAL sidecar
+    wal_out = os.path.join(tmpdir, "MTLibrary.sqlite-wal")
     try:
-        backup.extract_file(relative_path='Library/Application Support/MTLibrary.sqlite-wal',
-                            domain_like='%podcast%',
-                            output_filename=os.path.join(tmpdir, 'MTLibrary.sqlite-wal'))
-        wal_size = os.path.getsize(os.path.join(tmpdir, 'MTLibrary.sqlite-wal'))
-        print(f'WAL sidecar size: {wal_size:,} bytes ({wal_size//1024//1024} MB)')
-        wal_found = True
+        backup.extract_file(
+            relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite-wal",
+            domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            output_filename=wal_out
+        )
+        if os.path.exists(wal_out):
+            print(f"WAL sidecar extracted: {os.path.getsize(wal_out):,} bytes")
+        else:
+            print("WAL sidecar: not found in backup")
     except Exception as e:
-        print(f'WAL sidecar NOT found: {e}')
+        print(f"WAL sidecar: not found ({e})")
 
     # Also try SHM
+    shm_out = os.path.join(tmpdir, "MTLibrary.sqlite-shm")
     try:
-        backup.extract_file(relative_path='Library/Application Support/MTLibrary.sqlite-shm',
-                            domain_like='%podcast%',
-                            output_filename=os.path.join(tmpdir, 'MTLibrary.sqlite-shm'))
-        shm_size = os.path.getsize(os.path.join(tmpdir, 'MTLibrary.sqlite-shm'))
-        print(f'SHM sidecar size: {shm_size:,} bytes')
-    except Exception as e:
-        print(f'SHM not found: {e}')
+        backup.extract_file(
+            relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite-shm",
+            domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            output_filename=shm_out
+        )
+        if os.path.exists(shm_out):
+            print(f"SHM extracted: {os.path.getsize(shm_out):,} bytes")
+    except:
+        print("SHM: not found")
 
-    # Query the DB
-    print('Querying merged DB...')
-    db_path = os.path.join(tmpdir, 'MTLibrary.sqlite')
-    conn = sqlite3.connect(db_path)
+    # Query merged DB
+    conn = sqlite3.connect(db_out)
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL")
-    count = cur.fetchone()[0]
-    print(f'Episodes with ZLASTDATEPLAYED: {count}')
+    total = cur.fetchone()[0]
+    print(f"Episodes with ZLASTDATEPLAYED: {total}")
 
-    cur.execute("""SELECT MIN(ZLASTDATEPLAYED), MAX(ZLASTDATEPLAYED)
-                   FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL""")
+    cur.execute("SELECT MIN(ZLASTDATEPLAYED), MAX(ZLASTDATEPLAYED) FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL")
     mn, mx = cur.fetchone()
     if mn and mx:
-        epoch_min = mn + 978307200
-        epoch_max = mx + 978307200
         import datetime
-        dt_min = datetime.datetime.utcfromtimestamp(epoch_min)
-        dt_max = datetime.datetime.utcfromtimestamp(epoch_max)
-        print(f'Date range: {dt_min.strftime("%Y-%m-%d")} to {dt_max.strftime("%Y-%m-%d")}')
-    else:
-        print('No dates found')
+        epoch = datetime.datetime(2001, 1, 1)
+        mn_dt = epoch + datetime.timedelta(seconds=mn)
+        mx_dt = epoch + datetime.timedelta(seconds=mx)
+        print(f"Earliest played: {mn_dt.strftime('%Y-%m-%d')}")
+        print(f"Latest played:   {mx_dt.strftime('%Y-%m-%d')}")
 
-    # Show most recent 5
-    cur.execute("""SELECT ZLASTDATEPLAYED FROM ZMTEPISODE
-                   WHERE ZLASTDATEPLAYED IS NOT NULL
-                   ORDER BY ZLASTDATEPLAYED DESC LIMIT 5""")
-    print('Most recent timestamps (raw Apple epoch):')
-    for row in cur.fetchall():
-        ts = row[0] + 978307200
-        dt = datetime.datetime.utcfromtimestamp(ts)
-        print(f'  {dt.strftime("%Y-%m-%d %H:%M")}')
+    # Show 5 most recent
+    cur.execute("SELECT ZTITLE, ZLASTDATEPLAYED FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL ORDER BY ZLASTDATEPLAYED DESC LIMIT 5")
+    rows = cur.fetchall()
+    print("Top 5 most recent episodes:")
+    for title, ts in rows:
+        dt = epoch + datetime.timedelta(seconds=ts)
+        print(f"  {dt.strftime('%Y-%m-%d')} - {title}")
 
     conn.close()
 
-except Exception as e:
-    import traceback
-    print(f'ERROR: {e}')
-    traceback.print_exc()
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
-    print('Done.')
-"@
+'@
 
-    & $PythonPath -c $diagScript
-}
+$pyFile = [System.IO.Path]::GetTempFileName() + ".py"
+$pyScript | Set-Content -Path $pyFile -Encoding UTF8
+Write-Host "[$machine] Running diagnostic..."
 
-Write-Host "[$Machine] v37 complete."
+& $python $pyFile $backupDir
+Remove-Item $pyFile -ErrorAction SilentlyContinue
+
+Write-Host "[$machine] v38 complete."
