@@ -1,61 +1,119 @@
-# dev_next.ps1 v33 - force re-extraction by deleting hash file
-$computer = $env:COMPUTERNAME
-$lifelogDir = "C:\ProgramData\LifeLog"
+# dev_next.ps1 v34 - diagnostic: check decrypt lib version + date range in DB
+Write-Host "[SHUMAFRAME] dev_next.ps1 v34"
 
-Write-Output "[$computer] dev_next.ps1 v33"
-
-# Find existing real Python (skip WindowsApps stub)
-$python = $null
+$PythonPath = $null
 $candidates = @(
-    "C:\Python313\python.exe","C:\Python312\python.exe","C:\Python311\python.exe",
-    "C:\Python310\python.exe","C:\Python39\python.exe","C:\Python38\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
-    "$lifelogDir\python\python.exe"
+    "C:\Users\andre\AppData\Local\Programs\Python\Python312\python.exe",
+    "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python312\python.exe",
+    "C:\ProgramData\LifeLog\python\python.exe"
 )
-foreach ($c in $candidates) {
-    if (Test-Path $c) { $python = $c; break }
+foreach ($p in $candidates) {
+    if (Test-Path $p) { $PythonPath = $p; break }
 }
-if (-not $python) {
-    $found = Get-Command python -ErrorAction SilentlyContinue
-    if ($found -and $found.Source -notlike "*WindowsApps*") { $python = $found.Source }
+if (-not $PythonPath) {
+    throw "[SHUMAFRAME] Python not found in any known location."
 }
+Write-Host "[SHUMAFRAME] Using Python: $PythonPath"
 
-if (-not $python) {
-    Write-Output "[$computer] Python not found. Please run: winget install Python.Python.3.12"
-    Write-Output "[$computer] Or download from https://www.python.org/downloads/"
-    return
+$BackupBase = $null
+$backupRoots = @(
+    "C:\Users\andre\Apple\MobileSync\Backup",
+    "C:\Users\Shumadmin\Apple\MobileSync\Backup",
+    "$env:APPDATA\Apple Computer\MobileSync\Backup"
+)
+foreach ($root in $backupRoots) {
+    if (Test-Path $root) {
+        $dirs = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue
+        if ($dirs) { $BackupBase = $dirs[0].FullName; break }
+    }
 }
+if (-not $BackupBase) { throw "[SHUMAFRAME] No backup folder found." }
+Write-Host "[SHUMAFRAME] Backup: $BackupBase"
 
-Write-Output "[$computer] Using Python: $python"
+$diagScript = @'
+import sys
+import subprocess
 
-# Install iphone_backup_decrypt if needed
-$testImport = & $python -c "import iphone_backup_decrypt; print('ok')" 2>&1
-if ($testImport -notmatch "ok") {
-    Write-Output "[$computer] Installing iphone_backup_decrypt..."
-    & $python -m pip install --quiet iphone_backup_decrypt 2>&1
-}
+# Check iphone_backup_decrypt version
+try:
+    import iphone_backup_decrypt
+    v = getattr(iphone_backup_decrypt, '__version__', 'unknown')
+    print(f"iphone_backup_decrypt version: {v}")
+    # Try to get version from pip
+    result = subprocess.run([sys.executable, "-m", "pip", "show", "iphone-backup-decrypt"], 
+                          capture_output=True, text=True)
+    print(result.stdout)
+except ImportError as e:
+    print(f"iphone_backup_decrypt not importable: {e}")
 
-# FORCE re-extraction by deleting hash file
-$hashFile = "$lifelogDir\last_backup_hash.txt"
-if (Test-Path $hashFile) {
-    Remove-Item $hashFile -Force
-    Write-Output "[$computer] Cleared backup hash - forcing fresh extraction."
-} else {
-    Write-Output "[$computer] No hash file found - will extract fresh."
-}
+import os, sys
+backup_path = sys.argv[1]
+password = "#ngrierBill70"
 
-# Download latest lifelog_extract.py
-$ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$script = "$lifelogDir\lifelog_extract.py"
-Write-Output "[$computer] Downloading latest lifelog_extract.py..."
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?t=$ts" -OutFile $script -UseBasicParsing
-$lines = (Get-Content $script).Count
-Write-Output "[$computer] Downloaded OK ($lines lines)."
+print(f"\nAttempting full decrypt of podcast DB...")
+print(f"Backup: {backup_path}")
 
-# Run extraction
-Write-Output "[$computer] Running extraction..."
-& $python $script 2>&1
-Write-Output "[$computer] Done."
+try:
+    from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike
+    backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
+    
+    import tempfile, sqlite3
+    with tempfile.NamedTemporaryFile(suffix='.sqlite', delete=False) as f:
+        tmp = f.name
+    
+    backup.extract_file(
+        relative_path="Library/Application Support/com.apple.podcasts/Documents/MTLibrary.sqlite",
+        domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+        output_filename=tmp
+    )
+    
+    file_size = os.path.getsize(tmp)
+    print(f"Decrypted file size: {file_size:,} bytes ({file_size/1024/1024:.1f} MB)")
+    
+    conn = sqlite3.connect(tmp)
+    cur = conn.cursor()
+    
+    # Count episodes
+    cur.execute("SELECT COUNT(*) FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL")
+    count = cur.fetchone()[0]
+    print(f"Episodes with ZLASTDATEPLAYED: {count}")
+    
+    # Date range
+    cur.execute("SELECT MIN(ZLASTDATEPLAYED), MAX(ZLASTDATEPLAYED) FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL")
+    mn, mx = cur.fetchone()
+    if mn and mx:
+        import datetime
+        apple_epoch = datetime.datetime(2001, 1, 1)
+        min_dt = apple_epoch + datetime.timedelta(seconds=mn)
+        max_dt = apple_epoch + datetime.timedelta(seconds=mx)
+        print(f"Earliest played: {min_dt}")
+        print(f"Latest played:   {max_dt}")
+    
+    # Show top 5 most recent
+    cur.execute("""
+        SELECT ZTITLE, ZLASTDATEPLAYED 
+        FROM ZMTEPISODE 
+        WHERE ZLASTDATEPLAYED IS NOT NULL 
+        ORDER BY ZLASTDATEPLAYED DESC 
+        LIMIT 5
+    """)
+    rows = cur.fetchall()
+    print("\nTop 5 most recent episodes:")
+    for r in rows:
+        ts = apple_epoch + datetime.timedelta(seconds=r[1])
+        print(f"  {ts.strftime('%Y-%m-%d')} - {r[0][:60]}")
+    
+    conn.close()
+    os.unlink(tmp)
+    
+except Exception as e:
+    import traceback
+    print(f"Error: {e}")
+    traceback.print_exc()
+'@
+
+$diagFile = "C:\ProgramData\LifeLog\diag_decrypt.py"
+$diagScript | Out-File -FilePath $diagFile -Encoding UTF8
+Write-Host "[SHUMAFRAME] Running diagnostic..."
+& $PythonPath $diagFile $BackupBase
+Write-Host "[SHUMAFRAME] Done."
