@@ -17,13 +17,17 @@ while ($true) {
     Write-Host "[$runTime] Fetching dev_next.ps1..." -NoNewline
 
     try {
-        # Download the command script via GitHub API (bypasses CDN cache, always current)
-        $apiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/dev_next.ps1"
-        $cmdScript = Invoke-RestMethod -Uri $apiUrl -Headers @{Accept="application/vnd.github.v3.raw"; "Cache-Control"="no-cache"}
+        # Download dev_next.ps1 to a temp file (avoids byte/scriptblock issue)
+        $tempScript = "$env:TEMP\lifelog_dev_next_$ts.ps1"
+        $rawUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/dev_next.ps1?v=$ts"
+        Invoke-WebRequest -Uri $rawUrl -OutFile $tempScript -UseBasicParsing
         Write-Host " OK" -ForegroundColor Green
 
         # Execute it, capture all output
-        $output = & ([scriptblock]::Create($cmdScript)) 2>&1 | Out-String
+        $output = & powershell.exe -ExecutionPolicy Bypass -File $tempScript 2>&1 | Out-String
+
+        # Cleanup
+        Remove-Item $tempScript -ErrorAction SilentlyContinue
 
         Write-Host "  Output: $($output.Length) chars. Uploading..." -NoNewline
 
