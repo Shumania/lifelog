@@ -308,8 +308,12 @@ def extract_podcasts(backup_dir, encrypted=False):
         return episodes
 
     # Copy to temp to avoid lock issues (skip if already temp from decrypt)
+    tmp_dir_to_clean = None
     if encrypted:
         tmp_path = str(podcast_db_path)
+        # podcast_db_path is inside a temp dir created by get_file_from_encrypted_backup
+        # clean up the whole dir (includes -wal and -shm sidecars)
+        tmp_dir_to_clean = podcast_db_path.parent
         cleanup = True
     else:
         with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
@@ -383,7 +387,10 @@ def extract_podcasts(backup_dir, encrypted=False):
     finally:
         if cleanup:
             try:
-                os.unlink(tmp_path)
+                if tmp_dir_to_clean and tmp_dir_to_clean.exists():
+                    shutil.rmtree(tmp_dir_to_clean, ignore_errors=True)
+                else:
+                    os.unlink(tmp_path)
             except Exception:
                 pass
 
@@ -485,43 +492,56 @@ BATCH_SIZE = 200  # rows per SQL INSERT batch (server-side)
 
 
 def post_to_webhook(podcasts, browsing):
-    """POST all data to LifeLog webhook in a single request."""
+    """POST data to LifeLog webhook in chunks of BATCH_SIZE."""
     if not podcasts:
         log("No podcasts to post.")
         return True
 
-    log(f"Posting {len(podcasts)} episodes in a single request...")
-    payload = {
-        "source_device_id": DEVICE_ID,
-        "schema_version": 2,
-        "batch_size": BATCH_SIZE,
-        "podcasts": podcasts,
-        "browsing": [],
-    }
+    total = len(podcasts)
+    total_chunks = (total + BATCH_SIZE - 1) // BATCH_SIZE
+    log(f"Posting {total} podcast episodes in {total_chunks} chunk(s) of up to {BATCH_SIZE}...")
 
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        WEBHOOK_URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
+    all_success = True
+    for i in range(0, total, BATCH_SIZE):
+        chunk = podcasts[i:i + BATCH_SIZE]
+        chunk_num = i // BATCH_SIZE + 1
+        log(f"Posting chunk {chunk_num}/{total_chunks} ({len(chunk)} episodes)...")
 
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            status = resp.status
-            if status < 300:
-                log(f"Posted successfully (HTTP {status}).")
-                return True
-            else:
-                log(f"Post failed (HTTP {status}).")
-                return False
-    except urllib.error.HTTPError as e:
-        log(f"Post failed (HTTP {e.code}).")
-        return False
-    except Exception as e:
-        log(f"Post failed: {e}")
-        return False
+        payload = {
+            "source_device_id": DEVICE_ID,
+            "schema_version": 2,
+            "podcasts": chunk,
+            "browsing": [],
+        }
+
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            WEBHOOK_URL,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                status = resp.status
+                if status < 300:
+                    log(f"Chunk {chunk_num}/{total_chunks} OK (HTTP {status}).")
+                else:
+                    log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {status}).")
+                    all_success = False
+        except urllib.error.HTTPError as e:
+            log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {e.code}).")
+            all_success = False
+        except Exception as e:
+            log(f"Chunk {chunk_num}/{total_chunks} failed: {e}")
+            all_success = False
+
+    if all_success:
+        log("All chunks posted successfully.")
+    else:
+        log("Some chunks failed. Check log and retry.")
+    return all_success
 
 
 def save_to_file(podcasts, browsing, output_path):
