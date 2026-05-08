@@ -1,6 +1,6 @@
-# dev_next.ps1 v35 - run extraction with WAL fix
+# dev_next.ps1 v36 - WAL diagnostic
 $Machine = $env:COMPUTERNAME
-Write-Host "[$Machine] dev_next.ps1 v35"
+Write-Host "[$Machine] dev_next.ps1 v36 - WAL diagnostic"
 
 # Find Python
 $PythonPath = $null
@@ -14,30 +14,63 @@ $candidates = @(
 foreach ($p in $candidates) {
     if (Test-Path $p) { $PythonPath = $p; break }
 }
-if (-not $PythonPath) {
-    throw "[$Machine] Python not found in any known location."
-}
-Write-Host "[$Machine] Using Python: $PythonPath"
+Write-Host "[$Machine] Python: $PythonPath"
 
-# Download latest lifelog_extract.py (with WAL fix)
-$scriptPath = "C:\ProgramData\LifeLog\lifelog_extract.py"
-Write-Host "[$Machine] Downloading latest lifelog_extract.py..."
-try {
-    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?v=$ts" -OutFile $scriptPath -UseBasicParsing
-    Write-Host "[$Machine] Download OK"
-} catch {
-    Write-Host "[$Machine] Download failed: $_"
-}
+# Find backup dir
+$backupRoots = @(
+    "C:\Users\andre\Apple\MobileSync\Backup",
+    "C:\Users\Shumadmin\Apple\MobileSync\Backup",
+    "$env:APPDATA\Apple Computer\MobileSync\Backup",
+    "$env:LOCALAPPDATA\Apple Computer\MobileSync\Backup"
+)
 
-# Force re-extraction by deleting hash
-$hashFile = "C:\ProgramData\LifeLog\last_backup_hash.txt"
-if (Test-Path $hashFile) {
-    Remove-Item $hashFile -Force
-    Write-Host "[$Machine] Hash file deleted - forcing fresh extraction"
+$backupDir = $null
+foreach ($root in $backupRoots) {
+    if (Test-Path $root) {
+        $dirs = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue
+        foreach ($d in $dirs) {
+            $backupDir = $d.FullName
+            Write-Host "[$Machine] Found backup: $backupDir"
+        }
+    }
 }
 
-# Run extraction
-Write-Host "[$Machine] Running lifelog_extract.py..."
-& $PythonPath $scriptPath
-Write-Host "[$Machine] Done."
+if (-not $backupDir) {
+    Write-Host "[$Machine] ERROR: No backup directory found!"
+} else {
+    # Run Python diagnostic
+    $diagScript = @"
+import sys, os, json
+
+backup_dir = r'$backupDir'
+print(f'Backup dir: {backup_dir}')
+print(f'Exists: {os.path.exists(backup_dir)}')
+
+# Read manifest to find podcast DB files
+manifest_path = os.path.join(backup_dir, 'Manifest.db')
+if not os.path.exists(manifest_path):
+    print('ERROR: Manifest.db not found!')
+    sys.exit(1)
+
+import sqlite3
+conn = sqlite3.connect(manifest_path)
+cur = conn.cursor()
+
+# Find MTLibrary files
+cur.execute("SELECT fileID, relativePath, flags, file FROM Files WHERE relativePath LIKE '%MTLibrary%' AND domain LIKE '%podcast%'")
+rows = cur.fetchall()
+print(f'MTLibrary files in manifest: {len(rows)}')
+for r in rows:
+    fid, path, flags, fileblob = r
+    # Check actual file on disk
+    file_path = os.path.join(backup_dir, fid[:2], fid)
+    exists = os.path.exists(file_path)
+    size = os.path.getsize(file_path) if exists else 0
+    print(f'  fileID={fid[:8]}... path={path} exists={exists} size={size:,} bytes ({size//1024//1024}MB)')
+
+conn.close()
+"@
+    $diagScript | & $PythonPath -
+}
+
+Write-Host "[$Machine] Diagnostic complete."
