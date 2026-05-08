@@ -109,7 +109,7 @@ $pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-
 $pipExit = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($pipExit -ne 0) {
-    Write-Log "WARNING: pip exited with code $pipExit — may already be installed, continuing."
+    Write-Log "WARNING: pip exited with code $pipExit - may already be installed, continuing."
 } else {
     Write-Log "pip completed successfully."
 }
