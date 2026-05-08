@@ -322,9 +322,30 @@ def extract_podcasts(backup_dir, encrypted=False):
         cleanup = True
 
     try:
+        # Diagnostic: check WAL sidecar presence
+        wal_path = tmp_path + "-wal"
+        shm_path = tmp_path + "-shm"
+        if os.path.exists(wal_path):
+            log(f"WAL sidecar found: {os.path.getsize(wal_path) // (1024*1024)}MB")
+        else:
+            log("WAL sidecar NOT found alongside podcast DB")
+        log(f"SHM sidecar exists: {os.path.exists(shm_path)}")
+
         conn = sqlite3.connect(tmp_path)
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
+
+        # Diagnostic: total rows and date range before main query
+        try:
+            cur.execute("SELECT COUNT(*) as cnt, MAX(ZLASTDATEPLAYED) as mx, MIN(ZLASTDATEPLAYED) as mn FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL AND ZLASTDATEPLAYED > 0")
+            diag = cur.fetchone()
+            if diag and diag["cnt"]:
+                apple_epoch_offset = 978307200
+                mx_unix = float(diag["mx"]) + apple_epoch_offset
+                mn_unix = float(diag["mn"]) + apple_epoch_offset
+                log(f"DB range: {diag['cnt']} played episodes; {datetime.fromtimestamp(mn_unix, tz=timezone.utc).date()} to {datetime.fromtimestamp(mx_unix, tz=timezone.utc).date()}")
+        except Exception as e:
+            log(f"Diagnostic query failed: {e}")
 
         cur.execute("""
             SELECT
