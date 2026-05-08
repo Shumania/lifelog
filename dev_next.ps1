@@ -1,6 +1,6 @@
-# dev_next.ps1 v42 - introspect EncryptedBackup to find decrypted manifest
+# dev_next.ps1 v43 - list podcast files via manifest_db_cursor()
 $computer = $env:COMPUTERNAME
-Write-Host "[$computer] dev_next.ps1 v42 - introspect backup object"
+Write-Host "[$computer] dev_next.ps1 v43 - list podcast manifest files"
 
 $python = $null
 $candidates = @(
@@ -26,34 +26,23 @@ foreach ($b in $backupCandidates) {
 }
 if (-not $backupBase) { throw "No backup folder found" }
 
-$pyScript = "$env:TEMP\introspect_backup.py"
+$pyScript = "$env:TEMP\list_manifest_v43.py"
 @'
-import sys, sqlite3, inspect
+import sys
 from iphone_backup_decrypt import EncryptedBackup
 
 backup_path = sys.argv[1]
+print(f"Decrypting: {backup_path}")
 backup = EncryptedBackup(backup_directory=backup_path, passphrase="#ngrierBill70")
 
-print("=== All attributes/methods ===")
-for name in dir(backup):
-    if not name.startswith("__"):
-        val = getattr(backup, name)
-        t = type(val).__name__
-        print(f"  {name}: {t}")
-
-print()
-print("=== Looking for sqlite connections ===")
-for name in dir(backup):
-    if not name.startswith("__"):
-        val = getattr(backup, name)
-        if hasattr(val, 'cursor') or 'sqlite' in str(type(val)).lower() or 'connect' in str(type(val)).lower():
-            print(f"  FOUND DB-like: {name} = {val}")
-
-print()
-print("=== Source file ===")
-print(inspect.getfile(EncryptedBackup))
+cur = backup.manifest_db_cursor()
+cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%podcast%' ORDER BY relativePath")
+rows = cur.fetchall()
+print(f"Found {len(rows)} files in podcasts domain:")
+for r in rows:
+    print(f"  [{r[0]}] {r[1]}")
 '@ | Set-Content $pyScript -Encoding UTF8
 
-Write-Host "[$computer] Introspecting..."
+Write-Host "[$computer] Querying manifest..."
 & $python $pyScript $backupBase
-Write-Host "[$computer] v42 complete."
+Write-Host "[$computer] v43 complete."
