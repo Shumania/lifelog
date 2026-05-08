@@ -1,6 +1,6 @@
-# dev_next.ps1 v41 - list podcast domain files via _manifest_db_path
+# dev_next.ps1 v42 - introspect EncryptedBackup to find decrypted manifest
 $computer = $env:COMPUTERNAME
-Write-Host "[$computer] dev_next.ps1 v41 - list podcast manifest files"
+Write-Host "[$computer] dev_next.ps1 v42 - introspect backup object"
 
 $python = $null
 $candidates = @(
@@ -11,7 +11,6 @@ $candidates = @(
 )
 foreach ($c in $candidates) { if (Test-Path $c) { $python = $c; break } }
 if (-not $python) { throw "Python not found" }
-Write-Host "[$computer] Python: $python"
 
 $backupBase = $null
 $backupCandidates = @(
@@ -26,28 +25,35 @@ foreach ($b in $backupCandidates) {
     }
 }
 if (-not $backupBase) { throw "No backup folder found" }
-Write-Host "[$computer] Backup: $backupBase"
 
-$pyScript = "$env:TEMP\list_manifest.py"
+$pyScript = "$env:TEMP\introspect_backup.py"
 @'
-import sys, sqlite3
+import sys, sqlite3, inspect
 from iphone_backup_decrypt import EncryptedBackup
 
 backup_path = sys.argv[1]
-print(f"Decrypting manifest at: {backup_path}")
 backup = EncryptedBackup(backup_directory=backup_path, passphrase="#ngrierBill70")
-db_path = backup._manifest_db_path
-print(f"Manifest DB path: {db_path}")
-conn = sqlite3.connect(db_path)
-cur = conn.cursor()
-cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%podcast%' ORDER BY relativePath")
-rows = cur.fetchall()
-print(f"Found {len(rows)} files in podcasts domain:")
-for r in rows:
-    print(f"  [{r[0]}] {r[1]}")
-conn.close()
+
+print("=== All attributes/methods ===")
+for name in dir(backup):
+    if not name.startswith("__"):
+        val = getattr(backup, name)
+        t = type(val).__name__
+        print(f"  {name}: {t}")
+
+print()
+print("=== Looking for sqlite connections ===")
+for name in dir(backup):
+    if not name.startswith("__"):
+        val = getattr(backup, name)
+        if hasattr(val, 'cursor') or 'sqlite' in str(type(val)).lower() or 'connect' in str(type(val)).lower():
+            print(f"  FOUND DB-like: {name} = {val}")
+
+print()
+print("=== Source file ===")
+print(inspect.getfile(EncryptedBackup))
 '@ | Set-Content $pyScript -Encoding UTF8
 
-Write-Host "[$computer] Running manifest query..."
+Write-Host "[$computer] Introspecting..."
 & $python $pyScript $backupBase
-Write-Host "[$computer] v41 complete."
+Write-Host "[$computer] v42 complete."
