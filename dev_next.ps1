@@ -1,6 +1,6 @@
-# dev_next.ps1 v38 - WAL merge diagnostic (fixed SQL quoting)
+# dev_next.ps1 v39 - WAL merge diagnostic (positional args for extract_file)
 $machine = $env:COMPUTERNAME
-Write-Host "[$machine] dev_next.ps1 v38 - WAL merge diagnostic"
+Write-Host "[$machine] dev_next.ps1 v39 - WAL merge diagnostic"
 
 $python = $null
 $candidates = @(
@@ -64,9 +64,9 @@ try:
     # Extract main DB
     db_out = os.path.join(tmpdir, "MTLibrary.sqlite")
     backup.extract_file(
-        relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite",
-        domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-        output_filename=db_out
+        "Library/Application Support/Podcasts/MTLibrary.sqlite",
+        "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+        db_out
     )
     print(f"Main DB extracted: {os.path.getsize(db_out):,} bytes")
 
@@ -74,9 +74,9 @@ try:
     wal_out = os.path.join(tmpdir, "MTLibrary.sqlite-wal")
     try:
         backup.extract_file(
-            relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite-wal",
-            domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-            output_filename=wal_out
+            "Library/Application Support/Podcasts/MTLibrary.sqlite-wal",
+            "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            wal_out
         )
         if os.path.exists(wal_out):
             print(f"WAL sidecar extracted: {os.path.getsize(wal_out):,} bytes")
@@ -89,9 +89,9 @@ try:
     shm_out = os.path.join(tmpdir, "MTLibrary.sqlite-shm")
     try:
         backup.extract_file(
-            relative_name="Library/Application Support/Podcasts/MTLibrary.sqlite-shm",
-            domain="AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
-            output_filename=shm_out
+            "Library/Application Support/Podcasts/MTLibrary.sqlite-shm",
+            "AppDomainGroup-243LU875E5.groups.com.apple.podcasts",
+            shm_out
         )
         if os.path.exists(shm_out):
             print(f"SHM extracted: {os.path.getsize(shm_out):,} bytes")
