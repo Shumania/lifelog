@@ -1,81 +1,56 @@
-# LifeLog-DevLoop.ps1
-# Remote-control dev loop: polls GitHub every 100s, runs dev_next.ps1 only when version changes.
-# Cache-busting via Unix timestamp param. Version parsed from first line comment.
-
+# LifeLog Dev Loop - polls GitHub API for dev_next.ps1 changes (no CDN cache)
+$apiUrl    = "https://api.github.com/repos/Shumania/lifelog/contents/dev_next.ps1"
 $webhookUrl = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$installDir = "C:\ProgramData\LifeLog"
-$versionFile = "$installDir\dev_next_last_version.txt"
-$intervalSeconds = 100
+$interval  = 100
+$lastSha   = ""
 
 Write-Host "=== LifeLog Dev Loop ===" -ForegroundColor Cyan
-Write-Host "Polling every $intervalSeconds seconds. Only runs when dev_next.ps1 version changes."
-Write-Host "Press Ctrl+C to stop."
+Write-Host "Polling every $interval seconds via GitHub API (no CDN cache)." -ForegroundColor Gray
+Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
 Write-Host ""
 
-# Load last run version
-$lastVersion = ""
-if (Test-Path $versionFile) {
-    $lastVersion = (Get-Content $versionFile -Raw).Trim()
-    Write-Host "Last run version: $lastVersion"
-}
-
 while ($true) {
-    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    $runTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Write-Host "[$runTime] Checking dev_next.ps1..." -NoNewline
+    $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    Write-Host "[$ts] Checking dev_next.ps1..." -NoNewline
 
     try {
-        # Download with cache-bust
-        $tempScript = "$env:TEMP\lifelog_dev_next_$ts.ps1"
-        $rawUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/dev_next.ps1?v=$ts"
-        Invoke-WebRequest -Uri $rawUrl -OutFile $tempScript -UseBasicParsing
+        $resp = Invoke-WebRequest -Uri $apiUrl -UseBasicParsing -Headers @{ "User-Agent" = "LifeLog-DevLoop" }
+        $json = $resp.Content | ConvertFrom-Json
+        $sha  = $json.sha.Substring(0, 12)
+        $scriptB64 = $json.content -replace "`n",""
+        $scriptContent = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($scriptB64))
 
-        # Parse version from first line comment (e.g. "# dev_next.ps1 v39")
-        $firstLine = (Get-Content $tempScript -TotalCount 1).Trim()
-        $currentVersion = $firstLine -replace '^#\s*', ''
+        # Extract version comment from first line
+        $firstLine = ($scriptContent -split "`n")[0].Trim()
 
-        if ($currentVersion -eq $lastVersion) {
-            Write-Host " No change ($currentVersion). Skipping." -ForegroundColor DarkGray
-            Remove-Item $tempScript -ErrorAction SilentlyContinue
-        } else {
-            Write-Host " NEW VERSION: $currentVersion (was: $lastVersion)" -ForegroundColor Yellow
+        if ($sha -ne $lastSha) {
+            Write-Host " NEW SHA: $sha" -ForegroundColor Green
+            Write-Host "  Version: $firstLine" -ForegroundColor Yellow
 
-            # Run it
-            $output = & powershell.exe -ExecutionPolicy Bypass -File $tempScript 2>&1 | Out-String
-            Remove-Item $tempScript -ErrorAction SilentlyContinue
+            $tmpFile = "$env:TEMP\dev_next_run.ps1"
+            [System.IO.File]::WriteAllText($tmpFile, $scriptContent, [System.Text.Encoding]::UTF8)
 
-            # Save version so we don't re-run
-            $currentVersion | Set-Content $versionFile
-
-            $lastVersion = $currentVersion
+            $output = powershell -ExecutionPolicy Bypass -File $tmpFile 2>&1 | Out-String
+            $lastSha = $sha
 
             Write-Host "  Output: $($output.Length) chars. Uploading..." -NoNewline
 
             $body = @{
-                source    = "LifeLog-DevLoop"
-                computer  = $env:COMPUTERNAME
-                timestamp = $runTime
-                output    = $output
-            } | ConvertTo-Json -Depth 3
+                computer = $env:COMPUTERNAME
+                sha      = $sha
+                version  = $firstLine
+                output   = $output
+            } | ConvertTo-Json -Compress
 
-            Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
+            Invoke-WebRequest -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" -UseBasicParsing | Out-Null
             Write-Host " Sent!" -ForegroundColor Green
+        } else {
+            Write-Host " No change ($sha). Skipping." -ForegroundColor DarkGray
         }
-    }
-    catch {
-        $errMsg = $_ | Out-String
-        Write-Host " ERROR: $errMsg" -ForegroundColor Red
-        try {
-            $body = @{
-                source    = "LifeLog-DevLoop"
-                computer  = $env:COMPUTERNAME
-                timestamp = $runTime
-                output    = "ERROR in dev loop: $errMsg"
-            } | ConvertTo-Json -Depth 3
-            Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" | Out-Null
-        } catch {}
+    } catch {
+        Write-Host " ERROR: $_" -ForegroundColor Red
     }
 
-    Write-Host "  Sleeping $intervalSeconds seconds..."
-    Start-Sleep -Seconds $intervalSeconds
+    Write-Host "  Sleeping $interval seconds..."
+    Start-Sleep -Seconds $interval
 }
