@@ -185,22 +185,55 @@ def ensure_decrypt_lib():
 
 
 def get_file_from_encrypted_backup(backup_dir, domain, relative_path):
-    """Extract and decrypt a file from an encrypted backup."""
+    """Extract and decrypt a file from an encrypted backup.
+    
+    If the file is a .sqlite, also extracts the -wal and -shm sidecar files
+    into the same temp directory so SQLite WAL mode works correctly.
+    Returns path to the main extracted file.
+    """
     if not ensure_decrypt_lib():
         return None
     try:
         from iphone_backup_decrypt import EncryptedBackup
         backup = EncryptedBackup(backup_directory=str(backup_dir), passphrase=BACKUP_PASSWORD)
-        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
-            tmp_path = tmp.name
+
+        # Use a temp directory so WAL sidecar can live alongside the main file
+        tmp_dir = Path(tempfile.mkdtemp(prefix="lifelog_"))
+        filename = Path(relative_path).name
+        tmp_path = tmp_dir / filename
+
         backup.extract_file(
             relative_path=relative_path,
-            output_filename=tmp_path,
+            output_filename=str(tmp_path),
             domain_like=domain
         )
-        if Path(tmp_path).exists() and Path(tmp_path).stat().st_size > 0:
-            return Path(tmp_path)
-        return None
+
+        if not tmp_path.exists() or tmp_path.stat().st_size == 0:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return None
+
+        main_size = tmp_path.stat().st_size
+        log(f"Extracted {filename}: {main_size // (1024*1024)}MB")
+
+        # Also try to extract WAL and SHM sidecars (SQLite WAL mode)
+        if relative_path.endswith(".sqlite"):
+            for suffix in ["-wal", "-shm"]:
+                sidecar_rel = relative_path + suffix
+                sidecar_path = tmp_dir / (filename + suffix)
+                try:
+                    backup.extract_file(
+                        relative_path=sidecar_rel,
+                        output_filename=str(sidecar_path),
+                        domain_like=domain
+                    )
+                    if sidecar_path.exists() and sidecar_path.stat().st_size > 0:
+                        log(f"Also extracted {filename + suffix}: {sidecar_path.stat().st_size // (1024*1024)}MB")
+                    else:
+                        sidecar_path.unlink(missing_ok=True)
+                except Exception:
+                    pass  # WAL not present is fine
+
+        return tmp_path
     except Exception as e:
         log(f"Encrypted extraction error ({domain}/{relative_path}): {e}")
         return None
