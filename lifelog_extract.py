@@ -278,13 +278,22 @@ def extract_podcasts(backup_dir, encrypted=False):
     """Extract Apple Podcasts listening history from backup."""
     episodes = []
 
-    # Primary: AppDomainGroup (wildcard handles group ID like 243LU875E5)
+    # Primary: AppDomainGroup, Library/Application Support path (confirmed working)
     podcast_db_path = get_file_from_backup(
         backup_dir,
         "%groups.com.apple.podcasts",
-        "Documents/MTLibrary.sqlite",
+        "Library/Application Support/com.apple.podcasts/MTLibrary.sqlite",
         encrypted=encrypted
     )
+
+    if not podcast_db_path:
+        # Fallback: Documents path (older iOS versions)
+        podcast_db_path = get_file_from_backup(
+            backup_dir,
+            "%groups.com.apple.podcasts",
+            "Documents/MTLibrary.sqlite",
+            encrypted=encrypted
+        )
 
     if not podcast_db_path:
         # Fallback: old AppDomain location

@@ -1,5 +1,5 @@
-# dev_next.ps1 v47 - list exact podcast file paths from manifest
-$version = "dev_next.ps1 v47 - list exact podcast file paths from manifest"
+# dev_next.ps1 v48 - run full lifelog extraction (fresh start)
+$version = "dev_next.ps1 v48 - run full lifelog extraction (fresh start)"
 Write-Host "[$env:COMPUTERNAME] $version"
 
 $python = $null
@@ -14,24 +14,20 @@ foreach ($c in $candidates) { if (Test-Path $c) { $python = $c; break } }
 if (-not $python) { throw "Python not found" }
 Write-Host "[$env:COMPUTERNAME] Python: $python"
 
-$backupBase = "C:\Users\andre\Apple\MobileSync\Backup"
-$backupDir = Get-ChildItem $backupBase -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-Write-Host "[$env:COMPUTERNAME] Backup: $backupDir"
+# Delete backup hash so extraction always runs fresh this time
+$hashFile = "C:\ProgramData\LifeLog\last_backup_hash.txt"
+if (Test-Path $hashFile) {
+    Remove-Item $hashFile -Force
+    Write-Host "[$env:COMPUTERNAME] Cleared backup hash (forcing fresh extraction)"
+}
 
-$pyScript = "$env:TEMP\list_paths.py"
-@'
-import sys
-from iphone_backup_decrypt import EncryptedBackup
+# Download latest lifelog_extract.py
+$extractScript = "C:\ProgramData\LifeLog\lifelog_extract.py"
+$ts = [int][double]::Parse((Get-Date -UFormat %s))
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?v=$ts" -OutFile $extractScript -UseBasicParsing
+Write-Host "[$env:COMPUTERNAME] Downloaded lifelog_extract.py ($((Get-Item $extractScript).Length) bytes)"
 
-backup = EncryptedBackup(backup_directory=sys.argv[1], passphrase="#ngrierBill70")
-cur = backup._manifest_db.cursor()
-cur.execute("SELECT domain, relativePath FROM Files WHERE domain LIKE '%podcast%' ORDER BY domain, relativePath")
-rows = cur.fetchall()
-print(f"Found {len(rows)} files in podcasts domain(s):")
-for r in rows:
-    print(f"  [{r[0]}] {r[1]}")
-'@ | Set-Content $pyScript -Encoding UTF8
-
-Write-Host "[$env:COMPUTERNAME] Querying manifest..."
-& $python $pyScript $backupDir
-Write-Host "[$env:COMPUTERNAME] v47 complete."
+# Run extraction
+Write-Host "[$env:COMPUTERNAME] Starting extraction - this will take a few minutes..."
+& $python $extractScript
+Write-Host "[$env:COMPUTERNAME] v48 complete."
