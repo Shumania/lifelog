@@ -1,56 +1,21 @@
-# dev_next.ps1 v29 - wait for backup to settle, then run extraction
+# dev_next.ps1 v30 - install Python via embeddable zip if needed, then extract
 $computer = $env:COMPUTERNAME
+$lifelogDir = "C:\ProgramData\LifeLog"
+$pythonDir = "$lifelogDir\python"
+$pythonExe = "$pythonDir\python.exe"
 
-# Find backup folder
-$backupRoot = "$env:USERPROFILE\Apple\MobileSync\Backup"
-if (-not (Test-Path $backupRoot)) {
-    $backupRoot = "$env:USERPROFILE\AppData\Roaming\Apple Computer\MobileSync\Backup"
-}
+Write-Output "[$computer] dev_next.ps1 v30"
 
-$backupFolder = Get-ChildItem $backupRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-
-if (-not $backupFolder) {
-    Write-Output "[$computer] ERROR: No backup folder found under $backupRoot"
-    exit 1
-}
-
-Write-Output "[$computer] Backup folder: $($backupFolder.FullName)"
-Write-Output "[$computer] Last modified: $($backupFolder.LastWriteTime)"
-
-# Wait until backup folder hasn't changed for 30 seconds
-$maxWait = 300  # 5 minutes max
-$idle = 0
-$interval = 10
-$lastWrite = $backupFolder.LastWriteTime
-
-Write-Output "[$computer] Waiting for backup to finish..."
-while ($idle -lt 30 -and $maxWait -gt 0) {
-    Start-Sleep -Seconds $interval
-    $maxWait -= $interval
-    $current = (Get-Item $backupFolder.FullName).LastWriteTime
-    if ($current -eq $lastWrite) {
-        $idle += $interval
-        Write-Output "[$computer] Backup idle for ${idle}s..."
-    } else {
-        $idle = 0
-        $lastWrite = $current
-        Write-Output "[$computer] Backup still writing..."
-    }
-}
-
-if ($maxWait -le 0) {
-    Write-Output "[$computer] WARNING: Timed out waiting for backup. Running extraction anyway."
-}
-
-Write-Output "[$computer] Backup settled. Running extraction..."
-
+# Find existing real Python (skip WindowsApps stub)
 $python = $null
 $candidates = @(
-    "C:\Python312\python.exe","C:\Python311\python.exe","C:\Python310\python.exe",
-    "C:\Python39\python.exe","C:\Python38\python.exe",
+    "C:\Python313\python.exe","C:\Python312\python.exe","C:\Python311\python.exe",
+    "C:\Python310\python.exe","C:\Python39\python.exe","C:\Python38\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
     "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
     "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
-    "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
+    "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
+    $pythonExe
 )
 foreach ($c in $candidates) {
     if (Test-Path $c) { $python = $c; break }
@@ -59,17 +24,53 @@ if (-not $python) {
     $found = Get-Command python -ErrorAction SilentlyContinue
     if ($found -and $found.Source -notlike "*WindowsApps*") { $python = $found.Source }
 }
+
+# If still not found, install embeddable Python 3.12
 if (-not $python) {
-    Write-Output "[$computer] ERROR: No valid Python found"
-    exit 1
+    Write-Output "[$computer] Python not found. Installing embeddable Python 3.12..."
+    $zipUrl = "https://www.python.org/ftp/python/3.12.9/python-3.12.9-embed-amd64.zip"
+    $zipPath = "$env:TEMP\python-embed.zip"
+    $getPipUrl = "https://bootstrap.pypa.io/get-pip.py"
+    $getPipPath = "$env:TEMP\get-pip.py"
+
+    New-Item -ItemType Directory -Force -Path $pythonDir | Out-Null
+    Write-Output "[$computer] Downloading Python embeddable zip..."
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+    Write-Output "[$computer] Extracting..."
+    Expand-Archive -Path $zipPath -DestinationPath $pythonDir -Force
+
+    # Enable site-packages in embeddable Python
+    $pth = Get-ChildItem $pythonDir -Filter "python*._pth" | Select-Object -First 1
+    if ($pth) {
+        $content = Get-Content $pth.FullName -Raw
+        $content = $content -replace "#import site", "import site"
+        Set-Content $pth.FullName $content
+    }
+
+    # Install pip
+    Write-Output "[$computer] Installing pip..."
+    Invoke-WebRequest -Uri $getPipUrl -OutFile $getPipPath
+    & "$pythonDir\python.exe" $getPipPath --no-warn-script-location 2>&1
+    $python = $pythonExe
+    Write-Output "[$computer] Python installed at $python"
 }
 
 Write-Output "[$computer] Using Python: $python"
 
-$script = "C:\ProgramData\LifeLog\lifelog_extract.py"
-if (-not (Test-Path $script)) {
-    Write-Output "[$computer] Downloading lifelog_extract.py..."
-    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?v=3" -OutFile $script
+# Install iphone_backup_decrypt if needed
+$testImport = & $python -c "import iphone_backup_decrypt; print('ok')" 2>&1
+if ($testImport -notmatch "ok") {
+    Write-Output "[$computer] Installing iphone_backup_decrypt..."
+    & $python -m pip install --quiet iphone_backup_decrypt 2>&1
 }
 
+# Download latest lifelog_extract.py
+$script = "$lifelogDir\lifelog_extract.py"
+Write-Output "[$computer] Downloading latest lifelog_extract.py..."
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py?v=4" -OutFile $script
+$lines = (Get-Content $script).Count
+Write-Output "[$computer] Downloaded OK ($lines lines)."
+
+# Run extraction
+Write-Output "[$computer] Running extraction..."
 & $python $script 2>&1
