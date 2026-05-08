@@ -19,7 +19,7 @@ while ($true) {
     try {
         # Download the command script via GitHub API (bypasses CDN cache, always current)
         $apiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/dev_next.ps1"
-        $cmdScript = (Invoke-WebRequest -Uri $apiUrl -UseBasicParsing -Headers @{Accept="application/vnd.github.v3.raw"; "Cache-Control"="no-cache"}).Content
+        $cmdScript = Invoke-RestMethod -Uri $apiUrl -Headers @{Accept="application/vnd.github.v3.raw"; "Cache-Control"="no-cache"}
         Write-Host " OK" -ForegroundColor Green
 
         # Execute it, capture all output
