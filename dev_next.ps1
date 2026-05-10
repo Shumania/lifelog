@@ -1,6 +1,6 @@
-# dev_next.ps1 v49 - re-run extraction to fill missing Dec 2024-May 2026 episodes
+# dev_next.ps1 v50 - reset cursor + run extraction with new cursor-based dedup
 $computer = $env:COMPUTERNAME
-Write-Output "[$computer] dev_next.ps1 v49 - re-run extraction (fill gap Dec2024-May2026)"
+Write-Output "[$computer] dev_next.ps1 v50 - cursor reset + fresh extraction"
 
 $python = $null
 $candidates = @(
@@ -18,20 +18,18 @@ if (-not $python) {
 }
 Write-Output "[$computer] Python: $python"
 
-# Clear backup hash to force re-extraction
-$hashFile = "C:\ProgramData\LifeLog\last_backup_hash.txt"
-if (Test-Path $hashFile) {
-    Remove-Item $hashFile -Force
-    Write-Output "[$computer] Cleared backup hash (forcing re-extraction)"
-} else {
-    Write-Output "[$computer] Hash file not found (will extract fresh)"
+# Clear hash and cursor to force a full fresh extraction
+foreach ($f in @("C:\ProgramData\LifeLog\last_backup_hash.txt", "C:\ProgramData\LifeLog\last_podcast_cursor.txt")) {
+    if (Test-Path $f) {
+        Remove-Item $f -Force
+        Write-Output "[$computer] Cleared: $f"
+    }
 }
 
-# Download latest lifelog_extract.py
-$extractUrl = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
+# Download latest lifelog_extract.py via GitHub API (no CDN cache)
 $extractDest = "C:\ProgramData\LifeLog\lifelog_extract.py"
 try {
-    $response = Invoke-WebRequest -Uri $extractUrl -UseBasicParsing -Headers @{"Accept"="application/vnd.github.v3.raw"; "User-Agent"="LifeLog"}
+    $response = Invoke-WebRequest -Uri "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py" -UseBasicParsing -Headers @{"Accept"="application/vnd.github.v3.raw"; "User-Agent"="LifeLog"}
     [System.IO.File]::WriteAllBytes($extractDest, $response.Content)
     Write-Output "[$computer] Downloaded lifelog_extract.py ($($response.Content.Length) bytes)"
 } catch {
@@ -40,6 +38,6 @@ try {
     Write-Output "[$computer] Using existing lifelog_extract.py"
 }
 
-Write-Output "[$computer] Starting extraction - filling in missing recent episodes..."
+Write-Output "[$computer] Starting extraction (all episodes — cursor will be set after this run)..."
 & $python $extractDest
-Write-Output "[$computer] v49 complete."
+Write-Output "[$computer] v50 complete."

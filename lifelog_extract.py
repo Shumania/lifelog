@@ -45,6 +45,7 @@ IDEVICEBACKUP2_PATHS = [
 
 LOG_FILE = Path(r"C:\ProgramData\LifeLog\lifelog.log")
 STATE_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_hash.txt")
+CURSOR_FILE = Path(r"C:\ProgramData\LifeLog\last_podcast_cursor.txt")
 
 
 def get_backup_hash(backup_dir):
@@ -77,6 +78,27 @@ def save_last_hash(h):
     try:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         STATE_FILE.write_text(h, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def load_cursor():
+    """Load the last-sent podcast cursor (max ZLASTDATEPLAYED Apple epoch)."""
+    try:
+        if CURSOR_FILE.exists():
+            val = CURSOR_FILE.read_text(encoding="utf-8").strip()
+            if val:
+                return float(val)
+    except Exception:
+        pass
+    return None
+
+
+def save_cursor(value):
+    """Save the cursor after a successful post."""
+    try:
+        CURSOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CURSOR_FILE.write_text(str(value), encoding="utf-8")
     except Exception:
         pass
 
@@ -273,10 +295,16 @@ def get_file_from_backup(backup_dir, domain, relative_path, encrypted=False):
     return None
 
 
-def extract_podcasts(backup_dir, encrypted=False):
+def extract_podcasts(backup_dir, encrypted=False, cursor=None):
     # Note: domain uses wildcard to match any group ID prefix (e.g. 243LU875E5.groups.com.apple.podcasts)
-    """Extract Apple Podcasts listening history from backup."""
+    """Extract Apple Podcasts listening history from backup.
+
+    cursor: optional float — Apple epoch value of the last episode we already sent.
+            Only episodes with ZLASTDATEPLAYED > cursor are returned.
+            Returns (episodes, max_apple_epoch) tuple.
+    """
     episodes = []
+    max_apple_epoch = cursor  # will be updated as we find newer episodes
 
     # Primary: AppDomainGroup, Library/Application Support path (confirmed working)
     podcast_db_path = get_file_from_backup(
@@ -356,7 +384,10 @@ def extract_podcasts(backup_dir, encrypted=False):
         except Exception as e:
             log(f"Diagnostic query failed: {e}")
 
-        cur.execute("""
+        cursor_clause = f"AND e.ZLASTDATEPLAYED > {cursor}" if cursor else ""
+        if cursor:
+            log(f"Cursor active: only fetching episodes newer than Apple epoch {cursor:.0f}")
+        cur.execute(f"""
             SELECT
                 e.ZTITLE as title,
                 e.ZWEBPAGEURL as episode_url,
@@ -375,6 +406,7 @@ def extract_podcasts(backup_dir, encrypted=False):
             LEFT JOIN ZMTPODCAST p ON e.ZPODCAST = p.Z_PK
             WHERE e.ZLASTDATEPLAYED IS NOT NULL
               AND e.ZLASTDATEPLAYED > 0
+              {cursor_clause}
             ORDER BY e.ZLASTDATEPLAYED DESC
         """)
         rows = cur.fetchall()
@@ -391,6 +423,11 @@ def extract_podcasts(backup_dir, encrypted=False):
 
             if not timestamp:
                 continue
+
+            # Track max epoch for cursor update
+            raw_epoch = float(row["last_played_apple_epoch"])
+            if max_apple_epoch is None or raw_epoch > max_apple_epoch:
+                max_apple_epoch = raw_epoch
 
             duration = row["duration_seconds"] or 0
             progress = row["progress_seconds"] or 0
@@ -424,8 +461,8 @@ def extract_podcasts(backup_dir, encrypted=False):
             except Exception:
                 pass
 
-    log(f"Extracted {len(episodes)} podcast episodes.")
-    return episodes
+    log(f"Extracted {len(episodes)} podcast episodes (cursor={cursor}, max_epoch={max_apple_epoch}).")
+    return episodes, max_apple_epoch
 
 
 def extract_safari(backup_dir, encrypted=False):
@@ -749,12 +786,21 @@ def main():
         log("Backup unchanged since last sync. Nothing to do.")
         sys.exit(0)
 
-    # Step 5: Extract data
-    podcasts = extract_podcasts(backup_dir, encrypted=encrypted)
+    # Step 5: Load cursor and extract data
+    cursor = load_cursor()
+    if cursor:
+        log(f"Podcast cursor loaded: Apple epoch {cursor:.0f} — only fetching newer episodes.")
+    else:
+        log("No podcast cursor found — fetching all episodes (first run).")
+
+    podcasts, max_epoch = extract_podcasts(backup_dir, encrypted=encrypted, cursor=cursor)
     browsing = extract_safari(backup_dir, encrypted=encrypted)
 
     if not podcasts and not browsing:
-        log("No data extracted. Exiting.")
+        log("No new data to send (cursor up to date or nothing extracted).")
+        # Still update hash so we don't re-decrypt on every run
+        if current_hash:
+            save_last_hash(current_hash)
         sys.exit(0)
 
     # Step 6: Save to file or post to webhook
@@ -767,7 +813,10 @@ def main():
             log("Data posted successfully.")
             if current_hash:
                 save_last_hash(current_hash)
-                log("Backup hash saved. Future runs will skip if unchanged.")
+                log("Backup hash saved.")
+            if max_epoch is not None:
+                save_cursor(max_epoch)
+                log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
         else:
             log("Failed to post data. Check log and retry.")
             sys.exit(1)
