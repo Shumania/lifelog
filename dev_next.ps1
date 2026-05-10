@@ -1,36 +1,45 @@
-# dev_next.ps1 v49 - re-extract podcasts (clear hash first)
-$version = "dev_next.ps1 v49 - re-extract podcasts (clear hash first)"
-Write-Host "[$env:COMPUTERNAME] $version"
+# dev_next.ps1 v49 - re-run extraction to fill missing Dec 2024-May 2026 episodes
+$computer = $env:COMPUTERNAME
+Write-Output "[$computer] dev_next.ps1 v49 - re-run extraction (fill gap Dec2024-May2026)"
 
 $python = $null
 $candidates = @(
-    "C:\Users\andre\AppData\Local\Programs\Python\Python313\python.exe",
     "C:\Users\andre\AppData\Local\Programs\Python\Python312\python.exe",
+    "C:\Users\andre\AppData\Local\Programs\Python\Python313\python.exe",
     "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python313\python.exe",
-    "python"
+    (Get-Command python -ErrorAction SilentlyContinue)?.Source
 )
 foreach ($p in $candidates) {
-    if (Get-Command $p -ErrorAction SilentlyContinue) { $python = $p; break }
+    if ($p -and (Test-Path $p)) { $python = $p; break }
 }
-if (-not $python) { throw "Python not found" }
-Write-Host "[$env:COMPUTERNAME] Python: $python"
+if (-not $python) {
+    Write-Output "[$computer] ERROR: Python not found"
+    throw "Python not found"
+}
+Write-Output "[$computer] Python: $python"
 
-# Delete the backup hash so extraction runs fresh
-$hashFile = "C:\ProgramData\LifeLog\lifelog_backup_hash.txt"
+# Clear backup hash to force re-extraction
+$hashFile = "C:\ProgramData\LifeLog\last_backup_hash.txt"
 if (Test-Path $hashFile) {
     Remove-Item $hashFile -Force
-    Write-Host "[$env:COMPUTERNAME] Cleared backup hash - will re-extract."
+    Write-Output "[$computer] Cleared backup hash (forcing re-extraction)"
 } else {
-    Write-Host "[$env:COMPUTERNAME] No hash file found - will extract fresh."
+    Write-Output "[$computer] Hash file not found (will extract fresh)"
 }
 
 # Download latest lifelog_extract.py
-$extractUrl = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py"
-$extractPath = "C:\ProgramData\LifeLog\lifelog_extract.py"
-Invoke-WebRequest -Uri $extractUrl -OutFile $extractPath -UseBasicParsing
-Write-Host "[$env:COMPUTERNAME] Downloaded lifelog_extract.py"
+$extractUrl = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
+$extractDest = "C:\ProgramData\LifeLog\lifelog_extract.py"
+try {
+    $response = Invoke-WebRequest -Uri $extractUrl -UseBasicParsing -Headers @{"Accept"="application/vnd.github.v3.raw"; "User-Agent"="LifeLog"}
+    [System.IO.File]::WriteAllBytes($extractDest, $response.Content)
+    Write-Output "[$computer] Downloaded lifelog_extract.py ($($response.Content.Length) bytes)"
+} catch {
+    Write-Output "[$computer] WARNING: Could not download lifelog_extract.py: $_"
+    if (-not (Test-Path $extractDest)) { throw "lifelog_extract.py not found" }
+    Write-Output "[$computer] Using existing lifelog_extract.py"
+}
 
-# Run extraction
-Write-Host "[$env:COMPUTERNAME] Running extraction..."
-& $python $extractPath 2>&1 | ForEach-Object { Write-Host $_ }
-Write-Host "[$env:COMPUTERNAME] v49 complete."
+Write-Output "[$computer] Starting extraction - filling in missing recent episodes..."
+& $python $extractDest
+Write-Output "[$computer] v49 complete."
