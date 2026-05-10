@@ -1,43 +1,20 @@
-# dev_next.ps1 v50 - reset cursor + run extraction with new cursor-based dedup
-$computer = $env:COMPUTERNAME
-Write-Output "[$computer] dev_next.ps1 v50 - cursor reset + fresh extraction"
+# v51
+# Set cursor to Nov 10 2024 (Apple epoch) so only newer episodes are extracted
+# Nov 10 2024 Unix epoch ~1731196591 → Apple epoch = 1731196591 - 978307200 = 752889391
 
-$python = $null
-$candidates = @(
-    "C:\Users\andre\AppData\Local\Programs\Python\Python312\python.exe",
-    "C:\Users\andre\AppData\Local\Programs\Python\Python313\python.exe",
-    "C:\Users\Shumadmin\AppData\Local\Programs\Python\Python313\python.exe",
-    (Get-Command python -ErrorAction SilentlyContinue)?.Source
-)
-foreach ($p in $candidates) {
-    if ($p -and (Test-Path $p)) { $python = $p; break }
-}
-if (-not $python) {
-    Write-Output "[$computer] ERROR: Python not found"
-    throw "Python not found"
-}
-Write-Output "[$computer] Python: $python"
+$cursorFile = "C:\ProgramData\LifeLog\last_podcast_cursor.txt"
+$hashFile   = "C:\ProgramData\LifeLog\last_backup_hash.txt"
 
-# Clear hash and cursor to force a full fresh extraction
-foreach ($f in @("C:\ProgramData\LifeLog\last_backup_hash.txt", "C:\ProgramData\LifeLog\last_podcast_cursor.txt")) {
-    if (Test-Path $f) {
-        Remove-Item $f -Force
-        Write-Output "[$computer] Cleared: $f"
-    }
-}
+Write-Host "Setting podcast cursor to Nov 10 2024 (Apple epoch 752889391)..."
+"752889391" | Set-Content $cursorFile -Encoding UTF8
 
-# Download latest lifelog_extract.py via GitHub API (no CDN cache)
-$extractDest = "C:\ProgramData\LifeLog\lifelog_extract.py"
-try {
-    $response = Invoke-WebRequest -Uri "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py" -UseBasicParsing -Headers @{"Accept"="application/vnd.github.v3.raw"; "User-Agent"="LifeLog"}
-    [System.IO.File]::WriteAllBytes($extractDest, $response.Content)
-    Write-Output "[$computer] Downloaded lifelog_extract.py ($($response.Content.Length) bytes)"
-} catch {
-    Write-Output "[$computer] WARNING: Could not download lifelog_extract.py: $_"
-    if (-not (Test-Path $extractDest)) { throw "lifelog_extract.py not found" }
-    Write-Output "[$computer] Using existing lifelog_extract.py"
-}
+Write-Host "Clearing backup hash to force re-extraction..."
+Remove-Item $hashFile -ErrorAction SilentlyContinue
 
-Write-Output "[$computer] Starting extraction (all episodes — cursor will be set after this run)..."
-& $python $extractDest
-Write-Output "[$computer] v50 complete."
+Write-Host "Downloading latest lifelog_extract.py..."
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py" -OutFile "C:\ProgramData\LifeLog\lifelog_extract.py" -UseBasicParsing
+
+Write-Host "Running extraction (only episodes after Nov 10 2024)..."
+$python = "python"
+& $python "C:\ProgramData\LifeLog\lifelog_extract.py" 2>&1
+Write-Host "Done."
