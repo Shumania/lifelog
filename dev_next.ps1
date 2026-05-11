@@ -1,21 +1,37 @@
-# v52
-# Reset cursor to Nov 10 2024 to re-fetch only missing Dec 2024+ episodes
-# (batch size reduced to 50 on server side to fix SQL size limit issue)
+# v53 - enumerate manifest to find exact relative_path for podcast SQLite DB
 
 $LifeLogDir = "C:\ProgramData\LifeLog"
-$cursorFile = "$LifeLogDir\last_podcast_cursor.txt"
-$hashFile   = "$LifeLogDir\last_backup_hash.txt"
-$extractScript = "$LifeLogDir\lifelog_extract.py"
+$backupRoot = "C:\Users\andre\Apple\MobileSync\Backup"
+$backupId   = "00008130-001929983450001C"
+$backupPath = "$backupRoot\$backupId"
+$password   = "#ngrierBill70"
 
-Write-Host "Resetting podcast cursor to Nov 10 2024 (Apple epoch 752889391)..."
-"752889391" | Set-Content -Path $cursorFile -Encoding UTF8
+$script = @'
+import sys
+from iphone_backup_decrypt import EncryptedBackup, RelativePath, RelativePathsLike, DomainLike
 
-Write-Host "Clearing backup hash to force re-extraction..."
-if (Test-Path $hashFile) { Remove-Item $hashFile -Force }
+backup_path = sys.argv[1]
+password    = sys.argv[2]
 
-Write-Host "Downloading latest lifelog_extract.py..."
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py" -OutFile $extractScript -UseBasicParsing
+print(f"Opening backup: {backup_path}")
+backup = EncryptedBackup(backup_directory=backup_path, passphrase=password)
 
-Write-Host "Running extraction (only episodes after Nov 10 2024 — expecting ~230)..."
-$py = "python"
-& $py $extractScript
+# Query the manifest DB for all files in any podcast-related domain
+cur = backup._manifest_db.cursor()
+cur.execute("""
+    SELECT domain, relativePath, flags, fileID
+    FROM Files
+    WHERE domain LIKE '%podcast%'
+    ORDER BY relativePath
+""")
+rows = cur.fetchall()
+print(f"Found {len(rows)} files in podcast domain(s):")
+for row in rows:
+    print(f"  domain={row[0]}  path={row[1]}  flags={row[2]}  fileID={row[3][:8]}")
+'@
+
+$pyScript = "$env:TEMP\enum_manifest.py"
+$script | Set-Content -Path $pyScript -Encoding UTF8
+
+Write-Host "Enumerating manifest for podcast files..."
+python $pyScript $backupPath $password
