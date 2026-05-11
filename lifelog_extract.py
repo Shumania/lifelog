@@ -24,6 +24,12 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+# -- Version ------------------------------------------------------------------
+EXTRACTOR_VERSION = "2.1"
+VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
+EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
+EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
+
 # -- Configuration (injected by installer) -----------------------------------
 WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=2a1433f1fa487e647ee1d12c7f26a497"
 BACKUP_PASSWORD = "#ngrierBill70"
@@ -735,6 +741,37 @@ def post_debug_report(rows):
         log(f"Failed to post debug report: {e}")
 
 
+def check_extractor_version():
+    """Check versions.json on GitHub; if extractor_version differs, self-update and re-exec."""
+    import base64
+    try:
+        req = urllib.request.Request(VERSIONS_API_URL, headers={"User-Agent": "LifeLog-Extractor"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        content = base64.b64decode(data["content"].replace("\n", "")).decode("utf-8")
+        versions = json.loads(content)
+        latest = versions.get("extractor_version", EXTRACTOR_VERSION)
+
+        if latest != EXTRACTOR_VERSION:
+            log(f"Extractor update available: {EXTRACTOR_VERSION} -> {latest}. Downloading...")
+            req2 = urllib.request.Request(EXTRACTOR_API_URL, headers={"User-Agent": "LifeLog-Extractor"})
+            with urllib.request.urlopen(req2, timeout=30) as resp2:
+                data2 = json.loads(resp2.read())
+            new_content = base64.b64decode(data2["content"].replace("\n", "")).decode("utf-8")
+
+            EXTRACTOR_INSTALL_PATH.parent.mkdir(parents=True, exist_ok=True)
+            EXTRACTOR_INSTALL_PATH.write_text(new_content, encoding="utf-8")
+            log(f"Saved updated extractor to {EXTRACTOR_INSTALL_PATH}. Re-running...")
+
+            import subprocess
+            result = subprocess.run([sys.executable, str(EXTRACTOR_INSTALL_PATH)] + sys.argv[1:])
+            sys.exit(result.returncode)
+        else:
+            log(f"Extractor version OK (v{EXTRACTOR_VERSION}).")
+    except Exception as e:
+        log(f"Version check failed (running anyway): {e}")
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="LifeLog iPhone Backup Extractor")
@@ -743,7 +780,8 @@ def main():
     args = parser.parse_args()
 
     log("=" * 60)
-    log(f"LifeLog extraction started on {DEVICE_ID}")
+    log(f"LifeLog extraction started on {DEVICE_ID} (extractor v{EXTRACTOR_VERSION})")
+    check_extractor_version()
 
     # Step 1: Try to trigger backup
     idb2 = find_idevicebackup2()
