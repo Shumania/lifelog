@@ -1,69 +1,27 @@
-# v62 - cursor file diagnostic + targeted test of newest 10 episodes
+# v63 - reset cursor to Nov 2024, use fixed extractor v2.4 (no cursor-save-on-fail, 45s chunk delay)
 
 $lifelogDir = "C:\ProgramData\LifeLog"
-$pyDest = "$lifelogDir\lifelog_extract.py"
+$pyDest     = "$lifelogDir\lifelog_extract.py"
 $cursorFile = "$lifelogDir\last_podcast_cursor.txt"
-$hashFile = "$lifelogDir\last_backup_hash.txt"
-$diagScript = "$lifelogDir\diag_newest.py"
+$hashFile   = "$lifelogDir\last_backup_hash.txt"
 
-# Step 1: Cursor file diagnostics
-Write-Host "=== CURSOR FILE DIAGNOSTIC ==="
-if (Test-Path $cursorFile) {
-    $cursorContent = Get-Content $cursorFile -Raw
-    $cursorBytes = [System.IO.File]::ReadAllBytes($cursorFile)
-    Write-Host "Cursor file EXISTS. Content: '$cursorContent' (len=$($cursorContent.Length) bytes=$($cursorBytes.Length))"
-    Write-Host "First 3 bytes (hex): $($cursorBytes[0].ToString('X2')) $($cursorBytes[1].ToString('X2')) $($cursorBytes[2].ToString('X2'))"
-} else {
-    Write-Host "Cursor file DOES NOT EXIST"
-}
+# Step 1: Set cursor to Nov 10 2024 so only newer episodes are fetched
+# Apple epoch 752890591 = 2024-11-10. This skips the ~1600 episodes already in DB.
+[System.IO.File]::WriteAllText($cursorFile, "752890591", [System.Text.Encoding]::UTF8)
+$readBack = [System.IO.File]::ReadAllText($cursorFile, [System.Text.Encoding]::UTF8)
+Write-Host "Cursor set to 752890591, read-back: '$readBack'"
 
-# Step 2: Write cursor, read it back
-[System.IO.File]::WriteAllText($cursorFile, "757000000", [System.Text.Encoding]::UTF8)
-$readBack = [System.IO.File]::ReadAllText($cursorFile)
-Write-Host "Wrote cursor 757000000, read back: '$readBack'"
-
-# Step 3: Clear hash to force extraction
+# Step 2: Clear backup hash to force decryption/extraction
 if (Test-Path $hashFile) { Remove-Item $hashFile -Force; Write-Host "Hash cleared." }
 
-# Step 4: Download latest extractor
+# Step 3: Download fixed extractor v2.4
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py" -OutFile $pyDest -UseBasicParsing
-Write-Host "Downloaded lifelog_extract.py"
+Write-Host "Downloaded lifelog_extract.py v2.4"
 
-# Step 5: Write a diagnostic Python script that ONLY extracts newest 15 episodes and prints them
-@"
-import sys, os, plistlib, sqlite3, hashlib, shutil, tempfile, json
-from pathlib import Path
-from datetime import datetime, timezone
-
-sys.path.insert(0, str(Path(r'C:\ProgramData\LifeLog')))
-# Load the extractor module to reuse its functions
-spec_path = r'C:\ProgramData\LifeLog\lifelog_extract.py'
-
-# Read cursor file
-cursor_file = Path(r'C:\ProgramData\LifeLog\last_podcast_cursor.txt')
-if cursor_file.exists():
-    val = cursor_file.read_text(encoding='utf-8-sig').strip()
-    print(f'CURSOR_FILE_CONTENT: [{val}] (len={len(val)})')
-    try:
-        cursor_float = float(val)
-        print(f'CURSOR_FLOAT: {cursor_float}')
-    except Exception as e:
-        print(f'CURSOR_PARSE_ERROR: {e}')
-else:
-    print('CURSOR_FILE_MISSING')
-
-# Also check Python version
-print(f'PYTHON: {sys.version}')
-print(f'PLATFORM: {sys.platform}')
-"@ | Out-File -FilePath $diagScript -Encoding UTF8
-
+# Step 4: Run extractor (cursor active = only Nov 2024+ episodes, ~250 total, ~2 chunks)
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
 if (-not $python) { throw "Python not found" }
 
-Write-Host "=== PYTHON DIAGNOSTIC ==="
-& $python.Source $diagScript
-
-# Step 6: Run actual extractor
-Write-Host "=== RUNNING EXTRACTOR (cursor=757000000 = Jan 2025) ==="
+Write-Host "=== RUNNING EXTRACTOR (cursor=752890591) ==="
 & $python.Source $pyDest

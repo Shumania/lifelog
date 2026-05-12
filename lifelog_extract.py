@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.3"
+EXTRACTOR_VERSION = "2.4"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -592,7 +592,7 @@ def post_to_webhook(podcasts, browsing):
         data = json.dumps(payload).encode("utf-8")
 
         chunk_ok = False
-        retry_waits = [30, 60, 120]  # wait times for successive 429s
+        retry_waits = [60, 120, 240]  # wait times for successive 429s
         for attempt in range(4):  # up to 4 attempts
             req = urllib.request.Request(
                 WEBHOOK_URL,
@@ -627,7 +627,7 @@ def post_to_webhook(podcasts, browsing):
 
         # Pace chunks to avoid rate limiting (skip delay after last chunk)
         if i + BATCH_SIZE < total:
-            time.sleep(15)
+            time.sleep(45)
 
     if all_success:
         log("All chunks posted successfully.")
@@ -868,16 +868,15 @@ def main():
         success = post_to_webhook(podcasts, browsing)
         if success:
             log("Data posted successfully.")
+            if current_hash:
+                save_last_hash(current_hash)
+                log("Backup hash saved.")
+            if max_epoch is not None:
+                save_cursor(max_epoch)
+                log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
         else:
-            log("Some chunks failed — cursor and hash still saved so next run only retries missing data.")
-        # Always save cursor and hash after posting (server dedup prevents duplicates;
-        # saving cursor means next run won't re-send already-ingested episodes)
-        if current_hash:
-            save_last_hash(current_hash)
-            log("Backup hash saved.")
-        if max_epoch is not None:
-            save_cursor(max_epoch)
-            log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
+            log("Some chunks FAILED — cursor and hash NOT saved. Next run will retry from the same cursor.")
+            log("(Server INSERT OR IGNORE dedup prevents duplicates on re-send.)")
 
 
 if __name__ == "__main__":
