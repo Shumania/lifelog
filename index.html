@@ -139,7 +139,8 @@ function renderStats() {
 
 function renderFeed() {
   const feed = document.getElementById('feed');
-  const items = filter === 'all' ? allData : allData.filter(i => i.type === filter);
+  const filtered = filter === 'all' ? allData : allData.filter(i => i.type === filter);
+  const items = filtered.slice().reverse();
 
   if (items.length === 0) {
     feed.innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">🎧</p><p class="text-sm">No ${filter === 'all' ? '' : filter + ' '}history yet</p></div>`;
