@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.2"
+EXTRACTOR_VERSION = "2.3"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -92,7 +92,9 @@ def load_cursor():
     """Load the last-sent podcast cursor (max ZLASTDATEPLAYED Apple epoch)."""
     try:
         if CURSOR_FILE.exists():
-            val = CURSOR_FILE.read_text(encoding="utf-8").strip()
+            # Use utf-8-sig to automatically strip UTF-8 BOM if present
+            # (PowerShell 5 Set-Content -Encoding utf8 adds BOM, which breaks float())
+            val = CURSOR_FILE.read_text(encoding="utf-8-sig").strip()
             if val:
                 return float(val)
     except Exception:
