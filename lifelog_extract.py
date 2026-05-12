@@ -590,7 +590,8 @@ def post_to_webhook(podcasts, browsing):
         data = json.dumps(payload).encode("utf-8")
 
         chunk_ok = False
-        for attempt in range(2):  # up to 2 attempts (retry once on 429)
+        retry_waits = [30, 60, 120]  # wait times for successive 429s
+        for attempt in range(4):  # up to 4 attempts
             req = urllib.request.Request(
                 WEBHOOK_URL,
                 data=data,
@@ -606,10 +607,12 @@ def post_to_webhook(podcasts, browsing):
                         break
                     else:
                         log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {status}).")
+                        break
             except urllib.error.HTTPError as e:
-                if e.code == 429 and attempt == 0:
-                    log(f"Chunk {chunk_num}/{total_chunks} rate-limited (429) — waiting 8s and retrying...")
-                    time.sleep(8)
+                if e.code == 429 and attempt < 3:
+                    wait = retry_waits[attempt]
+                    log(f"Chunk {chunk_num}/{total_chunks} rate-limited (429) — waiting {wait}s and retrying (attempt {attempt+2}/4)...")
+                    time.sleep(wait)
                 else:
                     log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {e.code}).")
                     break
@@ -622,7 +625,7 @@ def post_to_webhook(podcasts, browsing):
 
         # Pace chunks to avoid rate limiting (skip delay after last chunk)
         if i + BATCH_SIZE < total:
-            time.sleep(3)
+            time.sleep(15)
 
     if all_success:
         log("All chunks posted successfully.")
