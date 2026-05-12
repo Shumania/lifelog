@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.4"
+EXTRACTOR_VERSION = "2.5"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -563,7 +563,7 @@ def extract_safari(backup_dir, encrypted=False):
     return visits
 
 
-BATCH_SIZE = 200  # rows per SQL INSERT batch (server-side)
+BATCH_SIZE = 20  # rows per POST chunk — keep small so server LLM can reliably write to disk
 
 
 def post_to_webhook(podcasts, browsing):

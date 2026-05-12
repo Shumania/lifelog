@@ -1,101 +1,27 @@
-# v57 - DIAGNOSTIC: show cursor value, backup date range, top 10 recent episodes
-$ErrorActionPreference = "Stop"
-try {
-    $cursorFile = "C:\ProgramData\LifeLog\last_podcast_cursor.txt"
-    $cursorVal = if (Test-Path $cursorFile) { Get-Content $cursorFile -Raw } else { "NOT FOUND" }
-    Write-Host "=== CURSOR FILE ===" 
-    Write-Host "Value: $($cursorVal.Trim())"
-    
-    # Convert cursor to date if numeric
-    if ($cursorVal -match '^\d+') {
-        $appleEpoch = [long]$cursorVal.Trim()
-        $unixEpoch = $appleEpoch + 978307200
-        $dt = [DateTimeOffset]::FromUnixTimeSeconds($unixEpoch).ToLocalTime()
-        Write-Host "Cursor date: $dt"
-    }
+# v57 - clear hash+cursor, extractor self-updates to 2.5 (BATCH_SIZE=20), re-extract missing Nov 2024 - May 2026
+Write-Host "v57: clearing hash and cursor for fresh extraction of missing episodes..."
 
-    # Find the backup
-    $backupRoots = @(
-        "$env:LOCALAPPDATA\Apple\MobileSync\Backup",
-        "$env:USERPROFILE\Apple\MobileSync\Backup",
-        "C:\Users\andre\Apple\MobileSync\Backup",
-        "C:\Users\Shumadmin\Apple\MobileSync\Backup"
-    )
-    $backupDir = $null
-    foreach ($root in $backupRoots) {
-        if (Test-Path $root) {
-            $dirs = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue
-            foreach ($d in $dirs) { $backupDir = $d.FullName; break }
-        }
-        if ($backupDir) { break }
-    }
-    Write-Host "`n=== BACKUP DIR ===" 
-    Write-Host $backupDir
+$lifelogDir = "C:\ProgramData\LifeLog"
 
-    # Run Python diagnostic directly on backup using lifelog_extract logic
-    $pyScript = @"
-import os, sys, sqlite3, hashlib, struct
+# Set cursor to Nov 10 2024 so we get everything from Nov 10 onwards
+$cursorFile = Join-Path $lifelogDir "last_podcast_cursor.txt"
+[System.IO.File]::WriteAllText($cursorFile, "752890591", [System.Text.Encoding]::ASCII)
+Write-Host "Cursor set to 752890591 (Nov 10 2024)"
 
-backup_dir = r'$backupDir'
-password = '#ngrierBill70'
+# Clear hash to force decryption
+$hashFile = Join-Path $lifelogDir "lifelog_backup_hash.txt"
+if (Test-Path $hashFile) { Remove-Item $hashFile -Force }
+Write-Host "Hash cleared."
 
-# Find manifest
-manifest_db = os.path.join(backup_dir, 'Manifest.db')
-if not os.path.exists(manifest_db):
-    print('ERROR: Manifest.db not found')
-    sys.exit(1)
+# Download latest extractor (will self-check version and run)
+$extractorPath = Join-Path $lifelogDir "lifelog_extract.py"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py" -OutFile $extractorPath -UseBasicParsing
+Write-Host "Downloaded lifelog_extract.py v2.5"
 
-# Find podcast DB hash
-conn = sqlite3.connect(manifest_db)
-cur = conn.cursor()
-cur.execute("""
-    SELECT fileID FROM Files 
-    WHERE domain='AppDomainGroup-243LU875E5.groups.com.apple.podcasts'
-    AND relativePath='Library/Application Support/com.apple.podcasts/MTLibrary.sqlite'
-""")
-row = cur.fetchone()
-conn.close()
-if not row:
-    print('ERROR: Podcast DB not found in manifest')
-    sys.exit(1)
-file_id = row[0]
-print(f'Podcast DB file_id: {file_id}')
-file_path = os.path.join(backup_dir, file_id[:2], file_id)
-print(f'File path exists: {os.path.exists(file_path)}')
+# Run extractor
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) { $python = Get-Command python3 -ErrorAction SilentlyContinue }
+if (-not $python) { throw "Python not found" }
 
-# Try to open directly (might work if unencrypted)
-try:
-    pconn = sqlite3.connect(file_path)
-    pcur = pconn.cursor()
-    pcur.execute("SELECT COUNT(*), MIN(ZLASTDATEPLAYED), MAX(ZLASTDATEPLAYED) FROM ZMTEPISODE WHERE ZLASTDATEPLAYED IS NOT NULL")
-    row = pcur.fetchone()
-    print(f'Direct open - Count: {row[0]}, Min Apple epoch: {row[1]}, Max Apple epoch: {row[2]}')
-    if row[1]:
-        min_dt = row[1] + 978307200
-        max_dt = row[2] + 978307200
-        import datetime
-        print(f'Date range: {datetime.datetime.utcfromtimestamp(min_dt)} to {datetime.datetime.utcfromtimestamp(max_dt)}')
-    # Show top 10 most recent
-    pcur.execute("""
-        SELECT e.ZTITLE, p.ZTITLE, e.ZLASTDATEPLAYED 
-        FROM ZMTEPISODE e LEFT JOIN ZMTPODCAST p ON e.ZPODCAST=p.Z_PK
-        WHERE e.ZLASTDATEPLAYED IS NOT NULL 
-        ORDER BY e.ZLASTDATEPLAYED DESC LIMIT 10
-    """)
-    print('Top 10 most recent episodes:')
-    for r in pcur.fetchall():
-        import datetime
-        dt = datetime.datetime.utcfromtimestamp(r[2] + 978307200)
-        print(f'  {dt} | {r[1]} | {r[0]}')
-    pconn.close()
-except Exception as e:
-    print(f'Direct open failed (probably encrypted): {e}')
-    print('Need to decrypt - run full lifelog_extract.py instead')
-"@
-
-    $pyScript | python - 2>&1 | Write-Host
-
-} catch {
-    Write-Host "ERROR: $_"
-    throw $_
-}
+& $python.Source $extractorPath
+Write-Host "Extraction complete."
