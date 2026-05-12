@@ -1,19 +1,22 @@
-# v58 - reset cursor to Nov 2024, re-extract missing Dec 2024 - May 2026 episodes
-Write-Host "v58: resetting cursor to Nov 10 2024 and clearing hash for re-extraction..."
+# v59 - fix: clear CORRECT hash file (last_backup_hash.txt), reset cursor to Nov 2024
+Write-Host "v59: clearing correct hash file and resetting cursor to Nov 2024..."
 
 $lifelogDir = "C:\ProgramData\LifeLog"
 
 # Reset cursor to Nov 10 2024 (Apple epoch 752890591)
-# Our DB has 2,009 episodes up to Nov 13 2024 - need Dec 2024 onwards
 $cursorFile = Join-Path $lifelogDir "last_podcast_cursor.txt"
 [System.IO.File]::WriteAllText($cursorFile, "752890591", [System.Text.Encoding]::ASCII)
 $readback = [System.IO.File]::ReadAllText($cursorFile).Trim()
-Write-Host "Cursor set to 752890591 (Nov 10 2024), read-back: '$readback'"
+Write-Host "Cursor set to 752890591, read-back: '$readback'"
 
-# Clear hash to force decryption/extraction
-$hashFile = Join-Path $lifelogDir "lifelog_backup_hash.txt"
-if (Test-Path $hashFile) { Remove-Item $hashFile -Force }
-Write-Host "Hash cleared."
+# Clear the CORRECT hash file (extractor uses last_backup_hash.txt, NOT lifelog_backup_hash.txt)
+$hashFile = Join-Path $lifelogDir "last_backup_hash.txt"
+if (Test-Path $hashFile) { Remove-Item $hashFile -Force; Write-Host "Deleted $hashFile" }
+else { Write-Host "$hashFile not found (already clear)" }
+
+# Also clear the wrong-named one just in case
+$wrongHash = Join-Path $lifelogDir "lifelog_backup_hash.txt"
+if (Test-Path $wrongHash) { Remove-Item $wrongHash -Force; Write-Host "Also deleted $wrongHash" }
 
 # Download latest extractor
 $extractorPath = Join-Path $lifelogDir "lifelog_extract.py"
