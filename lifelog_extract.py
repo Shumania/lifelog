@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.1"
+EXTRACTOR_VERSION = "2.2"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -588,27 +588,41 @@ def post_to_webhook(podcasts, browsing):
         }
 
         data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            WEBHOOK_URL,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
 
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                status = resp.status
-                if status < 300:
-                    log(f"Chunk {chunk_num}/{total_chunks} OK (HTTP {status}).")
+        chunk_ok = False
+        for attempt in range(2):  # up to 2 attempts (retry once on 429)
+            req = urllib.request.Request(
+                WEBHOOK_URL,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    status = resp.status
+                    if status < 300:
+                        log(f"Chunk {chunk_num}/{total_chunks} OK (HTTP {status}).")
+                        chunk_ok = True
+                        break
+                    else:
+                        log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {status}).")
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and attempt == 0:
+                    log(f"Chunk {chunk_num}/{total_chunks} rate-limited (429) — waiting 8s and retrying...")
+                    time.sleep(8)
                 else:
-                    log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {status}).")
-                    all_success = False
-        except urllib.error.HTTPError as e:
-            log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {e.code}).")
+                    log(f"Chunk {chunk_num}/{total_chunks} failed (HTTP {e.code}).")
+                    break
+            except Exception as e:
+                log(f"Chunk {chunk_num}/{total_chunks} failed: {e}")
+                break
+
+        if not chunk_ok:
             all_success = False
-        except Exception as e:
-            log(f"Chunk {chunk_num}/{total_chunks} failed: {e}")
-            all_success = False
+
+        # Pace chunks to avoid rate limiting (skip delay after last chunk)
+        if i + BATCH_SIZE < total:
+            time.sleep(3)
 
     if all_success:
         log("All chunks posted successfully.")
@@ -849,15 +863,16 @@ def main():
         success = post_to_webhook(podcasts, browsing)
         if success:
             log("Data posted successfully.")
-            if current_hash:
-                save_last_hash(current_hash)
-                log("Backup hash saved.")
-            if max_epoch is not None:
-                save_cursor(max_epoch)
-                log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
         else:
-            log("Failed to post data. Check log and retry.")
-            sys.exit(1)
+            log("Some chunks failed — cursor and hash still saved so next run only retries missing data.")
+        # Always save cursor and hash after posting (server dedup prevents duplicates;
+        # saving cursor means next run won't re-send already-ingested episodes)
+        if current_hash:
+            save_last_hash(current_hash)
+            log("Backup hash saved.")
+        if max_epoch is not None:
+            save_cursor(max_epoch)
+            log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
 
 
 if __name__ == "__main__":
