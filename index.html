@@ -18,13 +18,13 @@
     .stat-box { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 10px; text-align: center; }
     .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
     .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
-    .item-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #1a1d2e; }
+    .item-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid #1a1d2e; }
     .item-row:last-child { border-bottom: none; }
-    .icon-wrap { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; margin-top: 1px; }
+    .icon-wrap { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; margin-top: 1px; }
     .icon-music { background: #1e3a5f; }
     .icon-podcast { background: #3b1f0f; }
-    .item-title { font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .item-sub { font-size: 11px; color: #64748b; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-title { font-size: 12.5px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-sub { font-size: 11px; color: #64748b; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .item-meta { font-size: 10px; color: #475569; }
     .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -109,6 +109,14 @@ function fmtDuration(sec) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function getPct(item) {
+  // Apple resets progress_seconds to 0 after an episode is fully completed.
+  // So: progress=0 + duration>0 means 100% done, not 0% done.
+  if (!item.duration_seconds) return 0;
+  if ((item.progress_seconds || 0) === 0) return 100; // completed
+  return Math.min(100, Math.round(item.progress_seconds / item.duration_seconds * 100));
+}
+
 function renderStats() {
   const music = allData.filter(i => i.type === 'music');
   const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
@@ -121,7 +129,7 @@ function renderStats() {
   if (filter !== 'podcast') boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-blue-400">${music.length}</div><div class="text-xs text-slate-500 mt-1">Tracks</div></div>`);
   if (filter !== 'music')   boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${pods.length}</div><div class="text-xs text-slate-500 mt-1">Episodes</div></div>`);
   if (filter === 'podcast' && pods.length > 0) {
-    const totalMin = Math.round(pods.reduce((s,i) => s + (i.progress_seconds||i.duration_seconds||0), 0) / 60);
+    const totalMin = Math.round(pods.reduce((s,i) => s + (i.duration_seconds||0), 0) / 60);
     boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${totalMin > 60 ? Math.round(totalMin/60)+'h' : totalMin+'m'}</div><div class="text-xs text-slate-500 mt-1">Listened</div></div>`);
   }
   if (items.length > 0) {
@@ -158,7 +166,7 @@ function renderFeed() {
           </div>
         </div>`;
     } else {
-      const pct = item.duration_seconds > 0 ? Math.min(100, Math.round((item.progress_seconds||0) / item.duration_seconds * 100)) : 0;
+      const pct = getPct(item);
       const dur = fmtDuration(item.duration_seconds);
       return `
         <div class="item-row">
@@ -166,7 +174,7 @@ function renderFeed() {
           <div style="flex:1;min-width:0">
             <div class="item-title">${escHtml(item.title)}</div>
             <div class="item-sub">${escHtml(item.show_name || '')}</div>
-            ${dur ? `<div style="margin:3px 0 2px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
+            ${dur ? `<div style="margin:2px 0 1px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
             <div class="item-meta">${dur ? `${pct}% · ${dur} · ` : ''}${ts}</div>
           </div>
         </div>`;
