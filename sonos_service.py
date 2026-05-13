@@ -41,6 +41,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
+SONOS_VERSION = "1.1"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -60,6 +61,37 @@ VASHON_ROOMS = [
     "Shed Arc", "Shed Boombox", "Main Lower Deck", "Sauna Porch",
     "Main Upstairs Second Bedroom", "Media Room"
 ]
+
+
+def self_update_check():
+    """Check versions.json on GitHub; re-exec if sonos_version has changed."""
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/versions.json"
+        r = requests.get(url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=10)
+        if r.status_code != 200:
+            print(f"[{now_iso()}] Version check skipped (HTTP {r.status_code})")
+            return
+        data = r.json()
+        content = base64.b64decode(data["content"]).decode("utf-8")
+        versions = json.loads(content)
+        latest = versions.get("sonos_version", SONOS_VERSION)
+        if latest == SONOS_VERSION:
+            print(f"[{now_iso()}] Version {SONOS_VERSION} is current")
+            return
+        print(f"[{now_iso()}] New version {latest} available (running {SONOS_VERSION}) — updating...")
+        script_url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/sonos_service.py"
+        r2 = requests.get(script_url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=15)
+        if r2.status_code != 200:
+            print(f"[{now_iso()}] Failed to download update (HTTP {r2.status_code})")
+            return
+        new_code = base64.b64decode(r2.json()["content"]).decode("utf-8")
+        this_path = os.path.abspath(__file__)
+        with open(this_path, "w", encoding="utf-8") as f:
+            f.write(new_code)
+        print(f"[{now_iso()}] Updated to {latest} — restarting...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        print(f"[{now_iso()}] Self-update check error: {e}")
 
 
 def load_config():
@@ -378,15 +410,29 @@ room_state = {}  # room_name → {track_key, track_info, started_at} or None
 
 def main():
     house = load_config()
-    print(f"[{now_iso()}] LifeLog Sonos Service v1.0 — house: {house}")
+    print(f"[{now_iso()}] LifeLog Sonos Service v{SONOS_VERSION} — house: {house}")
     print(f"[{now_iso()}] Polling every {POLL_INTERVAL}s | Commands every ~{POLL_INTERVAL * CMD_POLL_EVERY}s")
     print(f"[{now_iso()}] Webhook: {SONOS_WEBHOOK[:60]}...")
+    print(f"[{now_iso()}] Checking for updates...")
+    self_update_check()
+    print(f"[{now_iso()}] Starting Sonos discovery (timeout=8s)...")
 
     cmd_counter = 0
+    first_run = True
 
     while True:
         try:
+            if first_run:
+                print(f"[{now_iso()}] Scanning network for Sonos speakers...")
             coordinators = get_coordinators()
+            if first_run:
+                names = [d.player_name for d in coordinators]
+                if names:
+                    print(f"[{now_iso()}] Found {len(names)} coordinator(s): {', '.join(names)}")
+                else:
+                    print(f"[{now_iso()}] No Sonos speakers found — will retry every {POLL_INTERVAL}s")
+                print(f"[{now_iso()}] Polling started. Listening for track changes...")
+                first_run = False
             now = datetime.now(timezone.utc)
 
             # Build flat device map for command execution
