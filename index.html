@@ -19,6 +19,7 @@
     .item-row:last-child { border-bottom: none; }
     .icon-wrap { width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
     .icon-music { background: #1e3a5f; }
+    .icon-vashon { background: #1a3a2a; }
     .icon-podcast { background: #3b1f0f; }
     .item-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.4; }
     .t { color: #e2e8f0; font-weight: 600; }
@@ -110,9 +111,12 @@ function renderFeed() {
   feed.innerHTML = filtered.map(item => {
     const ts = formatTime(item.timestamp);
     if (item.type === 'music') {
+      const isVashon = item.source === 'spotify_teenbloods';
+      const iconClass = isVashon ? 'icon-vashon' : 'icon-music';
+      const iconEmoji = isVashon ? '🏝️' : '🎵';
       const sub = [item.artist, item.album].filter(Boolean).map(escHtml).join(' · ');
       return `<div class="item-row">
-        <div class="icon-wrap icon-music">🎵</div>
+        <div class="icon-wrap ${iconClass}">${iconEmoji}</div>
         <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
       </div>`;
     } else {
