@@ -109,14 +109,6 @@ function fmtDuration(sec) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function getPct(item) {
-  // Apple resets progress_seconds to 0 after an episode is fully completed.
-  // So: progress=0 + duration>0 means 100% done, not 0% done.
-  if (!item.duration_seconds) return 0;
-  if ((item.progress_seconds || 0) === 0) return 100; // completed
-  return Math.min(100, Math.round(item.progress_seconds / item.duration_seconds * 100));
-}
-
 function renderStats() {
   const music = allData.filter(i => i.type === 'music');
   const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
@@ -166,7 +158,9 @@ function renderFeed() {
           </div>
         </div>`;
     } else {
-      const pct = getPct(item);
+      // display_pct is pre-computed in data.json by the publisher.
+      // 0 progress + duration > 0 = 100% (Apple resets progress after episode completes).
+      const pct = item.display_pct != null ? item.display_pct : 0;
       const dur = fmtDuration(item.duration_seconds);
       return `
         <div class="item-row">
