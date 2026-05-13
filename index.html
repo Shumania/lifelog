@@ -13,23 +13,20 @@
     .tab-active { background: #3b82f6; color: #fff; }
     .tab-inactive { background: #1e2130; color: #94a3b8; }
     .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 12px; }
-    .progress-track { background: #2d3148; border-radius: 999px; height: 3px; }
-    .progress-fill { background: #f97316; border-radius: 999px; height: 3px; }
-    .stat-box { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 10px; text-align: center; }
     .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
     .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
-    .item-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid #1a1d2e; }
+    .item-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e2130; }
     .item-row:last-child { border-bottom: none; }
-    .icon-wrap { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 12px; margin-top: 1px; }
+    .icon-wrap { width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
     .icon-music { background: #1e3a5f; }
     .icon-podcast { background: #3b1f0f; }
-    .item-title { font-size: 12.5px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .item-sub { font-size: 11px; color: #64748b; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .item-meta { font-size: 10px; color: #475569; }
-    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .item-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.4; }
+    .t { color: #e2e8f0; font-weight: 600; }
+    .s { color: #64748b; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
-    .filter-btn { border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
+    .filter-btn { border-radius: 8px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .count-badge { font-size: 11px; opacity: 0.75; font-weight: 500; }
   </style>
 </head>
@@ -47,12 +44,11 @@
     <button class="filter-btn tab-active" id="btn-all" onclick="setFilter('all')">All <span id="cnt-all" class="count-badge"></span></button>
     <button class="filter-btn tab-inactive" id="btn-music" onclick="setFilter('music')">🎵 Music <span id="cnt-music" class="count-badge"></span></button>
     <button class="filter-btn tab-inactive" id="btn-podcast" onclick="setFilter('podcast')">🎙 Podcasts <span id="cnt-podcast" class="count-badge"></span></button>
-    <button id="sync-btn" onclick="syncNow()" style="margin-left:auto;background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;white-space:nowrap;transition:all 0.15s;">↻ Sync</button>
+    <button id="sync-btn" onclick="syncNow()" style="margin-left:auto;background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:5px 11px;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;white-space:nowrap;transition:all 0.15s;">↻ Sync</button>
   </div>
 </div>
 
 <div class="px-4 bottom-pad">
-  <div id="stats-row" class="grid grid-cols-2 gap-2 mb-3" style="display:none!important"></div>
   <div id="feed" class="card px-3">
     <div class="empty-state">
       <div class="spinner mx-auto mb-3"></div>
@@ -72,7 +68,6 @@ function setFilter(f) {
     document.getElementById('btn-' + k).className = 'filter-btn ' + (k === f ? 'tab-active' : 'tab-inactive');
   });
   renderFeed();
-  renderStats();
 }
 
 function updateCounts() {
@@ -87,42 +82,16 @@ function formatTime(isoStr) {
   const d   = new Date(isoStr);
   const now = new Date();
   const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
   const dDate   = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const diffDays = Math.round((nowDate - dDate) / 86400000);
-
-  if (diffDays === 0)  return 'Today · '     + timeStr;
-  if (diffDays === 1)  return 'Yesterday · ' + timeStr;
-
+  if (diffDays === 0)  return 'Today ' + timeStr;
+  if (diffDays === 1)  return 'Yesterday ' + timeStr;
   const dateStr = d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric',
     year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
   });
-  return dateStr + ' · ' + timeStr;
-}
-
-function renderStats() {
-  const music = allData.filter(i => i.type === 'music');
-  const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
-  const items = filter === 'music' ? music : filter === 'podcast' ? pods : [...music, ...pods];
-  const statsEl = document.getElementById('stats-row');
-  if (allData.length === 0) { statsEl.style.display = 'none'; return; }
-  statsEl.style.removeProperty('display');
-
-  let boxes = [];
-  if (filter !== 'podcast') boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-blue-400">${music.length}</div><div class="text-xs text-slate-500 mt-1">Tracks</div></div>`);
-  if (filter !== 'music')   boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${pods.length}</div><div class="text-xs text-slate-500 mt-1">Episodes</div></div>`);
-  if (filter === 'podcast' && pods.length > 0) {
-    const totalMin = Math.round(pods.reduce((s,i) => s + (i.duration_seconds||0), 0) / 60);
-    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${totalMin > 60 ? Math.round(totalMin/60)+'h' : totalMin+'m'}</div><div class="text-xs text-slate-500 mt-1">Listened</div></div>`);
-  }
-  if (items.length > 0) {
-    const earliest = new Date(Math.min(...items.map(i => new Date(i.timestamp))));
-    const label = earliest.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    boxes.push(`<div class="stat-box"><div class="text-sm font-bold text-slate-300">${label}</div><div class="text-xs text-slate-500 mt-1">Since</div></div>`);
-  }
-  statsEl.innerHTML = boxes.join('');
+  return dateStr + ' ' + timeStr;
 }
 
 function renderFeed() {
@@ -141,28 +110,17 @@ function renderFeed() {
   feed.innerHTML = filtered.map(item => {
     const ts = formatTime(item.timestamp);
     if (item.type === 'music') {
-      return `
-        <div class="item-row">
-          <div class="icon-wrap icon-music">🎵</div>
-          <div style="flex:1;min-width:0">
-            <div class="item-title">${escHtml(item.title)}</div>
-            <div class="item-sub">${escHtml(item.artist || '')}${item.album ? ' · ' + escHtml(item.album) : ''}</div>
-            <div class="item-meta">${ts}</div>
-          </div>
-        </div>`;
+      const sub = [item.artist, item.album].filter(Boolean).map(escHtml).join(' · ');
+      return `<div class="item-row">
+        <div class="icon-wrap icon-music">🎵</div>
+        <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
+      </div>`;
     } else {
-      const pct = item.display_pct != null ? item.display_pct : 0;
-      const label = item.listened_label || '';
-      return `
-        <div class="item-row">
-          <div class="icon-wrap icon-podcast">🎙</div>
-          <div style="flex:1;min-width:0">
-            <div class="item-title">${escHtml(item.title)}</div>
-            <div class="item-sub">${escHtml(item.show_name || '')}</div>
-            <div style="margin:2px 0 1px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>
-            <div class="item-meta">${label ? escHtml(label) + ' · ' : ''}${ts}</div>
-          </div>
-        </div>`;
+      const sub = [item.show_name, item.listened_label].filter(Boolean).map(escHtml).join(' · ');
+      return `<div class="item-row">
+        <div class="icon-wrap icon-podcast">🎙</div>
+        <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
+      </div>`;
     }
   }).join('');
 }
@@ -186,7 +144,6 @@ async function loadData() {
   } finally {
     document.getElementById('load-indicator').style.display = 'none';
   }
-  renderStats();
   renderFeed();
 }
 
