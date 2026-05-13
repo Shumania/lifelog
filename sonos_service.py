@@ -41,13 +41,13 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.2"
+SONOS_VERSION = "1.3"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
 POLL_INTERVAL = 15        # seconds between Sonos polls
 CMD_POLL_EVERY = 4        # poll commands every N Sonos poll cycles (~60s)
-VERSION_CHECK_INTERVAL = 3600  # re-check for updates every 1 hour
+VERSION_CHECK_INTERVAL = 120   # re-check for updates every 2 minutes
 
 CONFIG_PATH = r"C:\ProgramData\LifeLog\sonos_config.json"
 
@@ -119,22 +119,41 @@ def now_iso():
 
 
 def detect_service(uri, metadata=""):
-    """Detect music service from Sonos URI"""
+    """Detect music service from Sonos URI.
+    Checks text clues first, then falls back to sid= parameter in URI.
+    """
+    import re
     s = (uri + metadata).lower()
+    # Text-based detection (fast path)
     if "spotify" in s:
         return "sonos_spotify"
-    elif "apple" in s or "itunes" in s or "music.apple" in s:
+    if "apple" in s or "itunes" in s or "music.apple" in s:
         return "sonos_apple_music"
-    elif "qobuz" in s:
+    if "qobuz" in s:
         return "sonos_qobuz"
-    elif "tunein" in s or "radiotime" in s or "kexp" in s or "kcrw" in s:
+    if "tunein" in s or "radiotime" in s or "kexp" in s or "kcrw" in s:
         return "sonos_tunein"
-    elif "x-rincon-mp3radio" in s or "x-sonosapi-radio" in s or "x-rincon-stream" in s:
+    if "x-rincon-mp3radio" in s or "x-sonosapi-radio" in s or "x-rincon-stream" in s:
         return "sonos_radio"
-    elif uri and uri != "NOT_IMPLEMENTED":
+    # SID-based detection (Sonos service IDs in URI query string)
+    SID_MAP = {
+        9:   "sonos_spotify",
+        31:  "sonos_qobuz",
+        52:  "sonos_apple_music",
+        204: "sonos_apple_music",
+        254: "sonos_tunein",
+        2:   "sonos_amazon",
+        13:  "sonos_pandora",
+        38:  "sonos_siriusxm",
+    }
+    m = re.search(r'[?&]sid=(\d+)', uri)
+    if m:
+        sid = int(m.group(1))
+        if sid in SID_MAP:
+            return SID_MAP[sid]
+    if uri and uri != "NOT_IMPLEMENTED":
         return "sonos_unknown"
-    else:
-        return "sonos_unknown"
+    return "sonos_unknown"
 
 
 def get_coordinators():
