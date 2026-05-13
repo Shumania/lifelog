@@ -13,58 +13,53 @@
     .tab-active { background: #3b82f6; color: #fff; }
     .tab-inactive { background: #1e2130; color: #94a3b8; }
     .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 12px; }
-    .progress-track { background: #2d3148; border-radius: 999px; height: 4px; }
-    .progress-fill { background: #f97316; border-radius: 999px; height: 4px; }
-    .stat-box { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 12px; text-align: center; }
+    .progress-track { background: #2d3148; border-radius: 999px; height: 3px; }
+    .progress-fill { background: #f97316; border-radius: 999px; height: 3px; }
+    .stat-box { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 10px; text-align: center; }
     .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
     .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
-    .item-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #1e2130; }
+    .item-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #1a1d2e; }
     .item-row:last-child { border-bottom: none; }
-    .icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+    .icon-wrap { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; margin-top: 1px; }
     .icon-music { background: #1e3a5f; }
     .icon-podcast { background: #3b1f0f; }
-    .item-title { font-size: 14px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 2px; }
-    .item-sub { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-    .item-meta { font-size: 11px; color: #475569; }
-    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .item-title { font-size: 13px; font-weight: 600; color: #e2e8f0; line-height: 1.3; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-sub { font-size: 11px; color: #64748b; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-meta { font-size: 10px; color: #475569; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
-    .filter-btn { border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .filter-btn { border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .count-badge { font-size: 11px; opacity: 0.75; font-weight: 500; }
   </style>
 </head>
 <body>
 
-<div class="sticky-header px-4 pb-3 pt-4">
-  <div class="flex items-center justify-between mb-3">
+<div class="sticky-header px-4 pb-2 pt-3">
+  <div class="flex items-center justify-between mb-2">
     <div>
-      <h1 class="text-xl font-bold text-white">Life History</h1>
+      <h1 class="text-lg font-bold text-white">Life History</h1>
       <p id="updated-at" class="text-xs text-slate-500 mt-0.5"></p>
     </div>
     <div id="load-indicator" class="spinner" style="display:none"></div>
   </div>
-  <!-- Filter tabs -->
   <div class="flex gap-2 items-center">
     <button class="filter-btn tab-active" id="btn-all" onclick="setFilter('all')">All <span id="cnt-all" class="count-badge"></span></button>
     <button class="filter-btn tab-inactive" id="btn-music" onclick="setFilter('music')">🎵 Music <span id="cnt-music" class="count-badge"></span></button>
     <button class="filter-btn tab-inactive" id="btn-podcast" onclick="setFilter('podcast')">🎙 Podcasts <span id="cnt-podcast" class="count-badge"></span></button>
-    <button id="sync-btn" onclick="syncNow()" style="margin-left:auto;background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;white-space:nowrap;transition:all 0.15s;">↻ Sync</button>
+    <button id="sync-btn" onclick="syncNow()" style="margin-left:auto;background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;white-space:nowrap;transition:all 0.15s;">↻ Sync</button>
   </div>
 </div>
 
 <div class="px-4 bottom-pad">
-  <!-- Stats -->
-  <div id="stats-row" class="grid grid-cols-2 gap-2 mb-4" style="display:none!important"></div>
-
-  <!-- Feed -->
-  <div id="feed" class="card px-4">
+  <div id="stats-row" class="grid grid-cols-2 gap-2 mb-3" style="display:none!important"></div>
+  <div id="feed" class="card px-3">
     <div class="empty-state">
       <div class="spinner mx-auto mb-3"></div>
       <p class="text-sm">Loading your history…</p>
     </div>
   </div>
-
-  <p class="text-center text-xs text-slate-600 mt-4">Updated automatically · <a href="https://tasklet.ai" class="text-slate-500 underline">Tasklet</a></p>
+  <p class="text-center text-xs text-slate-600 mt-3">Updated automatically · <a href="https://tasklet.ai" class="text-slate-500 underline">Tasklet</a></p>
 </div>
 
 <script>
@@ -74,8 +69,7 @@ let filter = 'all';
 function setFilter(f) {
   filter = f;
   ['all','music','podcast'].forEach(k => {
-    const btn = document.getElementById('btn-' + k);
-    btn.className = 'filter-btn ' + (k === f ? 'tab-active' : 'tab-inactive');
+    document.getElementById('btn-' + k).className = 'filter-btn ' + (k === f ? 'tab-active' : 'tab-inactive');
   });
   renderFeed();
   renderStats();
@@ -83,47 +77,49 @@ function setFilter(f) {
 
 function updateCounts() {
   const music = allData.filter(i => i.type === 'music');
-  const pods = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
-  document.getElementById('cnt-all').textContent = allData.length ? (music.length + pods.length) : '';
-  document.getElementById('cnt-music').textContent = music.length ? music.length : '';
-  document.getElementById('cnt-podcast').textContent = pods.length ? pods.length : '';
+  const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
+  document.getElementById('cnt-all').textContent    = allData.length ? (music.length + pods.length) : '';
+  document.getElementById('cnt-music').textContent   = music.length  ? music.length  : '';
+  document.getElementById('cnt-podcast').textContent = pods.length   ? pods.length   : '';
 }
 
-function relativeTime(isoStr) {
-  const d = new Date(isoStr);
+function formatTime(isoStr) {
+  const d   = new Date(isoStr);
   const now = new Date();
-  const diff = Math.floor((now - d) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+  const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const dDate   = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((nowDate - dDate) / 86400000);
+
+  if (diffDays === 0)  return 'Today · '     + timeStr;
+  if (diffDays === 1)  return 'Yesterday · ' + timeStr;
+
+  const dateStr = d.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  });
+  return dateStr + ' · ' + timeStr;
 }
 
 function fmtDuration(sec) {
   if (!sec) return '';
-  const h = Math.floor(sec/3600);
-  const m = Math.floor((sec%3600)/60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function renderStats() {
   const music = allData.filter(i => i.type === 'music');
-  const pods = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
-  const items = filter === 'all' ? [...music, ...pods] : (filter === 'music' ? music : pods);
+  const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
+  const items = filter === 'music' ? music : filter === 'podcast' ? pods : [...music, ...pods];
   const statsEl = document.getElementById('stats-row');
-
   if (allData.length === 0) { statsEl.style.display = 'none'; return; }
   statsEl.style.removeProperty('display');
 
   let boxes = [];
-  if (filter === 'all' || filter === 'music') {
-    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-blue-400">${music.length}</div><div class="text-xs text-slate-500 mt-1">Tracks</div></div>`);
-  }
-  if (filter === 'all' || filter === 'podcast') {
-    boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${pods.length}</div><div class="text-xs text-slate-500 mt-1">Episodes</div></div>`);
-  }
+  if (filter !== 'podcast') boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-blue-400">${music.length}</div><div class="text-xs text-slate-500 mt-1">Tracks</div></div>`);
+  if (filter !== 'music')   boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${pods.length}</div><div class="text-xs text-slate-500 mt-1">Episodes</div></div>`);
   if (filter === 'podcast' && pods.length > 0) {
     const totalMin = Math.round(pods.reduce((s,i) => s + (i.progress_seconds||i.duration_seconds||0), 0) / 60);
     boxes.push(`<div class="stat-box"><div class="text-2xl font-bold text-orange-400">${totalMin > 60 ? Math.round(totalMin/60)+'h' : totalMin+'m'}</div><div class="text-xs text-slate-500 mt-1">Listened</div></div>`);
@@ -133,13 +129,11 @@ function renderStats() {
     const label = earliest.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     boxes.push(`<div class="stat-box"><div class="text-sm font-bold text-slate-300">${label}</div><div class="text-xs text-slate-500 mt-1">Since</div></div>`);
   }
-
   statsEl.innerHTML = boxes.join('');
 }
 
 function renderFeed() {
   const feed = document.getElementById('feed');
-  // data.json is already sorted newest→oldest by publisher; filter out zero-duration podcasts
   const filtered = allData.filter(i => {
     if (i.type === 'podcast' && !(i.duration_seconds > 0)) return false;
     if (filter !== 'all' && i.type !== filter) return false;
@@ -152,14 +146,15 @@ function renderFeed() {
   }
 
   feed.innerHTML = filtered.map(item => {
+    const ts = formatTime(item.timestamp);
     if (item.type === 'music') {
       return `
         <div class="item-row">
           <div class="icon-wrap icon-music">🎵</div>
           <div style="flex:1;min-width:0">
             <div class="item-title">${escHtml(item.title)}</div>
-            <div class="item-sub">${escHtml(item.artist || '')}</div>
-            <div class="item-meta">${relativeTime(item.timestamp)}</div>
+            <div class="item-sub">${escHtml(item.artist || '')}${item.album ? ' · ' + escHtml(item.album) : ''}</div>
+            <div class="item-meta">${ts}</div>
           </div>
         </div>`;
     } else {
@@ -171,8 +166,8 @@ function renderFeed() {
           <div style="flex:1;min-width:0">
             <div class="item-title">${escHtml(item.title)}</div>
             <div class="item-sub">${escHtml(item.show_name || '')}</div>
-            ${dur ? `<div style="margin:5px 0 3px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
-            <div class="item-meta">${dur ? `${pct}% · ${dur} · ` : ''}${relativeTime(item.timestamp)}</div>
+            ${dur ? `<div style="margin:3px 0 2px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
+            <div class="item-meta">${dur ? `${pct}% · ${dur} · ` : ''}${ts}</div>
           </div>
         </div>`;
     }
@@ -186,11 +181,11 @@ function escHtml(str) {
 async function loadData() {
   document.getElementById('load-indicator').style.display = 'inline-block';
   try {
-    const res = await fetch('data.json?t=' + Date.now());
+    const res  = await fetch('data.json?t=' + Date.now());
     const json = await res.json();
     allData = json.items || [];
     if (json.generated_at) {
-      document.getElementById('updated-at').textContent = 'Updated ' + relativeTime(json.generated_at);
+      document.getElementById('updated-at').textContent = 'Updated ' + formatTime(json.generated_at);
     }
     updateCounts();
   } catch(e) {
