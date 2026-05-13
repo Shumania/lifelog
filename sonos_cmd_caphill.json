@@ -1,1 +1,1 @@
-{"cmd_id": "play-kind-of-blue-2", "action": "search_and_play", "service": "Qobuz", "query": "Kind of Blue Miles Davis", "search_type": "albums", "room": "Basement Study"}
+{"cmd_id": "play-kind-of-blue-3", "action": "play_uri", "room": "Basement Study", "uri": "spotify:album:1weenld61qoidwYuZ1GESA", "title": "Kind Of Blue", "artist": "Miles Davis"}
