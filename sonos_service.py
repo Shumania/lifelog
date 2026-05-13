@@ -41,7 +41,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.4"
+SONOS_VERSION = "1.5"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -90,7 +90,10 @@ def self_update_check():
         with open(this_path, "w", encoding="utf-8") as f:
             f.write(new_code)
         print(f"[{now_iso()}] Updated to {latest} — restarting...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        import subprocess
+        subprocess.Popen([sys.executable, this_path] + sys.argv[1:],
+                        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        sys.exit(0)
     except Exception as e:
         print(f"[{now_iso()}] Self-update check error: {e}")
 
