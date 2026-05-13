@@ -41,7 +41,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.3"
+SONOS_VERSION = "1.4"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -354,6 +354,40 @@ def execute_command(house, cmd, devices_by_name):
                 result["message"] = f"Removed {room} from its group"
             else:
                 result["message"] = f"Room '{room}' not found"
+
+        elif action == "search_and_play":
+            # Search a music service and play the first result in a room
+            room = cmd.get("room")
+            service_name = cmd.get("service", "Qobuz")
+            query = cmd.get("query", "")
+            search_type = cmd.get("search_type", "albums")  # albums, tracks, artists
+            dev = devices_by_name.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found"
+            elif not query:
+                result["message"] = "No query provided"
+            else:
+                try:
+                    from soco.music_services import MusicService
+                    ms = MusicService(service_name)
+                    results_list = ms.search(search_type, query, 0, 5)
+                    items = list(results_list)
+                    if not items:
+                        result["message"] = f"No {search_type} found for '{query}' on {service_name}"
+                    else:
+                        first = items[0]
+                        title = getattr(first, "title", str(first))
+                        uri = getattr(first, "uri", None)
+                        meta = getattr(first, "to_didl_string", lambda: "")()
+                        if uri:
+                            dev.play_uri(uri, meta=meta, title=title)
+                            result["success"] = True
+                            result["message"] = f"Playing '{title}' ({service_name}) in {room}"
+                            result["data"] = {"title": title, "uri": uri, "service": service_name}
+                        else:
+                            result["message"] = f"Found '{title}' but could not get URI"
+                except Exception as e:
+                    result["message"] = f"Search error: {e}"
 
         elif action == "play_uri":
             room = cmd.get("room")
