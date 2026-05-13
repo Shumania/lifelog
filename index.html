@@ -102,13 +102,6 @@ function formatTime(isoStr) {
   return dateStr + ' · ' + timeStr;
 }
 
-function fmtDuration(sec) {
-  if (!sec) return '';
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
 function renderStats() {
   const music = allData.filter(i => i.type === 'music');
   const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
@@ -158,18 +151,16 @@ function renderFeed() {
           </div>
         </div>`;
     } else {
-      // display_pct is pre-computed in data.json by the publisher.
-      // 0 progress + duration > 0 = 100% (Apple resets progress after episode completes).
       const pct = item.display_pct != null ? item.display_pct : 0;
-      const dur = fmtDuration(item.duration_seconds);
+      const label = item.listened_label || '';
       return `
         <div class="item-row">
           <div class="icon-wrap icon-podcast">🎙</div>
           <div style="flex:1;min-width:0">
             <div class="item-title">${escHtml(item.title)}</div>
             <div class="item-sub">${escHtml(item.show_name || '')}</div>
-            ${dur ? `<div style="margin:2px 0 1px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>` : ''}
-            <div class="item-meta">${dur ? `${pct}% · ${dur} · ` : ''}${ts}</div>
+            <div style="margin:2px 0 1px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+            <div class="item-meta">${label ? escHtml(label) + ' · ' : ''}${ts}</div>
           </div>
         </div>`;
     }
