@@ -41,12 +41,13 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.1"
+SONOS_VERSION = "1.2"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
-POLL_INTERVAL = 15   # seconds between Sonos polls
-CMD_POLL_EVERY = 4   # poll commands every N Sonos poll cycles (~60s)
+POLL_INTERVAL = 15        # seconds between Sonos polls
+CMD_POLL_EVERY = 4        # poll commands every N Sonos poll cycles (~60s)
+VERSION_CHECK_INTERVAL = 3600  # re-check for updates every 1 hour
 
 CONFIG_PATH = r"C:\ProgramData\LifeLog\sonos_config.json"
 
@@ -405,6 +406,7 @@ def execute_command(house, cmd, devices_by_name):
 
 # --- MAIN ---
 last_cmd_sha = None
+last_version_check = 0  # epoch seconds — 0 forces check on first run
 room_state = {}  # room_name → {track_key, track_info, started_at} or None
 
 
@@ -488,6 +490,12 @@ def main():
             if cmd_counter >= CMD_POLL_EVERY:
                 poll_commands(house, all_devices)
                 cmd_counter = 0
+
+            # Hourly self-update check
+            global last_version_check
+            if time.time() - last_version_check >= VERSION_CHECK_INTERVAL:
+                last_version_check = time.time()
+                self_update_check()  # re-execs process if new version found
 
         except Exception as e:
             print(f"[{now_iso()}] Main loop error: {e}")
