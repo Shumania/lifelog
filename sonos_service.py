@@ -296,9 +296,16 @@ def poll_commands(house, devices_by_name):
 def execute_command(house, cmd, devices_by_name):
     """Execute a Sonos command and POST result back"""
     action = cmd.get("action", "")
+    cmd_id = cmd.get("cmd_id", "")
+
+    # Idle/no-op — silently ignore, don't POST result
+    if action in ("none", "") or cmd_id == "idle":
+        print(f"[{ts()}] Idle command — skipping")
+        return
+
     result = {
         "type": "sonos_result",
-        "cmd_id": cmd.get("cmd_id"),
+        "cmd_id": cmd_id,
         "action": action,
         "house": house,
         "success": False,
