@@ -94,8 +94,8 @@ try {
 
 # --- Write config ---
 $CONFIG_PATH = Join-Path $INSTALL_DIR "sonos_config.json"
-$config = @{ house = $HOUSE } | ConvertTo-Json
-Set-Content -Path $CONFIG_PATH -Value $config -Encoding UTF8
+$config = "{`"house`": `"$HOUSE`"}"
+[System.IO.File]::WriteAllText($CONFIG_PATH, $config)
 Write-Host "Config written: $CONFIG_PATH" -ForegroundColor Green
 
 # --- Create run batch file ---

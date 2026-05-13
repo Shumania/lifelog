@@ -7,7 +7,7 @@ LifeLog Sonos Service v1.0
 - Polls GitHub every ~60s for commands (group, play, stop, etc.)
 - Reports command results back via webhook
 
-Config: C:\ProgramData\LifeLog\sonos_config.json
+Config: C:\\ProgramData\\LifeLog\\sonos_config.json
   { "house": "caphill" }   OR   { "house": "vashon" }
 """
 
@@ -63,7 +63,7 @@ VASHON_ROOMS = [
 
 
 def load_config():
-    """Load house config from C:\ProgramData\LifeLog\sonos_config.json"""
+    """Load house config from C:\\ProgramData\\LifeLog\\sonos_config.json"""
     try:
         with open(CONFIG_PATH, "r") as f:
             cfg = json.load(f)
