@@ -41,7 +41,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_WEBHOOK = "SONOS_WEBHOOK_PLACEHOLDER"
+SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
 POLL_INTERVAL = 15   # seconds between Sonos polls
