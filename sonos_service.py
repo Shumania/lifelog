@@ -46,7 +46,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.10"
+SONOS_VERSION = "1.11"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -470,6 +470,37 @@ def execute_command(house, cmd, devices_by_name):
                             result["message"] = f"Found '{title}' but could not get URI"
                 except Exception as e:
                     result["message"] = f"Search error: {e}"
+
+        elif action == "play_spotify_tracks":
+            # Uses add_to_queue+play instead of play_uri (avoids 714 MIME-type error)
+            room = cmd.get("room")
+            query = cmd.get("query", "")
+            service_name = cmd.get("service", "Spotify")
+            search_type = cmd.get("search_type", "albums")
+            dev = devices_by_name.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices_by_name.keys())}"
+            elif not query:
+                result["message"] = "No query provided"
+            else:
+                try:
+                    from soco.music_services import MusicService
+                    ms = MusicService(service_name)
+                    results_list = ms.search(search_type, query, 0, 5)
+                    items = list(results_list)
+                    if not items:
+                        result["message"] = f"No {search_type} found for '{query}' on {service_name}"
+                    else:
+                        first = items[0]
+                        title = getattr(first, "title", str(first))
+                        dev.clear_queue()
+                        position = dev.add_to_queue(first)
+                        dev.play_from_queue(position - 1)
+                        result["success"] = True
+                        result["message"] = f"Playing '{title}' ({service_name}) in {room}"
+                        result["data"] = {"title": title, "service": service_name}
+                except Exception as e:
+                    result["message"] = f"play_spotify_tracks error: {e}"
 
         elif action == "get_services":
             # Discover what music services are configured on a speaker (needed to get correct sn)
