@@ -1,1 +1,6 @@
-{"cmd_id": null, "action": "none"}
+{
+  "action": "search_and_play",
+  "room": "Shed Arc",
+  "query": "Miles Davis",
+  "service": "Qobuz"
+}
