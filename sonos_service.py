@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.8
+LifeLog Sonos Service v1.9
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -46,7 +46,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.8"
+SONOS_VERSION = "1.9"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -470,6 +470,59 @@ def execute_command(house, cmd, devices_by_name):
                             result["message"] = f"Found '{title}' but could not get URI"
                 except Exception as e:
                     result["message"] = f"Search error: {e}"
+
+        elif action == "play_spotify_tracks":
+            # Agent pre-resolves track IDs from Spotify API and sends them here.
+            # Service constructs x-sonos-spotify: URIs with proper DIDL metadata.
+            room = cmd.get("room")
+            tracks = cmd.get("tracks", [])
+            dev = devices_by_name.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found"
+            elif not tracks:
+                result["message"] = "No tracks provided"
+            else:
+                try:
+                    from soco.data_structures import DidlMusicTrack
+                    # Get the Spotify service descriptor from the device
+                    # Try to get it from the device's available services; fall back to known S2 value
+                    desc = "SA_RINCON2311_X_#Svc2311-0-Token"
+                    try:
+                        for svc in dev.music_services.get_available_services():
+                            if "spotify" in svc.service_name.lower():
+                                desc = f"SA_RINCON{svc.service_id}_X_#Svc{svc.service_id}-0-Token"
+                                print(f"[{now_iso()}] Found Spotify service descriptor: {desc}")
+                                break
+                    except Exception as e:
+                        print(f"[{now_iso()}] Could not auto-detect Spotify descriptor, using default: {e}")
+
+                    dev.clear_queue()
+                    added = 0
+                    for t in tracks:
+                        track_id = t.get("track_id", "")
+                        if not track_id:
+                            continue
+                        # x-sonos-spotify URI scheme: recognized natively by Sonos
+                        sonos_uri = f"x-sonos-spotify:spotify:track:{track_id}?sid=9&flags=8224&sn=1"
+                        didl = DidlMusicTrack(
+                            uri=sonos_uri,
+                            desc=desc,
+                            id=f"spotify:track:{track_id}",
+                            title=t.get("title", "Unknown"),
+                            creator=t.get("artist", ""),
+                            album=t.get("album", ""),
+                            parent_id="A:ALBUMS",
+                        )
+                        dev.add_to_queue(didl)
+                        added += 1
+                    if added > 0:
+                        dev.play_from_queue(0)
+                        result["success"] = True
+                        result["message"] = f"Queued and playing {added} tracks in {room}"
+                    else:
+                        result["message"] = "No valid tracks to enqueue"
+                except Exception as e:
+                    result["message"] = f"Error playing Spotify tracks: {e}"
 
         elif action == "play_uri":
             room = cmd.get("room")
