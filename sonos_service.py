@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.0
+LifeLog Sonos Service v1.6
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
 - Polls GitHub every ~60s for commands (group, play, stop, etc.)
-- Reports command results back via webhook
+- Reports command results AND errors back via webhook
+- Suppresses repeat timeout errors for offline speakers
 
 Config: C:\\ProgramData\\LifeLog\\sonos_config.json
   { "house": "caphill" }   OR   { "house": "vashon" }
@@ -41,17 +42,18 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.5"
+SONOS_VERSION = "1.6"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
 POLL_INTERVAL = 15        # seconds between Sonos polls
 CMD_POLL_EVERY = 4        # poll commands every N Sonos poll cycles (~60s)
 VERSION_CHECK_INTERVAL = 120   # re-check for updates every 2 minutes
+OFFLINE_THRESHOLD = 3     # consecutive failures before marking speaker offline
+OFFLINE_RECHECK_SECS = 300  # retry offline speakers every 5 minutes
 
 CONFIG_PATH = r"C:\ProgramData\LifeLog\sonos_config.json"
 
-# Speaker name → home for display
 CAPHILL_ROOMS = [
     "Backyard", "Basement Study", "Dining Room", "Kitchen",
     "Living Room", "Master Bathroom", "Media Room", "Study Computer Playbar"
@@ -63,8 +65,31 @@ VASHON_ROOMS = [
     "Main Upstairs Second Bedroom", "Media Room"
 ]
 
+# Track consecutive failures and offline status per speaker name
+speaker_failures = {}   # name -> consecutive failure count
+speaker_offline_since = {}  # name -> epoch time when marked offline
 
-def self_update_check():
+
+def now_iso():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def post_error(house, message, context=""):
+    """POST an error event to the Tasklet Sonos webhook so agent sees it automatically."""
+    payload = {
+        "type": "sonos_error",
+        "house": house,
+        "message": message,
+        "context": context,
+        "timestamp": now_iso(),
+    }
+    try:
+        requests.post(SONOS_WEBHOOK, json=payload, timeout=10)
+    except Exception:
+        pass  # Don't recurse on error reporting failure
+
+
+def self_update_check(house="unknown"):
     """Check versions.json on GitHub; re-exec if sonos_version has changed."""
     try:
         url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/versions.json"
@@ -117,17 +142,10 @@ def load_config():
         sys.exit(1)
 
 
-def now_iso():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def detect_service(uri, metadata=""):
-    """Detect music service from Sonos URI.
-    Checks text clues first, then falls back to sid= parameter in URI.
-    """
+    """Detect music service from Sonos URI."""
     import re
     s = (uri + metadata).lower()
-    # Text-based detection (fast path)
     if "spotify" in s:
         return "sonos_spotify"
     if "apple" in s or "itunes" in s or "music.apple" in s:
@@ -138,7 +156,6 @@ def detect_service(uri, metadata=""):
         return "sonos_tunein"
     if "x-rincon-mp3radio" in s or "x-sonosapi-radio" in s or "x-rincon-stream" in s:
         return "sonos_radio"
-    # SID-based detection (Sonos service IDs in URI query string)
     SID_MAP = {
         9:   "sonos_spotify",
         31:  "sonos_qobuz",
@@ -160,7 +177,7 @@ def detect_service(uri, metadata=""):
 
 
 def get_coordinators():
-    """Discover all Sonos group coordinators on the network"""
+    """Discover all Sonos group coordinators on the network."""
     try:
         devices = soco.discover(timeout=8)
         if not devices:
@@ -179,17 +196,33 @@ def get_coordinators():
         return []
 
 
-def get_track_info(device):
-    """Get currently playing track info from a coordinator device. Returns None if stopped."""
+def get_track_info(device, house):
+    """Get currently playing track info from a coordinator device.
+    Returns None if stopped. Tracks failures and suppresses repeat timeout errors."""
+    name = device.player_name
+    now_epoch = time.time()
+
+    # Skip speaker if it's been marked offline (recheck every OFFLINE_RECHECK_SECS)
+    if name in speaker_offline_since:
+        if now_epoch - speaker_offline_since[name] < OFFLINE_RECHECK_SECS:
+            return None
+        else:
+            # Time to retry
+            print(f"[{now_iso()}] Retrying offline speaker: {name}")
+            del speaker_offline_since[name]
+            speaker_failures[name] = 0
+
     try:
         transport = device.get_current_transport_info()
         state = transport.get("current_transport_state", "STOPPED")
         if state not in ("PLAYING", "TRANSITIONING"):
+            speaker_failures[name] = 0
             return None
 
         info = device.get_current_track_info()
         title = info.get("title", "").strip()
         if not title or title in ("", "NOT_IMPLEMENTED"):
+            speaker_failures[name] = 0
             return None
 
         artist = info.get("artist", "").strip()
@@ -197,7 +230,6 @@ def get_track_info(device):
         uri = info.get("uri", "")
         metadata = info.get("metadata", "")
 
-        # Parse duration string "H:MM:SS" → seconds
         dur_str = info.get("duration", "0:00:00")
         duration_secs = 0
         try:
@@ -207,11 +239,13 @@ def get_track_info(device):
         except Exception:
             pass
 
-        # Get all rooms in this group
         try:
             group_members = [m.player_name for m in device.group.members]
         except Exception:
             group_members = [device.player_name]
+
+        # Successful query — reset failure count
+        speaker_failures[name] = 0
 
         return {
             "title": title,
@@ -223,18 +257,30 @@ def get_track_info(device):
             "rooms": group_members,
             "coordinator": device.player_name,
         }
+
     except Exception as e:
-        print(f"[{now_iso()}] Error getting track from {device.player_name}: {e}")
+        failures = speaker_failures.get(name, 0) + 1
+        speaker_failures[name] = failures
+
+        if failures == OFFLINE_THRESHOLD:
+            # Just crossed the threshold — mark offline and report once
+            speaker_offline_since[name] = now_epoch
+            msg = f"Speaker '{name}' marked offline after {failures} failures: {e}"
+            print(f"[{now_iso()}] ⚠ {msg}")
+            post_error(house, msg, context=f"speaker={name}")
+        elif failures < OFFLINE_THRESHOLD:
+            # Still within threshold — log locally only
+            print(f"[{now_iso()}] Error getting track from {name} (attempt {failures}): {e}")
+        # If > threshold and still offline: silence (already reported)
         return None
 
 
 def post_history(house, track, room, started_at, ended_at):
-    """POST a completed track play to the Tasklet Sonos webhook"""
+    """POST a completed track play to the Tasklet Sonos webhook."""
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15:
         return  # skip plays under 15 seconds
 
-    # Dedup key: house + room + uri fingerprint + start-minute bucket
     uri_or_title = track["uri"] or f"{track['title']}|{track['artist']}"
     fp = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     minute_bucket = int(started_at.timestamp() // 60)
@@ -261,10 +307,11 @@ def post_history(house, track, room, started_at, ended_at):
         print(f"[{now_iso()}] ✓ History: \"{track['title']}\" – {track['artist']} | {room} ({duration_played}s) [{track['service']}] → HTTP {r.status_code}")
     except Exception as e:
         print(f"[{now_iso()}] ✗ Failed to post history: {e}")
+        post_error(house, f"Failed to post history: {e}", context=f"title={track['title']}")
 
 
 def poll_commands(house, devices_by_name):
-    """Poll GitHub command file for this house and execute any new command"""
+    """Poll GitHub command file for this house and execute any new command."""
     global last_cmd_sha
 
     url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/sonos_cmd_{house}.json"
@@ -294,13 +341,12 @@ def poll_commands(house, devices_by_name):
 
 
 def execute_command(house, cmd, devices_by_name):
-    """Execute a Sonos command and POST result back"""
+    """Execute a Sonos command and POST result back."""
     action = cmd.get("action", "")
     cmd_id = cmd.get("cmd_id", "")
 
-    # Idle/no-op — silently ignore, don't POST result
     if action in ("none", "") or cmd_id == "idle":
-        print(f"[{ts()}] Idle command — skipping")
+        print(f"[{now_iso()}] Idle command — skipping")
         return
 
     result = {
@@ -318,7 +364,7 @@ def execute_command(house, cmd, devices_by_name):
             coordinators = get_coordinators()
             state = []
             for dev in coordinators:
-                info = get_track_info(dev)
+                info = get_track_info(dev, house)
                 try:
                     members = [m.player_name for m in dev.group.members]
                 except Exception:
@@ -337,7 +383,6 @@ def execute_command(house, cmd, devices_by_name):
             result["data"] = state
 
         elif action == "group":
-            # Join rooms to a playing source room
             source = cmd.get("source")
             add_rooms = cmd.get("add", [])
             if isinstance(add_rooms, str):
@@ -366,11 +411,10 @@ def execute_command(house, cmd, devices_by_name):
                 result["message"] = f"Room '{room}' not found"
 
         elif action == "search_and_play":
-            # Search a music service and play the first result in a room
             room = cmd.get("room")
             service_name = cmd.get("service", "Qobuz")
             query = cmd.get("query", "")
-            search_type = cmd.get("search_type", "albums")  # albums, tracks, artists
+            search_type = cmd.get("search_type", "albums")
             dev = devices_by_name.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found"
@@ -459,6 +503,7 @@ def execute_command(house, cmd, devices_by_name):
 
     except Exception as e:
         result["message"] = f"Error: {e}"
+        post_error(house, f"Command execution error ({action}): {e}", context=f"cmd_id={cmd_id}")
 
     try:
         r = requests.post(SONOS_WEBHOOK, json=result, timeout=15)
@@ -469,8 +514,8 @@ def execute_command(house, cmd, devices_by_name):
 
 # --- MAIN ---
 last_cmd_sha = None
-last_version_check = 0  # epoch seconds — 0 forces check on first run
-room_state = {}  # room_name → {track_key, track_info, started_at} or None
+last_version_check = 0
+room_state = {}
 
 
 def main():
@@ -479,7 +524,7 @@ def main():
     print(f"[{now_iso()}] Polling every {POLL_INTERVAL}s | Commands every ~{POLL_INTERVAL * CMD_POLL_EVERY}s")
     print(f"[{now_iso()}] Webhook: {SONOS_WEBHOOK[:60]}...")
     print(f"[{now_iso()}] Checking for updates...")
-    self_update_check()
+    self_update_check(house)
     print(f"[{now_iso()}] Starting Sonos discovery (timeout=8s)...")
 
     cmd_counter = 0
@@ -508,11 +553,10 @@ def main():
             except Exception:
                 pass
 
-            # Track which rooms we saw this cycle
             seen_rooms = set()
 
             for dev in coordinators:
-                info = get_track_info(dev)
+                info = get_track_info(dev, house)
                 try:
                     rooms_in_group = [m.player_name for m in dev.group.members]
                 except Exception:
@@ -525,7 +569,6 @@ def main():
                     if info:
                         track_key = f"{info['title']}|{info['artist']}|{info['uri']}"
                         if prev is None or prev.get("track_key") != track_key:
-                            # New track started — log the previous one
                             if prev and prev.get("track_key") and prev.get("started_at"):
                                 post_history(house, prev["track_info"], room, prev["started_at"], now)
                             room_state[room] = {
@@ -535,12 +578,11 @@ def main():
                             }
                             print(f"[{now_iso()}] ▶ {room}: \"{info['title']}\" – {info['artist']} [{info['service']}]")
                     else:
-                        # Nothing playing — log any previously playing track
                         if prev and prev.get("track_key") and prev.get("started_at"):
                             post_history(house, prev["track_info"], room, prev["started_at"], now)
                         room_state[room] = None
 
-            # Handle rooms that disappeared (device offline or ungrouped)
+            # Handle rooms that disappeared
             for room in list(room_state.keys()):
                 if room not in seen_rooms:
                     prev = room_state.get(room)
@@ -554,14 +596,16 @@ def main():
                 poll_commands(house, all_devices)
                 cmd_counter = 0
 
-            # Hourly self-update check
+            # Periodic self-update check
             global last_version_check
             if time.time() - last_version_check >= VERSION_CHECK_INTERVAL:
                 last_version_check = time.time()
-                self_update_check()  # re-execs process if new version found
+                self_update_check(house)
 
         except Exception as e:
-            print(f"[{now_iso()}] Main loop error: {e}")
+            msg = f"Main loop error: {e}"
+            print(f"[{now_iso()}] {msg}")
+            post_error(house, msg)
 
         time.sleep(POLL_INTERVAL)
 
