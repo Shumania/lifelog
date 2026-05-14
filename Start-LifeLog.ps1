@@ -13,7 +13,8 @@ Write-Host "================" -ForegroundColor Cyan
 if (-not (Test-Path $SonosConfig) -or -not (Test-Path $SonosService)) {
     Write-Host ""
     Write-Host "Sonos service not installed. Running installer..." -ForegroundColor Yellow
-    irm https://raw.githubusercontent.com/Shumania/lifelog/main/Install-SonosService.ps1 | iex
+    $r = Invoke-RestMethod "https://api.github.com/repos/Shumania/lifelog/contents/Install-SonosService.ps1" -Headers @{Accept="application/vnd.github.v3+json"}
+    [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.content)) | Invoke-Expression
     Write-Host ""
 }
 
