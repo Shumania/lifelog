@@ -38,32 +38,34 @@ Write-Host ""
 Write-Host "Looking for Python..." -ForegroundColor Yellow
 $PYTHON = $null
 
-# Check common install paths
-$candidates = @(
-    "C:\Python313\python.exe",
-    "C:\Python312\python.exe",
-    "C:\Python311\python.exe",
-    "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python313\python.exe",
-    "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python312\python.exe",
-    "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python311\python.exe"
-)
-foreach ($p in $candidates) {
-    if (Test-Path $p) { $PYTHON = $p; break }
+# 1. Try PATH first (skip Windows Store stubs)
+$found = Get-Command python -ErrorAction SilentlyContinue
+if ($found) {
+    $path = $found.Source
+    if ($path -notlike "*WindowsApps*") {
+        $PYTHON = $path
+    }
 }
 
-# Fall back to PATH, skip Store stubs
+# 2. Search common install locations for any Python 3.x
 if (-not $PYTHON) {
-    $found = Get-Command python -ErrorAction SilentlyContinue
-    if ($found) {
-        $path = $found.Source
-        if ($path -notlike "*WindowsApps*") {
-            $PYTHON = $path
+    $searchRoots = @(
+        "C:\Python3*",
+        "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python3*",
+        "C:\Users\$env:USERNAME\AppData\Local\Python\pythoncore-3*"
+    )
+    foreach ($root in $searchRoots) {
+        $dirs = Get-Item $root -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+        foreach ($dir in $dirs) {
+            $exe = Join-Path $dir.FullName "python.exe"
+            if (Test-Path $exe) { $PYTHON = $exe; break }
         }
+        if ($PYTHON) { break }
     }
 }
 
 if (-not $PYTHON) {
-    Write-Host "Python not found. Please install Python 3.13 from https://www.python.org/downloads/" -ForegroundColor Red
+    Write-Host "Python not found. Please install Python from https://www.python.org/downloads/" -ForegroundColor Red
     Write-Host "Run this installer again after installing Python."
     exit 1
 }
