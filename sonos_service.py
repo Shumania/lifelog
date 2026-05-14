@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.6
+LifeLog Sonos Service v1.7
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -42,7 +42,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.6"
+SONOS_VERSION = "1.7"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -326,13 +326,13 @@ def poll_commands(house, devices_by_name):
 
         content_b64 = data.get("content", "")
         cmd = json.loads(base64.b64decode(content_b64).decode())
-        cmd_id = cmd.get("cmd_id", "")
 
-        if not cmd_id or cmd_id == last_cmd_sha:
-            last_cmd_sha = sha
+        # SHA-only dedup — no cmd_id required
+        last_cmd_sha = sha
+        action = cmd.get("action", "")
+        if action in ("none", "", "idle"):
             return
 
-        last_cmd_sha = sha
         print(f"[{now_iso()}] New command: {cmd}")
         execute_command(house, cmd, devices_by_name)
 
