@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.7
+LifeLog Sonos Service v1.8
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
-- Polls GitHub every ~60s for commands (group, play, stop, etc.)
+- Polls GitHub every ~60s for commands (fallback)
+- ntfy.sh background thread for INSTANT command delivery
+- Command ack posted before execution
+- 'search' action returns results without playing (album picker)
 - Reports command results AND errors back via webhook
 - Suppresses repeat timeout errors for offline speakers
 
@@ -18,6 +21,7 @@ import time
 import hashlib
 import base64
 import os
+import threading
 from datetime import datetime, timezone
 
 # Check Python version
@@ -42,17 +46,23 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.7"
+SONOS_VERSION = "1.8"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
 POLL_INTERVAL = 15        # seconds between Sonos polls
-CMD_POLL_EVERY = 4        # poll commands every N Sonos poll cycles (~60s)
+CMD_POLL_EVERY = 4        # poll GitHub commands every N Sonos poll cycles (~60s fallback)
 VERSION_CHECK_INTERVAL = 120   # re-check for updates every 2 minutes
 OFFLINE_THRESHOLD = 3     # consecutive failures before marking speaker offline
 OFFLINE_RECHECK_SECS = 300  # retry offline speakers every 5 minutes
 
 CONFIG_PATH = r"C:\ProgramData\LifeLog\sonos_config.json"
+
+# ntfy.sh topics per house — agent POSTs here for instant delivery
+NTFY_TOPICS = {
+    "caphill": "lifelog-cmd-caphill-4x8m",
+    "vashon":  "lifelog-cmd-vashon-9k3p",
+}
 
 CAPHILL_ROOMS = [
     "Backyard", "Basement Study", "Dining Room", "Kitchen",
@@ -66,8 +76,12 @@ VASHON_ROOMS = [
 ]
 
 # Track consecutive failures and offline status per speaker name
-speaker_failures = {}   # name -> consecutive failure count
+speaker_failures = {}       # name -> consecutive failure count
 speaker_offline_since = {}  # name -> epoch time when marked offline
+
+# Shared device map — updated by main loop, read by ntfy thread
+current_devices_by_name = {}
+current_house = "unknown"
 
 
 def now_iso():
@@ -310,44 +324,28 @@ def post_history(house, track, room, started_at, ended_at):
         post_error(house, f"Failed to post history: {e}", context=f"title={track['title']}")
 
 
-def poll_commands(house, devices_by_name):
-    """Poll GitHub command file for this house and execute any new command."""
-    global last_cmd_sha
-
-    url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/sonos_cmd_{house}.json"
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            return
-        data = r.json()
-        sha = data.get("sha")
-        if sha == last_cmd_sha:
-            return
-
-        content_b64 = data.get("content", "")
-        cmd = json.loads(base64.b64decode(content_b64).decode())
-
-        # SHA-only dedup — no cmd_id required
-        last_cmd_sha = sha
-        action = cmd.get("action", "")
-        if action in ("none", "", "idle"):
-            return
-
-        print(f"[{now_iso()}] New command: {cmd}")
-        execute_command(house, cmd, devices_by_name)
-
-    except Exception as e:
-        print(f"[{now_iso()}] Command poll error: {e}")
-
-
 def execute_command(house, cmd, devices_by_name):
-    """Execute a Sonos command and POST result back."""
+    """Execute a Sonos command and POST result back. Acks immediately before executing."""
     action = cmd.get("action", "")
     cmd_id = cmd.get("cmd_id", "")
 
     if action in ("none", "") or cmd_id == "idle":
         print(f"[{now_iso()}] Idle command — skipping")
         return
+
+    # Ack immediately so agent knows command was received
+    ack = {
+        "type": "sonos_ack",
+        "cmd_id": cmd_id,
+        "action": action,
+        "house": house,
+        "timestamp": now_iso(),
+    }
+    try:
+        requests.post(SONOS_WEBHOOK, json=ack, timeout=10)
+        print(f"[{now_iso()}] ✓ Ack sent for action: {action}")
+    except Exception:
+        pass
 
     result = {
         "type": "sonos_result",
@@ -410,6 +408,36 @@ def execute_command(house, cmd, devices_by_name):
             else:
                 result["message"] = f"Room '{room}' not found"
 
+        elif action == "search":
+            # Return top results without playing — for album picker UX
+            service_name = cmd.get("service", "Qobuz")
+            query = cmd.get("query", "")
+            search_type = cmd.get("search_type", "albums")
+            n = int(cmd.get("n", 5))
+            if not query:
+                result["message"] = "No query provided"
+            else:
+                try:
+                    from soco.music_services import MusicService
+                    ms = MusicService(service_name)
+                    results_list = ms.search(search_type, query, 0, n)
+                    items = list(results_list)
+                    if not items:
+                        result["message"] = f"No {search_type} found for '{query}' on {service_name}"
+                    else:
+                        hits = []
+                        for item in items:
+                            hits.append({
+                                "title": getattr(item, "title", str(item)),
+                                "artist": getattr(item, "creator", ""),
+                                "uri": getattr(item, "uri", None),
+                            })
+                        result["success"] = True
+                        result["message"] = f"Found {len(hits)} {search_type} for '{query}' on {service_name}"
+                        result["data"] = {"query": query, "service": service_name, "results": hits}
+                except Exception as e:
+                    result["message"] = f"Search error: {e}"
+
         elif action == "search_and_play":
             room = cmd.get("room")
             service_name = cmd.get("service", "Qobuz")
@@ -447,9 +475,10 @@ def execute_command(house, cmd, devices_by_name):
             room = cmd.get("room")
             uri = cmd.get("uri")
             title = cmd.get("title", uri)
+            meta = cmd.get("meta", "")
             dev = devices_by_name.get(room)
             if dev and uri:
-                dev.play_uri(uri, title=title)
+                dev.play_uri(uri, meta=meta, title=title)
                 result["success"] = True
                 result["message"] = f"Playing '{title}' in {room}"
             else:
@@ -512,19 +541,96 @@ def execute_command(house, cmd, devices_by_name):
         print(f"[{now_iso()}] Failed to post command result: {e}")
 
 
+def ntfy_listener(house):
+    """Background thread: subscribes to ntfy.sh topic for instant command delivery.
+    Streams events; reconnects on error. Falls back to GitHub polling every ~60s."""
+    topic = NTFY_TOPICS.get(house)
+    if not topic:
+        print(f"[{now_iso()}] No ntfy topic for house: {house} — skipping ntfy listener")
+        return
+
+    url = f"https://ntfy.sh/{topic}/json"
+    print(f"[{now_iso()}] ntfy listener started: {url}")
+
+    while True:
+        try:
+            # Stream events — reconnects when connection drops
+            with requests.get(url, stream=True, timeout=90) as r:
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        msg = json.loads(line)
+                    except Exception:
+                        continue
+                    event = msg.get("event", "")
+                    if event != "message":
+                        continue
+                    raw = msg.get("message", "")
+                    print(f"[{now_iso()}] ⚡ ntfy command received: {raw[:120]}")
+                    try:
+                        cmd = json.loads(raw)
+                        execute_command(house, cmd, current_devices_by_name)
+                    except Exception as e:
+                        print(f"[{now_iso()}] ntfy parse/execute error: {e}")
+        except Exception as e:
+            print(f"[{now_iso()}] ntfy stream error: {e} — reconnecting in 5s")
+            time.sleep(5)
+
+
 # --- MAIN ---
 last_cmd_sha = None
 last_version_check = 0
 room_state = {}
 
 
+def poll_commands(house, devices_by_name):
+    """Poll GitHub command file for this house and execute any new command (fallback)."""
+    global last_cmd_sha
+
+    url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/sonos_cmd_{house}.json"
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return
+        data = r.json()
+        sha = data.get("sha")
+        if sha == last_cmd_sha:
+            return
+
+        content_b64 = data.get("content", "")
+        cmd = json.loads(base64.b64decode(content_b64).decode())
+
+        # SHA-only dedup — no cmd_id required
+        last_cmd_sha = sha
+        action = cmd.get("action", "")
+        if action in ("none", "", "idle"):
+            return
+
+        print(f"[{now_iso()}] New command (GitHub fallback): {cmd}")
+        execute_command(house, cmd, devices_by_name)
+
+    except Exception as e:
+        print(f"[{now_iso()}] Command poll error: {e}")
+
+
 def main():
+    global current_devices_by_name, current_house
+
     house = load_config()
+    current_house = house
+
     print(f"[{now_iso()}] LifeLog Sonos Service v{SONOS_VERSION} — house: {house}")
-    print(f"[{now_iso()}] Polling every {POLL_INTERVAL}s | Commands every ~{POLL_INTERVAL * CMD_POLL_EVERY}s")
+    print(f"[{now_iso()}] Polling every {POLL_INTERVAL}s | GitHub fallback every ~{POLL_INTERVAL * CMD_POLL_EVERY}s")
+    print(f"[{now_iso()}] ntfy topic: {NTFY_TOPICS.get(house, 'N/A')}")
     print(f"[{now_iso()}] Webhook: {SONOS_WEBHOOK[:60]}...")
     print(f"[{now_iso()}] Checking for updates...")
     self_update_check(house)
+
+    # Start ntfy listener in background thread
+    t = threading.Thread(target=ntfy_listener, args=(house,), daemon=True)
+    t.start()
+
     print(f"[{now_iso()}] Starting Sonos discovery (timeout=8s)...")
 
     cmd_counter = 0
@@ -545,13 +651,14 @@ def main():
                 first_run = False
             now = datetime.now(timezone.utc)
 
-            # Build flat device map for command execution
+            # Build flat device map for command execution; share with ntfy thread
             all_devices = {}
             try:
                 for dev in soco.discover(timeout=5) or []:
                     all_devices[dev.player_name] = dev
             except Exception:
                 pass
+            current_devices_by_name = all_devices
 
             seen_rooms = set()
 
@@ -590,7 +697,7 @@ def main():
                         post_history(house, prev["track_info"], room, prev["started_at"], now)
                     room_state[room] = None
 
-            # Poll GitHub commands
+            # GitHub command fallback polling
             cmd_counter += 1
             if cmd_counter >= CMD_POLL_EVERY:
                 poll_commands(house, all_devices)
