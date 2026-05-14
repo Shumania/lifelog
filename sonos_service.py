@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.9
+LifeLog Sonos Service v1.9 — ntfy backlog fix, rate limit fix
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -46,13 +46,13 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.11"
+SONOS_VERSION = "1.9"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
 POLL_INTERVAL = 15        # seconds between Sonos polls
-CMD_POLL_EVERY = 4        # poll GitHub commands every N Sonos poll cycles (~60s fallback)
-VERSION_CHECK_INTERVAL = 120   # re-check for updates every 2 minutes
+CMD_POLL_EVERY = 20       # poll GitHub commands every N Sonos poll cycles (~5 min fallback; ntfy handles instant)
+VERSION_CHECK_INTERVAL = 3600  # re-check for updates every 60 min (ntfy handles instant delivery)
 OFFLINE_THRESHOLD = 3     # consecutive failures before marking speaker offline
 OFFLINE_RECHECK_SECS = 300  # retry offline speakers every 5 minutes
 
@@ -630,10 +630,13 @@ def ntfy_listener(house):
         print(f"[{now_iso()}] No ntfy topic for house: {house} — skipping ntfy listener")
         return
 
-    url = f"https://ntfy.sh/{topic}/json"
-    print(f"[{now_iso()}] ntfy listener started: {url}")
+    print(f"[{now_iso()}] ntfy listener starting for house: {house}, topic: {topic}")
 
     while True:
+        # Use since=<now> so we never replay the backlog on reconnect
+        since = int(time.time())
+        url = f"https://ntfy.sh/{topic}/json?since={since}"
+        print(f"[{now_iso()}] ntfy listener connecting: {url}")
         try:
             # Stream events — reconnects when connection drops
             with requests.get(url, stream=True, timeout=90) as r:
@@ -651,6 +654,12 @@ def ntfy_listener(house):
                     print(f"[{now_iso()}] ⚡ ntfy command received: {raw[:120]}")
                     try:
                         cmd = json.loads(raw)
+                        # Drop stale commands older than 2 minutes
+                        cmd_ts = cmd.get("cmd_ts", 0)
+                        age = time.time() - cmd_ts if cmd_ts else 0
+                        if cmd_ts and age > 120:
+                            print(f"[{now_iso()}] Ignoring stale command (age: {int(age)}s): {cmd.get('action')}")
+                            continue
                         execute_command(house, cmd, current_devices_by_name)
                     except Exception as e:
                         print(f"[{now_iso()}] ntfy parse/execute error: {e}")
