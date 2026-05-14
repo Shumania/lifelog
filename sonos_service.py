@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.9 — ntfy backlog fix, rate limit fix
+LifeLog Sonos Service v1.10 — cross-channel command dedup
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -46,7 +46,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.9"
+SONOS_VERSION = "1.10"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -660,6 +660,11 @@ def ntfy_listener(house):
                         if cmd_ts and age > 120:
                             print(f"[{now_iso()}] Ignoring stale command (age: {int(age)}s): {cmd.get('action')}")
                             continue
+                        # Cross-channel dedup — skip if GitHub fallback already ran this
+                        if _already_executed(cmd):
+                            print(f"[{now_iso()}] Skipping duplicate command (already executed): {cmd.get('action')}")
+                            continue
+                        _mark_executed(cmd)
                         execute_command(house, cmd, current_devices_by_name)
                     except Exception as e:
                         print(f"[{now_iso()}] ntfy parse/execute error: {e}")
@@ -672,6 +677,28 @@ def ntfy_listener(house):
 last_cmd_sha = None
 last_version_check = 0
 room_state = {}
+
+# Cross-channel command dedup: stores hashes of recently executed commands
+# so ntfy and GitHub fallback never both execute the same command
+executed_cmd_hashes = set()
+MAX_EXECUTED_HASHES = 30
+
+def _cmd_hash(cmd):
+    """Stable hash of command content (excluding cmd_ts which varies)."""
+    stable = {k: v for k, v in cmd.items() if k != "cmd_ts"}
+    return hashlib.md5(json.dumps(stable, sort_keys=True).encode()).hexdigest()
+
+def _mark_executed(cmd):
+    """Record that a command was executed. Prune if set gets large."""
+    executed_cmd_hashes.add(_cmd_hash(cmd))
+    if len(executed_cmd_hashes) > MAX_EXECUTED_HASHES:
+        # Remove oldest half (sets don't preserve order, just truncate)
+        excess = list(executed_cmd_hashes)[:MAX_EXECUTED_HASHES // 2]
+        for h in excess:
+            executed_cmd_hashes.discard(h)
+
+def _already_executed(cmd):
+    return _cmd_hash(cmd) in executed_cmd_hashes
 
 
 def poll_commands(house, devices_by_name):
@@ -696,6 +723,12 @@ def poll_commands(house, devices_by_name):
         action = cmd.get("action", "")
         if action in ("none", "", "idle"):
             return
+
+        # Cross-channel dedup — skip if ntfy already executed this command
+        if _already_executed(cmd):
+            print(f"[{now_iso()}] GitHub fallback: skipping duplicate command (ntfy already ran): {action}")
+            return
+        _mark_executed(cmd)
 
         print(f"[{now_iso()}] New command (GitHub fallback): {cmd}")
         execute_command(house, cmd, devices_by_name)
