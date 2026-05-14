@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.5"
+EXTRACTOR_VERSION = "2.6"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -55,15 +55,17 @@ CURSOR_FILE = Path(r"C:\ProgramData\LifeLog\last_podcast_cursor.txt")
 
 
 def get_backup_hash(backup_dir):
-    """Return a hash representing the current state of the backup (based on Manifest.db mtime + size)."""
+    """Return a hash representing the current state of the backup.
+    Uses first 64KB of Manifest.db CONTENT (not mtime) so service restarts
+    don't falsely trigger a re-send when the backup hasn't actually changed."""
     try:
         manifest = backup_dir / "Manifest.db"
         if not manifest.exists():
             manifest = backup_dir / "Manifest.plist"
         if manifest.exists():
-            stat = manifest.stat()
-            raw = f"{backup_dir}|{stat.st_mtime}|{stat.st_size}"
-            return hashlib.md5(raw.encode()).hexdigest()
+            with open(manifest, "rb") as f:
+                content = f.read(65536)  # 64KB — fast, unique enough
+            return hashlib.md5(content).hexdigest()
     except Exception:
         pass
     return None
@@ -839,8 +841,10 @@ def main():
     # Step 4: Check if backup has changed since last successful post
     current_hash = get_backup_hash(backup_dir)
     last_hash = load_last_hash()
+    if last_hash is None:
+        log("WARNING: No hash file found — first run or hash was cleared. Will decrypt and check cursor.")
     if not args.output and current_hash and current_hash == last_hash:
-        log("Backup unchanged since last sync. Nothing to do.")
+        log("Backup unchanged since last sync (content hash matches). Nothing to do.")
         sys.exit(0)
 
     # Step 5: Load cursor and extract data
