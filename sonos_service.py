@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.10
+LifeLog Sonos Service v1.9
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -471,36 +471,33 @@ def execute_command(house, cmd, devices_by_name):
                 except Exception as e:
                     result["message"] = f"Search error: {e}"
 
-        elif action == "play_spotify_tracks":
-            # Uses add_to_queue+play instead of play_uri (avoids 714 MIME-type error)
+        elif action == "play_spotify_uri":
+            # Agent searches Spotify API, passes URI here; service uses ShareLinkPlugin
+            # uri: e.g. "spotify:album:1weenld61qoidwYuZ1GESA" or "spotify:track:..."
             room = cmd.get("room")
-            query = cmd.get("query", "")
-            service_name = cmd.get("service", "Spotify")
-            search_type = cmd.get("search_type", "albums")
+            spotify_uri = cmd.get("uri", "")
+            title = cmd.get("title", spotify_uri)
             dev = devices_by_name.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices_by_name.keys())}"
-            elif not query:
-                result["message"] = "No query provided"
+            elif not spotify_uri:
+                result["message"] = "No Spotify URI provided"
             else:
                 try:
-                    from soco.music_services import MusicService
-                    ms = MusicService(service_name)
-                    results_list = ms.search(search_type, query, 0, 5)
-                    items = list(results_list)
-                    if not items:
-                        result["message"] = f"No {search_type} found for '{query}' on {service_name}"
-                    else:
-                        first = items[0]
-                        title = getattr(first, "title", str(first))
-                        dev.clear_queue()
-                        position = dev.add_to_queue(first)
-                        dev.play_from_queue(position - 1)
-                        result["success"] = True
-                        result["message"] = f"Playing '{title}' ({service_name}) in {room}"
-                        result["data"] = {"title": title, "service": service_name}
+                    from soco.plugins.sharelink import ShareLinkPlugin
+                    # Convert spotify URI to share URL
+                    uri_type = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
+                    uri_id = spotify_uri.split(":")[-1]
+                    share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                    plugin = ShareLinkPlugin(dev)
+                    dev.clear_queue()
+                    plugin.add_share_link_to_queue(share_url)
+                    dev.play_from_queue(0)
+                    result["success"] = True
+                    result["message"] = f"Playing '{title}' (Spotify) in {room}"
+                    result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url}
                 except Exception as e:
-                    result["message"] = f"play_spotify_tracks error: {e}"
+                    result["message"] = f"play_spotify_uri error: {e}"
 
         elif action == "get_services":
             # Discover what music services are configured on a speaker (needed to get correct sn)
@@ -552,52 +549,8 @@ def execute_command(house, cmd, devices_by_name):
                 result["message"] = f"get_services error: {e}"
 
         elif action == "play_spotify_tracks":
-            # Use MusicService('Spotify').search() so soco returns proper DidlItems with correct sn/desc.
-            # The query is "album_title artist_name"; search_type defaults to "albums".
-            room = cmd.get("room")
-            query = cmd.get("query", "")
-            search_type = cmd.get("search_type", "albums")
-            dev = devices_by_name.get(room)
-            if not dev:
-                result["message"] = f"Room '{room}' not found"
-            elif not query:
-                result["message"] = "No query provided"
-            else:
-                try:
-                    from soco.music_services import MusicService
-                    ms = MusicService("Spotify")
-                    items = list(ms.search(search_type, query, 0, 5))
-                    if not items:
-                        result["message"] = f"No {search_type} found for '{query}' on Spotify"
-                    else:
-                        first = items[0]
-                        title = getattr(first, "title", str(first))
-                        dev.clear_queue()
-                        added = 0
-                        if search_type == "albums":
-                            # Try to browse the album for individual tracks
-                            try:
-                                tracks = list(ms.browse(first))
-                                for track in tracks:
-                                    dev.add_to_queue(track)
-                                    added += 1
-                            except Exception as be:
-                                print(f"[{now_iso()}] browse failed ({be}), adding album directly")
-                                dev.add_to_queue(first)
-                                added = 1
-                        else:
-                            for item in items[:10]:
-                                dev.add_to_queue(item)
-                                added += 1
-                        if added > 0:
-                            dev.play_from_queue(0)
-                            result["success"] = True
-                            result["message"] = f"Playing '{title}' ({added} items) in {room}"
-                            result["data"] = {"title": title, "items_added": added}
-                        else:
-                            result["message"] = f"Found '{title}' but could not add to queue"
-                except Exception as e:
-                    result["message"] = f"Error playing Spotify: {e}"
+            # Deprecated — use play_spotify_uri instead (agent searches Spotify API first)
+            result["message"] = "play_spotify_tracks deprecated. Use play_spotify_uri with a spotify:album: or spotify:track: URI."
 
         elif action == "play_uri":
             room = cmd.get("room")
