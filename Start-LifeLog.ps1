@@ -4,7 +4,7 @@
 $LifeLogDir = "C:\ProgramData\LifeLog"
 $SonosConfig = "$LifeLogDir\sonos_config.json"
 $SonosService = "$LifeLogDir\sonos_service.py"
-$DevLoop = "$LifeLogDir\LifeLog-DevLoop.ps1"
+$DevLoop = "$LifeLogDir\LifeLog-BackupService.ps1"
 
 Write-Host "LifeLog Launcher" -ForegroundColor Cyan
 Write-Host "================" -ForegroundColor Cyan
@@ -21,7 +21,7 @@ if (-not (Test-Path $SonosConfig) -or -not (Test-Path $SonosService)) {
 if (-not (Test-Path $DevLoop)) {
     Write-Host "Dev Loop not found. Downloading..." -ForegroundColor Yellow
     $headers = @{ "Accept" = "application/vnd.github.v3+json" }
-    $apiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/LifeLog-DevLoop.ps1"
+    $apiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/LifeLog-BackupService.ps1"
     $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
     $content = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($response.content))
     Set-Content -Path $DevLoop -Value $content -Encoding UTF8
