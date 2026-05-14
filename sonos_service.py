@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LifeLog Sonos Service v1.9
+LifeLog Sonos Service v1.10
 - Auto-discovers Sonos speakers on local network
 - Polls every 15s for what's playing (track changes)
 - POSTs listening history to Tasklet webhook
@@ -46,7 +46,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.9"
+SONOS_VERSION = "1.10"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -471,58 +471,102 @@ def execute_command(house, cmd, devices_by_name):
                 except Exception as e:
                     result["message"] = f"Search error: {e}"
 
+        elif action == "get_services":
+            # Discover what music services are configured on a speaker (needed to get correct sn)
+            room = cmd.get("room", "")
+            dev = devices_by_name.get(room) if room else (next(iter(devices_by_name.values()), None))
+            out = {"speaker": room, "services": [], "soco_accounts": []}
+            try:
+                # Try soco music_services module to enumerate configured accounts
+                from soco import music_services as ms_mod
+                try:
+                    all_ms = ms_mod.get_all_music_services()
+                    for svc in all_ms:
+                        out["soco_accounts"].append({
+                            "name": svc.get("Name", ""),
+                            "service_id": svc.get("Id", ""),
+                        })
+                except Exception as e:
+                    out["soco_accounts_error"] = str(e)
+                # Try to get services from the speaker device directly
+                if dev:
+                    try:
+                        avail = dev.music_services.get_available_services()
+                        for svc in avail:
+                            entry = {
+                                "name": getattr(svc, "service_name", str(svc)),
+                                "service_id": getattr(svc, "service_id", None),
+                            }
+                            # Try to get account/sn info
+                            try:
+                                acct = svc.account
+                                entry["account_sn"] = acct.serial_number if acct else None
+                                entry["account_username"] = acct.username if acct else None
+                            except Exception:
+                                pass
+                            out["services"].append(entry)
+                    except Exception as e:
+                        out["services_error"] = str(e)
+                    # Also dump current track info URI so we can see the format in use
+                    try:
+                        info = dev.get_current_track_info()
+                        out["current_track_uri"] = info.get("uri", "")
+                        out["current_track_title"] = info.get("title", "")
+                    except Exception as e:
+                        out["current_track_error"] = str(e)
+                result["success"] = True
+                result["message"] = f"Services on '{room}': {len(out['services'])} found"
+                result["data"] = out
+            except Exception as e:
+                result["message"] = f"get_services error: {e}"
+
         elif action == "play_spotify_tracks":
-            # Agent pre-resolves track IDs from Spotify API and sends them here.
-            # Service constructs x-sonos-spotify: URIs with proper DIDL metadata.
+            # Use MusicService('Spotify').search() so soco returns proper DidlItems with correct sn/desc.
+            # The query is "album_title artist_name"; search_type defaults to "albums".
             room = cmd.get("room")
-            tracks = cmd.get("tracks", [])
+            query = cmd.get("query", "")
+            search_type = cmd.get("search_type", "albums")
             dev = devices_by_name.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found"
-            elif not tracks:
-                result["message"] = "No tracks provided"
+            elif not query:
+                result["message"] = "No query provided"
             else:
                 try:
-                    from soco.data_structures import DidlMusicTrack
-                    # Get the Spotify service descriptor from the device
-                    # Try to get it from the device's available services; fall back to known S2 value
-                    desc = "SA_RINCON2311_X_#Svc2311-0-Token"
-                    try:
-                        for svc in dev.music_services.get_available_services():
-                            if "spotify" in svc.service_name.lower():
-                                desc = f"SA_RINCON{svc.service_id}_X_#Svc{svc.service_id}-0-Token"
-                                print(f"[{now_iso()}] Found Spotify service descriptor: {desc}")
-                                break
-                    except Exception as e:
-                        print(f"[{now_iso()}] Could not auto-detect Spotify descriptor, using default: {e}")
-
-                    dev.clear_queue()
-                    added = 0
-                    for t in tracks:
-                        track_id = t.get("track_id", "")
-                        if not track_id:
-                            continue
-                        # x-sonos-spotify URI scheme: recognized natively by Sonos
-                        sonos_uri = f"x-sonos-spotify:spotify:track:{track_id}?sid=9&flags=8224&sn=1"
-                        didl = DidlMusicTrack(
-                            uri=sonos_uri,
-                            desc=desc,
-                            id=f"spotify:track:{track_id}",
-                            title=t.get("title", "Unknown"),
-                            creator=t.get("artist", ""),
-                            album=t.get("album", ""),
-                            parent_id="A:ALBUMS",
-                        )
-                        dev.add_to_queue(didl)
-                        added += 1
-                    if added > 0:
-                        dev.play_from_queue(0)
-                        result["success"] = True
-                        result["message"] = f"Queued and playing {added} tracks in {room}"
+                    from soco.music_services import MusicService
+                    ms = MusicService("Spotify")
+                    items = list(ms.search(search_type, query, 0, 5))
+                    if not items:
+                        result["message"] = f"No {search_type} found for '{query}' on Spotify"
                     else:
-                        result["message"] = "No valid tracks to enqueue"
+                        first = items[0]
+                        title = getattr(first, "title", str(first))
+                        dev.clear_queue()
+                        added = 0
+                        if search_type == "albums":
+                            # Try to browse the album for individual tracks
+                            try:
+                                tracks = list(ms.browse(first))
+                                for track in tracks:
+                                    dev.add_to_queue(track)
+                                    added += 1
+                            except Exception as be:
+                                print(f"[{now_iso()}] browse failed ({be}), adding album directly")
+                                dev.add_to_queue(first)
+                                added = 1
+                        else:
+                            for item in items[:10]:
+                                dev.add_to_queue(item)
+                                added += 1
+                        if added > 0:
+                            dev.play_from_queue(0)
+                            result["success"] = True
+                            result["message"] = f"Playing '{title}' ({added} items) in {room}"
+                            result["data"] = {"title": title, "items_added": added}
+                        else:
+                            result["message"] = f"Found '{title}' but could not add to queue"
                 except Exception as e:
-                    result["message"] = f"Error playing Spotify tracks: {e}"
+                    result["message"] = f"Error playing Spotify: {e}"
 
         elif action == "play_uri":
             room = cmd.get("room")
