@@ -1,25 +1,13 @@
-#Requires -RunAsAdministrator
-<#
-.SYNOPSIS
-    LifeLog iPhone Sync Installer
-
-.DESCRIPTION
-    - Creates C:\ProgramData\LifeLog\
-    - Installs Python 3.12 (if needed)
-    - Downloads latest lifelog_extract.py and Update-LifeLog.ps1 from GitHub
-    - Installs required Python packages
-
-.NOTES
-    Run as Administrator. Safe to re-run on multiple PCs.
-#>
+# Install-LifeLog.ps1
+# LifeLog installer — uses GitHub API for all downloads (no raw CDN caching issues)
 
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
+$ProgressPreference    = "SilentlyContinue"
 
 $INSTALL_DIR = "C:\ProgramData\LifeLog"
 $LOG_PATH    = "$INSTALL_DIR\install.log"
-$SCRIPT_URL  = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py"
-$UPDATER_URL = "https://raw.githubusercontent.com/Shumania/lifelog/main/Update-LifeLog.ps1"
+$GITHUB_API  = "https://api.github.com/repos/Shumania/lifelog/contents"
+$API_HEADERS = @{ "Accept" = "application/vnd.github.v3+json"; "User-Agent" = "LifeLog-Installer" }
 
 function Write-Log {
     param([string]$Message)
@@ -29,24 +17,33 @@ function Write-Log {
     try { Add-Content -Path $LOG_PATH -Value $line -Encoding UTF8 } catch {}
 }
 
+function Get-GitHubFile {
+    param([string]$FileName, [string]$OutPath)
+    Write-Log "Downloading $FileName from GitHub..."
+    $r = Invoke-RestMethod -Uri "$GITHUB_API/$FileName" -Headers $API_HEADERS
+    $content = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($r.content -replace "`n","")))
+    [System.IO.File]::WriteAllText($OutPath, $content, [System.Text.Encoding]::UTF8)
+    $lines = ($content -split "`n").Count
+    Write-Log "$FileName downloaded ($lines lines)."
+}
+
 function Get-PythonExe {
-    # Try 'py' launcher first (most reliable on Windows)
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py) {
         $ver = & py --version 2>&1
         if ($ver -match "Python 3\.([89]|1[0-9])") { return "py" }
     }
-    # Try 'python' but skip Windows Store stub (WindowsApps path can't run pip)
     $sys = Get-Command python -ErrorAction SilentlyContinue
     if ($sys -and $sys.Source -notlike "*WindowsApps*") {
         $ver = & $sys.Source --version 2>&1
         if ($ver -match "Python 3\.([89]|1[0-9])") { return $sys.Source }
     }
-    # Try common real install paths
     $candidates = @(
+        "C:\Python314\python.exe",
         "C:\Python312\python.exe",
         "C:\Python311\python.exe",
         "C:\Python310\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python314\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe"
@@ -60,7 +57,6 @@ function Get-PythonExe {
     return $null
 }
 
-# -- Header --------------------------------------------------------------------
 Write-Host ""
 Write-Host "+=============================================+"
 Write-Host "|       LifeLog iPhone Sync Installer        |"
@@ -78,12 +74,10 @@ $pythonExe = Get-PythonExe
 if (-not $pythonExe) {
     Write-Log "Python not found. Trying winget install..."
     $winget = Get-Command winget -ErrorAction SilentlyContinue
-
     if ($winget) {
         try {
             Write-Log "Running: winget install Python.Python.3.12 --silent"
             & winget install Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements 2>&1 | ForEach-Object { Write-Log $_ }
-            # Refresh PATH
             $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
             $pythonExe = Get-PythonExe
             if ($pythonExe) { Write-Log "Python installed via winget: $pythonExe" }
@@ -91,10 +85,8 @@ if (-not $pythonExe) {
             Write-Log "winget install failed: $_"
         }
     }
-
     if (-not $pythonExe) {
-        Write-Log "ERROR: Python not found and could not be installed automatically."
-        Write-Log "Please install Python 3.12 from https://www.python.org/ and re-run this script."
+        Write-Log "ERROR: Python not found. Install Python 3.12 from https://www.python.org/ and re-run."
         exit 1
     }
 } else {
@@ -104,25 +96,20 @@ if (-not $pythonExe) {
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
 $ErrorActionPreference = "Continue"
-# Suppress all pip output (stdout+stderr) to avoid PowerShell treating stderr as errors
 $pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt *>&1 | Out-String
 $pipExit = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($pipExit -ne 0) {
-    Write-Log "WARNING: pip exited with code $pipExit - may already be installed, continuing."
+    Write-Log "WARNING: pip exited with code $pipExit — may already be installed, continuing."
 } else {
     Write-Log "pip completed successfully."
 }
 
-# -- Download latest scripts from GitHub ---------------------------------------
-Write-Log "Downloading latest lifelog_extract.py from GitHub..."
-Invoke-WebRequest -Uri "$SCRIPT_URL?v=$(Get-Date -Format 'yyyyMMddHHmmss')" -OutFile "$INSTALL_DIR\lifelog_extract.py" -UseBasicParsing
-$lines = (Get-Content "$INSTALL_DIR\lifelog_extract.py").Count
-Write-Log "lifelog_extract.py downloaded ($lines lines)."
-
-Write-Log "Downloading Update-LifeLog.ps1 from GitHub..."
-Invoke-WebRequest -Uri "$UPDATER_URL?v=$(Get-Date -Format 'yyyyMMddHHmmss')" -OutFile "$INSTALL_DIR\Update-LifeLog.ps1" -UseBasicParsing
-Write-Log "Update-LifeLog.ps1 downloaded."
+# -- Download all scripts via GitHub API ---------------------------------------
+Get-GitHubFile "lifelog_extract.py"          "$INSTALL_DIR\lifelog_extract.py"
+Get-GitHubFile "LifeLog-BackupService.ps1"   "$INSTALL_DIR\LifeLog-BackupService.ps1"
+Get-GitHubFile "Start-LifeLog.ps1"           "$INSTALL_DIR\Start-LifeLog.ps1"
+Get-GitHubFile "Update-LifeLog.ps1"          "$INSTALL_DIR\Update-LifeLog.ps1"
 
 # -- Done ----------------------------------------------------------------------
 Write-Host ""
@@ -130,10 +117,7 @@ Write-Host "================================================" -ForegroundColor G
 Write-Host "        Installation Complete!                  " -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "To extract your iPhone data, run:" -ForegroundColor Cyan
-Write-Host "  python C:\ProgramData\LifeLog\lifelog_extract.py" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "To update to the latest script version, run:" -ForegroundColor Cyan
-Write-Host "  C:\ProgramData\LifeLog\Update-LifeLog.ps1" -ForegroundColor Cyan
+Write-Host "To start LifeLog services, run:" -ForegroundColor Cyan
+Write-Host "  C:\ProgramData\LifeLog\Start-LifeLog.ps1" -ForegroundColor Cyan
 Write-Host ""
 Write-Log "Installation complete."
