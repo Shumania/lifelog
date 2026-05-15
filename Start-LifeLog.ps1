@@ -1,44 +1,76 @@
 # Start-LifeLog.ps1
-# Launches both the LifeLog Dev Loop and the Sonos Service in separate windows.
+# Launches the unified LifeLog service (lifelog_service.py) in one window.
+# Replaces the old two-service launcher (LifeLog-BackupService.ps1 + sonos_service.py).
 
-$LifeLogDir = "C:\ProgramData\LifeLog"
-$SonosConfig = "$LifeLogDir\sonos_config.json"
-$SonosService = "$LifeLogDir\sonos_service.py"
-$DevLoop = "$LifeLogDir\LifeLog-BackupService.ps1"
+$LifeLogDir  = "C:\ProgramData\LifeLog"
+$ServiceFile = "$LifeLogDir\lifelog_service.py"
+$ConfigFile  = "$LifeLogDir\lifelog_config.json"
+$SonosCfg    = "$LifeLogDir\sonos_config.json"
 
 Write-Host "LifeLog Launcher" -ForegroundColor Cyan
 Write-Host "================" -ForegroundColor Cyan
 
-# --- Check Sonos service is installed ---
-if (-not (Test-Path $SonosConfig) -or -not (Test-Path $SonosService)) {
-    Write-Host ""
-    Write-Host "Sonos service not installed. Running installer..." -ForegroundColor Yellow
-    $r = Invoke-RestMethod "https://api.github.com/repos/Shumania/lifelog/contents/Install-SonosService.ps1" -Headers @{Accept="application/vnd.github.v3+json"}
-    [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.content)) | Invoke-Expression
-    Write-Host ""
+# ── Download lifelog_service.py if missing ────────────────────────────────────
+if (-not (Test-Path $ServiceFile)) {
+    Write-Host "lifelog_service.py not found. Downloading..." -ForegroundColor Yellow
+    try {
+        $r = Invoke-RestMethod "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_service.py" `
+             -Headers @{ Accept = "application/vnd.github.v3+json"; "User-Agent" = "LifeLog-Start" }
+        [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($r.content)) |
+            Set-Content $ServiceFile -Encoding UTF8
+        Write-Host "Downloaded via GitHub API." -ForegroundColor Green
+    } catch {
+        Write-Host "GitHub API failed (rate limit?). Trying raw CDN..." -ForegroundColor Yellow
+        Invoke-WebRequest "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_service.py" `
+            -OutFile $ServiceFile
+        Write-Host "Downloaded." -ForegroundColor Green
+    }
 }
 
-# --- Check Dev Loop is installed ---
-if (-not (Test-Path $DevLoop)) {
-    Write-Host "Dev Loop not found. Downloading..." -ForegroundColor Yellow
-    $headers = @{ "Accept" = "application/vnd.github.v3+json" }
-    $apiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/LifeLog-BackupService.ps1"
-    $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
-    $content = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($response.content))
-    Set-Content -Path $DevLoop -Value $content -Encoding UTF8
-    Write-Host "Downloaded." -ForegroundColor Green
+# ── Create lifelog_config.json from sonos_config.json if not yet migrated ─────
+if (-not (Test-Path $ConfigFile)) {
+    if (Test-Path $SonosCfg) {
+        Write-Host "Migrating sonos_config.json → lifelog_config.json..." -ForegroundColor Yellow
+        $s = Get-Content $SonosCfg -Encoding UTF8 | ConvertFrom-Json
+        $cfg = [ordered]@{
+            house            = $s.house
+            modules          = @("sonos","backup","dev")
+            sonos_commander  = $true
+        }
+        $cfg | ConvertTo-Json | Set-Content $ConfigFile -Encoding UTF8
+        Write-Host "Created lifelog_config.json." -ForegroundColor Green
+    } else {
+        Write-Host "WARNING: No config found. Service will use defaults (caphill)." -ForegroundColor Yellow
+        Write-Host "Edit C:\ProgramData\LifeLog\lifelog_config.json to set house + modules." -ForegroundColor Yellow
+    }
 }
 
-# --- Launch Dev Loop in new window ---
+# ── Find Python ───────────────────────────────────────────────────────────────
+$python = $null
+foreach ($cmd in @("python","python3","py")) {
+    try {
+        $ver = & $cmd --version 2>&1
+        if ("$ver" -match "Python 3\.") { $python = $cmd; break }
+    } catch {}
+}
+if (-not $python) {
+    $found = Get-ChildItem "$env:LOCALAPPDATA\Programs\Python" -Filter "python.exe" -Recurse -ErrorAction SilentlyContinue |
+             Select-Object -First 1
+    if ($found) { $python = $found.FullName }
+}
+if (-not $python) {
+    Write-Host "ERROR: Python 3 not found. Install Python 3.8+ and retry." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
+    exit 1
+}
+Write-Host "Python: $python" -ForegroundColor Gray
+
+# ── Launch unified service in a new window ────────────────────────────────────
 Write-Host ""
-Write-Host "Starting LifeLog Dev Loop..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $DevLoop -WindowStyle Normal
-
-Start-Sleep -Seconds 1
-
-# --- Launch Sonos Service in new window ---
-Write-Host "Starting Sonos Service..." -ForegroundColor Green
-Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-Command", "& python '$LifeLogDir\sonos_service.py'" -WindowStyle Normal
+Write-Host "Starting LifeLog Service..." -ForegroundColor Green
+Start-Process powershell `
+    -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command","& '$python' '$ServiceFile'" `
+    -WindowStyle Normal
 
 Write-Host ""
-Write-Host "Both services started. You can close this window." -ForegroundColor Cyan
+Write-Host "LifeLog service started in a new window. You can close this launcher." -ForegroundColor Cyan
