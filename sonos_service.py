@@ -46,7 +46,7 @@ except ImportError:
     import soco
 
 # --- CONFIGURATION ---
-SONOS_VERSION = "1.10"
+SONOS_VERSION = "2.0"
 SONOS_WEBHOOK = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 GITHUB_OWNER = "Shumania"
 GITHUB_REPO = "lifelog"
@@ -55,6 +55,7 @@ CMD_POLL_EVERY = 20       # poll GitHub commands every N Sonos poll cycles (~5 m
 VERSION_CHECK_INTERVAL = 3600  # re-check for updates every 60 min (ntfy handles instant delivery)
 OFFLINE_THRESHOLD = 3     # consecutive failures before marking speaker offline
 OFFLINE_RECHECK_SECS = 300  # retry offline speakers every 5 minutes
+HEARTBEAT_INTERVAL = 300    # send heartbeat every 5 minutes
 
 CONFIG_PATH = r"C:\ProgramData\LifeLog\sonos_config.json"
 
@@ -101,6 +102,23 @@ def post_error(house, message, context=""):
         requests.post(SONOS_WEBHOOK, json=payload, timeout=10)
     except Exception:
         pass  # Don't recurse on error reporting failure
+
+
+def post_heartbeat(house):
+    """POST a heartbeat so the agent knows this service is alive."""
+    payload = {
+        "type": "heartbeat",
+        "client_id": f"sonos_{house}",
+        "client_type": "sonos_service",
+        "house": house,
+        "version": SONOS_VERSION,
+        "timestamp": now_iso(),
+    }
+    try:
+        r = requests.post(SONOS_WEBHOOK, json=payload, timeout=10)
+        print(f"[{now_iso()}] ♥ Heartbeat sent → HTTP {r.status_code}")
+    except Exception as e:
+        print(f"[{now_iso()}] Heartbeat failed: {e}")
 
 
 def self_update_check(house="unknown"):
@@ -676,6 +694,7 @@ def ntfy_listener(house):
 # --- MAIN ---
 last_cmd_sha = None
 last_version_check = 0
+last_heartbeat = 0
 room_state = {}
 
 # Cross-channel command dedup: stores hashes of recently executed commands
@@ -749,6 +768,10 @@ def main():
     print(f"[{now_iso()}] Webhook: {SONOS_WEBHOOK[:60]}...")
     print(f"[{now_iso()}] Checking for updates...")
     self_update_check(house)
+
+    # Send startup heartbeat
+    post_heartbeat(house)
+    last_heartbeat = time.time()
 
     # Start ntfy listener in background thread
     t = threading.Thread(target=ntfy_listener, args=(house,), daemon=True)
@@ -827,10 +850,15 @@ def main():
                 cmd_counter = 0
 
             # Periodic self-update check
-            global last_version_check
+            global last_version_check, last_heartbeat
             if time.time() - last_version_check >= VERSION_CHECK_INTERVAL:
                 last_version_check = time.time()
                 self_update_check(house)
+
+            # Periodic heartbeat
+            if time.time() - last_heartbeat >= HEARTBEAT_INTERVAL:
+                last_heartbeat = time.time()
+                post_heartbeat(house)
 
         except Exception as e:
             msg = f"Main loop error: {e}"

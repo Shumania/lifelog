@@ -1,15 +1,44 @@
-# Scan and Update iPhone Backup Service v2.2 - self-updating, polls GitHub API for dev_next.ps1 changes
-$LOOP_VERSION   = "2.2"
+# Scan and Update iPhone Backup Service v2.3 - adds heartbeat
+$LOOP_VERSION   = "2.3"
 $SERVICE_NAME   = "Scan and Update iPhone Backup Service"
 $INSTALL_PATH   = "C:\ProgramData\LifeLog\LifeLog-BackupService.ps1"
-$versionsApiUrl = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
-$loopApiUrl     = "https://api.github.com/repos/Shumania/lifelog/contents/LifeLog-BackupService.ps1"
-$apiUrl         = "https://api.github.com/repos/Shumania/lifelog/contents/dev_next.ps1"
-$webhookUrl     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
-$interval       = 100
-$lastSha        = ""
+$versionsApiUrl  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
+$loopApiUrl      = "https://api.github.com/repos/Shumania/lifelog/contents/LifeLog-BackupService.ps1"
+$apiUrl          = "https://api.github.com/repos/Shumania/lifelog/contents/dev_next.ps1"
+$webhookUrl      = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
+$heartbeatUrl    = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
+$interval        = 100
+$lastSha         = ""
 $VERSION_CHECK_EVERY = 6   # check for loop updates every N poll cycles (~10 min)
-$loopCycle      = 0
+$HEARTBEAT_EVERY = 3       # send heartbeat every N poll cycles (~5 min)
+$loopCycle       = 0
+$heartbeatCycle  = 0
+
+# Detect house from Sonos config if present
+$house = "unknown"
+try {
+    $sonosCfg = Get-Content "C:\ProgramData\LifeLog\sonos_config.json" -ErrorAction Stop | ConvertFrom-Json
+    $house = $sonosCfg.house
+} catch {}
+
+function Send-Heartbeat {
+    try {
+        $ts = [System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $hb = @{
+            type        = "heartbeat"
+            client_id   = "backup_$env:COMPUTERNAME"
+            client_type = "backup_service"
+            house       = $house
+            version     = $LOOP_VERSION
+            timestamp   = $ts
+            computer    = $env:COMPUTERNAME
+        } | ConvertTo-Json -Compress
+        Invoke-WebRequest -Uri $heartbeatUrl -Method Post -Body $hb -ContentType "application/json" -UseBasicParsing | Out-Null
+        Write-Host "  ♥ Heartbeat sent" -ForegroundColor DarkGray
+    } catch {
+        Write-Host "  Heartbeat failed: $_" -ForegroundColor DarkGray
+    }
+}
 
 Write-Host "=== $SERVICE_NAME v$LOOP_VERSION ===" -ForegroundColor Cyan
 Write-Host "Machine: $env:COMPUTERNAME" -ForegroundColor Gray
@@ -49,6 +78,9 @@ function Check-LoopUpdate {
 # Check for updates at startup
 Check-LoopUpdate
 
+# Send startup heartbeat
+Send-Heartbeat
+
 Write-Host "Polling every $interval seconds via GitHub API." -ForegroundColor Gray
 Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
 Write-Host ""
@@ -56,10 +88,16 @@ Write-Host ""
 while ($true) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $loopCycle++
+    $heartbeatCycle++
 
     # Periodic self-update check every ~10 minutes
     if ($loopCycle % $VERSION_CHECK_EVERY -eq 0) {
         Check-LoopUpdate
+    }
+
+    # Periodic heartbeat every ~5 minutes
+    if ($heartbeatCycle % $HEARTBEAT_EVERY -eq 0) {
+        Send-Heartbeat
     }
 
     Write-Host "[$ts] Checking dev_next.ps1..." -NoNewline

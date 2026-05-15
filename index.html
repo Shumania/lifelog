@@ -18,13 +18,13 @@
     .item-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e2130; }
     .item-row:last-child { border-bottom: none; }
     .icon-wrap { width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
-    .icon-spotify-cap  { background: #1e3a5f; }  /* blue  – Seattle Spotify */
-    .icon-spotify-vas  { background: #1a3a2a; }  /* green – Vashon Spotify / teenbloods */
-    .icon-apple-cap    { background: #3a1a2a; }  /* rose  – Cap Hill Apple Music */
-    .icon-apple-vas    { background: #2a2a1a; }  /* olive – Vashon Apple Music */
-    .icon-qobuz        { background: #1e1a3a; }  /* indigo – Qobuz */
-    .icon-radio        { background: #1a2a2a; }  /* teal  – Radio/TuneIn */
-    .icon-sonos        { background: #2a2020; }  /* muted – unknown Sonos */
+    .icon-spotify-cap  { background: #1e3a5f; }
+    .icon-spotify-vas  { background: #1a3a2a; }
+    .icon-apple-cap    { background: #3a1a2a; }
+    .icon-apple-vas    { background: #2a2a1a; }
+    .icon-qobuz        { background: #1e1a3a; }
+    .icon-radio        { background: #1a2a2a; }
+    .icon-sonos        { background: #2a2020; }
     .icon-podcast      { background: #3b1f0f; }
     .item-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.4; }
     .t { color: #e2e8f0; font-weight: 600; }
@@ -34,18 +34,24 @@
     .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
     .filter-btn { border-radius: 8px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .count-badge { font-size: 11px; opacity: 0.75; font-weight: 500; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+    .dot-green  { background: #4ade80; }
+    .dot-yellow { background: #facc15; }
+    .dot-red    { background: #f87171; }
   </style>
 </head>
 <body>
 
 <div class="sticky-header px-4 pb-2 pt-3">
-  <div class="flex items-center justify-between mb-2">
+  <div class="flex items-center justify-between mb-1">
     <div>
       <h1 class="text-lg font-bold text-white">Life History</h1>
       <p id="updated-at" class="text-xs text-slate-500 mt-0.5"></p>
     </div>
     <div id="load-indicator" class="spinner" style="display:none"></div>
   </div>
+  <!-- Service status bar -->
+  <div id="status-bar" class="flex gap-3 flex-wrap mb-2" style="font-size:11px;color:#475569;min-height:14px;"></div>
   <div class="flex gap-2 items-center">
     <button class="filter-btn tab-active" id="btn-all" onclick="setFilter('all')">All <span id="cnt-all" class="count-badge"></span></button>
     <button class="filter-btn tab-inactive" id="btn-music" onclick="setFilter('music')">🎵 Music <span id="cnt-music" class="count-badge"></span></button>
@@ -82,6 +88,23 @@ function updateCounts() {
   document.getElementById('cnt-all').textContent    = allData.length ? (music.length + pods.length) : '';
   document.getElementById('cnt-music').textContent   = music.length  ? music.length  : '';
   document.getElementById('cnt-podcast').textContent = pods.length   ? pods.length   : '';
+}
+
+function renderStatusBar(clients) {
+  const bar = document.getElementById('status-bar');
+  if (!clients || !clients.length) { bar.innerHTML = ''; return; }
+  const now = Date.now();
+  bar.innerHTML = clients.map(c => {
+    const lastSeen = c.last_seen ? new Date(c.last_seen).getTime() : 0;
+    const ageMin = lastSeen ? Math.round((now - lastSeen) / 60000) : null;
+    const dotCls = ageMin === null ? 'dot-red' : ageMin < 10 ? 'dot-green' : ageMin < 30 ? 'dot-yellow' : 'dot-red';
+    const label = c.client_id
+      .replace('sonos_vashon', '🏝 Sonos')
+      .replace('sonos_caphill', '🏙 Sonos')
+      .replace('backup_', '💾 ');
+    const age = ageMin === null ? 'offline' : ageMin < 1 ? 'just now' : `${ageMin}m ago`;
+    return `<span style="white-space:nowrap"><span class="status-dot ${dotCls}"></span>${escHtml(label)} <span style="color:#374151">${escHtml(age)}</span></span>`;
+  }).join('');
 }
 
 function formatTime(isoStr) {
@@ -143,7 +166,6 @@ function renderFeed() {
     if (item.type === 'music') {
       const { cls, emoji } = getMusicIcon(item);
       const parts = [item.artist, item.album].filter(Boolean);
-      // For Sonos, show room if available
       if (item.room) parts.push(item.room);
       const sub = parts.map(escHtml).join(' · ');
       return `<div class="item-row">
@@ -173,6 +195,7 @@ async function loadData() {
     if (json.generated_at) {
       document.getElementById('updated-at').textContent = 'Updated ' + formatTime(json.generated_at);
     }
+    renderStatusBar(json.clients || []);
     updateCounts();
   } catch(e) {
     document.getElementById('feed').innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">⚠️</p><p class="text-sm">Could not load data</p></div>`;
