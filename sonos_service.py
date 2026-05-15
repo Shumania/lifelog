@@ -626,8 +626,20 @@ def execute_command(house, cmd, devices_by_name):
             else:
                 result["message"] = f"Room '{room}' not found"
 
+        elif action == "update_check":
+            # Agent sends this via ntfy to trigger immediate self-update check
+            print(f"[{now_iso()}] update_check command received — checking for new version immediately")
+            result["success"] = True
+            result["message"] = f"Running update check now (currently v{SONOS_VERSION})"
+            # Run self-update in a thread so we can post the result first
+            def do_update():
+                time.sleep(2)  # let result post first
+                self_update_check(house)
+            threading.Thread(target=do_update, daemon=True).start()
+
         else:
             result["message"] = f"Unknown action: {action}"
+
 
     except Exception as e:
         result["message"] = f"Error: {e}"
