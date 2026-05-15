@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.3"
+SERVICE_VERSION = "1.4"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -56,6 +56,34 @@ NTFY_TOPICS = {
     "caphill": "lifelog-cmd-caphill-4x8m",
     "vashon":  "lifelog-cmd-vashon-9k3p",
 }
+
+# WiFi SSID → house mapping (overrides config file setting)
+WIFI_HOUSE_MAP = {
+    "shumickernet": "caphill",
+    "coconetz":     "vashon",
+}
+
+def detect_house_from_wifi():
+    """Detect current house by checking connected WiFi SSID. Returns house string or None."""
+    try:
+        result = subprocess.run(
+            ["netsh", "wlan", "show", "interfaces"],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.lower().startswith("ssid") and "bssid" not in line.lower():
+                ssid = line.split(":", 1)[-1].strip()
+                house = WIFI_HOUSE_MAP.get(ssid)
+                if house:
+                    return house, ssid
+                # case-insensitive fallback
+                for k, v in WIFI_HOUSE_MAP.items():
+                    if k.lower() == ssid.lower():
+                        return v, ssid
+    except Exception:
+        pass
+    return None, None
 
 POLL_INTERVAL         = 15    # Sonos poll (s)
 CMD_POLL_EVERY        = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
@@ -77,9 +105,19 @@ def load_config():
                     print(f"WARNING: house must be caphill or vashon (got {h!r}), defaulting to caphill")
                     h = "caphill"
                 cfg["house"] = h
+                # WiFi override: more reliable than manually set config value
+                wifi_house, wifi_ssid = detect_house_from_wifi()
+                if wifi_house and wifi_house != h:
+                    print(f"WiFi '{wifi_ssid}' -> overriding house: {h!r} -> {wifi_house!r}")
+                    cfg["house"] = wifi_house
+                    h = wifi_house
+                elif wifi_house:
+                    print(f"WiFi '{wifi_ssid}' confirms house: {wifi_house!r}")
+                else:
+                    print(f"WiFi not detected -- using config house: {h!r}")
                 if "modules" not in cfg:
                     cfg["modules"] = ["sonos", "backup", "dev"]
-                cfg["ntfy_topic"] = NTFY_TOPICS.get(h, NTFY_TOPICS["caphill"])
+                cfg["ntfy_topic"] = NTFY_TOPICS.get(cfg["house"], NTFY_TOPICS["caphill"])
                 # sonos_commander: this machine executes unaddressed Sonos commands
                 # Set False on non-primary machines sharing the same house network
                 if "sonos_commander" not in cfg:
