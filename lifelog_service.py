@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.2"
+SERVICE_VERSION = "1.3"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -59,7 +59,7 @@ NTFY_TOPICS = {
 
 POLL_INTERVAL         = 15    # Sonos poll (s)
 CMD_POLL_EVERY        = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
-HEARTBEAT_INTERVAL    = 300   # 5 min
+HEARTBEAT_INTERVAL    = 1200  # 20 min
 VERSION_CHECK_INTERVAL= 3600  # 60 min
 BACKUP_INTERVAL       = 3600  # run extract every 60 min
 DEV_POLL_INTERVAL     = 100   # dev_next.ps1 poll (s)

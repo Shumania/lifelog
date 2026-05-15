@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.6"
+EXTRACTOR_VERSION = "2.7"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -49,9 +49,10 @@ IDEVICEBACKUP2_PATHS = [
     shutil.which("idevicebackup2") or "",
 ]
 
-LOG_FILE = Path(r"C:\ProgramData\LifeLog\lifelog.log")
+LOG_FILE   = Path(r"C:\ProgramData\LifeLog\lifelog.log")
 STATE_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_hash.txt")
 CURSOR_FILE = Path(r"C:\ProgramData\LifeLog\last_podcast_cursor.txt")
+MTIME_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_mtime.txt")
 
 
 def get_backup_hash(backup_dir):
@@ -88,6 +89,37 @@ def save_last_hash(h):
         STATE_FILE.write_text(h, encoding="utf-8")
     except Exception:
         pass
+
+
+def load_last_mtime():
+    """Load the last successfully processed backup mtime."""
+    try:
+        if MTIME_FILE.exists():
+            return MTIME_FILE.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    return None
+
+
+def save_last_mtime(mtime_str):
+    """Save the current backup mtime after a successful post."""
+    try:
+        MTIME_FILE.parent.mkdir(parents=True, exist_ok=True)
+        MTIME_FILE.write_text(mtime_str, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def get_backup_mtime(backup_dir):
+    """Return mtime of Manifest.db (or Manifest.plist) as a string."""
+    try:
+        for fname in ("Manifest.db", "Manifest.plist"):
+            p = backup_dir / fname
+            if p.exists():
+                return str(p.stat().st_mtime)
+    except Exception:
+        pass
+    return None
 
 
 def load_cursor():
@@ -838,13 +870,22 @@ def main():
             post_debug_report(raw_rows)
         sys.exit(0)
 
-    # Step 4: Check if backup has changed since last successful post
+    # Step 4a: Fast mtime pre-check (no file read needed)
+    current_mtime = get_backup_mtime(backup_dir)
+    last_mtime = load_last_mtime()
+    if not args.output and current_mtime and current_mtime == last_mtime:
+        log("Backup mtime unchanged — nothing to do. Exiting.")
+        sys.exit(0)
+
+    # Step 4b: Content hash check (reads 64KB of Manifest.db)
     current_hash = get_backup_hash(backup_dir)
     last_hash = load_last_hash()
     if last_hash is None:
         log("WARNING: No hash file found — first run or hash was cleared. Will decrypt and check cursor.")
     if not args.output and current_hash and current_hash == last_hash:
         log("Backup unchanged since last sync (content hash matches). Nothing to do.")
+        if current_mtime:
+            save_last_mtime(current_mtime)  # keep mtime in sync
         sys.exit(0)
 
     # Step 5: Load cursor and extract data
@@ -859,9 +900,11 @@ def main():
 
     if not podcasts and not browsing:
         log("No new data to send (cursor up to date or nothing extracted).")
-        # Still update hash so we don't re-decrypt on every run
+        # Still update hash/mtime so we don't re-decrypt on every run
         if current_hash:
             save_last_hash(current_hash)
+        if current_mtime:
+            save_last_mtime(current_mtime)
         sys.exit(0)
 
     # Step 6: Save to file or post to webhook
@@ -875,6 +918,8 @@ def main():
             if current_hash:
                 save_last_hash(current_hash)
                 log("Backup hash saved.")
+            if current_mtime:
+                save_last_mtime(current_mtime)
             if max_epoch is not None:
                 save_cursor(max_epoch)
                 log(f"Podcast cursor saved: Apple epoch {max_epoch:.0f} (next run will skip these).")
