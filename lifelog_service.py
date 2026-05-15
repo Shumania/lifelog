@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.1"
+SERVICE_VERSION = "1.2"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -233,7 +233,7 @@ def backup_thread():
         try:
             result = subprocess.run(
                 [sys.executable, str(extract)],
-                capture_output=True, text=True, timeout=300
+                capture_output=True, text=True, timeout=900
             )
             output = (result.stdout + result.stderr).strip()
             for line in output.split("\n"):
