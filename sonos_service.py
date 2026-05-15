@@ -769,7 +769,7 @@ def poll_commands(house, devices_by_name):
 
 
 def main():
-    global current_devices_by_name, current_house
+    global current_devices_by_name, current_house, last_version_check, last_heartbeat
 
     house = load_config()
     current_house = house
@@ -862,7 +862,6 @@ def main():
                 cmd_counter = 0
 
             # Periodic self-update check
-            global last_version_check, last_heartbeat
             if time.time() - last_version_check >= VERSION_CHECK_INTERVAL:
                 last_version_check = time.time()
                 self_update_check(house)
