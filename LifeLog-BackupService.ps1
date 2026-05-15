@@ -1,5 +1,5 @@
-# Scan and Update iPhone Backup Service v2.3 - adds heartbeat
-$LOOP_VERSION   = "2.3"
+# Scan and Update iPhone Backup Service v2.4 - ntfy update_check support
+$LOOP_VERSION   = "2.4"
 $SERVICE_NAME   = "Scan and Update iPhone Backup Service"
 $INSTALL_PATH   = "C:\ProgramData\LifeLog\LifeLog-BackupService.ps1"
 $versionsApiUrl  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
@@ -21,6 +21,15 @@ try {
     $house = $sonosCfg.house
 } catch {}
 
+# Determine ntfy topic from house
+$ntfyTopics = @{
+    "caphill" = "lifelog-cmd-caphill-4x8m"
+    "vashon"  = "lifelog-cmd-vashon-9k3p"
+}
+$ntfyTopic = $ntfyTopics[$house]
+if (-not $ntfyTopic) { $ntfyTopic = "lifelog-cmd-caphill-4x8m" }
+$ntfyLastSince = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+
 function Send-Heartbeat {
     try {
         $ts = [System.DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -39,9 +48,6 @@ function Send-Heartbeat {
         Write-Host "  Heartbeat failed: $_" -ForegroundColor DarkGray
     }
 }
-
-Write-Host "=== $SERVICE_NAME v$LOOP_VERSION ===" -ForegroundColor Cyan
-Write-Host "Machine: $env:COMPUTERNAME" -ForegroundColor Gray
 
 # --- Self-update function -------------------------------------------------------
 function Check-LoopUpdate {
@@ -73,7 +79,35 @@ function Check-LoopUpdate {
         Write-Host " Version check failed (running anyway): $_" -ForegroundColor DarkGray
     }
 }
+
+# --- ntfy command polling -------------------------------------------------------
+function Check-NtfyCommands {
+    try {
+        $url = "https://ntfy.sh/$ntfyTopic/json?since=$ntfyLastSince&poll=1"
+        $resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+        $script:ntfyLastSince = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $lines = $resp.Content -split "`n" | Where-Object { $_.Trim() -ne "" }
+        foreach ($line in $lines) {
+            try {
+                $msg = $line | ConvertFrom-Json
+                if ($msg.message) {
+                    $cmd = $msg.message | ConvertFrom-Json
+                    $action = $cmd.action
+                    if ($action -eq "update_check") {
+                        Write-Host "  [ntfy] update_check received — checking now..." -ForegroundColor Cyan
+                        Check-LoopUpdate
+                    }
+                }
+            } catch {}
+        }
+    } catch {
+        # ntfy unreachable — silent, non-blocking
+    }
+}
 # -------------------------------------------------------------------------------
+
+Write-Host "=== $SERVICE_NAME v$LOOP_VERSION ===" -ForegroundColor Cyan
+Write-Host "Machine: $env:COMPUTERNAME | House: $house | ntfy: $ntfyTopic" -ForegroundColor Gray
 
 # Check for updates at startup
 Check-LoopUpdate
@@ -89,6 +123,9 @@ while ($true) {
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $loopCycle++
     $heartbeatCycle++
+
+    # Check ntfy for instant commands (every cycle)
+    Check-NtfyCommands
 
     # Periodic self-update check every ~10 minutes
     if ($loopCycle % $VERSION_CHECK_EVERY -eq 0) {
