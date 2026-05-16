@@ -9,6 +9,14 @@ $LOG_PATH    = "$INSTALL_DIR\install.log"
 $GITHUB_API  = "https://api.github.com/repos/Shumania/lifelog/contents"
 $API_HEADERS = @{ "Accept" = "application/vnd.github.v3+json"; "User-Agent" = "LifeLog-Installer" }
 
+# State files that must NEVER be wiped on reinstall
+$STATE_FILES = @(
+    "last_podcast_cursor.txt",
+    "last_backup_mtime.txt",
+    "last_backup_hash.txt",
+    "lifelog_config.json"
+)
+
 function Write-Log {
     param([string]$Message)
     $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -67,6 +75,17 @@ Write-Host ""
 New-Item -ItemType Directory -Force -Path $INSTALL_DIR | Out-Null
 Write-Log "Install directory: $INSTALL_DIR"
 
+# -- Preserve existing state files ---------------------------------------------
+Write-Log "Checking for existing state files to preserve..."
+$preserved = @{}
+foreach ($sf in $STATE_FILES) {
+    $sfPath = "$INSTALL_DIR\$sf"
+    if (Test-Path $sfPath) {
+        $preserved[$sf] = Get-Content $sfPath -Raw -ErrorAction SilentlyContinue
+        Write-Log "  Preserving $sf"
+    }
+}
+
 # -- Check/Install Python ------------------------------------------------------
 Write-Log "Checking for Python 3.8+..."
 $pythonExe = Get-PythonExe
@@ -96,7 +115,7 @@ if (-not $pythonExe) {
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
 $ErrorActionPreference = "Continue"
-$pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt *>&1 | Out-String
+$pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt soco requests *>&1 | Out-String
 $pipExit = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($pipExit -ne 0) {
@@ -106,10 +125,19 @@ if ($pipExit -ne 0) {
 }
 
 # -- Download all scripts via GitHub API ---------------------------------------
-Get-GitHubFile "lifelog_extract.py"          "$INSTALL_DIR\lifelog_extract.py"
-Get-GitHubFile "LifeLog-BackupService.ps1"   "$INSTALL_DIR\LifeLog-BackupService.ps1"
-Get-GitHubFile "Start-LifeLog.ps1"           "$INSTALL_DIR\Start-LifeLog.ps1"
-Get-GitHubFile "Update-LifeLog.ps1"          "$INSTALL_DIR\Update-LifeLog.ps1"
+Get-GitHubFile "lifelog_extract.py"   "$INSTALL_DIR\lifelog_extract.py"
+Get-GitHubFile "lifelog_service.py"   "$INSTALL_DIR\lifelog_service.py"
+Get-GitHubFile "Start-LifeLog.ps1"    "$INSTALL_DIR\Start-LifeLog.ps1"
+Get-GitHubFile "Update-LifeLog.ps1"   "$INSTALL_DIR\Update-LifeLog.ps1"
+
+# -- Restore preserved state files (never overwrite) ---------------------------
+foreach ($sf in $preserved.Keys) {
+    $sfPath = "$INSTALL_DIR\$sf"
+    if ($preserved[$sf]) {
+        [System.IO.File]::WriteAllText($sfPath, $preserved[$sf], [System.Text.Encoding]::UTF8)
+        Write-Log "  Restored $sf"
+    }
+}
 
 # -- Done ----------------------------------------------------------------------
 Write-Host ""
