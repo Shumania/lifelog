@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.4"
+SERVICE_VERSION = "1.5"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -847,6 +847,18 @@ def sonos_main_loop():
 # ─── MAIN ───────────────────────────────────────────────────────────────────
 def main():
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
+
+    # Prevent Windows from sleeping while service is running.
+    # Close the service window when you want the PC to sleep normally.
+    try:
+        import ctypes
+        ES_CONTINUOUS      = 0x80000000
+        ES_SYSTEM_REQUIRED = 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+        log("Sleep prevention: active (display may still turn off)")
+    except Exception as e:
+        log(f"Sleep prevention: unavailable ({e})")
+
     log(f"Computer: {computer} | House: {house} | Modules: {modules}")
     log(f"ntfy topic: {ntfy_topic}")
     if gh_token:
