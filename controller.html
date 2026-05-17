@@ -54,7 +54,7 @@
       <p id="status-line" class="text-xs text-slate-500 mt-0.5">Loading…</p>
     </div>
     <div class="flex items-center gap-2">
-      <button onclick="loadData()" class="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded border border-slate-700" title="Refresh">🔄</button>
+      <button onclick="loadData(true)" class="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded border border-slate-700" title="Refresh">🔄</button>
       <a href="index.html" class="text-xs text-slate-400 underline font-medium">📖 Life History</a>
       <div id="load-indicator" class="spinner" style="display:none"></div>
     </div>
@@ -138,6 +138,7 @@ const ROOMS = {
   vashon:  ['Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room']
 };
 const INFER_WINDOW_MIN = 120;
+const POLL_INTERVAL_MS = 30000;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let house = localStorage.getItem('ll_house') || 'caphill';
@@ -146,29 +147,54 @@ let commanderId = null;
 let bannerAction = null;
 let bannerCountdownTimer = null;
 let data = null;
-let optimisticNowPlaying = null; // {label, room, ts} — set after sending a play command
+let lastETag = null;
+let optimisticNowPlaying = null; // {label, room, ts} — set after sending a command
+let postCommandRefreshTimer = null;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   renderHouseToggle();
-  await loadData();
+  await loadData(true);
   handleDeepLink();
-  setInterval(loadData, 30000);
+  setInterval(() => loadData(false), POLL_INTERVAL_MS);
 });
 
-async function loadData() {
+// force=true skips ETag check and always re-renders
+async function loadData(force = false) {
   document.getElementById('load-indicator').style.display = 'inline-block';
   try {
-    const r = await fetch(DATA_URL + '?t=' + Date.now());
+    const headers = {};
+    if (!force && lastETag) headers['If-None-Match'] = lastETag;
+
+    const r = await fetch(DATA_URL + '?t=' + Date.now(), { headers });
+
+    if (r.status === 304) {
+      // Not modified — update label but skip re-render
+      document.getElementById('status-line').textContent =
+        'Updated ' + fmtRelative(new Date(data.generated_at || Date.now())) + ' · no change';
+      document.getElementById('load-indicator').style.display = 'none';
+      return;
+    }
+
+    const etag = r.headers.get('ETag');
+    if (etag) lastETag = etag;
+
     data = await r.json();
     renderNowPlaying();
     renderMachineStatus();
     inferAndRenderRooms();
-    document.getElementById('status-line').textContent = 'Updated ' + fmtRelative(new Date(data.generated_at || Date.now()));
+    document.getElementById('status-line').textContent =
+      'Updated ' + fmtRelative(new Date(data.generated_at || Date.now()));
   } catch(e) {
     document.getElementById('status-line').textContent = 'Failed to load data';
   }
   document.getElementById('load-indicator').style.display = 'none';
+}
+
+// Schedule a refresh N ms from now, cancelling any pending one
+function scheduleRefresh(ms) {
+  if (postCommandRefreshTimer) clearTimeout(postCommandRefreshTimer);
+  postCommandRefreshTimer = setTimeout(() => loadData(true), ms);
 }
 
 // ── House ─────────────────────────────────────────────────────────────────────
@@ -204,7 +230,7 @@ function inferActiveRooms() {
     if (!item.room || !item.house) continue;
     if (item.house !== house) continue;
     const ts = new Date(item.timestamp).getTime();
-    if (ts < cutoff) break; // items sorted newest→oldest
+    if (ts < cutoff) break;
     rooms.add(item.room);
   }
   return [...rooms];
@@ -268,7 +294,7 @@ function renderNowPlaying() {
 
   const item = useOptimistic ? {
     title: optimisticNowPlaying.label,
-    artist: '',
+    artist: optimisticNowPlaying.artist || '',
     album: '',
     timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
     room: optimisticNowPlaying.room
@@ -298,11 +324,10 @@ function renderNowPlaying() {
     labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
   }
 
-  const ago = fmtRelative(new Date(item.timestamp));
   npEl.innerHTML = `
     <p class="text-base font-bold text-white leading-tight">${esc(item.title)}</p>
     <p class="text-sm text-slate-300">${esc(item.artist || '')}</p>
-    <p class="text-xs text-slate-500 mt-0.5">${esc(item.album || '')} · ${ago}</p>
+    <p class="text-xs text-slate-500 mt-0.5">${esc(item.album || '')}${item.album && item.room ? ' · ' : ''}${esc(item.room || '')} · ${fmtRelative(new Date(item.timestamp))}</p>
   `;
 
   const inferred = inferActiveRooms();
@@ -337,6 +362,11 @@ async function sendCmd(action, extra = {}) {
 
   const payload = { action, rooms, target_client_id: commanderId, ...extra };
   await postNtfy(payload);
+
+  // Refresh after transport commands — next track may appear in history
+  if (['next', 'prev', 'play', 'play_spotify_uri', 'add_to_queue'].includes(action)) {
+    scheduleRefresh(10000);
+  }
 }
 
 // ── Deep link handler ─────────────────────────────────────────────────────────
@@ -350,12 +380,8 @@ function handleDeepLink() {
 
   if (!action || !uri) return;
 
-  // Switch house if specified in link
-  if (dlHouse && dlHouse !== house) {
-    setHouse(dlHouse);
-  }
+  if (dlHouse && dlHouse !== house) setHouse(dlHouse);
 
-  // Pre-select room from link (overrides current selection)
   if (dlRoom) {
     selectedRooms = [dlRoom];
     localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
@@ -372,7 +398,6 @@ function handleDeepLink() {
   document.getElementById('banner-rooms').textContent = rooms.length ? rooms.join(', ') : 'No rooms selected';
   document.getElementById('action-banner').style.display = 'block';
 
-  // Auto-fire after 5s
   let secs = 5;
   document.getElementById('banner-countdown').textContent = `Auto-sending in ${secs}s…`;
   bannerCountdownTimer = setInterval(() => {
@@ -395,16 +420,11 @@ async function executeBannerAction() {
   if (!rooms.length) { showToast('No rooms selected', true); return; }
 
   const { action, uri, label } = bannerAction;
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : action === 'play_album' ? 'play_spotify_uri' : 'play_spotify_uri';
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
 
-  await postNtfy({
-    action: ntfyAction,
-    uri,
-    rooms,
-    target_client_id: commanderId
-  });
+  await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
 
-  // Optimistic now-playing: show immediately, before data.json refreshes
+  // Optimistic now-playing
   optimisticNowPlaying = {
     label: decodeURIComponent(label),
     room: rooms[0] || null,
@@ -412,8 +432,8 @@ async function executeBannerAction() {
   };
   renderNowPlaying();
 
-  // Refresh data.json after 10s to catch the ack / history flush
-  setTimeout(loadData, 10000);
+  // Refresh after 10s to catch ack / history flush
+  scheduleRefresh(10000);
 
   showToast(`✓ ${decodeURIComponent(label)} sent to ${rooms.length} room${rooms.length > 1 ? 's' : ''}`);
 }
@@ -422,7 +442,6 @@ function dismissBanner() {
   clearInterval(bannerCountdownTimer);
   document.getElementById('action-banner').style.display = 'none';
   bannerAction = null;
-  // Clean URL without reload
   history.replaceState({}, '', window.location.pathname);
 }
 
