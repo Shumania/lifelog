@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.13"
+SERVICE_VERSION = "1.14"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -191,15 +191,20 @@ def gh_headers():
         h["Authorization"] = f"token {gh_token}"
     return h
 
-def gh_get(path):
-    """GET a file from GitHub API. Returns response object or None."""
+def gh_get(path, retries=1):
+    """GET a file from GitHub API. Returns response object or None. Retries once on failure."""
     url = f"{GITHUB_API_BASE}/{path}"
-    try:
-        r = requests.get(url, headers=gh_headers(), timeout=15)
-        return r if r.status_code == 200 else None
-    except Exception as e:
-        log(f"gh_get error ({path}): {e}")
-        return None
+    for attempt in range(retries + 1):
+        try:
+            r = requests.get(url, headers=gh_headers(), timeout=15)
+            if r.status_code == 200:
+                return r
+            log(f"gh_get {path}: HTTP {r.status_code}{' (retrying)' if attempt < retries else ''}")
+        except Exception as e:
+            log(f"gh_get error ({path}): {e}{' (retrying)' if attempt < retries else ''}")
+        if attempt < retries:
+            time.sleep(30)
+    return None
 
 def gh_decode(r):
     """Decode base64 GitHub API file content."""
@@ -227,23 +232,35 @@ def post_error(message, context="", module="service"):
 # ─── SELF-UPDATE ────────────────────────────────────────────────────────────
 def self_update_check():
     """Check versions.json; download + restart if service_version changed."""
+    import ast as _ast
     try:
-        r = gh_get("versions.json")
+        r = gh_get("versions.json", retries=1)
         if not r:
-            log("Version check: GitHub unavailable")
+            log("Version check: GitHub unavailable (will retry next cycle)")
             return
         versions = json.loads(gh_decode(r))
         latest = versions.get("service_version", SERVICE_VERSION)
+        log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
-            log(f"Version OK (v{SERVICE_VERSION})")
             return
         log(f"Update: v{SERVICE_VERSION} → v{latest}. Downloading...")
-        r2 = gh_get("lifelog_service.py")
+        r2 = gh_get("lifelog_service.py", retries=1)
         if not r2:
-            log("Download failed")
+            log("Download failed — will retry next cycle")
             post_error(f"Failed to download update v{latest}", module="update")
             return
-        new_code  = gh_decode(r2)
+        new_code = gh_decode(r2)
+        # Sanity checks before overwriting
+        if len(new_code) < 10_000:
+            log(f"Update aborted: downloaded file too small ({len(new_code)} bytes) — likely partial")
+            post_error(f"Update v{latest} aborted: file too small ({len(new_code)} bytes)", module="update")
+            return
+        try:
+            _ast.parse(new_code)
+        except SyntaxError as se:
+            log(f"Update aborted: syntax error in downloaded v{latest}: {se}")
+            post_error(f"Update v{latest} aborted: syntax error: {se}", module="update")
+            return
         this_path = Path(sys.argv[0]).resolve()
         this_path.write_text(new_code, encoding="utf-8")
         log(f"Updated to v{latest} — restarting in new window...")
