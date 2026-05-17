@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sonos Control">
+  <title>Sonos Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1117; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 12px; }
+    .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
+    .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+    .dot-green  { background: #4ade80; }
+    .dot-yellow { background: #facc15; }
+    .dot-red    { background: #f87171; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-primary { background: #3b82f6; color: #fff; border-radius: 10px; padding: 10px 20px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s; border: none; }
+    .btn-primary:active { background: #2563eb; }
+    .btn-secondary { background: #1e2130; border: 1px solid #2d3148; color: #94a3b8; border-radius: 10px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-secondary:active { background: #252840; }
+    .btn-danger { background: #7f1d1d; border: 1px solid #991b1b; color: #fca5a5; border-radius: 10px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-icon { background: #1e2130; border: 1px solid #2d3148; border-radius: 10px; padding: 10px 14px; font-size: 18px; cursor: pointer; transition: all 0.15s; }
+    .btn-icon:active { background: #252840; }
+    .room-chip { display: inline-flex; align-items: center; gap: 4px; background: #1e3a5f; border: 1px solid #2a4a7f; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #93c5fd; }
+    .now-playing-bar { background: linear-gradient(135deg, #1a2a4a, #1a1d2e); border: 1px solid #2a3a5a; border-radius: 12px; }
+    .action-banner { background: linear-gradient(135deg, #1a3a1a, #1a1d2e); border: 1px solid #2a5a2a; border-radius: 12px; animation: slideDown 0.3s ease; }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .vol-btn { background: #1e2130; border: 1px solid #2d3148; border-radius: 8px; padding: 8px 18px; font-size: 16px; font-weight: 700; cursor: pointer; color: #94a3b8; transition: all 0.15s; }
+    .vol-btn:active { background: #252840; }
+    select { background: #1e2130; border: 1px solid #2d3148; color: #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+    .toast { position: fixed; bottom: calc(env(safe-area-inset-bottom) + 20px); left: 50%; transform: translateX(-50%); background: #1a3a1a; border: 1px solid #4ade80; color: #4ade80; border-radius: 10px; padding: 10px 20px; font-size: 14px; font-weight: 600; z-index: 100; transition: opacity 0.4s; white-space: nowrap; }
+    .toast.error { background: #3a1a1a; border-color: #f87171; color: #f87171; }
+    .house-toggle { display: flex; gap: 2px; background: #1e2130; border-radius: 10px; padding: 3px; }
+    .house-btn { border-radius: 8px; padding: 5px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; color: #64748b; background: transparent; }
+    .house-btn.active { background: #3b82f6; color: #fff; }
+    .progress-bar { background: #2d3148; border-radius: 3px; height: 3px; overflow: hidden; }
+    .progress-fill { background: #3b82f6; height: 100%; transition: width 0.5s; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- Toast notification -->
+<div id="toast" class="toast" style="display:none;opacity:0;"></div>
+
+<div class="sticky-header px-4 pb-3 pt-3">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <h1 class="text-lg font-bold text-white">🔊 Sonos</h1>
+      <p id="status-line" class="text-xs text-slate-500 mt-0.5">Loading…</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="index.html" class="text-xs text-slate-500 underline">History</a>
+      <div id="load-indicator" class="spinner" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- House toggle -->
+  <div class="house-toggle mb-3" id="house-toggle">
+    <button class="house-btn active" id="btn-caphill" onclick="setHouse('caphill')">🏠 Cap Hill</button>
+    <button class="house-btn" id="btn-vashon" onclick="setHouse('vashon')">🏝️ Vashon</button>
+  </div>
+</div>
+
+<div class="px-4 bottom-pad space-y-3">
+
+  <!-- Deep link action banner (hidden by default) -->
+  <div id="action-banner" class="action-banner p-4" style="display:none">
+    <div class="flex items-start justify-between gap-3">
+      <div class="flex-1 min-w-0">
+        <p class="text-xs text-green-400 font-semibold mb-1" id="banner-action-label">▶ Add to queue</p>
+        <p class="text-sm font-bold text-white truncate" id="banner-label">Track name</p>
+        <p class="text-xs text-slate-400 mt-1">Sending to: <span id="banner-rooms" class="text-blue-300"></span></p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <button class="btn-primary text-sm px-4 py-2" id="banner-go-btn" onclick="executeBannerAction()">Send ✓</button>
+        <button class="btn-secondary text-xs px-3 py-1" onclick="dismissBanner()">Cancel</button>
+      </div>
+    </div>
+    <div id="banner-countdown" class="text-xs text-slate-500 mt-2"></div>
+  </div>
+
+  <!-- Now playing -->
+  <div class="now-playing-bar p-4">
+    <p class="text-xs text-blue-300 font-semibold mb-2">NOW PLAYING</p>
+    <div id="now-playing-content">
+      <p class="text-sm text-slate-500">Nothing playing recently</p>
+    </div>
+    <div id="active-rooms" class="flex flex-wrap gap-1 mt-2"></div>
+  </div>
+
+  <!-- Transport controls -->
+  <div class="card p-4">
+    <p class="text-xs text-slate-500 font-semibold mb-3 uppercase tracking-wide">Controls</p>
+    <div class="flex gap-2 justify-center mb-3">
+      <button class="btn-icon" onclick="sendCmd('prev')" title="Previous">⏮</button>
+      <button class="btn-icon" onclick="sendCmd('pause')" title="Pause/Play">⏸</button>
+      <button class="btn-icon" onclick="sendCmd('play')" title="Play">▶️</button>
+      <button class="btn-icon" onclick="sendCmd('next')" title="Skip">⏭</button>
+    </div>
+    <div class="flex items-center gap-2 justify-center">
+      <button class="vol-btn" onclick="sendCmd('volume_down')">－</button>
+      <span class="text-xs text-slate-500 w-16 text-center" id="vol-label">Volume</span>
+      <button class="vol-btn" onclick="sendCmd('volume_up')">＋</button>
+    </div>
+  </div>
+
+  <!-- Room selector -->
+  <div class="card p-4">
+    <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide">Target Rooms</p>
+    <p class="text-xs text-slate-600 mb-3" id="rooms-inferred-label">Auto-detected from recent play history</p>
+    <div id="room-checkboxes" class="space-y-1"></div>
+    <button class="btn-secondary text-xs mt-3 w-full" onclick="resetRooms()">↺ Reset to active rooms</button>
+  </div>
+
+  <!-- Machine status -->
+  <div class="card p-4">
+    <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide">Service Status</p>
+    <div id="machine-status" class="space-y-1 text-xs text-slate-400">Loading…</div>
+  </div>
+
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const NTFY = {
+  caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
+  vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
+};
+const DATA_URL = 'https://shumania.github.io/lifelog/data.json';
+const ROOMS = {
+  caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Media Room','Study Computer Playbar'],
+  vashon:  ['Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room']
+};
+const INFER_WINDOW_MIN = 30;
+
+// ── State ────────────────────────────────────────────────────────────────────
+let house = localStorage.getItem('ll_house') || 'caphill';
+let selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
+let commanderId = null;
+let bannerAction = null;
+let bannerCountdownTimer = null;
+let data = null;
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  renderHouseToggle();
+  await loadData();
+  handleDeepLink();
+  setInterval(loadData, 30000);
+});
+
+async function loadData() {
+  document.getElementById('load-indicator').style.display = 'inline-block';
+  try {
+    const r = await fetch(DATA_URL + '?t=' + Date.now());
+    data = await r.json();
+    renderNowPlaying();
+    renderMachineStatus();
+    inferAndRenderRooms();
+    document.getElementById('status-line').textContent = 'Updated ' + fmtRelative(new Date(data.generated_at || Date.now()));
+  } catch(e) {
+    document.getElementById('status-line').textContent = 'Failed to load data';
+  }
+  document.getElementById('load-indicator').style.display = 'none';
+}
+
+// ── House ─────────────────────────────────────────────────────────────────────
+function setHouse(h) {
+  house = h;
+  localStorage.setItem('ll_house', h);
+  selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
+  renderHouseToggle();
+  inferAndRenderRooms();
+  renderMachineStatus();
+  updateCommander();
+}
+
+function renderHouseToggle() {
+  ['caphill','vashon'].forEach(h => {
+    document.getElementById('btn-' + h).className = 'house-btn' + (h === house ? ' active' : '');
+  });
+}
+
+// ── Commander ─────────────────────────────────────────────────────────────────
+function updateCommander() {
+  if (!data || !data.client_status) return;
+  const cmdr = data.client_status.find(c => c.house === house && c.sonos_commander);
+  commanderId = cmdr ? cmdr.client_id : null;
+}
+
+// ── Room inference ────────────────────────────────────────────────────────────
+function inferActiveRooms() {
+  if (!data || !data.items) return [];
+  const cutoff = Date.now() - INFER_WINDOW_MIN * 60 * 1000;
+  const rooms = new Set();
+  for (const item of data.items) {
+    if (!item.room || !item.house) continue;
+    if (item.house !== house) continue;
+    const ts = new Date(item.timestamp).getTime();
+    if (ts < cutoff) break; // items sorted newest→oldest
+    rooms.add(item.room);
+  }
+  return [...rooms];
+}
+
+function inferAndRenderRooms() {
+  const inferred = inferActiveRooms();
+  if (selectedRooms.length === 0 && inferred.length > 0) {
+    selectedRooms = inferred;
+  }
+  renderRoomCheckboxes();
+  updateCommander();
+}
+
+function resetRooms() {
+  const inferred = inferActiveRooms();
+  selectedRooms = inferred.length > 0 ? inferred : [];
+  localStorage.removeItem('ll_rooms_' + house);
+  renderRoomCheckboxes();
+  showToast('Rooms reset to active');
+}
+
+function renderRoomCheckboxes() {
+  const container = document.getElementById('room-checkboxes');
+  const all = ROOMS[house] || [];
+  const inferred = inferActiveRooms();
+  container.innerHTML = all.map(room => {
+    const checked = selectedRooms.includes(room);
+    const isActive = inferred.includes(room);
+    return `<label class="flex items-center gap-2 cursor-pointer py-0.5">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleRoom('${room.replace(/'/g,"\\'")}', this.checked)"
+        class="w-4 h-4 rounded accent-blue-500">
+      <span class="text-sm ${isActive ? 'text-blue-300 font-semibold' : 'text-slate-400'}">${room}${isActive ? ' 🔊' : ''}</span>
+    </label>`;
+  }).join('');
+
+  const label = inferred.length > 0
+    ? `Active last ${INFER_WINDOW_MIN} min: ${inferred.join(', ')}`
+    : 'No recent play activity detected';
+  document.getElementById('rooms-inferred-label').textContent = label;
+}
+
+function toggleRoom(room, checked) {
+  if (checked) { if (!selectedRooms.includes(room)) selectedRooms.push(room); }
+  else { selectedRooms = selectedRooms.filter(r => r !== room); }
+  localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+}
+
+// ── Now playing ───────────────────────────────────────────────────────────────
+function renderNowPlaying() {
+  if (!data || !data.items) return;
+  const sonosItems = data.items.filter(i => i.house === house && i.room);
+  const latest = sonosItems[0];
+  const npEl = document.getElementById('now-playing-content');
+  const roomsEl = document.getElementById('active-rooms');
+
+  if (!latest) {
+    npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing recently</p>';
+    roomsEl.innerHTML = '';
+    return;
+  }
+
+  const ago = fmtRelative(new Date(latest.timestamp));
+  npEl.innerHTML = `
+    <p class="text-base font-bold text-white leading-tight">${esc(latest.title)}</p>
+    <p class="text-sm text-slate-300">${esc(latest.artist || '')}</p>
+    <p class="text-xs text-slate-500 mt-0.5">${esc(latest.album || '')} · ${ago}</p>
+  `;
+
+  const inferred = inferActiveRooms();
+  roomsEl.innerHTML = inferred.map(r =>
+    `<span class="room-chip">🔊 ${esc(r)}</span>`
+  ).join('');
+}
+
+// ── Machine status ─────────────────────────────────────────────────────────────
+function renderMachineStatus() {
+  if (!data || !data.client_status) return;
+  const el = document.getElementById('machine-status');
+  const clients = data.client_status.filter(c => c.house === house);
+  if (!clients.length) { el.textContent = 'No clients seen for this house'; return; }
+  el.innerHTML = clients.map(c => {
+    const minAgo = Math.floor((Date.now() - new Date(c.last_seen).getTime()) / 60000);
+    const dot = minAgo < 10 ? 'dot-green' : minAgo < 30 ? 'dot-yellow' : 'dot-red';
+    const cmdrBadge = c.sonos_commander ? ' <span style="color:#60a5fa">★ commander</span>' : '';
+    return `<div class="flex items-center gap-1">
+      <span class="status-dot ${dot}"></span>
+      <span>${esc(c.client_id)}</span>${cmdrBadge}
+      <span class="text-slate-600 ml-1">${minAgo}m ago</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Transport commands ────────────────────────────────────────────────────────
+async function sendCmd(action, extra = {}) {
+  const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
+  if (!rooms.length) { showToast('No rooms selected', true); return; }
+
+  const payload = { action, rooms, target_client_id: commanderId, ...extra };
+  await postNtfy(payload);
+}
+
+// ── Deep link handler ─────────────────────────────────────────────────────────
+function handleDeepLink() {
+  const p = new URLSearchParams(window.location.search);
+  const action = p.get('action');
+  const uri    = p.get('uri');
+  const label  = p.get('label') || uri || '';
+  const dlHouse = p.get('house');
+
+  if (!action || !uri) return;
+
+  // Switch house if specified in link
+  if (dlHouse && dlHouse !== house) {
+    setHouse(dlHouse);
+  }
+
+  const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
+  const actionLabels = { queue: '▶ Add to queue', play: '▶ Play now', play_album: '▶ Play album' };
+
+  bannerAction = { action, uri, label };
+
+  document.getElementById('banner-action-label').textContent = actionLabels[action] || '▶ ' + action;
+  document.getElementById('banner-label').textContent = decodeURIComponent(label);
+  document.getElementById('banner-rooms').textContent = rooms.length ? rooms.join(', ') : 'No rooms selected';
+  document.getElementById('action-banner').style.display = 'block';
+
+  // Auto-fire after 5s
+  let secs = 5;
+  document.getElementById('banner-countdown').textContent = `Auto-sending in ${secs}s…`;
+  bannerCountdownTimer = setInterval(() => {
+    secs--;
+    if (secs <= 0) {
+      clearInterval(bannerCountdownTimer);
+      executeBannerAction();
+    } else {
+      document.getElementById('banner-countdown').textContent = `Auto-sending in ${secs}s…`;
+    }
+  }, 1000);
+}
+
+async function executeBannerAction() {
+  if (!bannerAction) return;
+  clearInterval(bannerCountdownTimer);
+  dismissBanner();
+
+  const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
+  if (!rooms.length) { showToast('No rooms selected', true); return; }
+
+  const { action, uri, label } = bannerAction;
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : action === 'play_album' ? 'play_spotify_uri' : 'play_spotify_uri';
+
+  await postNtfy({
+    action: ntfyAction,
+    uri,
+    rooms,
+    target_client_id: commanderId
+  });
+
+  showToast(`✓ ${decodeURIComponent(label)} sent to ${rooms.length} room${rooms.length > 1 ? 's' : ''}`);
+}
+
+function dismissBanner() {
+  clearInterval(bannerCountdownTimer);
+  document.getElementById('action-banner').style.display = 'none';
+  bannerAction = null;
+  // Clean URL without reload
+  history.replaceState({}, '', window.location.pathname);
+}
+
+// ── ntfy POST ─────────────────────────────────────────────────────────────────
+async function postNtfy(payload) {
+  const topic = NTFY[house];
+  try {
+    const r = await fetch(topic, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ts: Date.now() })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast('✓ Command sent');
+  } catch(e) {
+    showToast('✗ Failed: ' + e.message, true);
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtRelative(d) {
+  const diff = Date.now() - d.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return d.toLocaleDateString();
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.display = 'none'; }, 400); }, 2500);
+}
+</script>
+</body>
+</html>
