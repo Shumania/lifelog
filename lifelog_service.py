@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.11"
+SERVICE_VERSION = "1.12"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -251,7 +251,7 @@ def self_update_check():
             [sys.executable, str(this_path)] + sys.argv[1:],
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         )
-        sys.exit(0)
+        os._exit(0)  # Kill entire process — sys.exit() only kills current thread
     except Exception as e:
         log(f"Self-update error: {e}")
         post_error(f"Self-update error: {e}", module="update")
@@ -977,6 +977,20 @@ def sonos_main_loop():
 
 # ─── MAIN ───────────────────────────────────────────────────────────────────
 def main():
+    # ── Single-instance guard (Windows named mutex) ──────────────────────────
+    # Prevents multiple copies running simultaneously (e.g. after self-update race).
+    # The mutex auto-releases when this process exits — no cleanup needed.
+    _mutex = None
+    try:
+        import ctypes
+        _mutex = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\LifeLogServiceMutex")
+        ERROR_ALREADY_EXISTS = 183
+        if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+            log("Another LifeLog instance is already running. Exiting.")
+            sys.exit(0)
+    except Exception as e:
+        log(f"Warning: single-instance check failed ({e}) — proceeding anyway")
+
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
 
     # Prevent Windows from sleeping while service is running.
