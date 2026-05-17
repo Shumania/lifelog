@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.12"
+SERVICE_VERSION = "1.13"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -725,8 +725,15 @@ def execute_command(cmd):
                 uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
                 uri_id    = spotify_uri.split(":")[-1]
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
-                plugin    = ShareLinkPlugin(dev)
+                # Unjoin from group if not coordinator so queue ops work
+                try:
+                    if dev.group and dev.group.coordinator != dev:
+                        dev.unjoin()
+                        import time as _time; _time.sleep(1)
+                except Exception:
+                    pass
                 dev.clear_queue()
+                plugin    = ShareLinkPlugin(dev)
                 plugin.add_share_link_to_queue(share_url)
                 dev.play_from_queue(0)
                 result["success"] = True

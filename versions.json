@@ -2,6 +2,6 @@
   "loop_version": "2.3",
   "extractor_version": "2.8",
   "min_schema_version": 2,
-  "sonos_version": "2.1",
-  "service_version": "1.12"
+  "sonos_version": "2.0",
+  "service_version": "1.13"
 }
