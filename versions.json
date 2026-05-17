@@ -3,5 +3,5 @@
   "extractor_version": "2.7",
   "min_schema_version": 2,
   "sonos_version": "2.0",
-  "service_version": "1.8"
+  "service_version": "1.9"
 }

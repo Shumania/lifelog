@@ -8,7 +8,7 @@ Modules (set in lifelog_config.json):
   - backup: periodic iPhone backup extraction (calls lifelog_extract.py)
   - dev:    GitHub dev_next.ps1 remote-control loop
 
-Config: C:\ProgramData\LifeLog\lifelog_config.json
+Config: C:\\ProgramData\\LifeLog\\lifelog_config.json
 {
   "house": "caphill",
   "modules": ["sonos", "backup", "dev"],
@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.8"
+SERVICE_VERSION = "1.9"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
