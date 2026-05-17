@@ -54,6 +54,7 @@
       <p id="status-line" class="text-xs text-slate-500 mt-0.5">Loading…</p>
     </div>
     <div class="flex items-center gap-2">
+      <button onclick="loadData()" class="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded border border-slate-700" title="Refresh">🔄</button>
       <a href="index.html" class="text-xs text-slate-500 underline">History</a>
       <div id="load-indicator" class="spinner" style="display:none"></div>
     </div>
@@ -136,7 +137,7 @@ const ROOMS = {
   caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Media Room','Study Computer Playbar'],
   vashon:  ['Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room']
 };
-const INFER_WINDOW_MIN = 30;
+const INFER_WINDOW_MIN = 120;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let house = localStorage.getItem('ll_house') || 'caphill';
@@ -240,7 +241,7 @@ function renderRoomCheckboxes() {
   }).join('');
 
   const label = inferred.length > 0
-    ? `Active last ${INFER_WINDOW_MIN} min: ${inferred.join(', ')}`
+    ? `Active last 2h: ${inferred.join(', ')}`
     : 'No recent play activity detected';
   document.getElementById('rooms-inferred-label').textContent = label;
 }
