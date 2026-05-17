@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.5"
+SERVICE_VERSION = "1.6"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -85,14 +85,17 @@ def detect_house_from_wifi():
         pass
     return None, None
 
-POLL_INTERVAL         = 15    # Sonos poll (s)
-CMD_POLL_EVERY        = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
-HEARTBEAT_INTERVAL    = 1200  # 20 min
-VERSION_CHECK_INTERVAL= 3600  # 60 min
-BACKUP_INTERVAL       = 3600  # run extract every 60 min
-DEV_POLL_INTERVAL     = 100   # dev_next.ps1 poll (s)
-OFFLINE_THRESHOLD     = 3
-OFFLINE_RECHECK_SECS  = 300
+POLL_INTERVAL              = 15    # Sonos poll (s)
+CMD_POLL_EVERY             = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
+HEARTBEAT_INTERVAL_ACTIVE  = 1200  # 20 min when Sonos was active recently
+HEARTBEAT_INTERVAL_IDLE    = 3600  # 60 min when nothing playing
+HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
+ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
+VERSION_CHECK_INTERVAL     = 3600  # 60 min
+BACKUP_INTERVAL            = 3600  # run extract every 60 min
+DEV_POLL_INTERVAL          = 100   # dev_next.ps1 poll (s)
+OFFLINE_THRESHOLD          = 3
+OFFLINE_RECHECK_SECS       = 300
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
 def load_config():
@@ -138,14 +141,33 @@ computer        = os.environ.get("COMPUTERNAME", house)
 sonos_commander = config.get("sonos_commander", True)
 client_id       = f"lifelog_{computer.lower()}"   # canonical ID used in heartbeats
 
+# ─── ACTIVE HOURS ───────────────────────────────────────────────────────────
+def seattle_hour():
+    """Return current hour in Seattle time (America/Los_Angeles)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Los_Angeles")).hour
+    except ImportError:
+        try:
+            import pytz
+            return datetime.now(pytz.timezone("America/Los_Angeles")).hour
+        except ImportError:
+            # Fallback: approximate UTC-8 (PDT = UTC-7, PST = UTC-8)
+            return (datetime.now(timezone.utc).hour - 8) % 24
+
+def is_active_hours():
+    """Returns True if Seattle time is 7 AM–10 PM."""
+    return 7 <= seattle_hour() < 22
+
 # ─── GLOBAL SONOS STATE ─────────────────────────────────────────────────────
-current_devices_by_name = {}
-room_state              = {}
-speaker_failures        = {}
-speaker_offline_since   = {}
-last_cmd_sha            = None
-executed_cmd_hashes     = set()
-MAX_EXECUTED_HASHES     = 30
+current_devices_by_name  = {}
+room_state               = {}
+speaker_failures         = {}
+speaker_offline_since    = {}
+last_cmd_sha             = None
+executed_cmd_hashes      = set()
+MAX_EXECUTED_HASHES      = 30
+last_sonos_activity_ts   = 0.0  # updated when a track history is posted
 
 # ─── UTILITIES ──────────────────────────────────────────────────────────────
 def now_iso():
@@ -246,9 +268,33 @@ def heartbeat_thread():
         except Exception as e:
             log(f"Heartbeat failed: {e}")
 
+    # Always send on startup regardless of time so status shows online immediately
     send()
+
     while True:
-        time.sleep(HEARTBEAT_INTERVAL)
+        # ── Determine sleep interval ──────────────────────────────────────
+        if not is_active_hours():
+            # Quiet hours (10 PM – 7 AM Seattle): skip heartbeat, check again in 30 min
+            log(f"♥ Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) — paused, retry in 30 min")
+            time.sleep(HEARTBEAT_QUIET_SLEEP)
+            continue
+
+        # Active hours: adaptive interval based on recent Sonos activity
+        since_activity = time.time() - last_sonos_activity_ts
+        if last_sonos_activity_ts > 0 and since_activity < ACTIVITY_WINDOW:
+            interval = HEARTBEAT_INTERVAL_ACTIVE
+            log(f"♥ Heartbeat: active session — next in {interval//60} min")
+        else:
+            interval = HEARTBEAT_INTERVAL_IDLE
+            log(f"♥ Heartbeat: idle — next in {interval//60} min")
+
+        time.sleep(interval)
+
+        # Re-check active hours after sleeping (may have crossed 10 PM)
+        if not is_active_hours():
+            log(f"♥ Heartbeat: quiet hours after sleep — skipping")
+            continue
+
         send()
 
 # ─── VERSION CHECK THREAD ───────────────────────────────────────────────────
@@ -421,8 +467,10 @@ def get_track_info(device):
 
 # ─── SONOS: POST HISTORY ────────────────────────────────────────────────────
 def post_history(track, room, started_at, ended_at):
+    global last_sonos_activity_ts
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
+    last_sonos_activity_ts = time.time()
     uri_or_title = track["uri"] or f"{track['title']}|{track['artist']}"
     fp           = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     bucket       = int(started_at.timestamp() // 60)
