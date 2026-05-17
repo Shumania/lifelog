@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.7"
+SERVICE_VERSION = "1.8"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -420,18 +420,21 @@ def dev_loop_thread():
                     )
                     output   = proc.stdout + proc.stderr
                     last_sha = sha
-                    body = json.dumps({
-                        "computer": computer,
-                        "sha":      sha,
-                        "version":  first_line,
-                        "output":   output,
-                    })
-                    try:
-                        requests.post(DEV_WEBHOOK, data=body.encode("utf-8"),
-                                      headers={"Content-Type": "application/json"}, timeout=15)
-                        log(f"[dev] Output sent ({len(output)} chars)")
-                    except Exception as e:
-                        log(f"[dev] Failed to post output: {e}")
+                    if output.strip():
+                        body = json.dumps({
+                            "computer": computer,
+                            "sha":      sha,
+                            "version":  first_line,
+                            "output":   output,
+                        })
+                        try:
+                            requests.post(DEV_WEBHOOK, data=body.encode("utf-8"),
+                                          headers={"Content-Type": "application/json"}, timeout=15)
+                            log(f"[dev] Output sent ({len(output)} chars)")
+                        except Exception as e:
+                            log(f"[dev] Failed to post output: {e}")
+                    else:
+                        log(f"[dev] No-op script ({sha}), skipping webhook post")
         except Exception as e:
             log(f"[dev] Poll error: {e}")
         time.sleep(DEV_POLL_INTERVAL)
