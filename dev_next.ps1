@@ -1,30 +1,24 @@
-# v67 - kill old service + restart from updated file on disk
-Write-Output "=== KILLING OLD lifelog_service.py PROCESSES ==="
+# v67 - kill old service, start fresh
+Write-Output "=== KILLING OLD SERVICE PROCESSES ==="
 $procs = Get-Process python* -ErrorAction SilentlyContinue | Where-Object {
-    (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine -like "*lifelog_service*"
+    try { $_.MainWindowTitle -match "lifelog|LifeLog" -or (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine -match "lifelog_service" } catch { $false }
 }
 if ($procs) {
-    $procs | ForEach-Object { 
-        Write-Output "Killing PID $($_.Id)"
-        Stop-Process -Id $_.Id -Force
-    }
+    $procs | ForEach-Object { Write-Output "Killing PID $($_.Id): $($_.MainWindowTitle)"; Stop-Process -Id $_.Id -Force }
 } else {
-    Write-Output "No lifelog_service.py processes found"
+    # Kill all python processes as fallback
+    Write-Output "No specific match - killing all python processes"
+    Get-Process python* -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "Killing PID $($_.Id)"; Stop-Process -Id $_.Id -Force }
 }
-
 Start-Sleep -Seconds 2
 
-Write-Output "=== STARTING lifelog_service.py ==="
-$py = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $py) { $py = (Get-Command python3 -ErrorAction SilentlyContinue).Source }
-Write-Output "Python: $py"
-Write-Output "Starting service..."
-Start-Process $py -ArgumentList "C:\ProgramData\LifeLog\lifelog_service.py" -WindowStyle Normal
-Start-Sleep -Seconds 3
-
-Write-Output "=== PROCESS CHECK ==="
-Get-Process python* -ErrorAction SilentlyContinue | ForEach-Object {
-    $cmd = (Get-WmiObject Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
-    Write-Output "PID $($_.Id): $cmd"
+Write-Output "=== STARTING FRESH SERVICE ==="
+$svcPath = "C:\ProgramData\LifeLog\lifelog_service.py"
+if (Test-Path $svcPath) {
+    $ver = Select-String "SERVICE_VERSION" $svcPath | Select-Object -First 1
+    Write-Output "Service file version line: $ver"
+    Start-Process "python" -ArgumentList $svcPath -WindowStyle Normal
+    Write-Output "Service started."
+} else {
+    Write-Output "ERROR: $svcPath not found!"
 }
-Write-Output "Done."
