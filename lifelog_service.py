@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.6"
+SERVICE_VERSION = "1.7"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -87,8 +87,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 CMD_POLL_EVERY             = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
-HEARTBEAT_INTERVAL_ACTIVE  = 1200  # 20 min when Sonos was active recently
-HEARTBEAT_INTERVAL_IDLE    = 3600  # 60 min when nothing playing
+HEARTBEAT_FALLBACK_SECS    = 3600  # standalone heartbeat only if no POST in 60 min
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -96,6 +95,8 @@ BACKUP_INTERVAL            = 3600  # run extract every 60 min
 DEV_POLL_INTERVAL          = 100   # dev_next.ps1 poll (s)
 OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
+BATCH_SIZE                 = 5     # flush buffer when this many tracks queued
+BATCH_TRAILING_SECS        = 300   # flush 5 min after last track was added
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
 def load_config():
@@ -167,7 +168,12 @@ speaker_offline_since    = {}
 last_cmd_sha             = None
 executed_cmd_hashes      = set()
 MAX_EXECUTED_HASHES      = 30
-last_sonos_activity_ts   = 0.0  # updated when a track history is posted
+last_sonos_activity_ts   = 0.0  # updated when a track is buffered
+last_track_added_ts      = 0.0  # updated when a track is added to buffer
+last_post_ts             = 0.0  # updated whenever any POST succeeds
+pending_buffer           = []   # tracks waiting to be flushed
+pending_buffer_lock      = threading.Lock()
+PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 
 # ─── UTILITIES ──────────────────────────────────────────────────────────────
 def now_iso():
@@ -247,55 +253,107 @@ def self_update_check():
         log(f"Self-update error: {e}")
         post_error(f"Self-update error: {e}", module="update")
 
+# ─── HEARTBEAT HELPERS ──────────────────────────────────────────────────────
+def heartbeat_fields():
+    """Return standard heartbeat dict to embed in any outbound payload."""
+    return {
+        "client_id":       client_id,
+        "client_type":     "lifelog_service",
+        "house":           house,
+        "version":         SERVICE_VERSION,
+        "modules":         modules,
+        "computer":        computer,
+        "sonos_capable":   "sonos" in modules,
+        "sonos_commander": sonos_commander if "sonos" in modules else False,
+        "timestamp":       now_iso(),
+    }
+
+def _send_heartbeat():
+    payload = {"type": "heartbeat"}
+    payload.update(heartbeat_fields())
+    try:
+        r = requests.post(WEBHOOK, json=payload, timeout=10)
+        log(f"♥ Heartbeat (standalone) → HTTP {r.status_code}")
+    except Exception as e:
+        log(f"Heartbeat failed: {e}")
+
+# ─── BUFFER FLUSH ────────────────────────────────────────────────────────────
+def flush_buffer(reason=""):
+    global last_post_ts
+    with pending_buffer_lock:
+        if not pending_buffer:
+            return
+        items = list(pending_buffer)
+        pending_buffer.clear()
+
+    # Persist to disk before POSTing (crash safety)
+    try:
+        PENDING_PATH.write_text(json.dumps(items), encoding="utf-8")
+    except Exception as e:
+        log(f"Warning: couldn't persist buffer: {e}")
+
+    payload = {
+        "type":      "sonos_history_batch",
+        "house":     house,
+        "items":     items,
+        "heartbeat": heartbeat_fields(),
+    }
+    try:
+        r = requests.post(WEBHOOK, json=payload, timeout=20)
+        log(f"✓ Flushed {len(items)} track(s) [{reason}] → HTTP {r.status_code}")
+        last_post_ts = time.time()
+        try: PENDING_PATH.unlink(missing_ok=True)
+        except: pass
+    except Exception as e:
+        log(f"✗ Flush failed [{reason}]: {e} — restoring {len(items)} item(s) to buffer")
+        with pending_buffer_lock:
+            pending_buffer[:0] = items  # prepend back
+
 # ─── HEARTBEAT THREAD ───────────────────────────────────────────────────────
 def heartbeat_thread():
-    def send():
-        payload = {
-            "type":             "heartbeat",
-            "client_id":        client_id,
-            "client_type":      "lifelog_service",
-            "house":            house,
-            "version":          SERVICE_VERSION,
-            "modules":          modules,
-            "computer":         computer,
-            "sonos_capable":    "sonos" in modules,
-            "sonos_commander":  sonos_commander if "sonos" in modules else False,
-            "timestamp":        now_iso(),
-        }
-        try:
-            r = requests.post(WEBHOOK, json=payload, timeout=10)
-            log(f"♥ Heartbeat → HTTP {r.status_code}")
-        except Exception as e:
-            log(f"Heartbeat failed: {e}")
+    """Fallback heartbeat: fires only if no other POST has gone out in HEARTBEAT_FALLBACK_SECS.
+    During active sessions, every flush/command result carries heartbeat fields inline,
+    so this thread mostly sleeps."""
+    global last_post_ts
 
-    # Always send on startup regardless of time so status shows online immediately
-    send()
+    # Always send on startup so status shows online immediately
+    _send_heartbeat()
+    last_post_ts = time.time()
 
     while True:
-        # ── Determine sleep interval ──────────────────────────────────────
+        time.sleep(60)  # check every minute
+
         if not is_active_hours():
-            # Quiet hours (10 PM – 7 AM Seattle): skip heartbeat, check again in 30 min
-            log(f"♥ Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) — paused, retry in 30 min")
+            log(f"♥ Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) — paused")
             time.sleep(HEARTBEAT_QUIET_SLEEP)
             continue
 
-        # Active hours: adaptive interval based on recent Sonos activity
-        since_activity = time.time() - last_sonos_activity_ts
-        if last_sonos_activity_ts > 0 and since_activity < ACTIVITY_WINDOW:
-            interval = HEARTBEAT_INTERVAL_ACTIVE
-            log(f"♥ Heartbeat: active session — next in {interval//60} min")
+        since_last = time.time() - last_post_ts
+        if since_last < HEARTBEAT_FALLBACK_SECS:
+            continue  # a flush or command result posted recently — no heartbeat needed
+
+        # Nothing sent in 60 min — flush pending buffer (carries heartbeat) or send standalone
+        with pending_buffer_lock:
+            has_pending = len(pending_buffer) > 0
+        if has_pending:
+            flush_buffer(reason="heartbeat-fallback")
         else:
-            interval = HEARTBEAT_INTERVAL_IDLE
-            log(f"♥ Heartbeat: idle — next in {interval//60} min")
+            _send_heartbeat()
+            last_post_ts = time.time()
+        log(f"♥ Heartbeat: fallback fired (idle {int(since_last//60)} min) — next check in 60s")
 
-        time.sleep(interval)
-
-        # Re-check active hours after sleeping (may have crossed 10 PM)
-        if not is_active_hours():
-            log(f"♥ Heartbeat: quiet hours after sleep — skipping")
+# ─── BUFFER MONITOR THREAD ──────────────────────────────────────────────────
+def buffer_monitor_thread():
+    """Flush buffer on trailing-edge timer: 5 min after last track was added."""
+    while True:
+        time.sleep(30)  # check every 30s
+        with pending_buffer_lock:
+            count = len(pending_buffer)
+        if count == 0:
             continue
-
-        send()
+        since_last_track = time.time() - last_track_added_ts
+        if since_last_track >= BATCH_TRAILING_SECS:
+            flush_buffer(reason="trailing-edge")
 
 # ─── VERSION CHECK THREAD ───────────────────────────────────────────────────
 def version_check_thread():
@@ -465,9 +523,9 @@ def get_track_info(device):
             log(f"Error from {name} (attempt {failures}): {e}")
         return None
 
-# ─── SONOS: POST HISTORY ────────────────────────────────────────────────────
+# ─── SONOS: POST HISTORY (buffered) ─────────────────────────────────────────
 def post_history(track, room, started_at, ended_at):
-    global last_sonos_activity_ts
+    global last_sonos_activity_ts, last_track_added_ts
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
     last_sonos_activity_ts = time.time()
@@ -475,7 +533,7 @@ def post_history(track, room, started_at, ended_at):
     fp           = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     bucket       = int(started_at.timestamp() // 60)
     dedup_key    = f"sonos_{house}_{room.lower().replace(' ','_')}_{fp}_{bucket}"
-    payload = {
+    item = {
         "type": "sonos_history", "house": house, "room": room,
         "title": track["title"], "artist": track["artist"], "album": track["album"],
         "uri": track["uri"], "service": track["service"],
@@ -485,12 +543,13 @@ def post_history(track, room, started_at, ended_at):
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
     }
-    try:
-        r = requests.post(WEBHOOK, json=payload, timeout=15)
-        log(f'✓ History: "{track["title"]}" – {track["artist"]} | {room} ({duration_played}s) [{track["service"]}] → HTTP {r.status_code}')
-    except Exception as e:
-        log(f"✗ Failed to post history: {e}")
-        post_error(f"Failed to post history: {e}", context=f"title={track['title']}", module="sonos")
+    with pending_buffer_lock:
+        pending_buffer.append(item)
+        last_track_added_ts = time.time()
+        count = len(pending_buffer)
+    log(f'+ Buffered: "{track["title"]}" – {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
+    if count >= BATCH_SIZE:
+        flush_buffer(reason="count")
 
 # ─── SONOS: MULTI-MACHINE TARGETING ─────────────────────────────────────────
 def is_my_command(cmd):
@@ -758,11 +817,29 @@ def execute_command(cmd):
         result["message"] = f"Error: {e}"
         post_error(f"Command error ({action}): {e}", context=f"cmd_id={cmd_id}", module="sonos")
 
+    # Piggyback heartbeat + any buffered history on this command result
+    result["heartbeat"] = heartbeat_fields()
+    with pending_buffer_lock:
+        if pending_buffer:
+            result["pending_history"] = list(pending_buffer)
+            pending_buffer.clear()
+    if result.get("pending_history"):
+        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
+        except: pass
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result → HTTP {r.status_code}: {result['message']}")
+        global last_post_ts
+        last_post_ts = time.time()
+        if result.get("pending_history"):
+            try: PENDING_PATH.unlink(missing_ok=True)
+            except: pass
     except Exception as e:
         log(f"Failed to post command result: {e}")
+        # Restore piggybacked history to buffer on failure
+        if result.get("pending_history"):
+            with pending_buffer_lock:
+                pending_buffer[:0] = result["pending_history"]
 
 # ─── SONOS: GITHUB CMD FALLBACK ─────────────────────────────────────────────
 def poll_commands():
@@ -917,11 +994,26 @@ def main():
     # Check for updates at startup
     self_update_check()
 
+    # Drain any crash-persisted pending history
+    if PENDING_PATH.exists():
+        try:
+            saved = json.loads(PENDING_PATH.read_text(encoding="utf-8"))
+            if saved:
+                log(f"Recovering {len(saved)} buffered track(s) from crash...")
+                with pending_buffer_lock:
+                    pending_buffer.extend(saved)
+                try: PENDING_PATH.unlink(missing_ok=True)
+                except: pass
+                flush_buffer(reason="crash-recovery")
+        except Exception as e:
+            log(f"Warning: couldn't load crash buffer: {e}")
+
     # Start background threads
     threads_to_start = [
-        threading.Thread(target=heartbeat_thread,    daemon=True, name="heartbeat"),
-        threading.Thread(target=version_check_thread,daemon=True, name="version"),
-        threading.Thread(target=ntfy_listener_thread,daemon=True, name="ntfy"),
+        threading.Thread(target=heartbeat_thread,     daemon=True, name="heartbeat"),
+        threading.Thread(target=buffer_monitor_thread, daemon=True, name="buffer-monitor"),
+        threading.Thread(target=version_check_thread, daemon=True, name="version"),
+        threading.Thread(target=ntfy_listener_thread, daemon=True, name="ntfy"),
     ]
     if "backup" in modules:
         threads_to_start.append(threading.Thread(target=backup_thread, daemon=True, name="backup"))
