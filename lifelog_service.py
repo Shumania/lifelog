@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.14"
+SERVICE_VERSION = "1.15"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -756,6 +756,34 @@ def execute_command(cmd):
                 result["success"] = True
                 result["message"] = f"Playing '{title}' (Spotify) in {room}"
                 result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url}
+
+        elif action in ("queue_next", "queue"):
+            # Add to Sonos queue WITHOUT clearing it or starting playback
+            from soco.plugins.sharelink import ShareLinkPlugin
+            room        = cmd.get("room")
+            spotify_uri = cmd.get("uri", "")
+            title       = cmd.get("title", spotify_uri)
+            dev = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            elif not spotify_uri:
+                result["message"] = "No Spotify URI provided"
+            else:
+                uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
+                uri_id    = spotify_uri.split(":")[-1]
+                share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                try:
+                    if dev.group and dev.group.coordinator != dev:
+                        coordinator = dev.group.coordinator
+                    else:
+                        coordinator = dev
+                    plugin = ShareLinkPlugin(coordinator)
+                    plugin.add_share_link_to_queue(share_url)
+                    result["success"] = True
+                    result["message"] = f"Queued '{title}' in {room}"
+                    result["data"]    = {"title": title, "uri": spotify_uri, "share_url": share_url}
+                except Exception as e:
+                    result["message"] = f"Queue error: {e}"
 
         elif action == "play_uri":
             room  = cmd.get("room")
