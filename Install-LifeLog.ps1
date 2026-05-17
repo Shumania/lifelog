@@ -115,7 +115,7 @@ if (-not $pythonExe) {
 # -- Install Python packages ---------------------------------------------------
 Write-Log "Installing required Python packages..."
 $ErrorActionPreference = "Continue"
-$pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt soco requests *>&1 | Out-String
+$pipOutput = & $pythonExe -m pip install -q -q --disable-pip-version-check --no-warn-script-location --upgrade iphone_backup_decrypt soco requests tzdata *>&1 | Out-String
 $pipExit = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($pipExit -ne 0) {

@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.9"
+SERVICE_VERSION = "1.10"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -148,13 +148,16 @@ def seattle_hour():
     try:
         from zoneinfo import ZoneInfo
         return datetime.now(ZoneInfo("America/Los_Angeles")).hour
-    except ImportError:
+    except (ImportError, Exception):
         try:
             import pytz
             return datetime.now(pytz.timezone("America/Los_Angeles")).hour
         except ImportError:
-            # Fallback: approximate UTC-8 (PDT = UTC-7, PST = UTC-8)
-            return (datetime.now(timezone.utc).hour - 8) % 24
+            # Fallback: approximate UTC-7 (PDT) / UTC-8 (PST)
+            utc_hour = datetime.now(timezone.utc).hour
+            utc_month = datetime.now(timezone.utc).month
+            offset = -7 if 3 <= utc_month <= 11 else -8
+            return (utc_hour + offset) % 24
 
 def is_active_hours():
     """Returns True if Seattle time is 7 AM–10 PM."""
