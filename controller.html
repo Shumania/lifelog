@@ -313,12 +313,20 @@ function handleDeepLink() {
   const uri    = p.get('uri');
   const label  = p.get('label') || uri || '';
   const dlHouse = p.get('house');
+  const dlRoom  = p.get('room');
 
   if (!action || !uri) return;
 
   // Switch house if specified in link
   if (dlHouse && dlHouse !== house) {
     setHouse(dlHouse);
+  }
+
+  // Pre-select room from link (overrides current selection)
+  if (dlRoom) {
+    selectedRooms = [dlRoom];
+    localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+    renderRoomCheckboxes();
   }
 
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
