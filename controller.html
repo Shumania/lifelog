@@ -87,7 +87,7 @@
 
   <!-- Now playing -->
   <div class="now-playing-bar p-4">
-    <p class="text-xs text-blue-300 font-semibold mb-2">NOW PLAYING</p>
+    <p class="text-xs text-blue-300 font-semibold mb-2" id="now-playing-label">NOW PLAYING</p>
     <div id="now-playing-content">
       <p class="text-sm text-slate-500">Nothing playing recently</p>
     </div>
@@ -146,6 +146,7 @@ let commanderId = null;
 let bannerAction = null;
 let bannerCountdownTimer = null;
 let data = null;
+let optimisticNowPlaying = null; // {label, room, ts} — set after sending a play command
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -259,22 +260,54 @@ function renderNowPlaying() {
   const latest = sonosItems[0];
   const npEl = document.getElementById('now-playing-content');
   const roomsEl = document.getElementById('active-rooms');
+  const labelEl = document.getElementById('now-playing-label');
 
-  if (!latest) {
+  // Use optimistic state if it's newer than what's in data.json
+  const latestTs = latest ? new Date(latest.timestamp).getTime() : 0;
+  const useOptimistic = optimisticNowPlaying && optimisticNowPlaying.ts > latestTs;
+
+  const item = useOptimistic ? {
+    title: optimisticNowPlaying.label,
+    artist: '',
+    album: '',
+    timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
+    room: optimisticNowPlaying.room
+  } : latest;
+
+  if (!item) {
     npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing recently</p>';
     roomsEl.innerHTML = '';
+    labelEl.textContent = 'NOW PLAYING';
+    labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
     return;
   }
 
-  const ago = fmtRelative(new Date(latest.timestamp));
+  const minAgo = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
+
+  if (useOptimistic) {
+    labelEl.textContent = '▶ NOW PLAYING';
+    labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+  } else if (minAgo < 15) {
+    labelEl.textContent = 'NOW PLAYING';
+    labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+  } else if (minAgo < 120) {
+    labelEl.textContent = 'RECENTLY PLAYED · ' + fmtRelative(new Date(item.timestamp));
+    labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
+  } else {
+    labelEl.textContent = 'LAST PLAYED · ' + fmtRelative(new Date(item.timestamp));
+    labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
+  }
+
+  const ago = fmtRelative(new Date(item.timestamp));
   npEl.innerHTML = `
-    <p class="text-base font-bold text-white leading-tight">${esc(latest.title)}</p>
-    <p class="text-sm text-slate-300">${esc(latest.artist || '')}</p>
-    <p class="text-xs text-slate-500 mt-0.5">${esc(latest.album || '')} · ${ago}</p>
+    <p class="text-base font-bold text-white leading-tight">${esc(item.title)}</p>
+    <p class="text-sm text-slate-300">${esc(item.artist || '')}</p>
+    <p class="text-xs text-slate-500 mt-0.5">${esc(item.album || '')} · ${ago}</p>
   `;
 
   const inferred = inferActiveRooms();
-  roomsEl.innerHTML = inferred.map(r =>
+  const displayRooms = useOptimistic && item.room ? [item.room] : inferred;
+  roomsEl.innerHTML = displayRooms.map(r =>
     `<span class="room-chip">🔊 ${esc(r)}</span>`
   ).join('');
 }
@@ -370,6 +403,17 @@ async function executeBannerAction() {
     rooms,
     target_client_id: commanderId
   });
+
+  // Optimistic now-playing: show immediately, before data.json refreshes
+  optimisticNowPlaying = {
+    label: decodeURIComponent(label),
+    room: rooms[0] || null,
+    ts: Date.now()
+  };
+  renderNowPlaying();
+
+  // Refresh data.json after 10s to catch the ack / history flush
+  setTimeout(loadData, 10000);
 
   showToast(`✓ ${decodeURIComponent(label)} sent to ${rooms.length} room${rooms.length > 1 ? 's' : ''}`);
 }
