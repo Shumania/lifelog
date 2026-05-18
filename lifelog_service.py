@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.22"
+SERVICE_VERSION = "1.23"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -792,8 +792,10 @@ def execute_command(cmd):
                 plugin    = ShareLinkPlugin(dev)
                 plugin.add_share_link_to_queue(share_url)
                 dev.play_from_queue(0)
+                if cmd.get("shuffle"):
+                    dev.play_mode = "SHUFFLE"
                 result["success"] = True
-                result["message"] = f"Playing '{title}' (Spotify) in {room}"
+                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room}"
                 result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url}
 
         elif action in ("queue_next", "queue", "add_to_queue"):
@@ -836,6 +838,46 @@ def execute_command(cmd):
                     result["data"]    = {"title": title, "uri": spotify_uri, "share_url": share_url}
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
+
+        elif action == "play_radio":
+            # Play a list of Spotify track URIs as a "radio station"
+            # Agent builds the list (from playlist tracks, album tracks, etc.)
+            from soco.plugins.sharelink import ShareLinkPlugin
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            uris = cmd.get("uris", [])
+            title = cmd.get("title", "Radio")
+            dev = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            elif not uris:
+                result["message"] = "No URIs provided"
+            else:
+                try:
+                    if dev.group and dev.group.coordinator != dev:
+                        dev.unjoin()
+                        import time as _time; _time.sleep(1)
+                except Exception:
+                    pass
+                dev.clear_queue()
+                plugin = ShareLinkPlugin(dev)
+                added = 0
+                for uri in uris:
+                    try:
+                        uri_type = "track" if ":track:" in uri else "album" if ":album:" in uri else "playlist"
+                        uri_id = uri.split(":")[-1]
+                        share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                        plugin.add_share_link_to_queue(share_url)
+                        added += 1
+                    except Exception as e:
+                        log(f"play_radio: failed to queue {uri}: {e}")
+                if added > 0:
+                    dev.play_mode = "SHUFFLE"
+                    dev.play_from_queue(0)
+                    result["success"] = True
+                    result["message"] = f"Playing radio ({added} tracks, shuffled) in {room}: {title}"
+                    result["data"] = {"title": title, "queued": added}
+                else:
+                    result["message"] = "Failed to queue any tracks"
 
         elif action == "play_uri":
             room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
