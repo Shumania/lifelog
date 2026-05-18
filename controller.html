@@ -227,7 +227,16 @@ function inferActiveRooms() {
   const cutoff = Date.now() - INFER_WINDOW_MIN * 60 * 1000;
   const rooms = new Set();
 
-  // Include optimistic rooms from last play command (within 2h)
+  // 1. Server-side now_playing rooms (persisted across sessions, highest priority)
+  const serverNpForRooms = data && data.now_playing;
+  if (serverNpForRooms && Array.isArray(serverNpForRooms.rooms)) {
+    const npTs = new Date(serverNpForRooms.played_at).getTime();
+    if (npTs > cutoff) {
+      for (const r of serverNpForRooms.rooms) rooms.add(r);
+    }
+  }
+
+  // 2. Optimistic rooms from play command sent in this browser session (within 2h)
   if (optimisticActiveRooms && optimisticActiveRooms.ts > cutoff) {
     for (const r of optimisticActiveRooms.rooms) rooms.add(r);
   }
@@ -296,17 +305,37 @@ function renderNowPlaying() {
   const roomsEl = document.getElementById('active-rooms');
   const labelEl = document.getElementById('now-playing-label');
 
-  // Use optimistic state if it's newer than what's in data.json
+  // Priority: 1) optimisticNowPlaying (client-side, from this session's play command)
+  //           2) data.now_playing (server-side, persisted across sessions)
+  //           3) latest sonosItem from history
   const latestTs = latest ? new Date(latest.timestamp).getTime() : 0;
-  const useOptimistic = optimisticNowPlaying && optimisticNowPlaying.ts > latestTs;
+  const serverNp = data && data.now_playing;
+  const serverNpTs = serverNp ? new Date(serverNp.played_at).getTime() : 0;
+  const optTs = optimisticNowPlaying ? optimisticNowPlaying.ts : 0;
 
-  const item = useOptimistic ? {
-    title: optimisticNowPlaying.label,
-    artist: optimisticNowPlaying.artist || '',
-    album: '',
-    timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
-    room: optimisticNowPlaying.room
-  } : latest;
+  const useOptimistic = optTs > latestTs && optTs > serverNpTs;
+  const useServerNp = !useOptimistic && serverNp && serverNpTs > latestTs;
+
+  let item = null;
+  if (useOptimistic) {
+    item = {
+      title: optimisticNowPlaying.label,
+      artist: optimisticNowPlaying.artist || '',
+      album: '',
+      timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
+      room: optimisticNowPlaying.room
+    };
+  } else if (useServerNp) {
+    item = {
+      title: serverNp.title || serverNp.label || '',
+      artist: serverNp.artist || '',
+      album: serverNp.type === 'album' ? serverNp.title : '',
+      timestamp: serverNp.played_at,
+      room: Array.isArray(serverNp.rooms) ? serverNp.rooms.join(' · ') : (serverNp.rooms || '')
+    };
+  } else {
+    item = latest;
+  }
 
   if (!item) {
     npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing recently</p>';
@@ -318,7 +347,7 @@ function renderNowPlaying() {
 
   const minAgo = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
 
-  if (useOptimistic) {
+  if (useOptimistic || useServerNp) {
     labelEl.textContent = '▶ NOW PLAYING';
     labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 15) {
