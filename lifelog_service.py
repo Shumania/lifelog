@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.16"
+SERVICE_VERSION = "1.17"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -671,7 +671,7 @@ def execute_command(cmd):
                 result["message"] = f"Added {', '.join(joined)} to {source}"
 
         elif action == "ungroup":
-            room = cmd.get("room")
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
             if dev:
                 dev.unjoin()
@@ -702,7 +702,7 @@ def execute_command(cmd):
 
         elif action == "search_and_play":
             from soco.music_services import MusicService
-            room        = cmd.get("room")
+            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             svc_name    = cmd.get("service", "Qobuz")
             query       = cmd.get("query", "")
             search_type = cmd.get("search_type", "albums")
@@ -730,7 +730,7 @@ def execute_command(cmd):
 
         elif action == "play_spotify_uri":
             from soco.plugins.sharelink import ShareLinkPlugin
-            room        = cmd.get("room")
+            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             spotify_uri = cmd.get("uri", "")
             title       = cmd.get("title", spotify_uri)
             dev = devices.get(room)
@@ -760,7 +760,7 @@ def execute_command(cmd):
         elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
             from soco.plugins.sharelink import ShareLinkPlugin
-            room        = cmd.get("room")
+            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             spotify_uri = cmd.get("uri", "")
             title       = cmd.get("title", spotify_uri)
             dev = devices.get(room)
@@ -786,7 +786,7 @@ def execute_command(cmd):
                     result["message"] = f"Queue error: {e}"
 
         elif action == "play_uri":
-            room  = cmd.get("room")
+            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             uri   = cmd.get("uri")
             title = cmd.get("title", uri)
             meta  = cmd.get("meta", "")
@@ -823,7 +823,7 @@ def execute_command(cmd):
             result["message"] = f"Paused: {', '.join(paused)}"
 
         elif action == "set_volume":
-            room   = cmd.get("room")
+            room   = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             volume = int(cmd.get("volume", 20))
             dev    = devices.get(room)
             if dev:
@@ -834,7 +834,7 @@ def execute_command(cmd):
                 result["message"] = f"Room '{room}' not found"
 
         elif action == "get_services":
-            room = cmd.get("room", "")
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room) if room else next(iter(devices.values()), None)
             out  = {"speaker": room, "services": [], "soco_accounts": []}
             try:
