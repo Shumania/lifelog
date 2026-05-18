@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.15"
+SERVICE_VERSION = "1.16"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -757,7 +757,7 @@ def execute_command(cmd):
                 result["message"] = f"Playing '{title}' (Spotify) in {room}"
                 result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url}
 
-        elif action in ("queue_next", "queue"):
+        elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
             from soco.plugins.sharelink import ShareLinkPlugin
             room        = cmd.get("room")
