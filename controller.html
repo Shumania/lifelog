@@ -148,7 +148,8 @@ let bannerAction = null;
 let bannerCountdownTimer = null;
 let data = null;
 let lastETag = null;
-let optimisticNowPlaying = null; // {label, room, ts} — set after sending a command
+let optimisticNowPlaying = null;    // {label, room, ts} — set after sending a command
+let optimisticActiveRooms = null;   // {rooms: [...], ts} — set after play command fires
 let postCommandRefreshTimer = null;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -223,15 +224,22 @@ function updateCommander() {
 
 // ── Room inference ────────────────────────────────────────────────────────────
 function inferActiveRooms() {
-  if (!data || !data.items) return [];
   const cutoff = Date.now() - INFER_WINDOW_MIN * 60 * 1000;
   const rooms = new Set();
-  for (const item of data.items) {
-    if (!item.room || !item.house) continue;
-    if (item.house !== house) continue;
-    const ts = new Date(item.timestamp).getTime();
-    if (ts < cutoff) break;
-    rooms.add(item.room);
+
+  // Include optimistic rooms from last play command (within 2h)
+  if (optimisticActiveRooms && optimisticActiveRooms.ts > cutoff) {
+    for (const r of optimisticActiveRooms.rooms) rooms.add(r);
+  }
+
+  if (data && data.items) {
+    for (const item of data.items) {
+      if (!item.room || !item.house) continue;
+      if (item.house !== house) continue;
+      const ts = new Date(item.timestamp).getTime();
+      if (ts < cutoff) break;
+      rooms.add(item.room);
+    }
   }
   return [...rooms];
 }
@@ -363,6 +371,12 @@ async function sendCmd(action, extra = {}) {
   const payload = { action, rooms, target_client_id: commanderId, ...extra };
   await postNtfy(payload);
 
+  // Track optimistic active rooms for any play-type command
+  if (['play', 'play_spotify_uri', 'add_to_queue', 'queue_next'].includes(action)) {
+    optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
+    renderRoomCheckboxes();
+  }
+
   // Refresh after transport commands — next track may appear in history
   if (['next', 'prev', 'play', 'play_spotify_uri', 'add_to_queue'].includes(action)) {
     scheduleRefresh(10000);
@@ -424,13 +438,15 @@ async function executeBannerAction() {
 
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
 
-  // Optimistic now-playing
+  // Optimistic now-playing + active rooms
   optimisticNowPlaying = {
     label: decodeURIComponent(label),
     room: rooms[0] || null,
     ts: Date.now()
   };
+  optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
   renderNowPlaying();
+  renderRoomCheckboxes();
 
   // Refresh after 10s to catch ack / history flush
   scheduleRefresh(10000);
