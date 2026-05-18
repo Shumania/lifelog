@@ -44,7 +44,8 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.18"
+SERVICE_VERSION = "1.19"
+_mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -87,7 +88,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 CMD_POLL_EVERY             = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
-HEARTBEAT_FALLBACK_SECS    = 3600  # standalone heartbeat only if no POST in 60 min
+HEARTBEAT_FALLBACK_SECS    = 1800  # standalone heartbeat only if no POST in 30 min
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -182,8 +183,32 @@ PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+LOG_FILE        = INSTALL_DIR / "lifelog_service.log"
+_log_write_count = 0
+_log_lock        = threading.Lock()
+
+def _rotate_log_if_needed():
+    """Trim log file to last 800 lines if it exceeds 500 KB."""
+    try:
+        if LOG_FILE.stat().st_size > 500_000:
+            lines = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+            LOG_FILE.write_text("\n".join(lines[-800:]) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
 def log(msg):
-    print(f"[{now_iso()}] {msg}", flush=True)
+    global _log_write_count
+    line = f"[{now_iso()}] {msg}"
+    print(line, flush=True)
+    try:
+        with _log_lock:
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+            _log_write_count += 1
+            if _log_write_count % 500 == 0:
+                _rotate_log_if_needed()
+    except Exception:
+        pass
 
 def gh_headers():
     h = {"Accept": "application/vnd.github.v3+json", "User-Agent": "LifeLog-Service"}
@@ -264,6 +289,18 @@ def self_update_check():
         this_path = Path(sys.argv[0]).resolve()
         this_path.write_text(new_code, encoding="utf-8")
         log(f"Updated to v{latest} — restarting in new window...")
+        # Release the single-instance mutex BEFORE spawning so the new process
+        # can acquire it immediately (avoids race where new process starts fast,
+        # sees ERROR_ALREADY_EXISTS, and exits with "another instance running").
+        global _mutex_handle
+        if _mutex_handle is not None:
+            try:
+                import ctypes as _ctypes
+                _ctypes.windll.kernel32.CloseHandle(_mutex_handle)
+                _mutex_handle = None
+                log("Mutex released for handoff to new process")
+            except Exception as _me:
+                log(f"Warning: couldn't release mutex: {_me}")
         subprocess.Popen(
             [sys.executable, str(this_path)] + sys.argv[1:],
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
@@ -1033,11 +1070,12 @@ def sonos_main_loop():
 def main():
     # ── Single-instance guard (Windows named mutex) ──────────────────────────
     # Prevents multiple copies running simultaneously (e.g. after self-update race).
-    # The mutex auto-releases when this process exits — no cleanup needed.
-    _mutex = None
+    # Stored as global so self_update_check() can release it before spawning new process.
+    global _mutex_handle
+    _mutex_handle = None
     try:
         import ctypes
-        _mutex = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\LifeLogServiceMutex")
+        _mutex_handle = ctypes.windll.kernel32.CreateMutexW(None, True, "Global\\LifeLogServiceMutex")
         ERROR_ALREADY_EXISTS = 183
         if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
             log("Another LifeLog instance is already running. Exiting.")
