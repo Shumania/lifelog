@@ -166,8 +166,13 @@ async function loadData(force = false) {
   try {
     const headers = {};
     if (!force && lastETag) headers['If-None-Match'] = lastETag;
+    if (force) {
+      headers['Cache-Control'] = 'no-cache';
+      headers['Pragma'] = 'no-cache';
+    }
 
-    const r = await fetch(DATA_URL + '?t=' + Date.now(), { headers });
+    const fetchOptions = force ? { headers, cache: 'no-store' } : { headers };
+    const r = await fetch(DATA_URL + '?t=' + Date.now(), fetchOptions);
 
     if (r.status === 304) {
       // Not modified — update label but skip re-render
