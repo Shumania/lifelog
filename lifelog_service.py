@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.17"
+SERVICE_VERSION = "1.18"
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
@@ -778,9 +778,11 @@ def execute_command(cmd):
                     else:
                         coordinator = dev
                     plugin = ShareLinkPlugin(coordinator)
-                    plugin.add_share_link_to_queue(share_url)
+                    as_next = (action == "queue_next")
+                    plugin.add_share_link_to_queue(share_url, as_next_uri=as_next)
                     result["success"] = True
-                    result["message"] = f"Queued '{title}' in {room}"
+                    verb = "Queued next" if as_next else "Queued"
+                    result["message"] = f"{verb} '{title}' in {room}"
                     result["data"]    = {"title": title, "uri": spotify_uri, "share_url": share_url}
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
