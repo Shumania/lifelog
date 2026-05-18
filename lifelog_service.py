@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.19"
+SERVICE_VERSION = "1.20"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -861,7 +861,7 @@ def execute_command(cmd):
             result["success"] = True
             result["message"] = f"Paused: {', '.join(paused)}"
 
-        elif action == "set_volume":
+        elif action in ("set_volume", "volume"):
             room   = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             volume = int(cmd.get("volume", 20))
             dev    = devices.get(room)
@@ -869,6 +869,30 @@ def execute_command(cmd):
                 dev.volume = volume
                 result["success"] = True
                 result["message"] = f"Volume → {volume} in {room}"
+            else:
+                result["message"] = f"Room '{room}' not found"
+
+        elif action == "volume_up":
+            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            step  = int(cmd.get("step", 10))
+            dev   = devices.get(room)
+            if dev:
+                new_vol = min(100, dev.volume + step)
+                dev.volume = new_vol
+                result["success"] = True
+                result["message"] = f"Volume → {new_vol} in {room}"
+            else:
+                result["message"] = f"Room '{room}' not found"
+
+        elif action == "volume_down":
+            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            step  = int(cmd.get("step", 10))
+            dev   = devices.get(room)
+            if dev:
+                new_vol = max(0, dev.volume - step)
+                dev.volume = new_vol
+                result["success"] = True
+                result["message"] = f"Volume → {new_vol} in {room}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
