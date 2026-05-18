@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.20"
+SERVICE_VERSION = "1.21"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -817,8 +817,19 @@ def execute_command(cmd):
                     plugin = ShareLinkPlugin(coordinator)
                     as_next = (action == "queue_next")
                     plugin.add_share_link_to_queue(share_url, as_next_uri=as_next)
+                    # Auto-play if nothing is currently playing
+                    transport = coordinator.get_current_transport_info()
+                    state = transport.get('current_transport_state', '')
+                    if state in ('STOPPED', 'NO_MEDIA_PRESENT'):
+                        queue_size = coordinator.queue_size
+                        if queue_size > 0:
+                            coordinator.play_from_queue(queue_size - 1)
+                            verb = "Queued + started"
+                        else:
+                            verb = "Queued next" if as_next else "Queued"
+                    else:
+                        verb = "Queued next" if as_next else "Queued"
                     result["success"] = True
-                    verb = "Queued next" if as_next else "Queued"
                     result["message"] = f"{verb} '{title}' in {room}"
                     result["data"]    = {"title": title, "uri": spotify_uri, "share_url": share_url}
                 except Exception as e:
