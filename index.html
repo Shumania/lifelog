@@ -140,7 +140,7 @@ function getMusicIcon(item) {
   if (src.startsWith('sonos_qobuz')) {
     return { cls: 'icon-qobuz', emoji: '🎼' };
   }
-  if (src.startsWith('sonos_tunein') || src.startsWith('sonos_radio')) {
+  if (src.startsWith('sonos_tunein') || src.startsWith('sonos_radio') || src.startsWith('sonos_kcrw') || src.startsWith('sonos_kexp')) {
     return { cls: 'icon-radio', emoji: '📻' };
   }
   if (src.startsWith('sonos_')) {
