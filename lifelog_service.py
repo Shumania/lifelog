@@ -1259,14 +1259,6 @@ def main():
         except Exception as e:
             log(f"Warning: couldn't load crash buffer: {e}")
 
-    # ── Confirm successful update (clear rollback flags) ────────────────────
-    # If we reached this point, initialization succeeded — the update is good.
-    if flag_started.exists():
-        log(f"Update confirmed successful — clearing rollback files")
-        flag_started.unlink(missing_ok=True)
-        flag_in_progress.unlink(missing_ok=True)
-        bak_path.unlink(missing_ok=True)
-
     # Start background threads
     threads_to_start = [
         threading.Thread(target=heartbeat_thread,     daemon=True, name="heartbeat"),
@@ -1282,6 +1274,14 @@ def main():
     for t in threads_to_start:
         t.start()
         log(f"Thread started: {t.name}")
+
+    # ── Confirm successful update (clear rollback flags) ────────────────────
+    # All threads started, Sonos about to run — the update is good.
+    if flag_started.exists():
+        log(f"Update confirmed successful — clearing rollback files")
+        flag_started.unlink(missing_ok=True)
+        flag_in_progress.unlink(missing_ok=True)
+        bak_path.unlink(missing_ok=True)
 
     # Sonos runs on main thread (visible activity in console)
     if "sonos" in modules:
