@@ -24,6 +24,9 @@
     .icon-apple-vas    { background: #2a2a1a; }
     .icon-qobuz        { background: #1e1a3a; }
     .icon-radio        { background: #1a2a2a; }
+    .icon-kcrw         { background: #b91c1c; }
+    .icon-kexp         { background: #15803d; }
+    .icon-kcrw .st-lbl, .icon-kexp .st-lbl { font-size: 5.5px; font-weight: 900; letter-spacing: -0.3px; color: #fff; line-height: 1; }
     .icon-sonos        { background: #2a2020; }
     .icon-podcast      { background: #3b1f0f; }
     .item-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.4; }
@@ -140,7 +143,13 @@ function getMusicIcon(item) {
   if (src.startsWith('sonos_qobuz')) {
     return { cls: 'icon-qobuz', emoji: '🎼' };
   }
-  if (src.startsWith('sonos_tunein') || src.startsWith('sonos_radio') || src.startsWith('sonos_kcrw') || src.startsWith('sonos_kexp')) {
+  if (src === 'sonos_kcrw') {
+    return { cls: 'icon-kcrw', emoji: '<span class="st-lbl">KCRW</span>' };
+  }
+  if (src === 'sonos_kexp') {
+    return { cls: 'icon-kexp', emoji: '<span class="st-lbl">KEXP</span>' };
+  }
+  if (src.startsWith('sonos_tunein') || src.startsWith('sonos_radio')) {
     return { cls: 'icon-radio', emoji: '📻' };
   }
   if (src.startsWith('sonos_')) {
