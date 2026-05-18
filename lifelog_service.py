@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.23"
+SERVICE_VERSION = "1.24"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -287,6 +287,18 @@ def self_update_check():
             post_error(f"Update v{latest} aborted: syntax error: {se}", module="update")
             return
         this_path = Path(sys.argv[0]).resolve()
+        bak_path = this_path.with_suffix(".py.bak")
+        flag_dir = this_path.parent
+        # Save backup of current working version before overwriting
+        try:
+            import shutil
+            shutil.copy2(str(this_path), str(bak_path))
+            (flag_dir / "update_in_progress").write_text(
+                f"{SERVICE_VERSION}|{latest}", encoding="utf-8"
+            )
+            log(f"Saved backup: {bak_path}")
+        except Exception as be:
+            log(f"Warning: couldn't save backup: {be}")
         this_path.write_text(new_code, encoding="utf-8")
         log(f"Updated to v{latest} — restarting in new window...")
         # Release the single-instance mutex BEFORE spawning so the new process
@@ -1165,6 +1177,53 @@ def main():
 
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
 
+    # ── Self-update rollback detection ────────────────────────────────────────
+    # Two-phase flag: self_update_check() writes "update_in_progress".
+    # First start after update renames it to "update_started".
+    # If we see "update_started" it means the LAST update crashed — roll back.
+    script_path = Path(sys.argv[0]).resolve()
+    flag_dir = script_path.parent
+    bak_path = script_path.with_suffix(".py.bak")
+    flag_in_progress = flag_dir / "update_in_progress"
+    flag_started = flag_dir / "update_started"
+
+    if flag_started.exists() and bak_path.exists():
+        # Previous update crashed before confirming — ROLLBACK
+        old_info = flag_started.read_text(encoding="utf-8").strip()
+        log(f"ROLLBACK: Previous update crashed (info: {old_info}). Restoring backup...")
+        try:
+            import shutil
+            shutil.copy2(str(bak_path), str(script_path))
+            bak_path.unlink(missing_ok=True)
+            flag_started.unlink(missing_ok=True)
+            flag_in_progress.unlink(missing_ok=True)
+            log("Rollback complete — restarting with previous version...")
+            post_error(f"Self-update rollback triggered (info: {old_info}). Reverted to backup.", module="update")
+            # Release mutex before respawning
+            if _mutex_handle is not None:
+                try:
+                    import ctypes as _ct2
+                    _ct2.windll.kernel32.CloseHandle(_mutex_handle)
+                    _mutex_handle = None
+                except Exception:
+                    pass
+            subprocess.Popen(
+                [sys.executable, str(script_path)] + sys.argv[1:],
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            )
+            os._exit(0)
+        except Exception as rbe:
+            log(f"ROLLBACK FAILED: {rbe} — continuing with current version")
+    elif flag_in_progress.exists():
+        # First start after update — rename flag to "started" (phase 2)
+        info = flag_in_progress.read_text(encoding="utf-8").strip()
+        log(f"Post-update first start (info: {info}). Will confirm after init.")
+        try:
+            flag_in_progress.rename(flag_started)
+        except Exception:
+            flag_in_progress.unlink(missing_ok=True)
+            flag_started.write_text(info, encoding="utf-8")
+
     # Prevent Windows from sleeping while service is running.
     # Close the service window when you want the PC to sleep normally.
     try:
@@ -1199,6 +1258,14 @@ def main():
                 flush_buffer(reason="crash-recovery")
         except Exception as e:
             log(f"Warning: couldn't load crash buffer: {e}")
+
+    # ── Confirm successful update (clear rollback flags) ────────────────────
+    # If we reached this point, initialization succeeded — the update is good.
+    if flag_started.exists():
+        log(f"Update confirmed successful — clearing rollback files")
+        flag_started.unlink(missing_ok=True)
+        flag_in_progress.unlink(missing_ok=True)
+        bak_path.unlink(missing_ok=True)
 
     # Start background threads
     threads_to_start = [
