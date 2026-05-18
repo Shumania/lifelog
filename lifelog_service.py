@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.21"
+SERVICE_VERSION = "1.22"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -432,9 +432,10 @@ def backup_thread():
         try:
             result = subprocess.run(
                 [sys.executable, str(extract)],
-                capture_output=True, text=True, timeout=900
+                capture_output=True, text=True, timeout=900,
+                encoding="utf-8", errors="replace"
             )
-            output = (result.stdout + result.stderr).strip()
+            output = ((result.stdout or "") + (result.stderr or "")).strip()
             for line in output.split("\n"):
                 if line.strip():
                     log(f"  [extract] {line}")
@@ -473,9 +474,10 @@ def dev_loop_thread():
                     tmp.write_text(script, encoding="utf-8")
                     proc = subprocess.run(
                         ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(tmp)],
-                        capture_output=True, text=True, timeout=120
+                        capture_output=True, text=True, timeout=120,
+                        encoding="utf-8", errors="replace"
                     )
-                    output   = proc.stdout + proc.stderr
+                    output   = (proc.stdout or "") + (proc.stderr or "")
                     last_sha = sha
                     if output.strip():
                         body = json.dumps({
@@ -998,8 +1000,9 @@ def poll_commands():
 def ntfy_listener_thread():
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
-        since = int(time.time())
-        url   = f"https://ntfy.sh/{ntfy_topic}/json?since={since}"
+        # Use since=5m so commands sent during restart/reconnect gaps are caught.
+        # In-memory dedup (_already_executed) prevents double-execution within same process.
+        url   = f"https://ntfy.sh/{ntfy_topic}/json?since=5m"
         log(f"ntfy connecting: {url}")
         try:
             with requests.get(url, stream=True, timeout=90) as r:
