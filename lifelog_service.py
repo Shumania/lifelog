@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.25"
+SERVICE_VERSION = "1.26"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1019,6 +1019,48 @@ def execute_command(cmd):
                 result["data"]    = out
             except Exception as e:
                 result["message"] = f"get_services error: {e}"
+
+        elif action == "get_queue":
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            else:
+                try:
+                    # Use coordinator if room is in a group
+                    if dev.group and dev.group.coordinator != dev:
+                        coordinator = dev.group.coordinator
+                    else:
+                        coordinator = dev
+                    queue = coordinator.get_queue(max_items=100)
+                    # Get current track position
+                    track_info = coordinator.get_current_track_info()
+                    current_pos = int(track_info.get("playlist_position", "0"))
+                    transport = coordinator.get_current_transport_info()
+                    state = transport.get("current_transport_state", "UNKNOWN")
+                    items = []
+                    for i, item in enumerate(queue):
+                        entry = {
+                            "position": i + 1,
+                            "title": getattr(item, "title", ""),
+                            "artist": getattr(item, "creator", ""),
+                            "album": getattr(item, "album", ""),
+                        }
+                        if i + 1 == current_pos:
+                            entry["now_playing"] = True
+                        items.append(entry)
+                    result["success"] = True
+                    result["message"] = f"Queue for {room}: {len(items)} tracks (pos {current_pos}, {state})"
+                    result["data"] = {
+                        "room": room,
+                        "coordinator": coordinator.player_name,
+                        "queue_size": len(items),
+                        "current_position": current_pos,
+                        "transport_state": state,
+                        "items": items,
+                    }
+                except Exception as e:
+                    result["message"] = f"get_queue error: {e}"
 
         else:
             result["message"] = f"Unknown action: {action}"
