@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.24"
+SERVICE_VERSION = "1.25"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1223,6 +1223,12 @@ def main():
         except Exception:
             flag_in_progress.unlink(missing_ok=True)
             flag_started.write_text(info, encoding="utf-8")
+
+    # === ROLLBACK TEST (v1.25) — intentional crash to verify rollback ===
+    if flag_started.exists():
+        log("ROLLBACK TEST: intentional crash to verify rollback mechanism")
+        raise RuntimeError("v1.25 ROLLBACK TEST — this crash is intentional!")
+    # === END ROLLBACK TEST ===
 
     # Prevent Windows from sleeping while service is running.
     # Close the service window when you want the PC to sleep normally.
