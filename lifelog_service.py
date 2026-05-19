@@ -672,8 +672,9 @@ def is_my_command(cmd):
 
 # ─── SONOS: COMMAND DEDUP ───────────────────────────────────────────────────
 def _cmd_hash(cmd):
-    stable = {k: v for k, v in cmd.items() if k != "cmd_ts"}
-    return hashlib.md5(json.dumps(stable, sort_keys=True).encode()).hexdigest()
+    # Include cmd_ts so repeated commands with different timestamps are NOT deduped.
+    # Genuine duplicates (from ntfy since=5m replay) have the SAME cmd_ts and WILL be deduped.
+    return hashlib.md5(json.dumps(cmd, sort_keys=True).encode()).hexdigest()
 
 def _mark_executed(cmd):
     executed_cmd_hashes.add(_cmd_hash(cmd))
