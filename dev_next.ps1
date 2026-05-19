@@ -1,1 +1,1 @@
-# no-op
+Get-Content "C:\ProgramData\LifeLog\lifelog_service.log" -Tail 50
