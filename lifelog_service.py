@@ -1259,12 +1259,6 @@ def main():
             log(f"Cleaning orphaned .bak file (no update flags found)")
             bak_path.unlink(missing_ok=True)
 
-    # === ROLLBACK TEST (v1.25) — intentional crash to verify rollback ===
-    if flag_started.exists():
-        log("ROLLBACK TEST: intentional crash to verify rollback mechanism")
-        raise RuntimeError("v1.25 ROLLBACK TEST — this crash is intentional!")
-    # === END ROLLBACK TEST ===
-
     # Prevent Windows from sleeping while service is running.
     # Close the service window when you want the PC to sleep normally.
     try:
