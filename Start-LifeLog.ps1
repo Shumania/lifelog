@@ -65,12 +65,50 @@ if (-not $python) {
 }
 Write-Host "Python: $python" -ForegroundColor Gray
 
-# ── Launch unified service in a new window ────────────────────────────────────
+# ── External rollback check (catches Python-level crashes) ────────────────────
+# If a bad update makes the .py file unloadable (import error, corruption),
+# the Python-internal rollback can never run. This PowerShell wrapper catches
+# that: launch → wait → if it died fast AND .bak exists → restore and relaunch.
+$BakFile   = "$LifeLogDir\lifelog_service.py.bak"
+$FlagStart = "$LifeLogDir\update_started"
+$FlagProg  = "$LifeLogDir\update_in_progress"
+
+# Pre-launch: if rollback files already present from a previous crash, restore now
+if ((Test-Path $BakFile) -and ((Test-Path $FlagStart) -or (Test-Path $FlagProg))) {
+    Write-Host "ROLLBACK: Detected failed update. Restoring previous version..." -ForegroundColor Red
+    Copy-Item $BakFile $ServiceFile -Force
+    Remove-Item $FlagStart, $FlagProg, $BakFile -ErrorAction SilentlyContinue
+    Write-Host "Rollback complete. Starting restored version." -ForegroundColor Green
+}
+
+# ── Launch unified service and monitor for rapid crash ─────────────────────────
 Write-Host ""
 Write-Host "Starting LifeLog Service..." -ForegroundColor Green
-Start-Process powershell `
-    -ArgumentList "-NoExit","-ExecutionPolicy","Bypass","-Command","& '$python' '$ServiceFile'" `
-    -WindowStyle Normal
+$proc = Start-Process $python -ArgumentList $ServiceFile `
+    -PassThru -WindowStyle Normal
 
-Write-Host ""
-Write-Host "LifeLog service started in a new window. You can close this launcher." -ForegroundColor Cyan
+# Wait up to 20 seconds — if it crashes that fast, it's a bad update
+$crashed = $false
+if ($proc.WaitForExit(20000)) {
+    # Process exited within 20 seconds — likely a crash
+    if ($proc.ExitCode -ne 0) {
+        $crashed = $true
+    }
+}
+
+if ($crashed -and (Test-Path $BakFile)) {
+    Write-Host ""
+    Write-Host "RAPID CRASH DETECTED (exit code $($proc.ExitCode)). Rolling back..." -ForegroundColor Red
+    Copy-Item $BakFile $ServiceFile -Force
+    Remove-Item $FlagStart, $FlagProg, $BakFile -ErrorAction SilentlyContinue
+    Write-Host "Rollback complete. Relaunching with previous version..." -ForegroundColor Green
+    Start-Process $python -ArgumentList $ServiceFile -WindowStyle Normal
+    Write-Host "Restored version started." -ForegroundColor Green
+} elseif (-not $crashed) {
+    Write-Host ""
+    Write-Host "LifeLog service running (PID $($proc.Id)). You can close this launcher." -ForegroundColor Cyan
+} else {
+    Write-Host ""
+    Write-Host "Service exited (exit code $($proc.ExitCode)) but no backup available." -ForegroundColor Yellow
+    Write-Host "Check $LifeLogDir\lifelog_service.log for details." -ForegroundColor Yellow
+}

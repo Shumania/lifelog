@@ -288,6 +288,7 @@ def self_update_check():
             return
         this_path = Path(sys.argv[0]).resolve()
         bak_path = this_path.with_suffix(".py.bak")
+        tmp_path = this_path.with_suffix(".py.tmp")
         flag_dir = this_path.parent
         # Save backup of current working version before overwriting
         try:
@@ -299,7 +300,9 @@ def self_update_check():
             log(f"Saved backup: {bak_path}")
         except Exception as be:
             log(f"Warning: couldn't save backup: {be}")
-        this_path.write_text(new_code, encoding="utf-8")
+        # Atomic write: write to .tmp then os.replace() — no partial files
+        tmp_path.write_text(new_code, encoding="utf-8")
+        os.replace(str(tmp_path), str(this_path))
         log(f"Updated to v{latest} — restarting in new window...")
         # Release the single-instance mutex BEFORE spawning so the new process
         # can acquire it immediately (avoids race where new process starts fast,
@@ -313,11 +316,30 @@ def self_update_check():
                 log("Mutex released for handoff to new process")
             except Exception as _me:
                 log(f"Warning: couldn't release mutex: {_me}")
-        subprocess.Popen(
+        child = subprocess.Popen(
             [sys.executable, str(this_path)] + sys.argv[1:],
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         )
-        os._exit(0)  # Kill entire process — sys.exit() only kills current thread
+        # Monitor the child for 15 seconds — if it crashes fast, rollback here
+        import time as _t
+        _t.sleep(15)
+        if child.poll() is not None and child.returncode != 0:
+            log(f"NEW VERSION CRASHED (exit {child.returncode}) — rolling back!")
+            try:
+                import shutil as _sh
+                _sh.copy2(str(bak_path), str(this_path))
+                (flag_dir / "update_in_progress").unlink(missing_ok=True)
+                (flag_dir / "update_started").unlink(missing_ok=True)
+                bak_path.unlink(missing_ok=True)
+                log("Rollback complete — restarting with previous version...")
+                post_error(f"Update v{latest} crashed on startup (exit {child.returncode}). Rolled back to v{SERVICE_VERSION}.", module="update")
+                subprocess.Popen(
+                    [sys.executable, str(this_path)] + sys.argv[1:],
+                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+                )
+            except Exception as _rbe:
+                log(f"Rollback after spawn-crash failed: {_rbe}")
+        os._exit(0)
     except Exception as e:
         log(f"Self-update error: {e}")
         post_error(f"Self-update error: {e}", module="update")
@@ -1223,6 +1245,19 @@ def main():
         except Exception:
             flag_in_progress.unlink(missing_ok=True)
             flag_started.write_text(info, encoding="utf-8")
+    else:
+        # ── Orphan cleanup ───────────────────────────────────────────────
+        # Flag exists without .bak → stale flag, can't rollback anyway
+        if flag_started.exists() and not bak_path.exists():
+            log(f"Cleaning orphaned update_started flag (no .bak found)")
+            flag_started.unlink(missing_ok=True)
+        if flag_in_progress.exists() and not bak_path.exists():
+            log(f"Cleaning orphaned update_in_progress flag (no .bak found)")
+            flag_in_progress.unlink(missing_ok=True)
+        # .bak without any flag → previous update confirmed, orphaned backup
+        if bak_path.exists() and not flag_started.exists() and not flag_in_progress.exists():
+            log(f"Cleaning orphaned .bak file (no update flags found)")
+            bak_path.unlink(missing_ok=True)
 
     # === ROLLBACK TEST (v1.25) — intentional crash to verify rollback ===
     if flag_started.exists():
