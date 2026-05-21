@@ -176,7 +176,11 @@ function renderFeed() {
     if (item.type === 'music') {
       const { cls, emoji } = getMusicIcon(item);
       const parts = [item.artist, item.album].filter(Boolean);
-      if (item.room) parts.push(item.room);
+      if (item.rooms && item.rooms.length > 1) {
+        parts.push('🔊 ' + item.rooms[0] + ' +' + (item.rooms.length - 1));
+      } else if (item.room) {
+        parts.push(item.room);
+      }
       const sub = parts.map(escHtml).join(' · ');
       return `<div class="item-row">
         <div class="icon-wrap ${cls}">${emoji}</div>
