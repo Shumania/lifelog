@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.30"
+SERVICE_VERSION = "1.31"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -346,9 +346,24 @@ def self_update_check():
         post_error(f"Self-update error: {e}", module="update")
 
 # ─── HEARTBEAT HELPERS ──────────────────────────────────────────────────────
+def get_rooms_playing():
+    """Query each known Sonos device for transport state, return list of rooms currently PLAYING."""
+    if "sonos" not in modules:
+        return []
+    playing = []
+    for name, dev in current_devices_by_name.items():
+        try:
+            info = dev.get_current_transport_info()
+            state = info.get("current_transport_state", "STOPPED")
+            if state == "PLAYING":
+                playing.append(name)
+        except Exception:
+            pass  # speaker offline or unreachable
+    return sorted(playing)
+
 def heartbeat_fields():
     """Return standard heartbeat dict to embed in any outbound payload."""
-    return {
+    fields = {
         "client_id":       client_id,
         "client_type":     "lifelog_service",
         "house":           house,
@@ -359,6 +374,9 @@ def heartbeat_fields():
         "sonos_commander": sonos_commander if "sonos" in modules else False,
         "timestamp":       now_iso(),
     }
+    if "sonos" in modules:
+        fields["rooms_playing"] = get_rooms_playing()
+    return fields
 
 def _send_heartbeat():
     payload = {"type": "heartbeat"}

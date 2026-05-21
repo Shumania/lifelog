@@ -263,7 +263,12 @@ function inferActiveRooms() {
     return [...optimisticActiveRooms.rooms];
   }
 
-  // 2. Server-side now_playing rooms (persisted across sessions — last agent command)
+  // 2. Live transport state — rooms currently PLAYING (from service heartbeat)
+  if (data && Array.isArray(data.rooms_playing) && data.rooms_playing.length > 0) {
+    return [...data.rooms_playing];
+  }
+
+  // 3. Server-side now_playing rooms (persisted across sessions — last agent command)
   const serverNp = data && data.now_playing;
   if (serverNp && Array.isArray(serverNp.rooms)) {
     const npTs = new Date(serverNp.played_at).getTime();
@@ -272,7 +277,7 @@ function inferActiveRooms() {
     }
   }
 
-  // 3. Most recent Sonos history entry's rooms (NOT union of all recent rooms)
+  // 4. Most recent Sonos history entry's rooms (NOT union of all recent rooms)
   //    This picks the last-played group, avoiding merging independent groups.
   if (data && data.items) {
     for (const item of data.items) {
@@ -309,20 +314,21 @@ function resetRooms() {
 function renderRoomCheckboxes() {
   const container = document.getElementById('room-checkboxes');
   const all = ROOMS[house] || [];
-  const inferred = inferActiveRooms();
+  // Use live transport state for icons (actually playing right now)
+  const liveRooms = (data && Array.isArray(data.rooms_playing)) ? data.rooms_playing : [];
   container.innerHTML = all.map(room => {
     const checked = selectedRooms.includes(room);
-    const isActive = inferred.includes(room);
+    const isPlaying = liveRooms.includes(room);
     return `<label class="flex items-center gap-2 cursor-pointer py-0.5">
       <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleRoom('${room.replace(/'/g,"\\'")}', this.checked)"
         class="w-4 h-4 rounded accent-blue-500">
-      <span class="text-sm ${isActive ? 'text-blue-300 font-semibold' : 'text-slate-400'}">${room}${isActive ? ' 🔊' : ''}</span>
+      <span class="text-sm ${isPlaying ? 'text-green-300 font-semibold' : 'text-slate-400'}">${room}${isPlaying ? ' 🔊' : ''}</span>
     </label>`;
   }).join('');
 
-  const label = inferred.length > 0
-    ? `Active last 2h: ${inferred.join(', ')}`
-    : 'No recent play activity detected';
+  const label = liveRooms.length > 0
+    ? `Now playing: ${liveRooms.join(', ')}`
+    : 'No rooms currently playing';
   document.getElementById('rooms-inferred-label').textContent = label;
 }
 
