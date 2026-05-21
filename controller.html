@@ -28,6 +28,11 @@
     .btn-icon:active { background: #252840; }
     .room-chip { display: inline-flex; align-items: center; gap: 4px; background: #1e3a5f; border: 1px solid #2a4a7f; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #93c5fd; }
     .now-playing-bar { background: linear-gradient(135deg, #1a2a4a, #1a1d2e); border: 1px solid #2a3a5a; border-radius: 12px; }
+    .discovery-entry { background: #1e2130; border: 1px solid #2d3148; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+    .discovery-title { font-size: 14px; font-weight: 700; color: #e2e8f0; }
+    .discovery-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .suggestion-chip { display: inline-block; background: #1a2a4a; border: 1px solid #2a4a7f; border-radius: 16px; padding: 3px 10px; font-size: 11px; color: #93c5fd; margin: 3px 3px 0 0; text-decoration: none; cursor: pointer; transition: all 0.15s; }
+    .suggestion-chip:active { background: #2a3a6a; }
     .action-banner { background: linear-gradient(135deg, #1a3a1a, #1a1d2e); border: 1px solid #2a5a2a; border-radius: 12px; animation: slideDown 0.3s ease; }
     @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     .vol-btn { background: #1e2130; border: 1px solid #2d3148; border-radius: 8px; padding: 8px 18px; font-size: 16px; font-weight: 700; cursor: pointer; color: #94a3b8; transition: all 0.15s; }
@@ -124,6 +129,13 @@
     <div id="machine-status" class="space-y-1 text-xs text-slate-400">Loading…</div>
   </div>
 
+  <!-- Discovery Log -->
+  <div class="card p-4">
+    <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide">🎵 Discovery Log</p>
+    <p class="text-xs text-slate-600 mb-3">Plays from Tasklet with recommendations to explore</p>
+    <div id="discovery-log" class="space-y-0">Loading…</div>
+  </div>
+
 </div>
 
 <script>
@@ -189,6 +201,7 @@ async function loadData(force = false) {
     renderNowPlaying();
     renderMachineStatus();
     inferAndRenderRooms();
+    renderDiscoveryLog();
     document.getElementById('status-line').textContent =
       'Updated ' + fmtRelative(new Date(data.generated_at || Date.now()));
   } catch(e) {
@@ -500,6 +513,42 @@ async function postNtfy(payload) {
   } catch(e) {
     showToast('✗ Failed: ' + e.message, true);
   }
+}
+
+// ── Discovery Log ────────────────────────────────────────────────────────────
+function renderDiscoveryLog() {
+  const el = document.getElementById('discovery-log');
+  if (!data || !data.play_commands || data.play_commands.length === 0) {
+    el.innerHTML = '<p class="text-xs text-slate-600">No plays yet</p>';
+    return;
+  }
+  const cmds = data.play_commands;
+  let html = '';
+  for (const cmd of cmds) {
+    const d = new Date(cmd.timestamp);
+    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const roomStr = cmd.room ? ` · 🔊 ${esc(cmd.room)}` : '';
+    const contextStr = cmd.context ? ` — ${esc(cmd.context)}` : '';
+
+    html += '<div class="discovery-entry">';
+    html += `<div class="discovery-title">▶ ${esc(cmd.title)}</div>`;
+    html += `<div class="discovery-meta">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr}</div>`;
+    html += `<div class="discovery-meta">${dateStr} ${timeStr}${contextStr}</div>`;
+
+    if (cmd.suggestions && cmd.suggestions.length > 0) {
+      html += '<div style="margin-top:6px">';
+      for (const s of cmd.suggestions) {
+        const room = cmd.room ? encodeURIComponent(cmd.room) : '';
+        const label = encodeURIComponent(s.label);
+        const href = `controller.html?action=${s.action || 'queue'}&uri=${encodeURIComponent(s.uri)}&label=${label}&room=${room}`;
+        html += `<a class="suggestion-chip" href="${href}">▶ ${esc(s.label)}</a>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
