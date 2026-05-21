@@ -34,9 +34,14 @@
     .discovery-narrative { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-top: 8px; }
     .discovery-suggestions-header { font-size: 11px; font-weight: 600; color: #7c8baa; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 6px; }
     .suggestion-item { background: #1a2235; border: 1px solid #2d3148; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
-    .suggestion-play { display: flex; align-items: center; justify-content: space-between; }
-    .suggestion-label { font-size: 13px; font-weight: 600; color: #93c5fd; cursor: pointer; }
-    .suggestion-label:active { color: #bfdbfe; }
+    .suggestion-play { display: flex; align-items: center; gap: 8px; }
+    .suggestion-title { font-size: 13px; font-weight: 600; color: #e2e8f0; flex: 1; }
+    .suggestion-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .suggestion-btn { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; cursor: pointer; border: none; transition: opacity 0.15s; }
+    .suggestion-btn:active { opacity: 0.7; }
+    .btn-play { background: #2563eb; color: #fff; }
+    .btn-queue { background: #374151; color: #93c5fd; border: 1px solid #4b5563; }
+    .btn-default { box-shadow: 0 0 0 1.5px #60a5fa; }
     .suggestion-note { font-size: 11.5px; color: #7c8baa; line-height: 1.4; margin-top: 4px; }
     .suggestion-chip { display: inline-block; background: #1a2a4a; border: 1px solid #2a4a7f; border-radius: 16px; padding: 3px 10px; font-size: 11px; color: #93c5fd; margin: 3px 3px 0 0; text-decoration: none; cursor: pointer; transition: all 0.15s; }
     .suggestion-chip:active { background: #2a3a6a; }
@@ -552,9 +557,16 @@ function renderDiscoveryLog() {
       for (const s of cmd.suggestions) {
         const uri = (s.uri || '').replace(/'/g, "\\'");
         const lbl = (s.label || '').replace(/'/g, "\\'");
+        const musicPlaying = isRoomActive();
+        const playDflt = musicPlaying ? '' : ' btn-default';
+        const queueDflt = musicPlaying ? ' btn-default' : '';
         html += '<div class="suggestion-item">';
-        const act = s.action || 'play';
-        html += `<div class="suggestion-play"><a class="suggestion-label" onclick="playFromDiscovery('${act}','${uri}','${lbl}');return false;" href="#">▶ ${esc(s.label)}</a></div>`;
+        html += '<div class="suggestion-play">';
+        html += `<span class="suggestion-title">${esc(s.label)}</span>`;
+        html += '<span class="suggestion-actions">';
+        html += `<button class="suggestion-btn btn-play${playDflt}" onclick="playFromDiscovery('play','${uri}','${lbl}')">▶ Play</button>`;
+        html += `<button class="suggestion-btn btn-queue${queueDflt}" onclick="playFromDiscovery('queue','${uri}','${lbl}')">＋ Queue</button>`;
+        html += '</span></div>';
         if (s.note) {
           html += `<div class="suggestion-note">${esc(s.note)}</div>`;
         }
@@ -566,7 +578,24 @@ function renderDiscoveryLog() {
   el.innerHTML = html;
 }
 
-// ── Discovery Log play ───────────────────────────────────────────────────────
+// ── Discovery Log helpers ────────────────────────────────────────────────────
+function isRoomActive() {
+  // Check if selected rooms (or inferred rooms) have active playback
+  const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
+  if (!rooms.length) return false;
+  // Check optimistic now-playing
+  if (optimisticNowPlaying && (Date.now() - optimisticNowPlaying.ts) < 120*60*1000) return true;
+  // Check data.json now_playing
+  if (data && data.now_playing && data.now_playing.rooms) {
+    const npRooms = data.now_playing.rooms || [];
+    if (rooms.some(r => npRooms.includes(r))) return true;
+    // Also check age — if now_playing is recent, something is probably going
+    const npTs = new Date(data.now_playing.timestamp || 0).getTime();
+    if ((Date.now() - npTs) < 15*60*1000) return true;
+  }
+  return false;
+}
+
 async function playFromDiscovery(action, uri, label) {
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
