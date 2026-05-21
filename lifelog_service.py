@@ -351,15 +351,32 @@ def get_rooms_playing():
     if "sonos" not in modules:
         return []
     playing = []
+    states = {}
     for name, dev in current_devices_by_name.items():
         try:
+            # Skip group members — only query coordinators and solo speakers
+            # Group members mirror coordinator state and can report stale PLAYING
+            if dev.group and dev.group.coordinator and dev.group.coordinator != dev:
+                states[name] = "GROUPED_MEMBER_SKIP"
+                continue
             info = dev.get_current_transport_info()
             state = info.get("current_transport_state", "STOPPED")
+            states[name] = state
             if state == "PLAYING":
-                playing.append(name)
-        except Exception:
-            pass  # speaker offline or unreachable
-    return sorted(playing)
+                # Coordinator is playing — add all visible members of this group
+                if dev.group:
+                    for member in dev.group.members:
+                        if member.player_name in current_devices_by_name:
+                            playing.append(member.player_name)
+                else:
+                    playing.append(name)
+        except Exception as e:
+            states[name] = f"ERROR:{e}"
+    log(f"🔊 Transport states: {states}", module="sonos")
+    return sorted(set(playing))
+
+# Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
+_just_commanded_room = None
 
 def heartbeat_fields():
     """Return standard heartbeat dict to embed in any outbound payload."""
@@ -959,7 +976,7 @@ def execute_command(cmd):
                 result["success"] = True
                 grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                 result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room}{grp_note}"
-                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped}
+                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped,"room":room}
 
         elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
@@ -999,9 +1016,9 @@ def execute_command(cmd):
                     # Verify queue after add
                     try:
                         qsize = coordinator.queue_size
-                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "queue_size": qsize}
+                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "queue_size": qsize, "room": room}
                     except:
-                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url}
+                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "room": room}
                     result["success"] = True
                     result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items)"
                 except Exception as e:
@@ -1203,8 +1220,24 @@ def execute_command(cmd):
         result["message"] = f"Error: {e}"
         post_error(f"Command error ({action}): {e}", context=f"cmd_id={cmd_id}", module="sonos")
 
+    # Brief delay so speakers transition to PLAYING state before we query
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play"):
+        time.sleep(2)
+
     # Piggyback heartbeat + any buffered history on this command result
     result["heartbeat"] = heartbeat_fields()
+
+    # Ensure the just-commanded room appears in rooms_playing after a successful play
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play"):
+        rp = result["heartbeat"].get("rooms_playing", [])
+        cmd_room = result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None
+        if not cmd_room:
+            # Extract room from the action's rooms list if data doesn't have it
+            cmd_room = result.get("data", {}).get("rooms", [None])[0] if isinstance(result.get("data"), dict) else None
+        if cmd_room and cmd_room not in rp:
+            rp.append(cmd_room)
+            result["heartbeat"]["rooms_playing"] = sorted(rp)
+            log(f"🔊 Injected {cmd_room} into rooms_playing (post-play)", module="sonos")
     with pending_buffer_lock:
         if pending_buffer:
             result["pending_history"] = list(pending_buffer)
