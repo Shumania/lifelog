@@ -273,11 +273,15 @@ function inferActiveRooms() {
 
   if (data && data.items) {
     for (const item of data.items) {
-      if (!item.room || !item.house) continue;
-      if (item.house !== house) continue;
+      if (!item.house || item.house !== house) continue;
       const ts = new Date(item.timestamp).getTime();
       if (ts < cutoff) break;
-      rooms.add(item.room);
+      // Check rooms array (multi-room consolidated entries) first, then singular room
+      if (Array.isArray(item.rooms)) {
+        for (const r of item.rooms) rooms.add(r);
+      } else if (item.room) {
+        rooms.add(item.room);
+      }
     }
   }
   return [...rooms];
