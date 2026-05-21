@@ -176,6 +176,7 @@ function renderFeed() {
     if (item.type === 'music') {
       const { cls, emoji } = getMusicIcon(item);
       const parts = [item.artist, item.album].filter(Boolean);
+      if (item.context) parts.push('📋 ' + item.context);
       if (item.rooms && item.rooms.length > 1) {
         parts.push('🔊 ' + item.rooms[0] + ' +' + (item.rooms.length - 1));
       } else if (item.room) {
