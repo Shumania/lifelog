@@ -28,6 +28,7 @@ import subprocess
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 if sys.version_info < (3, 8):
     print("ERROR: Python 3.8+ required")
@@ -44,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.28"
+SERVICE_VERSION = "1.29"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -571,6 +572,40 @@ def get_coordinators():
         return []
 
 # ─── SONOS: TRACK INFO ──────────────────────────────────────────────────────
+
+def get_container_context(device):
+    """Get the playlist/album/station context from Sonos media info."""
+    try:
+        media = device.avTransport.GetMediaInfo(InstanceID=0)
+        container_uri = media.get("CurrentURI", "")
+        meta_xml = media.get("CurrentURIMetaData", "")
+        container_name = ""
+        container_type = ""
+        if meta_xml and meta_xml != "NOT_IMPLEMENTED":
+            try:
+                # Strip DIDL-Lite namespaces for easier parsing
+                clean = re.sub(r'\sxmlns[^"]*"[^"]*"', '', meta_xml)
+                root = ET.fromstring(clean)
+                # Title is in dc:title or just title
+                for elem in root.iter():
+                    tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+                    if tag == "title" and elem.text:
+                        container_name = elem.text.strip()
+                    elif tag == "class" and elem.text:
+                        # e.g. object.container.playlistContainer
+                        container_type = elem.text.strip()
+            except ET.ParseError:
+                pass
+        if not container_uri or container_uri.startswith("x-rincon:"):
+            return None  # grouped slave, no useful container
+        return {
+            "container_uri": container_uri,
+            "container_name": container_name,
+            "container_type": container_type,
+        }
+    except Exception:
+        return None
+
 def get_track_info(device):
     name = device.player_name
     now_epoch = time.time()
@@ -602,11 +637,13 @@ def get_track_info(device):
         try:    members = [m.player_name for m in device.group.members]
         except: members = [device.player_name]
         speaker_failures[name] = 0
+        ctx = get_container_context(device)
         return {"title": title, "artist": info.get("artist","").strip(),
                 "album": info.get("album","").strip(), "uri": uri,
                 "service": detect_service(uri, metadata),
                 "duration_seconds": dur_secs, "rooms": members,
-                "coordinator": device.player_name}
+                "coordinator": device.player_name,
+                "container": ctx}
     except Exception as e:
         failures = speaker_failures.get(name, 0) + 1
         speaker_failures[name] = failures
@@ -639,6 +676,12 @@ def post_history(track, room, started_at, ended_at):
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
     }
+    # Add container context (playlist/album/station) if available
+    container = track.get("container")
+    if container:
+        item["container_uri"] = container.get("container_uri", "")
+        item["container_name"] = container.get("container_name", "")
+        item["container_type"] = container.get("container_type", "")
     with pending_buffer_lock:
         pending_buffer.append(item)
         last_track_added_ts = time.time()
