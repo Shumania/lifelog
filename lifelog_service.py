@@ -816,10 +816,17 @@ def execute_command(cmd):
                 uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
                 uri_id    = spotify_uri.split(":")[-1]
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
-                # Unjoin from group if not coordinator so queue ops work
+                # Make room solo before playing (unjoin all group members)
+                was_grouped = []
                 try:
-                    if dev.group and dev.group.coordinator != dev:
-                        dev.unjoin()
+                    if dev.group and len(dev.group.members) > 1:
+                        was_grouped = [m.player_name for m in dev.group.members if m != dev]
+                        if dev.group.coordinator != dev:
+                            dev.unjoin()
+                        else:
+                            for member in list(dev.group.members):
+                                if member != dev:
+                                    member.unjoin()
                         import time as _time; _time.sleep(1)
                 except Exception:
                     pass
@@ -830,8 +837,9 @@ def execute_command(cmd):
                 if cmd.get("shuffle"):
                     dev.play_mode = "SHUFFLE"
                 result["success"] = True
-                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room}"
-                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url}
+                grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
+                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room}{grp_note}"
+                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped}
 
         elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
