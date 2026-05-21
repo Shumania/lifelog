@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.29"
+SERVICE_VERSION = "1.30"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -574,34 +574,75 @@ def get_coordinators():
 # ─── SONOS: TRACK INFO ──────────────────────────────────────────────────────
 
 def get_container_context(device):
-    """Get the playlist/album/station context from Sonos media info."""
+    """Get the playlist/album/station context from Sonos position info.
+    Uses GetPositionInfo which has the EnqueuedTransportURI — the actual
+    Spotify playlist/album/station URI (not the Sonos queue URI)."""
     try:
-        media = device.avTransport.GetMediaInfo(InstanceID=0)
-        container_uri = media.get("CurrentURI", "")
-        meta_xml = media.get("CurrentURIMetaData", "")
+        pos = device.avTransport.GetPositionInfo(InstanceID=0)
+        enqueued_uri = pos.get("TrackURI", "")  # fallback
+        # EnqueuedTransportURI has the container (playlist/album)
+        # while TrackURI has the individual track
+        container_uri = ""
         container_name = ""
         container_type = ""
+
+        # Try GetMediaInfo for the queue-level container
+        try:
+            media = device.avTransport.GetMediaInfo(InstanceID=0)
+            media_uri = media.get("CurrentURI", "")
+            media_meta = media.get("CurrentURIMetaData", "")
+        except Exception:
+            media_uri = ""
+            media_meta = ""
+
+        # Also get the enqueued transport URI from position info
+        enq_uri = pos.get("EnqueuedTransportURI", "") or ""
+        enq_meta = pos.get("EnqueuedTransportURIMetaData", "") or ""
+
+        # Prefer EnqueuedTransportURI — it's the actual playlist/album
+        if enq_uri and not enq_uri.startswith("x-rincon-queue:"):
+            container_uri = enq_uri
+            meta_xml = enq_meta
+        elif media_uri and not media_uri.startswith("x-rincon-queue:") and not media_uri.startswith("x-rincon:"):
+            container_uri = media_uri
+            meta_xml = media_meta
+        else:
+            # Both are queue URIs — try to extract Spotify context from enqueued
+            # Even x-rincon-queue has metadata sometimes
+            container_uri = enq_uri or media_uri
+            meta_xml = enq_meta or media_meta
+
+        # Parse metadata XML for name and type
         if meta_xml and meta_xml != "NOT_IMPLEMENTED":
             try:
-                # Strip DIDL-Lite namespaces for easier parsing
                 clean = re.sub(r'\sxmlns[^"]*"[^"]*"', '', meta_xml)
                 root = ET.fromstring(clean)
-                # Title is in dc:title or just title
                 for elem in root.iter():
                     tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
                     if tag == "title" and elem.text:
                         container_name = elem.text.strip()
                     elif tag == "class" and elem.text:
-                        # e.g. object.container.playlistContainer
                         container_type = elem.text.strip()
             except ET.ParseError:
                 pass
+
+        # Skip if slave in group or no useful data
         if not container_uri or container_uri.startswith("x-rincon:"):
-            return None  # grouped slave, no useful container
+            return None
+
+        # Decode Spotify URIs from container_uri for cleaner data
+        spotify_context = ""
+        if "spotify" in container_uri.lower():
+            # Extract spotify URI from encoded Sonos URI
+            m = re.search(r'spotify[:%]3[aA]([^?&]+)', container_uri)
+            if m:
+                spotify_context = "spotify:" + m.group(1).replace("%3a", ":").replace("%3A", ":")
+
         return {
             "container_uri": container_uri,
             "container_name": container_name,
             "container_type": container_type,
+            "spotify_context": spotify_context,
         }
     except Exception:
         return None
@@ -682,6 +723,8 @@ def post_history(track, room, started_at, ended_at):
         item["container_uri"] = container.get("container_uri", "")
         item["container_name"] = container.get("container_name", "")
         item["container_type"] = container.get("container_type", "")
+        if container.get("spotify_context"):
+            item["spotify_context"] = container["spotify_context"]
     with pending_buffer_lock:
         pending_buffer.append(item)
         last_track_added_ts = time.time()
