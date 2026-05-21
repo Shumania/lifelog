@@ -553,7 +553,8 @@ function renderDiscoveryLog() {
         const uri = (s.uri || '').replace(/'/g, "\\'");
         const lbl = (s.label || '').replace(/'/g, "\\'");
         html += '<div class="suggestion-item">';
-        html += `<div class="suggestion-play"><a class="suggestion-label" onclick="playFromDiscovery('queue','${uri}','${lbl}');return false;" href="#">▶ ${esc(s.label)}</a></div>`;
+        const act = s.action || 'play';
+        html += `<div class="suggestion-play"><a class="suggestion-label" onclick="playFromDiscovery('${act}','${uri}','${lbl}');return false;" href="#">▶ ${esc(s.label)}</a></div>`;
         if (s.note) {
           html += `<div class="suggestion-note">${esc(s.note)}</div>`;
         }
@@ -570,7 +571,9 @@ async function playFromDiscovery(action, uri, label) {
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
-  await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
+  const cmd = { action: ntfyAction, uri, rooms, target_client_id: commanderId };
+  if (uri.includes(':playlist:') && action !== 'queue') cmd.shuffle = true;
+  await postNtfy(cmd);
   optimisticNowPlaying = { label, room: rooms[0] || null, ts: Date.now() };
   optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
   renderNowPlaying();
