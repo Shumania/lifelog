@@ -1,7 +1,11 @@
-# Retrieve the Sonos transport debug dump
-$debugPath = "C:\ProgramData\LifeLog\sonos_transport_debug.json"
-if (Test-Path $debugPath) {
-    Get-Content $debugPath -Raw
-} else {
-    Write-Output "DEBUG FILE NOT FOUND YET - no track event since v1.30 update"
-}
+# Force restart lifelog_service.py to pick up v1.33
+# Spawn a detached process that kills python and relaunches
+$restartScript = @"
+Start-Sleep -Seconds 3
+Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep -Seconds 2
+& 'C:\ProgramData\LifeLog\Start-LifeLog.ps1'
+"@
+$restartScript | Out-File "$env:TEMP\restart_lifelog.ps1" -Encoding UTF8
+Start-Process powershell -ArgumentList '-ExecutionPolicy', 'Bypass', '-File', "$env:TEMP\restart_lifelog.ps1" -WindowStyle Normal
+Write-Output "Restart scheduled — service will restart in ~5 seconds"
