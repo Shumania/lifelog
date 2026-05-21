@@ -134,7 +134,7 @@ const NTFY = {
 };
 const DATA_URL = 'https://shumania.github.io/lifelog/data.json';
 const ROOMS = {
-  caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Media Room','Study Computer Playbar'],
+  caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Master Bedroom','Media Room','Study Computer Playbar'],
   vashon:  ['Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room']
 };
 const INFER_WINDOW_MIN = 120;
@@ -453,13 +453,12 @@ function handleDeepLink() {
 
 async function executeBannerAction() {
   if (!bannerAction) return;
+  const { action, uri, label } = bannerAction;  // Save BEFORE dismiss clears it
   clearTimeout(bannerCountdownTimer);
   dismissBanner();
 
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-
-  const { action, uri, label } = bannerAction;
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
 
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
