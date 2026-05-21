@@ -372,7 +372,7 @@ def get_rooms_playing():
                     playing.append(name)
         except Exception as e:
             states[name] = f"ERROR:{e}"
-    log(f"🔊 Transport states: {states}", module="sonos")
+    log(f"[sonos] 🔊 Transport states: {states}")
     return sorted(set(playing))
 
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
@@ -1237,7 +1237,7 @@ def execute_command(cmd):
         if cmd_room and cmd_room not in rp:
             rp.append(cmd_room)
             result["heartbeat"]["rooms_playing"] = sorted(rp)
-            log(f"🔊 Injected {cmd_room} into rooms_playing (post-play)", module="sonos")
+            log(f"[sonos] 🔊 Injected {cmd_room} into rooms_playing (post-play)")
     with pending_buffer_lock:
         if pending_buffer:
             result["pending_history"] = list(pending_buffer)
