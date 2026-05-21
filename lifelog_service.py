@@ -579,23 +579,40 @@ def get_container_context(device):
     Spotify playlist/album/station URI (not the Sonos queue URI)."""
     try:
         pos = device.avTransport.GetPositionInfo(InstanceID=0)
-        enqueued_uri = pos.get("TrackURI", "")  # fallback
-        # EnqueuedTransportURI has the container (playlist/album)
-        # while TrackURI has the individual track
         container_uri = ""
         container_name = ""
         container_type = ""
+
+        # DEBUG: dump all position info keys
+        debug_data = {"position_info": {}, "media_info": {}}
+        for k, v in pos.items():
+            val_str = str(v)[:500] if v else ""
+            debug_data["position_info"][k] = val_str
 
         # Try GetMediaInfo for the queue-level container
         try:
             media = device.avTransport.GetMediaInfo(InstanceID=0)
             media_uri = media.get("CurrentURI", "")
             media_meta = media.get("CurrentURIMetaData", "")
+            for k, v in media.items():
+                val_str = str(v)[:500] if v else ""
+                debug_data["media_info"][k] = val_str
         except Exception:
             media_uri = ""
             media_meta = ""
 
-        # Also get the enqueued transport URI from position info
+        # Write debug dump once (first track only)
+        import json, os
+        debug_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sonos_transport_debug.json")
+        if not os.path.exists(debug_path):
+            try:
+                with open(debug_path, "w") as df:
+                    json.dump(debug_data, df, indent=2, default=str)
+                log(f"DEBUG: Wrote transport debug to {debug_path}")
+            except Exception as e:
+                log(f"DEBUG: Failed to write debug: {e}")
+
+        # Get enqueued transport URI from position info
         enq_uri = pos.get("EnqueuedTransportURI", "") or ""
         enq_meta = pos.get("EnqueuedTransportURIMetaData", "") or ""
 
@@ -607,8 +624,7 @@ def get_container_context(device):
             container_uri = media_uri
             meta_xml = media_meta
         else:
-            # Both are queue URIs — try to extract Spotify context from enqueued
-            # Even x-rincon-queue has metadata sometimes
+            # Both are queue URIs — try metadata anyway
             container_uri = enq_uri or media_uri
             meta_xml = enq_meta or media_meta
 
@@ -633,7 +649,6 @@ def get_container_context(device):
         # Decode Spotify URIs from container_uri for cleaner data
         spotify_context = ""
         if "spotify" in container_uri.lower():
-            # Extract spotify URI from encoded Sonos URI
             m = re.search(r'spotify[:%]3[aA]([^?&]+)', container_uri)
             if m:
                 spotify_context = "spotify:" + m.group(1).replace("%3a", ":").replace("%3A", ":")
@@ -646,6 +661,7 @@ def get_container_context(device):
         }
     except Exception:
         return None
+
 
 def get_track_info(device):
     name = device.player_name
