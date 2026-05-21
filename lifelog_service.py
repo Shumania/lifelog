@@ -44,7 +44,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.27"
+SERVICE_VERSION = "1.28"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -868,9 +868,14 @@ def execute_command(cmd):
                             verb = "Queued next" if as_next else "Queued"
                     else:
                         verb = "Queued next" if as_next else "Queued"
+                    # Verify queue after add
+                    try:
+                        qsize = coordinator.queue_size
+                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "queue_size": qsize}
+                    except:
+                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url}
                     result["success"] = True
-                    result["message"] = f"{verb} '{title}' in {room}"
-                    result["data"]    = {"title": title, "uri": spotify_uri, "share_url": share_url}
+                    result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items)"
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
 
@@ -1134,9 +1139,10 @@ def ntfy_listener_thread():
                     log(f"⚡ ntfy: {raw[:120]}")
                     try:
                         cmd    = json.loads(raw)
-                        cmd_ts = cmd.get("cmd_ts", 0)
-                        age    = time.time() - cmd_ts if cmd_ts else 0
-                        if cmd_ts and age > 120:
+                        # Use ntfy server timestamp (always correct, in seconds)
+                        ntfy_ts = msg.get("time", 0)
+                        age     = time.time() - ntfy_ts if ntfy_ts else 0
+                        if ntfy_ts and age > 300:
                             log(f"Stale command ({int(age)}s old): {cmd.get('action')}")
                             continue
                         if _already_executed(cmd):

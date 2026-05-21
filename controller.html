@@ -446,22 +446,14 @@ function handleDeepLink() {
   document.getElementById('banner-rooms').textContent = rooms.length ? rooms.join(', ') : 'No rooms selected';
   document.getElementById('action-banner').style.display = 'block';
 
-  let secs = 5;
-  document.getElementById('banner-countdown').textContent = `Auto-sending in ${secs}s…`;
-  bannerCountdownTimer = setInterval(() => {
-    secs--;
-    if (secs <= 0) {
-      clearInterval(bannerCountdownTimer);
-      executeBannerAction();
-    } else {
-      document.getElementById('banner-countdown').textContent = `Auto-sending in ${secs}s…`;
-    }
-  }, 1000);
+  // Instant-fire: show banner briefly for visual feedback, then execute
+  document.getElementById('banner-countdown').textContent = 'Sending…';
+  bannerCountdownTimer = setTimeout(() => executeBannerAction(), 400);
 }
 
 async function executeBannerAction() {
   if (!bannerAction) return;
-  clearInterval(bannerCountdownTimer);
+  clearTimeout(bannerCountdownTimer);
   dismissBanner();
 
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
@@ -489,7 +481,7 @@ async function executeBannerAction() {
 }
 
 function dismissBanner() {
-  clearInterval(bannerCountdownTimer);
+  clearTimeout(bannerCountdownTimer);
   document.getElementById('action-banner').style.display = 'none';
   bannerAction = null;
   history.replaceState({}, '', window.location.pathname);
@@ -502,7 +494,7 @@ async function postNtfy(payload) {
     const r = await fetch(topic, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, ts: Date.now() })
+      body: JSON.stringify(payload)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     showToast('✓ Command sent');
