@@ -257,36 +257,36 @@ function updateCommander() {
 // ── Room inference ────────────────────────────────────────────────────────────
 function inferActiveRooms() {
   const cutoff = Date.now() - INFER_WINDOW_MIN * 60 * 1000;
-  const rooms = new Set();
 
-  // 1. Server-side now_playing rooms (persisted across sessions, highest priority)
-  const serverNpForRooms = data && data.now_playing;
-  if (serverNpForRooms && Array.isArray(serverNpForRooms.rooms)) {
-    const npTs = new Date(serverNpForRooms.played_at).getTime();
+  // 1. Optimistic rooms from play command sent in this browser session (highest priority — most recent intent)
+  if (optimisticActiveRooms && optimisticActiveRooms.ts > cutoff) {
+    return [...optimisticActiveRooms.rooms];
+  }
+
+  // 2. Server-side now_playing rooms (persisted across sessions — last agent command)
+  const serverNp = data && data.now_playing;
+  if (serverNp && Array.isArray(serverNp.rooms)) {
+    const npTs = new Date(serverNp.played_at).getTime();
     if (npTs > cutoff) {
-      for (const r of serverNpForRooms.rooms) rooms.add(r);
+      return [...serverNp.rooms];
     }
   }
 
-  // 2. Optimistic rooms from play command sent in this browser session (within 2h)
-  if (optimisticActiveRooms && optimisticActiveRooms.ts > cutoff) {
-    for (const r of optimisticActiveRooms.rooms) rooms.add(r);
-  }
-
+  // 3. Most recent Sonos history entry's rooms (NOT union of all recent rooms)
+  //    This picks the last-played group, avoiding merging independent groups.
   if (data && data.items) {
     for (const item of data.items) {
       if (!item.house || item.house !== house) continue;
       const ts = new Date(item.timestamp).getTime();
       if (ts < cutoff) break;
-      // Check rooms array (multi-room consolidated entries) first, then singular room
-      if (Array.isArray(item.rooms)) {
-        for (const r of item.rooms) rooms.add(r);
+      if (Array.isArray(item.rooms) && item.rooms.length > 0) {
+        return [...item.rooms];
       } else if (item.room) {
-        rooms.add(item.room);
+        return [item.room];
       }
     }
   }
-  return [...rooms];
+  return [];
 }
 
 function inferAndRenderRooms() {
