@@ -29,7 +29,9 @@
     .room-chip { display: inline-flex; align-items: center; gap: 4px; background: #1e3a5f; border: 1px solid #2a4a7f; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #93c5fd; }
     .now-playing-bar { background: linear-gradient(135deg, #1a2a4a, #1a1d2e); border: 1px solid #2a3a5a; border-radius: 12px; }
     .discovery-entry { background: #1e2130; border: 1px solid #2d3148; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
-    .discovery-title { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+    .discovery-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .discovery-title { font-size: 15px; font-weight: 700; color: #e2e8f0; flex: 1; min-width: 0; }
+    .discovery-entry-actions { display: flex; gap: 4px; flex-shrink: 0; }
     .discovery-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
     .discovery-narrative { font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-top: 8px; }
     .discovery-suggestions-header { font-size: 11px; font-weight: 600; color: #7c8baa; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; margin-bottom: 6px; }
@@ -547,7 +549,20 @@ function renderDiscoveryLog() {
     const roomStr = cmd.room ? ` · 🔊 ${esc(cmd.room)}` : '';
 
     html += '<div class="discovery-entry">';
+    html += '<div class="discovery-header">';
     html += `<div class="discovery-title">▶ ${esc(cmd.title)}</div>`;
+    if (cmd.uri) {
+      const entryUri = (cmd.uri || '').replace(/'/g, "\\'");
+      const entryLbl = (`${cmd.artist || ''} – ${cmd.title || ''}`).replace(/'/g, "\\'");
+      const musicPlaying = isRoomActive();
+      const playDflt = musicPlaying ? '' : ' btn-default';
+      const queueDflt = musicPlaying ? ' btn-default' : '';
+      html += '<span class="discovery-entry-actions">';
+      html += `<button class="suggestion-btn btn-play${playDflt}" onclick="playFromDiscovery('play','${entryUri}','${entryLbl}')">▶ Play</button>`;
+      html += `<button class="suggestion-btn btn-queue${queueDflt}" onclick="playFromDiscovery('queue','${entryUri}','${entryLbl}')">＋ Queue</button>`;
+      html += '</span>';
+    }
+    html += '</div>';
     html += `<div class="discovery-meta">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr} · ${dateStr} ${timeStr}</div>`;
 
     // Narrative
