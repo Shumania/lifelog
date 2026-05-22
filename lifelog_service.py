@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.34"
+SERVICE_VERSION = "1.35"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1037,8 +1037,19 @@ def execute_command(cmd):
                     else:
                         coordinator = dev
                     plugin = ShareLinkPlugin(coordinator)
-                    as_next = (action == "queue_next")
-                    plugin.add_share_link_to_queue(share_url, as_next=as_next)
+                    if action == "queue_next":
+                        # Position-based "play next": insert right after current track
+                        # This works reliably even in shuffle mode
+                        try:
+                            track_info = coordinator.get_current_track_info()
+                            current_pos = int(track_info.get('playlist_position', 0))
+                            insert_pos = current_pos + 1 if current_pos > 0 else 1
+                            plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                        except Exception:
+                            # Fallback: add at end
+                            plugin.add_share_link_to_queue(share_url)
+                    else:
+                        plugin.add_share_link_to_queue(share_url)
                     # Auto-play if nothing is currently playing
                     transport = coordinator.get_current_transport_info()
                     state = transport.get('current_transport_state', '')
