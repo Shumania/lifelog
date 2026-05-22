@@ -1039,8 +1039,18 @@ def execute_command(cmd):
                     plugin = ShareLinkPlugin(coordinator)
                     as_next = action == "queue_next" or cmd.get("position") == "next"
                     if as_next:
-                        log(f"Queueing as NEXT (as_next=True)")
-                    plugin.add_share_link_to_queue(share_url, as_next=as_next)
+                        # Position-based "play next": insert right after current track
+                        try:
+                            info = coordinator.get_current_track_info()
+                            current_pos = int(info.get('playlist_position', 0))
+                            insert_pos = current_pos + 1  # 1-based, after current
+                            log(f"Queueing as NEXT at position {insert_pos} (current={current_pos})")
+                            plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                        except Exception as pos_err:
+                            log(f"Position-based queue failed ({pos_err}), falling back to as_next flag")
+                            plugin.add_share_link_to_queue(share_url, as_next=True)
+                    else:
+                        plugin.add_share_link_to_queue(share_url)
                     # Auto-play if nothing is currently playing
                     transport = coordinator.get_current_transport_info()
                     state = transport.get('current_transport_state', '')
