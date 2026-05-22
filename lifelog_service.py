@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.33"
+SERVICE_VERSION = "1.34"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -823,6 +823,58 @@ def _already_executed(cmd):
     return _cmd_hash(cmd) in executed_cmd_hashes
 
 # ─── SONOS: EXECUTE COMMAND ─────────────────────────────────────────────────
+def _setup_rooms(cmd, devices):
+    """Resolve room(s) from command. Returns (device, rooms_list, was_grouped_with).
+    Multiple rooms: groups them (first = coordinator). Single room: makes it solo."""
+    rooms = cmd.get("rooms", [])
+    if isinstance(rooms, str): rooms = [rooms]
+    room = cmd.get("room")
+    if room and not rooms: rooms = [room]
+    if not rooms: return None, [], []
+
+    primary = rooms[0]
+    dev = devices.get(primary)
+    if not dev: return None, rooms, []
+
+    was_grouped = []
+    if len(rooms) > 1:
+        # Multi-room: unjoin all targets first (clean slate), then group under primary
+        for r in rooms:
+            d = devices.get(r)
+            if d:
+                try: d.unjoin()
+                except: pass
+        time.sleep(1)
+        joined = []
+        for r in rooms[1:]:
+            d = devices.get(r)
+            if d:
+                try:
+                    d.join(dev)
+                    joined.append(r)
+                except Exception as e:
+                    log(f"_setup_rooms: failed to join {r} to {primary}: {e}")
+        if joined:
+            time.sleep(1)
+        log(f"_setup_rooms: grouped {primary} + {joined}")
+    else:
+        # Single room: make solo (unjoin from any existing group)
+        try:
+            if dev.group and len(dev.group.members) > 1:
+                was_grouped = [m.player_name for m in dev.group.members if m != dev]
+                if dev.group.coordinator != dev:
+                    dev.unjoin()
+                else:
+                    for member in list(dev.group.members):
+                        if member != dev:
+                            member.unjoin()
+                time.sleep(1)
+        except Exception:
+            pass
+
+    return dev, rooms, was_grouped
+
+
 def execute_command(cmd):
     action = cmd.get("action", "")
     cmd_id = cmd.get("cmd_id", "")
@@ -941,32 +993,17 @@ def execute_command(cmd):
 
         elif action == "play_spotify_uri":
             from soco.plugins.sharelink import ShareLinkPlugin
-            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             spotify_uri = cmd.get("uri", "")
             title       = cmd.get("title", spotify_uri)
-            dev = devices.get(room)
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
-                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+                result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not spotify_uri:
                 result["message"] = "No Spotify URI provided"
             else:
                 uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
                 uri_id    = spotify_uri.split(":")[-1]
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
-                # Make room solo before playing (unjoin all group members)
-                was_grouped = []
-                try:
-                    if dev.group and len(dev.group.members) > 1:
-                        was_grouped = [m.player_name for m in dev.group.members if m != dev]
-                        if dev.group.coordinator != dev:
-                            dev.unjoin()
-                        else:
-                            for member in list(dev.group.members):
-                                if member != dev:
-                                    member.unjoin()
-                        import time as _time; _time.sleep(1)
-                except Exception:
-                    pass
                 dev.clear_queue()
                 plugin    = ShareLinkPlugin(dev)
                 plugin.add_share_link_to_queue(share_url)
@@ -974,9 +1011,10 @@ def execute_command(cmd):
                 if cmd.get("shuffle"):
                     dev.play_mode = "SHUFFLE"
                 result["success"] = True
+                room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                 grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
-                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room}{grp_note}"
-                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped,"room":room}
+                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room_label}{grp_note}"
+                result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped,"room":rooms[0],"rooms":rooms}
 
         elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
@@ -1028,21 +1066,14 @@ def execute_command(cmd):
             # Play a list of Spotify track URIs as a "radio station"
             # Agent builds the list (from playlist tracks, album tracks, etc.)
             from soco.plugins.sharelink import ShareLinkPlugin
-            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             uris = cmd.get("uris", [])
             title = cmd.get("title", "Radio")
-            dev = devices.get(room)
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
-                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+                result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not uris:
                 result["message"] = "No URIs provided"
             else:
-                try:
-                    if dev.group and dev.group.coordinator != dev:
-                        dev.unjoin()
-                        import time as _time; _time.sleep(1)
-                except Exception:
-                    pass
                 dev.clear_queue()
                 plugin = ShareLinkPlugin(dev)
                 added = 0
