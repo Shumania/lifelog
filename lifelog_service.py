@@ -1038,7 +1038,7 @@ def execute_command(cmd):
                         coordinator = dev
                     plugin = ShareLinkPlugin(coordinator)
                     as_next = (action == "queue_next")
-                    plugin.add_share_link_to_queue(share_url, as_next_uri=as_next)
+                    plugin.add_share_link_to_queue(share_url, as_next=as_next)
                     # Auto-play if nothing is currently playing
                     transport = coordinator.get_current_transport_info()
                     state = transport.get('current_transport_state', '')
