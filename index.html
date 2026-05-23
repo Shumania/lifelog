@@ -201,26 +201,55 @@ function escHtml(str) {
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-async function loadData() {
+let archiveItems = [];
+let archiveLoaded = false;
+
+function mergeItems(headItems, archive) {
+  if (!archive.length) return headItems;
+  const headKeys = new Set(headItems.map(i =>
+    (i.timestamp||'') + '|' + (i.title||'').toLowerCase() + '|' + (i.artist||i.show_name||'').toLowerCase()
+  ));
+  const older = archive.filter(i =>
+    !headKeys.has((i.timestamp||'') + '|' + (i.title||'').toLowerCase() + '|' + (i.artist||i.show_name||'').toLowerCase())
+  );
+  return [...headItems, ...older];
+}
+
+async function loadData(alsoArchive) {
   document.getElementById('load-indicator').style.display = 'inline-block';
   try {
-    const res  = await fetch('data.json?t=' + Date.now());
+    const res = await fetch('data-head.json?t=' + Date.now());
     const json = await res.json();
-    allData = json.items || [];
+    const headItems = json.items || [];
+    allData = mergeItems(headItems, archiveItems);
     if (json.generated_at) {
       document.getElementById('updated-at').textContent = 'Updated ' + formatTime(json.generated_at);
     }
-    renderStatusBar(json.clients || []);
+    renderStatusBar(json.client_status || json.clients || []);
     updateCounts();
+    renderFeed();
   } catch(e) {
     document.getElementById('feed').innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">⚠️</p><p class="text-sm">Could not load data</p></div>`;
   } finally {
     document.getElementById('load-indicator').style.display = 'none';
   }
-  renderFeed();
+  // Load full archive in background on first load or when requested
+  if (alsoArchive || !archiveLoaded) {
+    try {
+      const r2 = await fetch('data.json?t=' + Date.now());
+      const full = await r2.json();
+      archiveItems = full.items || [];
+      archiveLoaded = true;
+      // Re-merge with fresh archive
+      const headRes = allData.slice(0, 75); // current head
+      allData = mergeItems(headRes, archiveItems);
+      updateCounts();
+      renderFeed();
+    } catch(e) { /* archive is optional — head is enough */ }
+  }
 }
 
-loadData();
+loadData(true);
 
 async function syncNow() {
   const btn = document.getElementById('sync-btn');
@@ -232,7 +261,7 @@ async function syncNow() {
     btn.textContent = '✓ Syncing…';
     btn.style.color = '#4ade80';
     setTimeout(async () => {
-      await loadData();
+      await loadData(true);
       btn.textContent = '↻ Sync';
       btn.style.color = '#60a5fa';
       btn.style.opacity = '1';
