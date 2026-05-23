@@ -430,7 +430,7 @@ function renderMachineStatus() {
     return `<div class="flex items-center gap-1">
       <span class="status-dot ${dot}"></span>
       <span>${esc(c.client_id)}</span>${cmdrBadge}
-      <span class="text-slate-600 ml-1">${minAgo}m ago</span>
+      <span class="text-slate-600 ml-1">${fmtRelative(new Date(c.last_seen))}</span>
     </div>`;
   }).join('');
 }
@@ -680,12 +680,14 @@ function esc(s) {
 
 function fmtRelative(d) {
   const diff = Date.now() - d.getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return sec < 5 ? 'just now' : `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ${sec % 60}s ago`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return d.toLocaleDateString();
+  if (hr < 24) return `${hr}h ${min % 60}m ago`;
+  const days = Math.floor(hr / 24);
+  return `${days}d ${hr % 24}h ago`;
 }
 
 function showToast(msg, isError = false) {

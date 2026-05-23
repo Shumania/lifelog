@@ -106,7 +106,14 @@ function renderStatusBar(clients) {
       .replace('sonos_vashon', '🏝 Sonos')
       .replace('sonos_caphill', '🏙 Sonos')
       .replace('backup_', '💾 ');
-    const age = ageMin === null ? 'offline' : ageMin < 1 ? 'just now' : `${ageMin}m ago`;
+    const age = ageMin === null ? 'offline' : (() => {
+      if (ageMin < 1) return 'just now';
+      if (ageMin < 60) return `${ageMin}m ago`;
+      const hr = Math.floor(ageMin / 60);
+      if (hr < 24) return `${hr}h ${ageMin % 60}m ago`;
+      const days = Math.floor(hr / 24);
+      return `${days}d ${hr % 24}h ago`;
+    })();
     return `<span style="white-space:nowrap"><span class="status-dot ${dotCls}"></span>${escHtml(label)} <span style="color:#374151">${escHtml(age)}</span></span>`;
   }).join('');
 }
