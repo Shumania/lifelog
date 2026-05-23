@@ -212,6 +212,7 @@ async function loadData(force = false) {
     if (etag) lastETag = etag;
 
     data = await r.json();
+    checkCommandLatency(data);
     renderNowPlaying();
     renderMachineStatus();
     inferAndRenderRooms();
@@ -523,9 +524,30 @@ function dismissBanner() {
   history.replaceState({}, '', window.location.pathname);
 }
 
+// ── Timing ────────────────────────────────────────────────────────────────────
+let pendingCommandTimer = null;  // { uri, t_requested (ms), action }
+
+function checkCommandLatency(data) {
+  if (!pendingCommandTimer) return;
+  const elapsed = Date.now() - pendingCommandTimer.t_requested;
+  if (elapsed > 120000) { pendingCommandTimer = null; return; } // expire after 2 min
+  // Check if now_playing or recent history reflects our command
+  const np = data.now_playing;
+  const uri = pendingCommandTimer.uri;
+  const matched = (np && np.uri === uri) ||
+    (data.items && data.items.length > 0 && data.items[0].uri && data.items[0].uri.includes(uri.split(':').pop()));
+  if (matched) {
+    const secs = (elapsed / 1000).toFixed(1);
+    showToast(`⏱ ${secs}s to play`, false);
+    pendingCommandTimer = null;
+  }
+}
+
 // ── ntfy POST ─────────────────────────────────────────────────────────────────
 async function postNtfy(payload) {
   const topic = NTFY[house];
+  // Inject timing into every command
+  payload.t_requested = new Date().toISOString();
   try {
     const r = await fetch(topic, {
       method: 'POST',
@@ -533,6 +555,10 @@ async function postNtfy(payload) {
       body: JSON.stringify(payload)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    // Track pending command for latency measurement
+    if (payload.uri && ['play_spotify_uri', 'add_to_queue', 'queue_next'].includes(payload.action)) {
+      pendingCommandTimer = { uri: payload.uri, t_requested: Date.now(), action: payload.action };
+    }
     showToast('✓ Command sent');
   } catch(e) {
     showToast('✗ Failed: ' + e.message, true);
@@ -553,10 +579,21 @@ function renderDiscoveryLog() {
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     const roomStr = cmd.room ? ` · 🔊 ${esc(cmd.room)}` : '';
+    // Compute latency badge
+    let latencyBadge = '';
+    if (cmd.t_requested && cmd.t_playing) {
+      const reqMs = new Date(cmd.t_requested).getTime();
+      const playMs = new Date(cmd.t_playing).getTime();
+      if (playMs > reqMs && (playMs - reqMs) < 300000) {
+        const secs = ((playMs - reqMs) / 1000).toFixed(1);
+        latencyBadge = ` · <span style="color:#22d3ee;font-size:0.65rem">⏱ ${secs}s</span>`;
+      }
+    }
+    const sourceIcon = cmd.source === 'controller' ? '📱' : cmd.source === 'chat' ? '💬' : '▶';
 
     html += '<div class="discovery-entry">';
     html += '<div class="discovery-header">';
-    html += `<div class="discovery-title">▶ ${esc(cmd.title)}</div>`;
+    html += `<div class="discovery-title">${sourceIcon} ${esc(cmd.title)}</div>`;
     if (cmd.uri) {
       const entryUri = (cmd.uri || '').replace(/'/g, "\\'");
       const entryLbl = (`${cmd.artist || ''} – ${cmd.title || ''}`).replace(/'/g, "\\'");
@@ -569,7 +606,7 @@ function renderDiscoveryLog() {
       html += '</span>';
     }
     html += '</div>';
-    html += `<div class="discovery-meta">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr} · ${dateStr} ${timeStr}</div>`;
+    html += `<div class="discovery-meta">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr} · ${dateStr} ${timeStr}${latencyBadge}</div>`;
 
     // Narrative
     if (cmd.narrative) {

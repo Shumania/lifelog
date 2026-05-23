@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.36"
+SERVICE_VERSION = "1.37"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -895,6 +895,10 @@ def execute_command(cmd):
     result = {"type":"sonos_result","cmd_id":cmd_id,"action":action,"house":house,
               "success":False,"message":"","data":None}
 
+    # Pass through timing from command sender
+    if cmd.get("t_requested"):
+        result["t_requested"] = cmd["t_requested"]
+
     try:
         devices = current_devices_by_name
 
@@ -1263,6 +1267,11 @@ def execute_command(cmd):
         result["message"] = f"Error: {e}"
         post_error(f"Command error ({action}): {e}", context=f"cmd_id={cmd_id}", module="sonos")
 
+    # Stamp t_playing immediately after successful play command execution
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_radio",
+                                             "queue_next", "queue", "add_to_queue", "search_and_play"):
+        result["t_playing"] = now_iso()
+
     # Brief delay so speakers transition to PLAYING state before we query
     if result.get("success") and action in ("play_spotify_uri", "play_album", "play"):
         time.sleep(2)
@@ -1288,6 +1297,7 @@ def execute_command(cmd):
     if result.get("pending_history"):
         try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
         except: pass
+    result["t_result_sent"] = now_iso()
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result → HTTP {r.status_code}: {result['message']}")
