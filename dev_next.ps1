@@ -2,17 +2,12 @@
 
 $configPath = "C:\ProgramData\LifeLog\lifelog_config.json"
 
-# Step 1: Fetch token from ntfy (returns newline-delimited JSON)
+# Step 1: Fetch token from ntfy (plain text endpoint - simpler)
 try {
-    $raw = (Invoke-WebRequest -Uri "https://ntfy.sh/lifelog-gh-token-8x2k/json?poll=1&since=12h" -UseBasicParsing).Content
-    $lines = $raw -split "`n" | Where-Object { $_.Trim() -ne '' }
-    $token = $null
-    foreach ($line in $lines) {
-        $msg = $line | ConvertFrom-Json
-        if ($msg.message) { $token = $msg.message; break }
-    }
-    if (-not $token) { throw "No token message found" }
-    Write-Output "Got token: $($token.Substring(0,10))..."
+    $resp = Invoke-WebRequest -Uri "https://ntfy.sh/lifelog-gh-token-8x2k/raw?poll=1&since=12h" -UseBasicParsing
+    $token = $resp.Content.Trim()
+    if (-not $token -or $token.Length -lt 20) { throw "No valid token found, got: '$token'" }
+    Write-Output "Got token: $($token.Substring(0,10))... (len=$($token.Length))"
 } catch {
     Write-Output "ERROR fetching token: $_"
     exit 1
@@ -41,23 +36,14 @@ try {
 
 # Step 4: Kill running service so Start-LifeLog restarts it
 try {
-    $procs = Get-Process python* -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -like '*lifelog_service*'
-    }
-    if ($procs) {
-        $procs | Stop-Process -Force
-        Write-Output "Killed service process(es)"
-    } else {
-        # Broader kill - any python with lifelog
-        Get-Process python* -ErrorAction SilentlyContinue | ForEach-Object {
-            try {
-                $cmdline = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine
-                if ($cmdline -like '*lifelog*') {
-                    $_ | Stop-Process -Force
-                    Write-Output "Killed PID $($_.Id)"
-                }
-            } catch {}
-        }
+    Get-Process python* -ErrorAction SilentlyContinue | ForEach-Object {
+        try {
+            $cmdline = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine
+            if ($cmdline -like '*lifelog*') {
+                $_ | Stop-Process -Force
+                Write-Output "Killed PID $($_.Id)"
+            }
+        } catch {}
     }
     Write-Output "Service will restart via Start-LifeLog.ps1"
 } catch {
