@@ -277,6 +277,8 @@ async function loadData(alsoArchive) {
 }
 
 loadData(true);
+// Auto-refresh data-head.json every 60s to keep status bar and history current
+setInterval(() => loadData(false), 60000);
 
 // ── Real-time SSE via ntfy ─────────────────────────────────────────────────
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';

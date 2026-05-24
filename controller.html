@@ -366,7 +366,7 @@ function toggleRoom(room, checked) {
 // ── Now playing ───────────────────────────────────────────────────────────────
 function renderNowPlaying() {
   if (!data || !data.items) return;
-  const sonosItems = data.items.filter(i => i.house === house && i.room);
+  const sonosItems = data.items.filter(i => (!i.house || i.house === house) && i.room);
   const latest = sonosItems[0];
   const npEl = document.getElementById('now-playing-content');
   const roomsEl = document.getElementById('active-rooms');
@@ -384,7 +384,7 @@ function renderNowPlaying() {
 
   const useOptimistic = optTs > sseTs && optTs > latestTs && optTs > serverNpTs;
   const useSSE = !useOptimistic && sseTs > 0 && (Date.now() - sseTs) < 600000; // fresh within 10 min
-  const useServerNp = !useOptimistic && !useSSE && serverNp && serverNpTs > latestTs;
+  const useServerNp = !useOptimistic && !useSSE && serverNp && (serverNp.title || serverNp.label) && (isNaN(serverNpTs) || serverNpTs > latestTs || serverNpTs === 0);
 
   let item = null;
   if (useOptimistic) {
