@@ -18,6 +18,7 @@
     .item-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e2130; }
     .item-row:last-child { border-bottom: none; }
     .icon-wrap { width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
+    .icon-spotify-pure { background: #1DB954; border-radius: 50%; }
     .icon-spotify-cap  { background: #1e3a5f; }
     .icon-spotify-vas  { background: #1a3a2a; }
     .icon-apple-cap    { background: #3a1a2a; }
@@ -50,6 +51,8 @@
     .dot-green  { background: #4ade80; }
     .dot-yellow { background: #facc15; }
     .dot-red    { background: #f87171; }
+    /* Spotify mini logo SVG inline */
+    .sp-logo { width: 10px; height: 10px; }
   </style>
 </head>
 <body>
@@ -93,6 +96,8 @@
 </div>
 
 <script>
+const SPOTIFY_ICON = '<svg class="sp-logo" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>';
+
 let allData = [];
 let filter = 'all';
 
@@ -156,11 +161,13 @@ function getMusicIcon(item) {
   const src = item.source || '';
   const house = item.house || '';
   const isVashon = house === 'vashon';
-  if (src === 'spotify_teenbloods' || src === 'sonos_spotify' && isVashon) {
-    return { cls: 'icon-spotify-vas', emoji: '🏝️' };
+  // Pure Spotify (phone/car) — green circle with Spotify logo
+  if (src === 'spotify' || src === 'spotify_teenbloods') {
+    return { cls: 'icon-spotify-pure', emoji: SPOTIFY_ICON };
   }
-  if (src.startsWith('sonos_spotify') || src === 'spotify') {
-    return { cls: 'icon-spotify-cap', emoji: '🎵' };
+  // Sonos Spotify
+  if (src.startsWith('sonos_spotify')) {
+    return { cls: isVashon ? 'icon-spotify-vas' : 'icon-spotify-cap', emoji: '🎵' };
   }
   if (src.startsWith('sonos_apple')) {
     return { cls: isVashon ? 'icon-apple-vas' : 'icon-apple-cap', emoji: '🍎' };
