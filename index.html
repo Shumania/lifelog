@@ -35,6 +35,10 @@
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
+    .np-bar { background: linear-gradient(135deg, #1a2a4a 0%, #1a1d2e 100%); border: 1px solid #2a3a5a; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; display: none; }
+    .np-bar.active { display: block; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .np-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s infinite; display: inline-block; }
     .explore-btn { background:none; border:none; cursor:pointer; font-size:11px; padding:2px 4px; opacity:0.3; transition:opacity 0.15s; flex-shrink:0; }
     .explore-btn:hover { opacity:0.8; }
     .explore-btn.exploring { opacity:1; animation: pulse 1s infinite; }
@@ -70,6 +74,15 @@
 </div>
 
 <div class="px-4 bottom-pad">
+  <div id="now-playing-bar" class="np-bar">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span class="np-dot"></span>
+      <span style="font-size:10px;color:#60a5fa;font-weight:700;letter-spacing:0.5px;">NOW PLAYING</span>
+      <span id="np-rooms" style="font-size:10px;color:#64748b;margin-left:auto;"></span>
+    </div>
+    <div id="np-title" style="font-size:13px;font-weight:600;color:#e2e8f0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+    <div id="np-meta" style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  </div>
   <div id="feed" class="card px-3">
     <div class="empty-state">
       <div class="spinner mx-auto mb-3"></div>
@@ -264,6 +277,68 @@ async function loadData(alsoArchive) {
 }
 
 loadData(true);
+
+// ── Real-time SSE via ntfy ─────────────────────────────────────────────────
+const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
+let _sseCurrentTrack = null;
+let _sseSource = null;
+
+function connectSSE() {
+  if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
+  _sseSource = new EventSource(NTFY_UI_SSE);
+  _sseSource.addEventListener('message', (e) => {
+    try {
+      const outer = JSON.parse(e.data);
+      if (!outer.message) return;
+      const msg = JSON.parse(outer.message);
+      if (msg.event === 'now_playing') {
+        // Retire previous track to history if different
+        if (_sseCurrentTrack && (_sseCurrentTrack.title !== msg.title || _sseCurrentTrack.artist !== msg.artist)) {
+          prependLiveTrack(_sseCurrentTrack);
+        }
+        _sseCurrentTrack = { ...msg, _started: Date.now() };
+        showNowPlaying(msg);
+      } else if (msg.event === 'stopped') {
+        if (_sseCurrentTrack) { prependLiveTrack(_sseCurrentTrack); }
+        _sseCurrentTrack = null;
+        hideNowPlaying();
+      }
+    } catch(err) { /* ignore parse errors */ }
+  });
+  // EventSource auto-reconnects on error; we just log for debugging
+}
+
+function showNowPlaying(msg) {
+  const bar = document.getElementById('now-playing-bar');
+  bar.classList.add('active');
+  document.getElementById('np-title').textContent = msg.title || '';
+  const parts = [msg.artist, msg.album].filter(Boolean);
+  document.getElementById('np-meta').textContent = parts.join(' · ');
+  const rooms = msg.rooms || [];
+  document.getElementById('np-rooms').textContent = rooms.length > 1
+    ? '🔊 ' + rooms[0] + ' +' + (rooms.length - 1)
+    : rooms.length === 1 ? '🔊 ' + rooms[0] : '';
+}
+
+function hideNowPlaying() {
+  document.getElementById('now-playing-bar').classList.remove('active');
+}
+
+function prependLiveTrack(track) {
+  // Build an item that looks like what data-head.json provides
+  const item = {
+    type: 'music', title: track.title, artist: track.artist,
+    album: track.album, source: track.service ? ('sonos_' + track.service) : 'sonos',
+    rooms: track.rooms, timestamp: new Date(track._started).toISOString(), _live: true
+  };
+  // Don't dupe if top item matches
+  if (allData.length > 0 && allData[0].title === item.title && allData[0].artist === item.artist) return;
+  allData.unshift(item);
+  updateCounts();
+  renderFeed();
+}
+
+connectSSE();
 
 async function exploreArtist(btn, encodedData) {
   const trackData = JSON.parse(decodeURIComponent(encodedData));

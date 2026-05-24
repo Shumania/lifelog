@@ -177,6 +177,7 @@ let lastETag = null;
 let optimisticNowPlaying = null;    // {label, room, ts} — set after sending a command
 let optimisticActiveRooms = null;   // {rooms: [...], ts} — set after play command fires
 let postCommandRefreshTimer = null;
+let _sseNowPlaying = null;          // {title, artist, album, rooms, ts} — from ntfy SSE
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
@@ -185,6 +186,29 @@ window.addEventListener('DOMContentLoaded', async () => {
   handleDeepLink();
   setInterval(() => loadData(false), POLL_INTERVAL_MS);
 });
+
+// ── Real-time SSE via ntfy ─────────────────────────────────────────────────
+const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
+(function connectSSE() {
+  const es = new EventSource(NTFY_UI_SSE);
+  es.addEventListener('message', (e) => {
+    try {
+      const outer = JSON.parse(e.data);
+      if (!outer.message) return;
+      const msg = JSON.parse(outer.message);
+      if (msg.event === 'now_playing') {
+        _sseNowPlaying = {
+          title: msg.title, artist: msg.artist, album: msg.album,
+          rooms: msg.rooms || [], ts: Date.now()
+        };
+        renderNowPlaying();
+      } else if (msg.event === 'stopped') {
+        _sseNowPlaying = null;
+        renderNowPlaying();
+      }
+    } catch(err) {}
+  });
+})();
 
 // force=true skips ETag check and always re-renders
 async function loadData(force = false) {
@@ -349,15 +373,18 @@ function renderNowPlaying() {
   const labelEl = document.getElementById('now-playing-label');
 
   // Priority: 1) optimisticNowPlaying (client-side, from this session's play command)
-  //           2) data.now_playing (server-side, persisted across sessions)
-  //           3) latest sonosItem from history
+  //           2) _sseNowPlaying (real-time SSE from ntfy — most authoritative live source)
+  //           3) data.now_playing (server-side, persisted across sessions)
+  //           4) latest sonosItem from history
   const latestTs = latest ? new Date(latest.timestamp).getTime() : 0;
   const serverNp = data && data.now_playing;
   const serverNpTs = serverNp ? new Date(serverNp.played_at).getTime() : 0;
   const optTs = optimisticNowPlaying ? optimisticNowPlaying.ts : 0;
+  const sseTs = _sseNowPlaying ? _sseNowPlaying.ts : 0;
 
-  const useOptimistic = optTs > latestTs && optTs > serverNpTs;
-  const useServerNp = !useOptimistic && serverNp && serverNpTs > latestTs;
+  const useOptimistic = optTs > sseTs && optTs > latestTs && optTs > serverNpTs;
+  const useSSE = !useOptimistic && sseTs > 0 && (Date.now() - sseTs) < 600000; // fresh within 10 min
+  const useServerNp = !useOptimistic && !useSSE && serverNp && serverNpTs > latestTs;
 
   let item = null;
   if (useOptimistic) {
@@ -367,6 +394,16 @@ function renderNowPlaying() {
       album: '',
       timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
       room: optimisticNowPlaying.room
+    };
+  } else if (useSSE) {
+    item = {
+      title: _sseNowPlaying.title || '',
+      artist: _sseNowPlaying.artist || '',
+      album: _sseNowPlaying.album || '',
+      timestamp: new Date(_sseNowPlaying.ts).toISOString(),
+      room: _sseNowPlaying.rooms.length > 1
+        ? _sseNowPlaying.rooms[0] + ' +' + (_sseNowPlaying.rooms.length - 1)
+        : (_sseNowPlaying.rooms[0] || '')
     };
   } else if (useServerNp) {
     item = {
@@ -390,7 +427,7 @@ function renderNowPlaying() {
 
   const minAgo = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
 
-  if (useOptimistic || useServerNp) {
+  if (useOptimistic || useSSE || useServerNp) {
     labelEl.textContent = '▶ NOW PLAYING';
     labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 15) {

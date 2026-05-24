@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.37"
+SERVICE_VERSION = "1.38"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -57,6 +57,12 @@ GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/co
 NTFY_TOPICS = {
     "caphill": "lifelog-cmd-caphill-4x8m",
     "vashon":  "lifelog-cmd-vashon-9k3p",
+}
+
+# ntfy topics for real-time UI push (browser SSE)
+NTFY_UI_TOPICS = {
+    "caphill": "lifelog-ui-caphill-771b06",
+    "vashon":  "lifelog-ui-vashon-c47cbf",
 }
 
 # WiFi SSID → house mapping (overrides config file setting)
@@ -124,6 +130,7 @@ def load_config():
                 if "modules" not in cfg:
                     cfg["modules"] = ["sonos", "backup", "dev"]
                 cfg["ntfy_topic"] = NTFY_TOPICS.get(cfg["house"], NTFY_TOPICS["caphill"])
+                cfg["ntfy_ui_topic"] = NTFY_UI_TOPICS.get(cfg["house"], NTFY_UI_TOPICS["caphill"])
                 # sonos_commander: this machine executes unaddressed Sonos commands
                 # Set False on non-primary machines sharing the same house network
                 if "sonos_commander" not in cfg:
@@ -133,12 +140,14 @@ def load_config():
                 print(f"Config parse error ({p}): {e}")
     print("WARNING: No config found. Using defaults.")
     return {"house": "caphill", "modules": ["sonos", "backup", "dev"],
-            "ntfy_topic": NTFY_TOPICS["caphill"]}
+            "ntfy_topic": NTFY_TOPICS["caphill"],
+            "ntfy_ui_topic": NTFY_UI_TOPICS["caphill"]}
 
 config          = load_config()
 house           = config["house"]
 modules         = config["modules"]
 ntfy_topic      = config["ntfy_topic"]
+ntfy_ui_topic   = config.get("ntfy_ui_topic", "")
 gh_token        = config.get("github_token", "")
 computer        = os.environ.get("COMPUTERNAME", house)
 sonos_commander = config.get("sonos_commander", True)
@@ -168,6 +177,7 @@ def is_active_hours():
 # ─── GLOBAL SONOS STATE ─────────────────────────────────────────────────────
 current_devices_by_name  = {}
 room_state               = {}
+_last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
 speaker_failures         = {}
 speaker_offline_since    = {}
 last_cmd_sha             = None
@@ -405,6 +415,25 @@ def _send_heartbeat():
         log(f"Heartbeat failed: {e}")
 
 # ─── BUFFER FLUSH ────────────────────────────────────────────────────────────
+# ─── NTFY UI PUSH (real-time browser SSE) ───────────────────────────────────
+def publish_ui_event(event_type, data):
+    """Fire-and-forget: publish event to ntfy UI topic for browser SSE.
+    Sends JSON as plain text body (no Content-Type header) so ntfy stores it
+    as the message field. Browser parses outer.message as JSON."""
+    if not ntfy_ui_topic:
+        return
+    def _send():
+        try:
+            payload = json.dumps({"event": event_type, "ts": time.time(), **data})
+            requests.post(
+                f"https://ntfy.sh/{ntfy_ui_topic}",
+                data=payload.encode("utf-8"),
+                timeout=5
+            )
+        except Exception as e:
+            log(f"ntfy UI: {e}")
+    threading.Thread(target=_send, daemon=True).start()
+
 def flush_buffer(reason=""):
     global last_post_ts
     with pending_buffer_lock:
@@ -1407,6 +1436,25 @@ def sonos_main_loop():
                 info = get_track_info(dev)
                 try:    rooms_in_group = [m.player_name for m in dev.group.members]
                 except: rooms_in_group = [dev.player_name]
+
+                # ── Real-time UI push (ntfy SSE) ─────────────────────────
+                coord_name = dev.player_name
+                if info:
+                    coord_key = f"{info['title']}|{info['artist']}|{info['uri']}"
+                    if coord_key != _last_ui_track.get(coord_name):
+                        _last_ui_track[coord_name] = coord_key
+                        publish_ui_event("now_playing", {
+                            "title": info["title"], "artist": info["artist"],
+                            "album": info["album"], "rooms": rooms_in_group,
+                            "service": info.get("service", ""),
+                            "uri": info.get("uri", ""),
+                        })
+                else:
+                    if coord_name in _last_ui_track:
+                        del _last_ui_track[coord_name]
+                        # If no coordinators playing at all, send stopped
+                        if not _last_ui_track:
+                            publish_ui_event("stopped", {"rooms": rooms_in_group})
 
                 for room in rooms_in_group:
                     seen_rooms.add(room)
