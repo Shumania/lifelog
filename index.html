@@ -264,7 +264,7 @@ async function syncNow() {
   btn.disabled = true;
   btn.style.opacity = '0.6';
   try {
-    await fetch('https://tasklet.ai/webhook/whe_cdwbsbbh3tf42hyg4f4d', { method: 'POST', mode: 'no-cors' });
+    await fetch('https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e', { method: 'POST', mode: 'no-cors' });
     btn.textContent = '✓ Syncing…';
     btn.style.color = '#4ade80';
     setTimeout(async () => {
