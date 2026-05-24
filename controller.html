@@ -589,7 +589,7 @@ function renderDiscoveryLog() {
         latencyBadge = ` · <span style="color:#22d3ee;font-size:0.65rem">⏱ ${secs}s</span>`;
       }
     }
-    const sourceIcon = cmd.source === 'controller' ? '📱' : cmd.source === 'chat' ? '💬' : '▶';
+    const sourceIcon = cmd.source === 'controller' ? '📱' : cmd.source === 'chat' ? '💬' : cmd.source === 'explore' ? '🔍' : '▶';
 
     html += '<div class="discovery-entry">';
     html += '<div class="discovery-header">';
