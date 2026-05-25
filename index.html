@@ -40,7 +40,7 @@
     .np-bar.active { display: block; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     .np-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s infinite; display: inline-block; }
-    .explore-btn { background:none; border:none; cursor:pointer; font-size:11px; padding:2px 4px; opacity:0.3; transition:opacity 0.15s; flex-shrink:0; }
+    .explore-btn { background:none; border:none; cursor:pointer; font-size:14px; padding:6px 8px; opacity:0.3; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color: rgba(255,255,255,0.1); }
     .explore-btn:hover { opacity:0.8; }
     .explore-btn.exploring { opacity:1; animation: pulse 1s infinite; }
     .explore-btn.done { opacity:0.6; }
@@ -215,7 +215,7 @@ function renderFeed() {
         parts.push(item.room);
       }
       const sub = parts.map(escHtml).join(' · ');
-      const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source}));
+      const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source})).replace(/'/g,'%27');
       return `<div class="item-row">
         <div class="icon-wrap ${cls}">${emoji}</div>
         <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
