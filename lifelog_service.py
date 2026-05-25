@@ -103,8 +103,8 @@ BACKUP_INTERVAL            = 3600  # run extract every 60 min
 DEV_POLL_INTERVAL          = 100   # dev_next.ps1 poll (s)
 OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
-BATCH_SIZE                 = 5     # flush buffer when this many tracks queued
-BATCH_TRAILING_SECS        = 300   # flush 5 min after last track was added
+BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
+BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
 def load_config():
