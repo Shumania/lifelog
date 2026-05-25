@@ -314,11 +314,14 @@ function updateStatusFromSSE(msg) {
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
 let _sseCurrentTrack = null;
 let _sseSource = null;
+let _sseLastMsg = Date.now();
 
 function connectSSE() {
   if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
   _sseSource = new EventSource(NTFY_UI_SSE);
+  _sseLastMsg = Date.now();
   _sseSource.addEventListener('message', (e) => {
+    _sseLastMsg = Date.now();
     try {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
@@ -340,8 +343,11 @@ function connectSSE() {
       }
     } catch(err) { /* ignore parse errors */ }
   });
-  // EventSource auto-reconnects on error; we just log for debugging
 }
+// Watchdog: if no SSE message in 2 min, force reconnect (iOS Safari kills EventSource silently)
+setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+// Reconnect on visibility change (returning from background tab)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) connectSSE(); });
 
 function showNowPlaying(msg) {
   const bar = document.getElementById('now-playing-bar');

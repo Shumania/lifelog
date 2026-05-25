@@ -189,9 +189,15 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 // ── Real-time SSE via ntfy ─────────────────────────────────────────────────
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
-(function connectSSE() {
-  const es = new EventSource(NTFY_UI_SSE);
-  es.addEventListener('message', (e) => {
+let _sseES = null;
+let _sseLastMsg = Date.now();
+
+function connectSSE() {
+  if (_sseES) { try { _sseES.close(); } catch(e) {} }
+  _sseES = new EventSource(NTFY_UI_SSE);
+  _sseLastMsg = Date.now();
+  _sseES.addEventListener('message', (e) => {
+    _sseLastMsg = Date.now();
     try {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
@@ -222,7 +228,12 @@ const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon
       }
     } catch(err) {}
   });
-})();
+}
+connectSSE();
+// Watchdog: if no SSE message in 2 min, force reconnect (iOS Safari kills EventSource silently)
+setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+// Reconnect on visibility change (returning from background tab)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) connectSSE(); });
 
 // force=true skips ETag check and always re-renders
 async function loadData(force = false) {
