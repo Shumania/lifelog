@@ -194,7 +194,7 @@ let _sseLastMsg = Date.now();
 
 function connectSSE() {
   if (_sseES) { try { _sseES.close(); } catch(e) {} }
-  _sseES = new EventSource(NTFY_UI_SSE);
+  _sseES = new EventSource(NTFY_UI_SSE + '?since=5m');
   _sseLastMsg = Date.now();
   _sseES.addEventListener('message', (e) => {
     _sseLastMsg = Date.now();

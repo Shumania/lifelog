@@ -318,7 +318,7 @@ let _sseLastMsg = Date.now();
 
 function connectSSE() {
   if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
-  _sseSource = new EventSource(NTFY_UI_SSE);
+  _sseSource = new EventSource(NTFY_UI_SSE + '?since=5m');
   _sseLastMsg = Date.now();
   _sseSource.addEventListener('message', (e) => {
     _sseLastMsg = Date.now();
@@ -372,8 +372,8 @@ function prependLiveTrack(track) {
     album: track.album, source: track.service ? ('sonos_' + track.service) : 'sonos',
     rooms: track.rooms, timestamp: new Date(track._started).toISOString(), _live: true
   };
-  // Don't dupe if top item matches
-  if (allData.length > 0 && allData[0].title === item.title && allData[0].artist === item.artist) return;
+  // Don't dupe if any recent item matches (SSE replay on reconnect may re-deliver)
+  if (allData.slice(0, 20).some(x => x.title === item.title && x.artist === item.artist)) return;
   allData.unshift(item);
   updateCounts();
   renderFeed();
