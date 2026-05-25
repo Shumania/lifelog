@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.38"
+SERVICE_VERSION = "1.39"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -178,6 +178,8 @@ def is_active_hours():
 current_devices_by_name  = {}
 room_state               = {}
 _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
+_last_sse_rooms_playing  = []   # for change detection on status_update SSE
+_sse_status_counter      = 0    # emit status_update every N poll cycles
 speaker_failures         = {}
 speaker_offline_since    = {}
 last_cmd_sha             = None
@@ -1448,13 +1450,15 @@ def sonos_main_loop():
                             "album": info["album"], "rooms": rooms_in_group,
                             "service": info.get("service", ""),
                             "uri": info.get("uri", ""),
+                            "client_id": client_id, "version": SERVICE_VERSION,
                         })
                 else:
                     if coord_name in _last_ui_track:
                         del _last_ui_track[coord_name]
                         # If no coordinators playing at all, send stopped
                         if not _last_ui_track:
-                            publish_ui_event("stopped", {"rooms": rooms_in_group})
+                            publish_ui_event("stopped", {"rooms": rooms_in_group,
+                                "client_id": client_id, "version": SERVICE_VERSION})
 
                 for room in rooms_in_group:
                     seen_rooms.add(room)
@@ -1483,6 +1487,20 @@ def sonos_main_loop():
             if cmd_counter >= CMD_POLL_EVERY:
                 poll_commands()
                 cmd_counter = 0
+
+            # ── Periodic status_update SSE (every ~60s) ────────────────
+            global _sse_status_counter, _last_sse_rooms_playing
+            _sse_status_counter += 1
+            if _sse_status_counter >= 4:  # 4 × 15s = ~60s
+                _sse_status_counter = 0
+                rp = get_rooms_playing()
+                # Always send status_update so UI status bar stays fresh
+                publish_ui_event("status_update", {
+                    "client_id": client_id,
+                    "version": SERVICE_VERSION,
+                    "rooms_playing": rp,
+                })
+                _last_sse_rooms_playing = rp
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"

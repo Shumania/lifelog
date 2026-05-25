@@ -287,6 +287,29 @@ loadData(true);
 // Auto-refresh data-head.json every 60s to keep status bar and history current
 setInterval(() => loadData(false), 60000);
 
+// ── Live status bar updates from SSE ───────────────────────────────────────
+function updateStatusFromSSE(msg) {
+  // Update the status bar dot/age for this client to "just now"
+  const bar = document.getElementById('status-bar');
+  if (!bar) return;
+  const spans = bar.querySelectorAll('span[style*="white-space"]');
+  const clientLabel = (msg.client_id || '')
+    .replace('sonos_vashon', '🏝 Sonos')
+    .replace('sonos_caphill', '🏙 Sonos')
+    .replace('backup_', '💾 ');
+  for (const span of spans) {
+    if (span.textContent.includes(clientLabel) || span.textContent.includes(msg.client_id)) {
+      // Update dot to green + age to "just now"
+      const dot = span.querySelector('.status-dot');
+      if (dot) { dot.className = 'status-dot dot-green'; }
+      const ageSpan = span.querySelector('span[style*="color"]');
+      if (ageSpan) { ageSpan.textContent = 'just now'; }
+      return;
+    }
+  }
+  // Client not in bar yet — do a full re-render on next data load
+}
+
 // ── Real-time SSE via ntfy ─────────────────────────────────────────────────
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
 let _sseCurrentTrack = null;
@@ -300,6 +323,9 @@ function connectSSE() {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
       const msg = JSON.parse(outer.message);
+      // Any SSE event with client_id → update status bar freshness
+      if (msg.client_id) { updateStatusFromSSE(msg); }
+
       if (msg.event === 'now_playing') {
         // Retire previous track to history if different
         if (_sseCurrentTrack && (_sseCurrentTrack.title !== msg.title || _sseCurrentTrack.artist !== msg.artist)) {

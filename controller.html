@@ -206,6 +206,20 @@ const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon
         _sseNowPlaying = null;
         renderNowPlaying();
       }
+      // Any event with rooms_playing → update room 🔊 indicators live
+      if (msg.rooms_playing && data) {
+        data.rooms_playing = msg.rooms_playing;
+        renderRoomCheckboxes();
+      }
+      // Any event with client_id → update status bar freshness
+      if (msg.client_id && data && data.client_status) {
+        const c = data.client_status.find(s => s.client_id === msg.client_id);
+        if (c) {
+          c.last_seen = new Date().toISOString();
+          if (msg.version) c.version = msg.version;
+        }
+        renderMachineStatus();
+      }
     } catch(err) {}
   });
 })();
