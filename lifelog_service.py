@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.42"
+SERVICE_VERSION = "1.43"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1500,13 +1500,16 @@ def sonos_main_loop():
                 poll_commands()
                 cmd_counter = 0
 
-            # ── Periodic status_update SSE (every ~60s) ────────────────
+            # ── Change-driven status_update SSE + 5-min keepalive ─────
+            # ntfy free tier: 250 msg/day. Only send when rooms_playing
+            # changes OR every 5 min as keepalive (~288/day max).
             global _sse_status_counter, _last_sse_rooms_playing
             _sse_status_counter += 1
-            if _sse_status_counter >= 4:  # 4 × 15s = ~60s
+            rp = get_rooms_playing()
+            rooms_changed = (rp != _last_sse_rooms_playing)
+            keepalive_due = (_sse_status_counter >= 20)  # 20 × 15s = 5 min
+            if rooms_changed or keepalive_due:
                 _sse_status_counter = 0
-                rp = get_rooms_playing()
-                # Always send status_update so UI status bar stays fresh
                 publish_ui_event("status_update", {
                     "client_id": client_id,
                     "version": SERVICE_VERSION,
