@@ -193,6 +193,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
 let _sseES = null;
 let _sseLastMsg = Date.now();
+let _sseRoomsBuffer = null; // Buffer SSE rooms_playing if it arrives before data loads
 
 function connectSSE() {
   if (_sseES) { try { _sseES.close(); } catch(e) {} }
@@ -222,11 +223,15 @@ function connectSSE() {
         renderNowPlaying();
       }
       // Any event with rooms_playing → update room 🔊 indicators + auto-sync selection
-      if (msg.rooms_playing && data) {
-        data.rooms_playing = msg.rooms_playing;
-        selectedRooms = [...msg.rooms_playing];
-        localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
-        renderRoomCheckboxes();
+      if (msg.rooms_playing) {
+        if (data) {
+          data.rooms_playing = msg.rooms_playing;
+          selectedRooms = [...msg.rooms_playing];
+          localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+          renderRoomCheckboxes();
+        } else {
+          _sseRoomsBuffer = msg.rooms_playing; // Buffer until data loads
+        }
       }
       // Any event with client_id → update status bar freshness
       if (msg.client_id && data && data.client_status) {
@@ -356,11 +361,18 @@ function inferActiveRooms() {
 }
 
 function inferAndRenderRooms() {
-  const inferred = inferActiveRooms();
-  // Always sync to live rooms on load/refresh — keeps checked state matching reality
-  if (inferred.length > 0) {
-    selectedRooms = inferred;
+  // SSE buffer takes priority — it arrived before data loaded and has the freshest state
+  if (_sseRoomsBuffer) {
+    data.rooms_playing = _sseRoomsBuffer;
+    selectedRooms = [..._sseRoomsBuffer];
     localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+    _sseRoomsBuffer = null;
+  } else {
+    const inferred = inferActiveRooms();
+    if (inferred.length > 0) {
+      selectedRooms = inferred;
+      localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+    }
   }
   renderRoomCheckboxes();
   updateCommander();
