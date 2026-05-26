@@ -27,6 +27,8 @@
     .btn-icon { background: #1e2130; border: 1px solid #2d3148; border-radius: 10px; padding: 10px 14px; font-size: 18px; cursor: pointer; transition: all 0.15s; }
     .btn-icon:active { background: #252840; }
     .room-chip { display: inline-flex; align-items: center; gap: 4px; background: #1e3a5f; border: 1px solid #2a4a7f; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #93c5fd; }
+    .add-room-chip { display: inline-flex; align-items: center; gap: 3px; background: #1a1d2e; border: 1px dashed #3d4560; border-radius: 20px; padding: 3px 10px; font-size: 11px; color: #64748b; cursor: pointer; transition: all 0.15s; }
+    .add-room-chip:active { background: #252840; border-color: #4ade80; color: #4ade80; }
     .now-playing-bar { background: linear-gradient(135deg, #1a2a4a, #1a1d2e); border: 1px solid #2a3a5a; border-radius: 12px; }
     .discovery-entry { background: #1e2130; border: 1px solid #2d3148; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
     .discovery-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -207,14 +209,23 @@ function connectSSE() {
           title: msg.title, artist: msg.artist, album: msg.album,
           rooms: msg.rooms || [], ts: Date.now()
         };
+        // Sync rooms_playing + selectedRooms to where music actually is
+        if (msg.rooms && msg.rooms.length > 0 && data) {
+          data.rooms_playing = msg.rooms;
+          selectedRooms = [...msg.rooms];
+          localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+          renderRoomCheckboxes();
+        }
         renderNowPlaying();
       } else if (msg.event === 'stopped') {
         _sseNowPlaying = null;
         renderNowPlaying();
       }
-      // Any event with rooms_playing → update room 🔊 indicators live
+      // Any event with rooms_playing → update room 🔊 indicators + auto-sync selection
       if (msg.rooms_playing && data) {
         data.rooms_playing = msg.rooms_playing;
+        selectedRooms = [...msg.rooms_playing];
+        localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
         renderRoomCheckboxes();
       }
       // Any event with client_id → update status bar freshness
@@ -346,8 +357,10 @@ function inferActiveRooms() {
 
 function inferAndRenderRooms() {
   const inferred = inferActiveRooms();
-  if (selectedRooms.length === 0 && inferred.length > 0) {
+  // Always sync to live rooms on load/refresh — keeps checked state matching reality
+  if (inferred.length > 0) {
     selectedRooms = inferred;
+    localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
   }
   renderRoomCheckboxes();
   updateCommander();
@@ -386,6 +399,28 @@ function toggleRoom(room, checked) {
   if (checked) { if (!selectedRooms.includes(room)) selectedRooms.push(room); }
   else { selectedRooms = selectedRooms.filter(r => r !== room); }
   localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+}
+
+async function addRoomToGroup(room) {
+  // Find the current coordinator (first room in rooms_playing)
+  const liveRooms = (data && Array.isArray(data.rooms_playing)) ? data.rooms_playing : selectedRooms;
+  const source = liveRooms[0];
+  if (!source) { showToast('No room currently playing', true); return; }
+
+  const payload = { action: 'group', source, add: [room], target_client_id: commanderId };
+  await postNtfy(payload);
+
+  // Optimistic: add room to playing state + selected rooms
+  if (data) {
+    if (!data.rooms_playing) data.rooms_playing = [];
+    if (!data.rooms_playing.includes(room)) data.rooms_playing.push(room);
+  }
+  if (!selectedRooms.includes(room)) selectedRooms.push(room);
+  localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+  renderRoomCheckboxes();
+  renderNowPlaying();
+
+  showToast(`+ ${room} joined group`);
 }
 
 // ── Now playing ───────────────────────────────────────────────────────────────
@@ -472,11 +507,29 @@ function renderNowPlaying() {
     <p class="text-xs text-slate-500 mt-0.5">${esc(item.album || '')}${item.album && item.room ? ' · ' : ''}${esc(item.room || '')} · ${fmtRelative(new Date(item.timestamp))}</p>
   `;
 
-  const inferred = inferActiveRooms();
-  const displayRooms = useOptimistic && item.room ? [item.room] : inferred;
-  roomsEl.innerHTML = displayRooms.map(r =>
+  // Determine which rooms are currently playing
+  const playingRooms = useOptimistic && item.room ? [item.room]
+    : useSSE && _sseNowPlaying && _sseNowPlaying.rooms.length > 0 ? [..._sseNowPlaying.rooms]
+    : inferActiveRooms();
+
+  // Playing room chips
+  let roomHtml = playingRooms.map(r =>
     `<span class="room-chip">🔊 ${esc(r)}</span>`
   ).join('');
+
+  // "Add room" chips — show other rooms not currently playing for quick group expansion
+  if (playingRooms.length > 0) {
+    const allRooms = ROOMS[house] || [];
+    const otherRooms = allRooms.filter(r => !playingRooms.includes(r));
+    if (otherRooms.length > 0) {
+      roomHtml += '<div class="flex flex-wrap gap-1 mt-1.5">';
+      roomHtml += otherRooms.map(r =>
+        `<span class="add-room-chip" onclick="addRoomToGroup('${r.replace(/'/g, "\\'")}')">+ ${esc(r)}</span>`
+      ).join('');
+      roomHtml += '</div>';
+    }
+  }
+  roomsEl.innerHTML = roomHtml;
 }
 
 // ── Machine status ─────────────────────────────────────────────────────────────
