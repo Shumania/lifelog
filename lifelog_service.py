@@ -18,6 +18,12 @@ Falls back to sonos_config.json if lifelog_config.json not found.
 """
 
 import sys
+import io
+# Force UTF-8 on Windows to avoid charmap codec errors with emoji in logs
+if sys.stdout and hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+if sys.stderr and hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
 import json
 import time
 import hashlib
@@ -45,7 +51,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.44"
+SERVICE_VERSION = "1.45"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -394,7 +400,7 @@ def get_rooms_playing():
                     playing.append(name)
         except Exception as e:
             states[name] = f"ERROR:{e}"
-    log(f"[sonos] 🔊 Transport states: {states}")
+    log(f"[sonos] Transport states: {states}")
     return sorted(set(playing))
 
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
@@ -1345,7 +1351,7 @@ def execute_command(cmd):
         if cmd_room and cmd_room not in rp:
             rp.append(cmd_room)
             result["heartbeat"]["rooms_playing"] = sorted(rp)
-            log(f"[sonos] 🔊 Injected {cmd_room} into rooms_playing (post-play)")
+            log(f"[sonos] Injected {cmd_room} into rooms_playing (post-play)")
     with pending_buffer_lock:
         if pending_buffer:
             result["pending_history"] = list(pending_buffer)
@@ -1494,7 +1500,7 @@ def sonos_main_loop():
                             if prev and prev.get("track_key") and prev.get("started_at"):
                                 post_history(prev["track_info"], room, prev["started_at"], now)
                             room_state[room] = {"track_key": track_key, "track_info": info, "started_at": now}
-                            log(f'▶ {room}: "{info["title"]}" – {info["artist"]} [{info["service"]}]')
+                            log(f'> {room}: "{info["title"]}" - {info["artist"]} [{info["service"]}]')
                     else:
                         if prev and prev.get("track_key") and prev.get("started_at"):
                             post_history(prev["track_info"], room, prev["started_at"], now)
