@@ -1,19 +1,18 @@
-# Check if service is running, show version, and restart it
-$proc = Get-Process -Name python* -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*lifelog_service*' }
-if ($proc) {
-    Write-Output "Service PID: $($proc.Id) running"
-    Write-Output "Stopping old service..."
-    $proc | Stop-Process -Force
-    Start-Sleep -Seconds 2
-}
-
-# Start the new version
-Write-Output "Starting lifelog_service.py v1.45..."
-Start-Process -FilePath "python" -ArgumentList "C:\ProgramData\LifeLog\lifelog_service.py" -WorkingDirectory "C:\ProgramData\LifeLog" -WindowStyle Hidden
-Start-Sleep -Seconds 3
-$newProc = Get-Process -Name python* -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*lifelog_service*' }
-if ($newProc) {
-    Write-Output "Service restarted: PID $($newProc.Id)"
+# Force an SSE test publish by reading ntfy_ui_topic from config
+$cfg = Get-Content "C:\ProgramData\LifeLog\lifelog_config.json" | ConvertFrom-Json
+Write-Output "ntfy_ui_topic from config: $($cfg.ntfy_ui_topic)"
+Write-Output "house from config: $($cfg.house)"
+# Also check if the topic is in the running service's output
+$logFile = "C:\ProgramData\LifeLog\lifelog_service.log"
+if (Test-Path $logFile) {
+    $last50 = Get-Content $logFile -Tail 50
+    $sseLines = $last50 | Select-String "SSE|ntfy_ui"
+    if ($sseLines) {
+        Write-Output "Recent SSE log lines:"
+        $sseLines | ForEach-Object { Write-Output $_.Line }
+    } else {
+        Write-Output "No SSE-related lines in last 50 log entries"
+    }
 } else {
-    Write-Output "WARNING: Service did not start"
+    Write-Output "No log file found"
 }
