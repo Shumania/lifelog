@@ -378,6 +378,7 @@ def get_rooms_playing():
                 # Skip TV/line-in passthrough — soundbars report PLAYING for external audio
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
+                    log(f"[sonos] 🔍 {name} URI: {track_uri[:120]}")
                     if track_uri.startswith(("x-sonos-htastream://", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
