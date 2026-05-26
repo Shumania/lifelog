@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.43"
+SERVICE_VERSION = "1.44"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -436,6 +436,7 @@ def publish_ui_event(event_type, data):
     Rate-limited to avoid ntfy 429 (250 msgs/day free tier).
     now_playing events bypass rate limiter; status_update subject to it."""
     global _last_sse_publish_ts
+    log(f"SSE ENTER: {event_type} topic={ntfy_ui_topic!r}")
     if not ntfy_ui_topic:
         log(f"SSE SKIP: ntfy_ui_topic is empty — cannot publish {event_type}")
         return
@@ -446,7 +447,7 @@ def publish_ui_event(event_type, data):
         if elapsed < SSE_MIN_GAP_S:
             return   # silently skip — not worth logging every skip
     _last_sse_publish_ts = now
-    log(f"SSE: publishing {event_type} → {ntfy_ui_topic}")
+    log(f"SSE: publishing {event_type} → {ntfy_ui_topic} (gap={int(now - (_last_sse_publish_ts - 1))}s)")
     def _send():
         try:
             payload = json.dumps({"event": event_type, "ts": time.time(), **data})
