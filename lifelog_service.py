@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.39"
+SERVICE_VERSION = "1.40"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -375,6 +375,14 @@ def get_rooms_playing():
             state = info.get("current_transport_state", "STOPPED")
             states[name] = state
             if state == "PLAYING":
+                # Skip TV passthrough — soundbars report PLAYING for TV audio
+                try:
+                    track_uri = dev.get_current_track_info().get("uri", "")
+                    if track_uri.startswith("x-sonos-htastream://"):
+                        states[name] = "PLAYING_TV"
+                        continue
+                except Exception:
+                    pass  # If we can't check, include it
                 # Coordinator is playing — add all visible members of this group
                 if dev.group:
                     for member in dev.group.members:
