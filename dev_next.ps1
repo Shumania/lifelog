@@ -1,8 +1,9 @@
-# Force update to v1.44 — clean rollback flags first
+# Diagnose v1.44 exit — capture all output
 $installDir = 'C:\ProgramData\LifeLog'
 $serviceFile = Join-Path $installDir 'lifelog_service.py'
+$logFile = Join-Path $installDir 'startup_debug.log'
 
-# STEP 1: Clean up ALL rollback artifacts
+# Clean ALL rollback artifacts
 $flagFiles = @('update_in_progress', 'update_started', 'lifelog_service.py.bak')
 foreach ($f in $flagFiles) {
     $fp = Join-Path $installDir $f
@@ -12,7 +13,7 @@ foreach ($f in $flagFiles) {
     }
 }
 
-# STEP 2: Stop existing service
+# Stop existing service
 $procs = Get-Process python*, python3* -ErrorAction SilentlyContinue | Where-Object {
     try { $_.CommandLine -match 'lifelog_service' } catch { $false }
 }
@@ -20,11 +21,9 @@ if ($procs) {
     Write-Output "Stopping $($procs.Count) process(es)..."
     $procs | Stop-Process -Force
     Start-Sleep -Seconds 3
-} else {
-    Write-Output "No running service found"
 }
 
-# STEP 3: Download v1.44 from GitHub API
+# Download v1.44 fresh
 $configPath = Join-Path $installDir 'lifelog_config.json'
 $token = ''
 if (Test-Path $configPath) {
@@ -37,23 +36,46 @@ if ($token) { $headers['Authorization'] = "token $token" }
 try {
     $resp = Invoke-RestMethod -Uri 'https://api.github.com/repos/Shumania/lifelog/contents/lifelog_service.py' -Headers $headers
     $content = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($resp.content))
-    $version = if ($content -match 'SERVICE_VERSION\s*=\s*"([^"]+)"') { $Matches[1] } else { 'unknown' }
     [System.IO.File]::WriteAllText($serviceFile, $content, [System.Text.Encoding]::UTF8)
-    Write-Output "Installed v$version"
+    
+    # Verify version
+    if ($content -match 'SERVICE_VERSION\s*=\s*"([^"]+)"') {
+        Write-Output "File version: v$($Matches[1])"
+    }
 
-    # Verify no rollback flags exist
+    # Verify NO flags exist
     foreach ($f in $flagFiles) {
         $fp = Join-Path $installDir $f
         if (Test-Path $fp) { Write-Output "WARNING: $f still exists!" }
     }
 
-    # STEP 4: Start
-    $p = Start-Process -FilePath 'python' -ArgumentList $serviceFile -WorkingDirectory $installDir -PassThru -WindowStyle Hidden
-    Start-Sleep -Seconds 10
+    # Start with output redirected to log file
+    Write-Output "Starting with output capture..."
+    $p = Start-Process -FilePath 'python' -ArgumentList $serviceFile `
+        -WorkingDirectory $installDir `
+        -RedirectStandardOutput $logFile `
+        -RedirectStandardError (Join-Path $installDir 'startup_error.log') `
+        -PassThru -WindowStyle Hidden -NoNewWindow:$false
+    
+    Start-Sleep -Seconds 15
+    
     if ($p.HasExited) {
-        Write-Output "WARNING: exited code $($p.ExitCode)"
+        Write-Output "EXITED code $($p.ExitCode)"
+        Write-Output "=== STDOUT (last 30 lines) ==="
+        if (Test-Path $logFile) {
+            Get-Content $logFile -Tail 30 | ForEach-Object { Write-Output $_ }
+        }
+        Write-Output "=== STDERR ==="
+        $errLog = Join-Path $installDir 'startup_error.log'
+        if (Test-Path $errLog) {
+            Get-Content $errLog -Tail 30 | ForEach-Object { Write-Output $_ }
+        }
     } else {
-        Write-Output "Running v$version PID=$($p.Id)"
+        Write-Output "Running PID=$($p.Id)"
+        if (Test-Path $logFile) {
+            Write-Output "=== First 20 lines ==="
+            Get-Content $logFile -Head 20 | ForEach-Object { Write-Output $_ }
+        }
     }
 } catch {
     Write-Output "ERROR: $($_.Exception.Message)"
