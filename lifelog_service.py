@@ -375,10 +375,10 @@ def get_rooms_playing():
             state = info.get("current_transport_state", "STOPPED")
             states[name] = state
             if state == "PLAYING":
-                # Skip TV passthrough — soundbars report PLAYING for TV audio
+                # Skip TV/line-in passthrough — soundbars report PLAYING for external audio
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
-                    if track_uri.startswith("x-sonos-htastream://"):
+                    if track_uri.startswith(("x-sonos-htastream://", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
                 except Exception:
