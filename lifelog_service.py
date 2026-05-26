@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.41"
+SERVICE_VERSION = "1.42"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -379,7 +379,7 @@ def get_rooms_playing():
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
                     log(f"[sonos] 🔍 {name} URI: {track_uri[:120]}")
-                    if track_uri.startswith(("x-sonos-htastream://", "x-rincon-stream:")):
+                    if track_uri.startswith(("x-sonos-htastream:", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
                 except Exception:
@@ -438,13 +438,14 @@ def publish_ui_event(event_type, data):
     def _send():
         try:
             payload = json.dumps({"event": event_type, "ts": time.time(), **data})
-            requests.post(
+            r = requests.post(
                 f"https://ntfy.sh/{ntfy_ui_topic}",
                 data=payload.encode("utf-8"),
                 timeout=5
             )
+            log(f"SSE POST → {r.status_code} ({len(payload)}b)")
         except Exception as e:
-            log(f"ntfy UI: {e}")
+            log(f"SSE POST FAILED: {e}")
     threading.Thread(target=_send, daemon=True).start()
 
 def flush_buffer(reason=""):

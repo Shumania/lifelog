@@ -1,17 +1,13 @@
-# Grab last 50 lines of service log looking for SSE debug output
+# Grab SSE debug lines from service log
 $logFile = "C:\ProgramData\LifeLog\lifelog_service.log"
 if (Test-Path $logFile) {
-    $lines = Get-Content $logFile -Tail 80
-    $sseLines = $lines | Select-String -Pattern "SSE|ntfy_ui|publish_ui|status_update" -SimpleMatch
+    $lines = Get-Content $logFile -Tail 40
+    $sseLines = $lines | Where-Object { $_ -match "SSE|ntfy_ui|publish_ui" }
     if ($sseLines.Count -gt 0) {
-        $output = "=== SSE DEBUG LINES (last 80 lines of log) ===`n"
-        $output += ($sseLines | ForEach-Object { $_.Line }) -join "`n"
+        ($sseLines | Select-Object -Last 15) -join "`n"
     } else {
-        $output = "=== NO SSE LINES FOUND in last 80 lines ===`n"
-        $output += "Last 20 lines:`n"
-        $output += ($lines | Select-Object -Last 20) -join "`n"
+        "NO SSE LINES in last 40`n" + (($lines | Select-Object -Last 10) -join "`n")
     }
-    $output
 } else {
-    "Log file not found at $logFile"
+    "Log file not found"
 }
