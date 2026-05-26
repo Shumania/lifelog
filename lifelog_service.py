@@ -432,7 +432,9 @@ def publish_ui_event(event_type, data):
     Sends JSON as plain text body (no Content-Type header) so ntfy stores it
     as the message field. Browser parses outer.message as JSON."""
     if not ntfy_ui_topic:
+        log(f"SSE SKIP: ntfy_ui_topic is empty — cannot publish {event_type}")
         return
+    log(f"SSE: publishing {event_type} → {ntfy_ui_topic}")
     def _send():
         try:
             payload = json.dumps({"event": event_type, "ts": time.time(), **data})
