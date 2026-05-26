@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.44"
+SERVICE_VERSION = "1.45"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -148,7 +148,7 @@ house           = config["house"]
 modules         = config["modules"]
 ntfy_topic      = config["ntfy_topic"]
 ntfy_ui_topic   = config.get("ntfy_ui_topic", "") or NTFY_UI_TOPICS.get(house, "")
-log(f"ntfy_ui_topic resolved to: {ntfy_ui_topic!r} (house={house!r})")
+print(f"[init] ntfy_ui_topic resolved to: {ntfy_ui_topic!r} (house={house!r})")
 gh_token        = config.get("github_token", "")
 computer        = os.environ.get("COMPUTERNAME", house)
 sonos_commander = config.get("sonos_commander", True)
