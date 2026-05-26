@@ -9,7 +9,7 @@ if (Test-Path $logFile) {
     } else {
         $output = "=== NO SSE LINES FOUND in last 80 lines ===`n"
         $output += "Last 20 lines:`n"
-        $output += ($lines | Select-Tail 20) -join "`n"
+        $output += ($lines | Select-Object -Last 20) -join "`n"
     }
     $output
 } else {
