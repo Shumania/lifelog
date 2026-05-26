@@ -5,7 +5,6 @@ $logFile = Join-Path $installDir 'startup_debug.log'
 $errLog = Join-Path $installDir 'startup_error.log'
 
 # Aggressively kill ALL python processes that have lifelog_service in their command line
-# Use WMI which reliably reads CommandLine unlike Get-Process
 $wmiProcs = Get-WmiObject Win32_Process -Filter "Name LIKE 'python%'" -ErrorAction SilentlyContinue
 $killed = 0
 foreach ($wp in $wmiProcs) {
@@ -17,7 +16,6 @@ foreach ($wp in $wmiProcs) {
 }
 if ($killed -eq 0) {
     Write-Output "No lifelog_service processes found via WMI"
-    # Fallback: kill ALL python processes (nuclear option)
     $allPy = Get-Process python*, python3* -ErrorAction SilentlyContinue
     if ($allPy) {
         Write-Output "Fallback: killing $($allPy.Count) python process(es)"
@@ -34,7 +32,7 @@ $remaining = Get-WmiObject Win32_Process -Filter "Name LIKE 'python%'" -ErrorAct
 if ($remaining) {
     Write-Output "WARNING: $($remaining.Count) process(es) STILL alive after kill!"
     foreach ($r in $remaining) {
-        Write-Output "  PID=$($r.ProcessId) — force taskkill"
+        Write-Output "  PID=$($r.ProcessId) -- force taskkill"
         & taskkill /F /PID $r.ProcessId 2>&1
     }
     Start-Sleep -Seconds 3
@@ -50,7 +48,7 @@ foreach ($f in $flagFiles) {
     }
 }
 
-# Start fresh — the mutex is released once the old process is dead
+# Start fresh
 Write-Output "Starting v1.44..."
 $p = Start-Process -FilePath 'python' -ArgumentList $serviceFile `
     -WorkingDirectory $installDir `
