@@ -45,7 +45,7 @@ _ensure("requests")
 import requests
 
 # ─── CONSTANTS ──────────────────────────────────────────────────────────────
-SERVICE_VERSION = "1.45"
+SERVICE_VERSION = "1.43"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -428,13 +428,24 @@ def _send_heartbeat():
 
 # ─── BUFFER FLUSH ────────────────────────────────────────────────────────────
 # ─── NTFY UI PUSH (real-time browser SSE) ───────────────────────────────────
+_last_sse_publish_ts = 0.0          # global rate limiter
+SSE_MIN_GAP_S = 45                  # minimum seconds between ANY SSE publishes (~1920/day max)
+
 def publish_ui_event(event_type, data):
     """Fire-and-forget: publish event to ntfy UI topic for browser SSE.
-    Sends JSON as plain text body (no Content-Type header) so ntfy stores it
-    as the message field. Browser parses outer.message as JSON."""
+    Rate-limited to avoid ntfy 429 (250 msgs/day free tier).
+    now_playing events bypass rate limiter; status_update subject to it."""
+    global _last_sse_publish_ts
     if not ntfy_ui_topic:
         log(f"SSE SKIP: ntfy_ui_topic is empty — cannot publish {event_type}")
         return
+    now = time.time()
+    # Rate-limit non-critical events (status_update, stopped)
+    if event_type not in ("now_playing", "track_ended"):
+        elapsed = now - _last_sse_publish_ts
+        if elapsed < SSE_MIN_GAP_S:
+            return   # silently skip — not worth logging every skip
+    _last_sse_publish_ts = now
     log(f"SSE: publishing {event_type} → {ntfy_ui_topic}")
     def _send():
         try:
@@ -1508,7 +1519,7 @@ def sonos_main_loop():
             _sse_status_counter += 1
             rp = get_rooms_playing()
             rooms_changed = (rp != _last_sse_rooms_playing)
-            keepalive_due = (_sse_status_counter >= 20)  # 20 × 15s = 5 min
+            keepalive_due = (_sse_status_counter >= 60)  # 60 × 15s = 15 min (~96/day)
             if rooms_changed or keepalive_due:
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {
