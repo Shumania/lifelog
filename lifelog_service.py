@@ -1744,6 +1744,10 @@ def main():
     # -- Confirm successful update (clear rollback flags) --------------------
     # All threads started, Sonos about to run -- the update is good.
     if flag_started.exists():
+        # LAYER 2 TEST: crash AFTER parent's 15s monitor exits, BEFORE flag cleanup
+        log("LAYER 2 TEST: Sleeping 20s to outlast parent monitor, then crashing...")
+        time.sleep(20)
+        raise RuntimeError("INTENTIONAL LAYER 2 CRASH -- delayed past parent monitor window")
         log(f"Update confirmed successful -- clearing rollback files")
         flag_started.unlink(missing_ok=True)
         flag_in_progress.unlink(missing_ok=True)
