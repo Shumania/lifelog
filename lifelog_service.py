@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.47"
+SERVICE_VERSION = "1.46"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1589,9 +1589,6 @@ def main():
         log(f"Warning: single-instance check failed ({e}) -- proceeding anyway")
 
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
-
-    # === INTENTIONAL TEST CRASH === (remove after testing)
-    raise RuntimeError("INTENTIONAL TEST CRASH -- testing rollback layer 1 (immediate crash)")
 
     # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
