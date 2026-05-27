@@ -1629,7 +1629,6 @@ def main():
         log(f"Warning: single-instance check failed ({e}) -- proceeding anyway")
 
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
-    raise RuntimeError("INTENTIONAL TEST CRASH -- rollback layer 1 test v1.48")
 
     # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
