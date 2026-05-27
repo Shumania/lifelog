@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.49"
+SERVICE_VERSION = "1.50"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -270,8 +270,17 @@ def gh_decode(r):
 
 # --- ERROR REPORTING --------------------------------------------------------
 # [ROLLBACK-UNSAFE] post_error() is called by self_update_check() on failure.
+_last_error_post = {}  # module -> timestamp of last posted error
+ERROR_THROTTLE_SECONDS = 1800  # 30 minutes
+
 def post_error(message, context="", module="service"):
-    """POST error to webhook so agent sees it immediately."""
+    """POST error to webhook so agent sees it immediately. Throttled: same module suppressed for 30 min."""
+    now = time.time()
+    last = _last_error_post.get(module, 0)
+    if now - last < ERROR_THROTTLE_SECONDS:
+        log(f"[error-throttle] Suppressed {module} error (last posted {int(now - last)}s ago)")
+        return
+    _last_error_post[module] = now
     payload = {
         "type":     "sonos_error",
         "house":    house,
