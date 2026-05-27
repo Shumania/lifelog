@@ -306,7 +306,35 @@ def self_update_check():
         latest = versions.get("service_version", SERVICE_VERSION)
         log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
+            # Clear any skip_version file if we are now running the target version
+            # (e.g. user deployed it via installer)
+            skip_path = Path(sys.argv[0]).resolve().parent / "skip_version"
+            if skip_path.exists():
+                skip_path.unlink(missing_ok=True)
+                log("Cleared skip_version (now running target)")
             return
+        # -- Skip-version guard: don't retry a version that already crashed --
+        skip_path = Path(sys.argv[0]).resolve().parent / "skip_version"
+        if skip_path.exists():
+            try:
+                skip_data = skip_path.read_text(encoding="utf-8").strip()
+                # Format: "version|fail_count"
+                parts = skip_data.split("|")
+                skip_ver = parts[0]
+                skip_count = int(parts[1]) if len(parts) > 1 else 1
+                if skip_ver == latest:
+                    if skip_count >= 2:
+                        log(f"Skipping v{latest}: crashed {skip_count}x. Manual restart or new version required.")
+                        return
+                    else:
+                        log(f"Retrying v{latest} (attempt {skip_count + 1}/2)")
+                # Different version on GitHub now -- clear the skip file
+                elif skip_ver != latest:
+                    skip_path.unlink(missing_ok=True)
+                    log(f"Cleared skip_version (was {skip_ver}, now trying {latest})")
+            except Exception as _se:
+                log(f"Warning: bad skip_version file, removing: {_se}")
+                skip_path.unlink(missing_ok=True)
         log(f"Update: v{SERVICE_VERSION} -> v{latest}. Downloading...")
         r2 = gh_get("lifelog_service.py", retries=1)
         if not r2:
@@ -370,8 +398,20 @@ def self_update_check():
                 (flag_dir / "update_in_progress").unlink(missing_ok=True)
                 (flag_dir / "update_started").unlink(missing_ok=True)
                 bak_path.unlink(missing_ok=True)
-                log("Rollback complete -- restarting with previous version...")
-                post_error(f"Update v{latest} crashed on startup (exit {child.returncode}). Rolled back to v{SERVICE_VERSION}.", module="update")
+                # Write skip_version to prevent retry loop
+                skip_path = flag_dir / "skip_version"
+                skip_count = 1
+                if skip_path.exists():
+                    try:
+                        parts = skip_path.read_text(encoding="utf-8").strip().split("|")
+                        if parts[0] == latest and len(parts) > 1:
+                            skip_count = int(parts[1]) + 1
+                    except Exception:
+                        pass
+                skip_path.write_text(f"{latest}|{skip_count}", encoding="utf-8")
+                log(f"Rollback complete -- wrote skip_version={latest} (fail #{skip_count})")
+                log("Restarting with previous version...")
+                post_error(f"Update v{latest} crashed on startup (exit {child.returncode}). Rolled back to v{SERVICE_VERSION}. Fail #{skip_count}/2.", module="update")
                 subprocess.Popen(
                     [sys.executable, str(this_path)] + sys.argv[1:],
                     creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
@@ -1589,9 +1629,6 @@ def main():
         log(f"Warning: single-instance check failed ({e}) -- proceeding anyway")
 
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
-
-    # === INTENTIONAL TEST CRASH === (remove after testing)
-    raise RuntimeError("INTENTIONAL TEST CRASH -- testing rollback layer 1 (immediate crash)")
 
     # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
