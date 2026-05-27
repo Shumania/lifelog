@@ -20,6 +20,8 @@ Falls back to sonos_config.json if lifelog_config.json not found.
 import sys
 import io
 # Force UTF-8 on Windows to avoid charmap codec errors with emoji in logs
+# [ROLLBACK-UNSAFE] This wrapper runs before any new version loads. A crash here
+# (e.g. encoding error) kills the process before self-update can even start.
 if sys.stdout and hasattr(sys.stdout, 'buffer'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
 if sys.stderr and hasattr(sys.stderr, 'buffer'):
@@ -40,6 +42,8 @@ if sys.version_info < (3, 8):
     print("ERROR: Python 3.8+ required")
     sys.exit(1)
 
+# [ROLLBACK-UNSAFE] _ensure + requests import: runs at module load before any update.
+# If pip or import fails here, service can't reach GitHub to self-update.
 def _ensure(pkg, import_as=None):
     try:
         __import__(import_as or pkg)
@@ -51,6 +55,9 @@ _ensure("requests")
 import requests
 
 # --- CONSTANTS --------------------------------------------------------------
+# [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
+# process. The old version's SERVICE_VERSION is compared against versions.json to decide
+# whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 SERVICE_VERSION = "1.45"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
@@ -77,6 +84,7 @@ WIFI_HOUSE_MAP = {
     "coconetz":     "vashon",
 }
 
+# [ROLLBACK-UNSAFE] Called at module level during startup.
 def detect_house_from_wifi():
     """Detect current house by checking connected WiFi SSID. Returns house string or None."""
     try:
@@ -113,6 +121,8 @@ BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
 
 # --- CONFIG -----------------------------------------------------------------
+# [ROLLBACK-UNSAFE] load_config() runs at module level. If it crashes (bad JSON,
+# missing file, encoding), the service never starts and can't self-update.
 def load_config():
     for p in [INSTALL_DIR / "lifelog_config.json", INSTALL_DIR / "sonos_config.json"]:
         if p.exists():
@@ -200,6 +210,8 @@ pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 
 # --- UTILITIES --------------------------------------------------------------
+# [ROLLBACK-UNSAFE] log(), gh_headers(), gh_get(), gh_decode() are all called by
+# self_update_check(). A non-ASCII char in log() crashed v1.44. Keep these ASCII-clean.
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -257,6 +269,7 @@ def gh_decode(r):
     return base64.b64decode(b64).decode("utf-8")
 
 # --- ERROR REPORTING --------------------------------------------------------
+# [ROLLBACK-UNSAFE] post_error() is called by self_update_check() on failure.
 def post_error(message, context="", module="service"):
     """POST error to webhook so agent sees it immediately."""
     payload = {
@@ -275,6 +288,12 @@ def post_error(message, context="", module="service"):
         pass
 
 # --- SELF-UPDATE ------------------------------------------------------------
+# [ROLLBACK-UNSAFE] *** MOST CRITICAL SECTION ***
+# This entire function runs in the OLD version. It downloads the new file, overwrites
+# itself, releases the mutex, spawns the new process, and monitors for crash-rollback.
+# ANY bug here (encoding, syntax, logic) runs in the currently deployed code, NOT the
+# new version. The v1.44 crash was caused by a non-ASCII arrow in a log() call here.
+# Rules: (1) 100% ASCII, (2) wrap in try/except, (3) test with OLD version in mind.
 def self_update_check():
     """Check versions.json; download + restart if service_version changed."""
     import ast as _ast
@@ -545,6 +564,8 @@ def buffer_monitor_thread():
             flush_buffer(reason="trailing-edge")
 
 # --- VERSION CHECK THREAD ---------------------------------------------------
+# [ROLLBACK-UNSAFE] Calls self_update_check() every 60 min. This is the periodic
+# trigger path for self-update (vs. ntfy instant trigger below).
 def version_check_thread():
     time.sleep(120)  # wait 2 min after start
     while True:
@@ -965,6 +986,8 @@ def execute_command(cmd):
         devices = current_devices_by_name
 
         if action == "update_check":
+            # [ROLLBACK-UNSAFE] This code path triggers self_update_check() from the
+            # old version. The 2s delay + thread spawn all run in currently deployed code.
             result["success"] = True
             result["message"] = f"Running update check (v{SERVICE_VERSION})"
             def _do(): time.sleep(2); self_update_check()
@@ -1397,6 +1420,8 @@ def poll_commands():
     execute_command(cmd)
 
 # --- NTFY LISTENER THREAD ---------------------------------------------------
+# [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
+# execute_command() -> self_update_check(). The old version's parsing + dispatch runs here.
 def ntfy_listener_thread():
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
@@ -1544,6 +1569,9 @@ def sonos_main_loop():
         time.sleep(POLL_INTERVAL)
 
 # --- MAIN -------------------------------------------------------------------
+# [ROLLBACK-UNSAFE] main() through self_update_check() call (line ~1644).
+# The mutex guard, rollback detection, sleep prevention, config logging, and
+# the startup self_update_check() all run in the old version before handoff.
 def main():
     # -- Single-instance guard (Windows named mutex) --------------------------
     # Prevents multiple copies running simultaneously (e.g. after self-update race).
