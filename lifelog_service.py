@@ -50,7 +50,7 @@ def _ensure(pkg, import_as=None):
 _ensure("requests")
 import requests
 
-# ─── CONSTANTS ──────────────────────────────────────────────────────────────
+# --- CONSTANTS --------------------------------------------------------------
 SERVICE_VERSION = "1.45"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
@@ -71,7 +71,7 @@ NTFY_UI_TOPICS = {
     "vashon":  "lifelog-ui-vashon-c47cbf",
 }
 
-# WiFi SSID → house mapping (overrides config file setting)
+# WiFi SSID -> house mapping (overrides config file setting)
 WIFI_HOUSE_MAP = {
     "shumickernet": "caphill",
     "coconetz":     "vashon",
@@ -112,7 +112,7 @@ OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
 
-# ─── CONFIG ─────────────────────────────────────────────────────────────────
+# --- CONFIG -----------------------------------------------------------------
 def load_config():
     for p in [INSTALL_DIR / "lifelog_config.json", INSTALL_DIR / "sonos_config.json"]:
         if p.exists():
@@ -160,7 +160,7 @@ computer        = os.environ.get("COMPUTERNAME", house)
 sonos_commander = config.get("sonos_commander", True)
 client_id       = f"lifelog_{computer.lower()}"   # canonical ID used in heartbeats
 
-# ─── ACTIVE HOURS ───────────────────────────────────────────────────────────
+# --- ACTIVE HOURS -----------------------------------------------------------
 def seattle_hour():
     """Return current hour in Seattle time (America/Los_Angeles)."""
     try:
@@ -178,10 +178,10 @@ def seattle_hour():
             return (utc_hour + offset) % 24
 
 def is_active_hours():
-    """Returns True if Seattle time is 7 AM–10 PM."""
+    """Returns True if Seattle time is 7 AM-10 PM."""
     return 7 <= seattle_hour() < 22
 
-# ─── GLOBAL SONOS STATE ─────────────────────────────────────────────────────
+# --- GLOBAL SONOS STATE -----------------------------------------------------
 current_devices_by_name  = {}
 room_state               = {}
 _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
@@ -199,7 +199,7 @@ pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 
-# ─── UTILITIES ──────────────────────────────────────────────────────────────
+# --- UTILITIES --------------------------------------------------------------
 def now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -256,7 +256,7 @@ def gh_decode(r):
     b64 = r.json().get("content", "").replace("\n", "")
     return base64.b64decode(b64).decode("utf-8")
 
-# ─── ERROR REPORTING ────────────────────────────────────────────────────────
+# --- ERROR REPORTING --------------------------------------------------------
 def post_error(message, context="", module="service"):
     """POST error to webhook so agent sees it immediately."""
     payload = {
@@ -274,7 +274,7 @@ def post_error(message, context="", module="service"):
     except Exception:
         pass
 
-# ─── SELF-UPDATE ────────────────────────────────────────────────────────────
+# --- SELF-UPDATE ------------------------------------------------------------
 def self_update_check():
     """Check versions.json; download + restart if service_version changed."""
     import ast as _ast
@@ -288,16 +288,16 @@ def self_update_check():
         log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
             return
-        log(f"Update: v{SERVICE_VERSION} → v{latest}. Downloading...")
+        log(f"Update: v{SERVICE_VERSION} -> v{latest}. Downloading...")
         r2 = gh_get("lifelog_service.py", retries=1)
         if not r2:
-            log("Download failed — will retry next cycle")
+            log("Download failed -- will retry next cycle")
             post_error(f"Failed to download update v{latest}", module="update")
             return
         new_code = gh_decode(r2)
         # Sanity checks before overwriting
         if len(new_code) < 10_000:
-            log(f"Update aborted: downloaded file too small ({len(new_code)} bytes) — likely partial")
+            log(f"Update aborted: downloaded file too small ({len(new_code)} bytes) -- likely partial")
             post_error(f"Update v{latest} aborted: file too small ({len(new_code)} bytes)", module="update")
             return
         try:
@@ -320,10 +320,10 @@ def self_update_check():
             log(f"Saved backup: {bak_path}")
         except Exception as be:
             log(f"Warning: couldn't save backup: {be}")
-        # Atomic write: write to .tmp then os.replace() — no partial files
+        # Atomic write: write to .tmp then os.replace() -- no partial files
         tmp_path.write_text(new_code, encoding="utf-8")
         os.replace(str(tmp_path), str(this_path))
-        log(f"Updated to v{latest} — restarting in new window...")
+        log(f"Updated to v{latest} -- restarting in new window...")
         # Release the single-instance mutex BEFORE spawning so the new process
         # can acquire it immediately (avoids race where new process starts fast,
         # sees ERROR_ALREADY_EXISTS, and exits with "another instance running").
@@ -340,18 +340,18 @@ def self_update_check():
             [sys.executable, str(this_path)] + sys.argv[1:],
             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         )
-        # Monitor the child for 15 seconds — if it crashes fast, rollback here
+        # Monitor the child for 15 seconds -- if it crashes fast, rollback here
         import time as _t
         _t.sleep(15)
         if child.poll() is not None and child.returncode != 0:
-            log(f"NEW VERSION CRASHED (exit {child.returncode}) — rolling back!")
+            log(f"NEW VERSION CRASHED (exit {child.returncode}) -- rolling back!")
             try:
                 import shutil as _sh
                 _sh.copy2(str(bak_path), str(this_path))
                 (flag_dir / "update_in_progress").unlink(missing_ok=True)
                 (flag_dir / "update_started").unlink(missing_ok=True)
                 bak_path.unlink(missing_ok=True)
-                log("Rollback complete — restarting with previous version...")
+                log("Rollback complete -- restarting with previous version...")
                 post_error(f"Update v{latest} crashed on startup (exit {child.returncode}). Rolled back to v{SERVICE_VERSION}.", module="update")
                 subprocess.Popen(
                     [sys.executable, str(this_path)] + sys.argv[1:],
@@ -364,7 +364,7 @@ def self_update_check():
         log(f"Self-update error: {e}")
         post_error(f"Self-update error: {e}", module="update")
 
-# ─── HEARTBEAT HELPERS ──────────────────────────────────────────────────────
+# --- HEARTBEAT HELPERS ------------------------------------------------------
 def get_rooms_playing():
     """Query each known Sonos device for transport state, return list of rooms currently PLAYING."""
     if "sonos" not in modules:
@@ -373,7 +373,7 @@ def get_rooms_playing():
     states = {}
     for name, dev in current_devices_by_name.items():
         try:
-            # Skip group members — only query coordinators and solo speakers
+            # Skip group members -- only query coordinators and solo speakers
             # Group members mirror coordinator state and can report stale PLAYING
             if dev.group and dev.group.coordinator and dev.group.coordinator != dev:
                 states[name] = "GROUPED_MEMBER_SKIP"
@@ -382,16 +382,16 @@ def get_rooms_playing():
             state = info.get("current_transport_state", "STOPPED")
             states[name] = state
             if state == "PLAYING":
-                # Skip TV/line-in passthrough — soundbars report PLAYING for external audio
+                # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
-                    log(f"[sonos] 🔍 {name} URI: {track_uri[:120]}")
+                    log(f"[sonos] [DBG] {name} URI: {track_uri[:120]}")
                     if track_uri.startswith(("x-sonos-htastream:", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
                 except Exception:
                     pass  # If we can't check, include it
-                # Coordinator is playing — add all visible members of this group
+                # Coordinator is playing -- add all visible members of this group
                 if dev.group:
                     for member in dev.group.members:
                         if member.player_name in current_devices_by_name:
@@ -428,12 +428,12 @@ def _send_heartbeat():
     payload.update(heartbeat_fields())
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=10)
-        log(f"♥ Heartbeat (standalone) → HTTP {r.status_code}")
+        log(f"* Heartbeat (standalone) -> HTTP {r.status_code}")
     except Exception as e:
         log(f"Heartbeat failed: {e}")
 
-# ─── BUFFER FLUSH ────────────────────────────────────────────────────────────
-# ─── NTFY UI PUSH (real-time browser SSE) ───────────────────────────────────
+# --- BUFFER FLUSH ------------------------------------------------------------
+# --- NTFY UI PUSH (real-time browser SSE) -----------------------------------
 _last_sse_publish_ts = 0.0          # global rate limiter
 SSE_MIN_GAP_S = 45                  # minimum seconds between ANY SSE publishes (~1920/day max)
 
@@ -444,16 +444,16 @@ def publish_ui_event(event_type, data):
     global _last_sse_publish_ts
     log(f"SSE ENTER: {event_type} topic={ntfy_ui_topic!r}")
     if not ntfy_ui_topic:
-        log(f"SSE SKIP: ntfy_ui_topic is empty — cannot publish {event_type}")
+        log(f"SSE SKIP: ntfy_ui_topic is empty -- cannot publish {event_type}")
         return
     now = time.time()
     # Rate-limit non-critical events (status_update, stopped)
     if event_type not in ("now_playing", "track_ended"):
         elapsed = now - _last_sse_publish_ts
         if elapsed < SSE_MIN_GAP_S:
-            return   # silently skip — not worth logging every skip
+            return   # silently skip -- not worth logging every skip
     _last_sse_publish_ts = now
-    log(f"SSE: publishing {event_type} → {ntfy_ui_topic} (gap={int(now - (_last_sse_publish_ts - 1))}s)")
+    log(f"SSE: publishing {event_type} -> {ntfy_ui_topic} (gap={int(now - (_last_sse_publish_ts - 1))}s)")
     def _send():
         try:
             payload = json.dumps({"event": event_type, "ts": time.time(), **data})
@@ -462,7 +462,7 @@ def publish_ui_event(event_type, data):
                 data=payload.encode("utf-8"),
                 timeout=5
             )
-            log(f"SSE POST → {r.status_code} ({len(payload)}b)")
+            log(f"SSE POST -> {r.status_code} ({len(payload)}b)")
         except Exception as e:
             log(f"SSE POST FAILED: {e}")
     threading.Thread(target=_send, daemon=True).start()
@@ -489,16 +489,16 @@ def flush_buffer(reason=""):
     }
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=20)
-        log(f"✓ Flushed {len(items)} track(s) [{reason}] → HTTP {r.status_code}")
+        log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
         last_post_ts = time.time()
         try: PENDING_PATH.unlink(missing_ok=True)
         except: pass
     except Exception as e:
-        log(f"✗ Flush failed [{reason}]: {e} — restoring {len(items)} item(s) to buffer")
+        log(f"[FAIL] Flush failed [{reason}]: {e} -- restoring {len(items)} item(s) to buffer")
         with pending_buffer_lock:
             pending_buffer[:0] = items  # prepend back
 
-# ─── HEARTBEAT THREAD ───────────────────────────────────────────────────────
+# --- HEARTBEAT THREAD -------------------------------------------------------
 def heartbeat_thread():
     """Fallback heartbeat: fires only if no other POST has gone out in HEARTBEAT_FALLBACK_SECS.
     During active sessions, every flush/command result carries heartbeat fields inline,
@@ -513,15 +513,15 @@ def heartbeat_thread():
         time.sleep(60)  # check every minute
 
         if not is_active_hours():
-            log(f"♥ Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) — paused")
+            log(f"* Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) -- paused")
             time.sleep(HEARTBEAT_QUIET_SLEEP)
             continue
 
         since_last = time.time() - last_post_ts
         if since_last < HEARTBEAT_FALLBACK_SECS:
-            continue  # a flush or command result posted recently — no heartbeat needed
+            continue  # a flush or command result posted recently -- no heartbeat needed
 
-        # Nothing sent in 60 min — flush pending buffer (carries heartbeat) or send standalone
+        # Nothing sent in 60 min -- flush pending buffer (carries heartbeat) or send standalone
         with pending_buffer_lock:
             has_pending = len(pending_buffer) > 0
         if has_pending:
@@ -529,9 +529,9 @@ def heartbeat_thread():
         else:
             _send_heartbeat()
             last_post_ts = time.time()
-        log(f"♥ Heartbeat: fallback fired (idle {int(since_last//60)} min) — next check in 60s")
+        log(f"* Heartbeat: fallback fired (idle {int(since_last//60)} min) -- next check in 60s")
 
-# ─── BUFFER MONITOR THREAD ──────────────────────────────────────────────────
+# --- BUFFER MONITOR THREAD --------------------------------------------------
 def buffer_monitor_thread():
     """Flush buffer on trailing-edge timer: 5 min after last track was added."""
     while True:
@@ -544,21 +544,21 @@ def buffer_monitor_thread():
         if since_last_track >= BATCH_TRAILING_SECS:
             flush_buffer(reason="trailing-edge")
 
-# ─── VERSION CHECK THREAD ───────────────────────────────────────────────────
+# --- VERSION CHECK THREAD ---------------------------------------------------
 def version_check_thread():
     time.sleep(120)  # wait 2 min after start
     while True:
         self_update_check()
         time.sleep(VERSION_CHECK_INTERVAL)
 
-# ─── BACKUP MODULE THREAD ───────────────────────────────────────────────────
+# --- BACKUP MODULE THREAD ---------------------------------------------------
 def backup_thread():
     """Run lifelog_extract.py every hour; it handles cursor/hash dedup internally."""
     extract = INSTALL_DIR / "lifelog_extract.py"
 
     def run_extract():
         if not extract.exists():
-            log("Backup: lifelog_extract.py not found — skipping")
+            log("Backup: lifelog_extract.py not found -- skipping")
             return
         log("Backup: running lifelog_extract.py...")
         try:
@@ -588,7 +588,7 @@ def backup_thread():
         time.sleep(BACKUP_INTERVAL)
         run_extract()
 
-# ─── DEV LOOP THREAD ────────────────────────────────────────────────────────
+# --- DEV LOOP THREAD --------------------------------------------------------
 def dev_loop_thread():
     """Poll GitHub for dev_next.ps1; run if SHA changed; post output to webhook."""
     last_sha = ""
@@ -630,7 +630,7 @@ def dev_loop_thread():
             log(f"[dev] Poll error: {e}")
         time.sleep(DEV_POLL_INTERVAL)
 
-# ─── SONOS: SERVICE DETECTION ───────────────────────────────────────────────
+# --- SONOS: SERVICE DETECTION -----------------------------------------------
 def detect_service(uri, metadata=""):
     import re
     s = (uri + metadata).lower()
@@ -649,7 +649,7 @@ def detect_service(uri, metadata=""):
         if sid in SID_MAP: return SID_MAP[sid]
     return "sonos_unknown"
 
-# ─── SONOS: DISCOVERY ───────────────────────────────────────────────────────
+# --- SONOS: DISCOVERY -------------------------------------------------------
 def get_coordinators():
     try:
         import soco
@@ -668,11 +668,11 @@ def get_coordinators():
         log(f"Discovery error: {e}")
         return []
 
-# ─── SONOS: TRACK INFO ──────────────────────────────────────────────────────
+# --- SONOS: TRACK INFO ------------------------------------------------------
 
 def get_container_context(device):
     """Get the playlist/album/station context from Sonos position info.
-    Uses GetPositionInfo which has the EnqueuedTransportURI — the actual
+    Uses GetPositionInfo which has the EnqueuedTransportURI -- the actual
     Spotify playlist/album/station URI (not the Sonos queue URI)."""
     try:
         pos = device.avTransport.GetPositionInfo(InstanceID=0)
@@ -713,7 +713,7 @@ def get_container_context(device):
         enq_uri = pos.get("EnqueuedTransportURI", "") or ""
         enq_meta = pos.get("EnqueuedTransportURIMetaData", "") or ""
 
-        # Prefer EnqueuedTransportURI — it's the actual playlist/album
+        # Prefer EnqueuedTransportURI -- it's the actual playlist/album
         if enq_uri and not enq_uri.startswith("x-rincon-queue:"):
             container_uri = enq_uri
             meta_xml = enq_meta
@@ -721,7 +721,7 @@ def get_container_context(device):
             container_uri = media_uri
             meta_xml = media_meta
         else:
-            # Both are queue URIs — try metadata anyway
+            # Both are queue URIs -- try metadata anyway
             container_uri = enq_uri or media_uri
             meta_xml = enq_meta or media_meta
 
@@ -804,13 +804,13 @@ def get_track_info(device):
         if failures == OFFLINE_THRESHOLD:
             speaker_offline_since[name] = now_epoch
             msg = f"Speaker '{name}' offline after {failures} failures: {e}"
-            log(f"⚠ {msg}")
+            log(f"[WARN] {msg}")
             post_error(msg, context=f"speaker={name}", module="sonos")
         elif failures < OFFLINE_THRESHOLD:
             log(f"Error from {name} (attempt {failures}): {e}")
         return None
 
-# ─── SONOS: POST HISTORY (buffered) ─────────────────────────────────────────
+# --- SONOS: POST HISTORY (buffered) -----------------------------------------
 def post_history(track, room, started_at, ended_at):
     global last_sonos_activity_ts, last_track_added_ts
     duration_played = int((ended_at - started_at).total_seconds())
@@ -842,11 +842,11 @@ def post_history(track, room, started_at, ended_at):
         pending_buffer.append(item)
         last_track_added_ts = time.time()
         count = len(pending_buffer)
-    log(f'+ Buffered: "{track["title"]}" – {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
+    log(f'+ Buffered: "{track["title"]}" - {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
     if count >= BATCH_SIZE:
         flush_buffer(reason="count")
 
-# ─── SONOS: MULTI-MACHINE TARGETING ─────────────────────────────────────────
+# --- SONOS: MULTI-MACHINE TARGETING -----------------------------------------
 def is_my_command(cmd):
     """
     Determines if this machine should execute a Sonos command.
@@ -862,14 +862,14 @@ def is_my_command(cmd):
     if target:
         mine = target.lower() in (client_id.lower(), computer.lower())
         if not mine:
-            log(f"⏭ Skipping (targeted to {target}, we are {client_id})")
+            log(f"[SKIP] Skipping (targeted to {target}, we are {client_id})")
         return mine
     else:
         if not sonos_commander:
-            log(f"⏭ Skipping unaddressed command (not commander): {cmd.get('action')}")
+            log(f"[SKIP] Skipping unaddressed command (not commander): {cmd.get('action')}")
         return sonos_commander
 
-# ─── SONOS: COMMAND DEDUP ───────────────────────────────────────────────────
+# --- SONOS: COMMAND DEDUP ---------------------------------------------------
 def _cmd_hash(cmd):
     # Include cmd_ts so repeated commands with different timestamps are NOT deduped.
     # Genuine duplicates (from ntfy since=5m replay) have the SAME cmd_ts and WILL be deduped.
@@ -884,7 +884,7 @@ def _mark_executed(cmd):
 def _already_executed(cmd):
     return _cmd_hash(cmd) in executed_cmd_hashes
 
-# ─── SONOS: EXECUTE COMMAND ─────────────────────────────────────────────────
+# --- SONOS: EXECUTE COMMAND -------------------------------------------------
 def _setup_rooms(cmd, devices):
     """Resolve room(s) from command. Returns (device, rooms_list, was_grouped_with).
     Multiple rooms: groups them (first = coordinator). Single room: makes it solo."""
@@ -951,7 +951,7 @@ def execute_command(cmd):
     try:
         requests.post(WEBHOOK, json={"type":"sonos_ack","cmd_id":cmd_id,
                                      "action":action,"house":house,"timestamp":now_iso()}, timeout=10)
-        log(f"✓ Ack: {action}")
+        log(f"[OK] Ack: {action}")
     except Exception: pass
 
     result = {"type":"sonos_result","cmd_id":cmd_id,"action":action,"house":house,
@@ -1217,7 +1217,7 @@ def execute_command(cmd):
             if dev:
                 dev.volume = volume
                 result["success"] = True
-                result["message"] = f"Volume → {volume} in {room}"
+                result["message"] = f"Volume -> {volume} in {room}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
@@ -1229,7 +1229,7 @@ def execute_command(cmd):
                 new_vol = min(100, dev.volume + step)
                 dev.volume = new_vol
                 result["success"] = True
-                result["message"] = f"Volume → {new_vol} in {room}"
+                result["message"] = f"Volume -> {new_vol} in {room}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
@@ -1241,7 +1241,7 @@ def execute_command(cmd):
                 new_vol = max(0, dev.volume - step)
                 dev.volume = new_vol
                 result["success"] = True
-                result["message"] = f"Volume → {new_vol} in {room}"
+                result["message"] = f"Volume -> {new_vol} in {room}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
@@ -1362,7 +1362,7 @@ def execute_command(cmd):
     result["t_result_sent"] = now_iso()
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
-        log(f"Command result → HTTP {r.status_code}: {result['message']}")
+        log(f"Command result -> HTTP {r.status_code}: {result['message']}")
         global last_post_ts
         last_post_ts = time.time()
         if result.get("pending_history"):
@@ -1375,7 +1375,7 @@ def execute_command(cmd):
             with pending_buffer_lock:
                 pending_buffer[:0] = result["pending_history"]
 
-# ─── SONOS: GITHUB CMD FALLBACK ─────────────────────────────────────────────
+# --- SONOS: GITHUB CMD FALLBACK ---------------------------------------------
 def poll_commands():
     global last_cmd_sha
     r = gh_get(f"sonos_cmd_{house}.json")
@@ -1396,7 +1396,7 @@ def poll_commands():
     log(f"New command (GitHub fallback): {cmd}")
     execute_command(cmd)
 
-# ─── NTFY LISTENER THREAD ───────────────────────────────────────────────────
+# --- NTFY LISTENER THREAD ---------------------------------------------------
 def ntfy_listener_thread():
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
@@ -1412,7 +1412,7 @@ def ntfy_listener_thread():
                     except: continue
                     if msg.get("event") != "message": continue
                     raw = msg.get("message", "")
-                    log(f"⚡ ntfy: {raw[:120]}")
+                    log(f"[!] ntfy: {raw[:120]}")
                     try:
                         cmd    = json.loads(raw)
                         # Use ntfy server timestamp (always correct, in seconds)
@@ -1429,10 +1429,10 @@ def ntfy_listener_thread():
                     except Exception as e:
                         log(f"ntfy parse/execute error: {e}")
         except Exception as e:
-            log(f"ntfy stream error: {e} — reconnecting in 5s")
+            log(f"ntfy stream error: {e} -- reconnecting in 5s")
             time.sleep(5)
 
-# ─── SONOS MAIN LOOP ────────────────────────────────────────────────────────
+# --- SONOS MAIN LOOP --------------------------------------------------------
 def sonos_main_loop():
     global current_devices_by_name
 
@@ -1451,7 +1451,7 @@ def sonos_main_loop():
             if first_run:
                 names = [d.player_name for d in coordinators]
                 log(f"Found {len(names)} coordinator(s): {', '.join(names)}" if names
-                    else "No speakers found — retrying...")
+                    else "No speakers found -- retrying...")
                 first_run = False
 
             now = datetime.now(timezone.utc)
@@ -1470,7 +1470,7 @@ def sonos_main_loop():
                 try:    rooms_in_group = [m.player_name for m in dev.group.members]
                 except: rooms_in_group = [dev.player_name]
 
-                # ── Real-time UI push (ntfy SSE) ─────────────────────────
+                # -- Real-time UI push (ntfy SSE) -------------------------
                 coord_name = dev.player_name
                 if info:
                     coord_key = f"{info['title']}|{info['artist']}|{info['uri']}"
@@ -1519,14 +1519,14 @@ def sonos_main_loop():
                 poll_commands()
                 cmd_counter = 0
 
-            # ── Change-driven status_update SSE + 5-min keepalive ─────
+            # -- Change-driven status_update SSE + 5-min keepalive -----
             # ntfy free tier: 250 msg/day. Only send when rooms_playing
             # changes OR every 5 min as keepalive (~288/day max).
             global _sse_status_counter, _last_sse_rooms_playing
             _sse_status_counter += 1
             rp = get_rooms_playing()
             rooms_changed = (rp != _last_sse_rooms_playing)
-            keepalive_due = (_sse_status_counter >= 60)  # 60 × 15s = 15 min (~96/day)
+            keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or keepalive_due:
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {
@@ -1543,9 +1543,9 @@ def sonos_main_loop():
 
         time.sleep(POLL_INTERVAL)
 
-# ─── MAIN ───────────────────────────────────────────────────────────────────
+# --- MAIN -------------------------------------------------------------------
 def main():
-    # ── Single-instance guard (Windows named mutex) ──────────────────────────
+    # -- Single-instance guard (Windows named mutex) --------------------------
     # Prevents multiple copies running simultaneously (e.g. after self-update race).
     # Stored as global so self_update_check() can release it before spawning new process.
     global _mutex_handle
@@ -1558,14 +1558,14 @@ def main():
             log("Another LifeLog instance is already running. Exiting.")
             sys.exit(0)
     except Exception as e:
-        log(f"Warning: single-instance check failed ({e}) — proceeding anyway")
+        log(f"Warning: single-instance check failed ({e}) -- proceeding anyway")
 
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
 
-    # ── Self-update rollback detection ────────────────────────────────────────
+    # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
     # First start after update renames it to "update_started".
-    # If we see "update_started" it means the LAST update crashed — roll back.
+    # If we see "update_started" it means the LAST update crashed -- roll back.
     script_path = Path(sys.argv[0]).resolve()
     flag_dir = script_path.parent
     bak_path = script_path.with_suffix(".py.bak")
@@ -1573,7 +1573,7 @@ def main():
     flag_started = flag_dir / "update_started"
 
     if flag_started.exists() and bak_path.exists():
-        # Previous update crashed before confirming — ROLLBACK
+        # Previous update crashed before confirming -- ROLLBACK
         old_info = flag_started.read_text(encoding="utf-8").strip()
         log(f"ROLLBACK: Previous update crashed (info: {old_info}). Restoring backup...")
         try:
@@ -1582,7 +1582,7 @@ def main():
             bak_path.unlink(missing_ok=True)
             flag_started.unlink(missing_ok=True)
             flag_in_progress.unlink(missing_ok=True)
-            log("Rollback complete — restarting with previous version...")
+            log("Rollback complete -- restarting with previous version...")
             post_error(f"Self-update rollback triggered (info: {old_info}). Reverted to backup.", module="update")
             # Release mutex before respawning
             if _mutex_handle is not None:
@@ -1598,9 +1598,9 @@ def main():
             )
             os._exit(0)
         except Exception as rbe:
-            log(f"ROLLBACK FAILED: {rbe} — continuing with current version")
+            log(f"ROLLBACK FAILED: {rbe} -- continuing with current version")
     elif flag_in_progress.exists():
-        # First start after update — rename flag to "started" (phase 2)
+        # First start after update -- rename flag to "started" (phase 2)
         info = flag_in_progress.read_text(encoding="utf-8").strip()
         log(f"Post-update first start (info: {info}). Will confirm after init.")
         try:
@@ -1609,15 +1609,15 @@ def main():
             flag_in_progress.unlink(missing_ok=True)
             flag_started.write_text(info, encoding="utf-8")
     else:
-        # ── Orphan cleanup ───────────────────────────────────────────────
-        # Flag exists without .bak → stale flag, can't rollback anyway
+        # -- Orphan cleanup -----------------------------------------------
+        # Flag exists without .bak -> stale flag, can't rollback anyway
         if flag_started.exists() and not bak_path.exists():
             log(f"Cleaning orphaned update_started flag (no .bak found)")
             flag_started.unlink(missing_ok=True)
         if flag_in_progress.exists() and not bak_path.exists():
             log(f"Cleaning orphaned update_in_progress flag (no .bak found)")
             flag_in_progress.unlink(missing_ok=True)
-        # .bak without any flag → previous update confirmed, orphaned backup
+        # .bak without any flag -> previous update confirmed, orphaned backup
         if bak_path.exists() and not flag_started.exists() and not flag_in_progress.exists():
             log(f"Cleaning orphaned .bak file (no update flags found)")
             bak_path.unlink(missing_ok=True)
@@ -1673,10 +1673,10 @@ def main():
         t.start()
         log(f"Thread started: {t.name}")
 
-    # ── Confirm successful update (clear rollback flags) ────────────────────
-    # All threads started, Sonos about to run — the update is good.
+    # -- Confirm successful update (clear rollback flags) --------------------
+    # All threads started, Sonos about to run -- the update is good.
     if flag_started.exists():
-        log(f"Update confirmed successful — clearing rollback files")
+        log(f"Update confirmed successful -- clearing rollback files")
         flag_started.unlink(missing_ok=True)
         flag_in_progress.unlink(missing_ok=True)
         bak_path.unlink(missing_ok=True)
@@ -1690,7 +1690,7 @@ def main():
                        context=traceback.format_exc(), module="sonos")
             log(f"Sonos crashed: {e}")
 
-    # No Sonos — keep alive
+    # No Sonos -- keep alive
     log("Service running (no Sonos). Press Ctrl+C to stop.")
     try:
         while True:
