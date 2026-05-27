@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.48"
+SERVICE_VERSION = "1.49"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1650,6 +1650,15 @@ def main():
             bak_path.unlink(missing_ok=True)
             flag_started.unlink(missing_ok=True)
             flag_in_progress.unlink(missing_ok=True)
+            # Write skip_version so the restored version doesn't immediately
+            # re-download the same bad version via startup self_update_check()
+            try:
+                skip_path = flag_dir / "skip_version"
+                failed_ver = old_info.split("|")[-1] if "|" in old_info else old_info
+                skip_path.write_text(f"{failed_ver}|2", encoding="utf-8")
+                log(f"skip_version written: {failed_ver}|2 (prevent re-download)")
+            except Exception:
+                pass
             log("Rollback complete -- restarting with previous version...")
             post_error(f"Self-update rollback triggered (info: {old_info}). Reverted to backup.", module="update")
             # Release mutex before respawning
@@ -1744,10 +1753,6 @@ def main():
     # -- Confirm successful update (clear rollback flags) --------------------
     # All threads started, Sonos about to run -- the update is good.
     if flag_started.exists():
-        # LAYER 2 TEST: crash AFTER parent's 15s monitor exits, BEFORE flag cleanup
-        log("LAYER 2 TEST: Sleeping 20s to outlast parent monitor, then crashing...")
-        time.sleep(20)
-        raise RuntimeError("INTENTIONAL LAYER 2 CRASH -- delayed past parent monitor window")
         log(f"Update confirmed successful -- clearing rollback files")
         flag_started.unlink(missing_ok=True)
         flag_in_progress.unlink(missing_ok=True)
