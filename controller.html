@@ -554,9 +554,10 @@ function renderMachineStatus() {
     const minAgo = Math.floor((Date.now() - new Date(c.last_seen).getTime()) / 60000);
     const dot = minAgo < 10 ? 'dot-green' : minAgo < 30 ? 'dot-yellow' : 'dot-red';
     const cmdrBadge = c.sonos_commander ? ' <span style="color:#60a5fa">★ commander</span>' : '';
+    const ver = c.version ? ` <span style="color:#6b7280">v${esc(c.version)}</span>` : '';
     return `<div class="flex items-center gap-1">
       <span class="status-dot ${dot}"></span>
-      <span>${esc(c.client_id)}</span>${cmdrBadge}
+      <span>${esc(c.client_id)}</span>${ver}${cmdrBadge}
       <span class="text-slate-600 ml-1">${fmtRelative(new Date(c.last_seen))}</span>
     </div>`;
   }).join('');

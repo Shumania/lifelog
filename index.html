@@ -137,7 +137,8 @@ function renderStatusBar(clients) {
       const days = Math.floor(hr / 24);
       return `${days}d ${hr % 24}h ago`;
     })();
-    return `<span style="white-space:nowrap"><span class="status-dot ${dotCls}"></span>${escHtml(label)} <span style="color:#374151">${escHtml(age)}</span></span>`;
+    const ver = c.version ? ` <span style="color:#6b7280;font-size:10px">v${escHtml(c.version)}</span>` : '';
+    return `<span style="white-space:nowrap"><span class="status-dot ${dotCls}"></span>${escHtml(label)}${ver} <span style="color:#374151">${escHtml(age)}</span></span>`;
   }).join('');
 }
 
