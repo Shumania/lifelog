@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.51"
+SERVICE_VERSION = "1.52"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -199,6 +199,7 @@ _last_sse_rooms_playing  = []   # for change detection on status_update SSE
 _sse_status_counter      = 0    # emit status_update every N poll cycles
 speaker_failures         = {}
 speaker_offline_since    = {}
+_offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
 last_cmd_sha             = None
 executed_cmd_hashes      = set()
 MAX_EXECUTED_HASHES      = 30
@@ -726,13 +727,30 @@ def get_coordinators():
         devices = soco.discover(timeout=8)
         if not devices: return []
         coordinators = {}
+        now_t = time.time()
         for dev in devices:
+            ip = dev.ip_address
+            # Skip IPs that timed out recently (avoid 20s hang per offline speaker)
+            if ip in _offline_ips:
+                if now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
+                    continue
+                else:
+                    del _offline_ips[ip]
+                    log(f"Retrying previously offline speaker at {ip}")
             try:
                 g = dev.group
                 if g and dev == g.coordinator:
                     coordinators[dev.player_name] = dev
-            except Exception:
-                coordinators[dev.player_name] = dev
+            except Exception as e:
+                err_s = str(e).lower()
+                if any(k in err_s for k in ("timed out", "max retries", "connection")):
+                    _offline_ips[ip] = now_t
+                    log(f"Speaker at {ip} unreachable -- skipping for {OFFLINE_RECHECK_SECS}s")
+                else:
+                    try:
+                        coordinators[dev.player_name] = dev
+                    except Exception:
+                        pass
         return list(coordinators.values())
     except Exception as e:
         log(f"Discovery error: {e}")
@@ -1533,8 +1551,15 @@ def sonos_main_loop():
             # Build flat device map for commands
             all_devices = {}
             try:
+                now_t = time.time()
                 for dev in soco.discover(timeout=5) or []:
-                    all_devices[dev.player_name] = dev
+                    ip = dev.ip_address
+                    if ip in _offline_ips and now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
+                        continue
+                    try:
+                        all_devices[dev.player_name] = dev
+                    except Exception:
+                        _offline_ips[ip] = now_t
             except: pass
             current_devices_by_name = all_devices
 
