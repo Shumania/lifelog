@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.50"
+SERVICE_VERSION = "1.51"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1613,7 +1613,12 @@ def sonos_main_loop():
         except Exception as e:
             msg = f"Sonos loop error: {e}"
             log(msg)
-            post_error(msg, module="sonos")
+            # Suppress speaker connectivity errors from webhook -- transient and noisy
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("timed out", "max retries", "connection refused", "connectionpool")):
+                pass  # log only, no webhook POST
+            else:
+                post_error(msg, module="sonos")
 
         time.sleep(POLL_INTERVAL)
 
