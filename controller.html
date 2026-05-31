@@ -174,6 +174,7 @@ const POLL_INTERVAL_MS = 30000;
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
 let commanderId = null;
+let _userManualRoomSelect = false; // True when user manually checks/unchecks a room — prevents SSE from overwriting
 let bannerAction = null;
 let bannerCountdownTimer = null;
 let data = null;
@@ -207,31 +208,41 @@ function connectSSE() {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
       const msg = JSON.parse(outer.message);
+      const sseHouse = msg.house || null;
+      const sseMatchesHouse = !sseHouse || sseHouse === house;
+
       if (msg.event === 'now_playing') {
-        _sseNowPlaying = {
-          title: msg.title, artist: msg.artist, album: msg.album,
-          rooms: msg.rooms || [], ts: Date.now()
-        };
-        // Sync rooms_playing + selectedRooms to where music actually is
-        if (msg.rooms && msg.rooms.length > 0 && data) {
-          data.rooms_playing = msg.rooms;
-          selectedRooms = [...msg.rooms];
-          localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
-          renderRoomCheckboxes();
+        // Only show now-playing for the currently selected house
+        if (sseMatchesHouse) {
+          _sseNowPlaying = {
+            title: msg.title, artist: msg.artist, album: msg.album,
+            rooms: msg.rooms || [], ts: Date.now()
+          };
+          // Auto-sync rooms ONLY if user hasn't manually selected rooms
+          if (msg.rooms && msg.rooms.length > 0 && data && !_userManualRoomSelect) {
+            data.rooms_playing = msg.rooms;
+            selectedRooms = [...msg.rooms];
+            localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+            renderRoomCheckboxes();
+          } else if (msg.rooms && data) {
+            data.rooms_playing = msg.rooms; // Still update indicators, just don't override selection
+            renderRoomCheckboxes();
+          }
+          renderNowPlaying();
         }
-        renderNowPlaying();
       } else if (msg.event === 'stopped') {
-        _sseNowPlaying = null;
-        renderNowPlaying();
+        if (sseMatchesHouse) { _sseNowPlaying = null; renderNowPlaying(); }
       }
-      // Any event with rooms_playing → update room 🔊 indicators + auto-sync selection
+      // Any event with rooms_playing → update 🔊 indicators; only sync selection if same house + no manual override
       if (msg.rooms_playing) {
-        if (data) {
+        if (sseMatchesHouse && data) {
           data.rooms_playing = msg.rooms_playing;
-          selectedRooms = [...msg.rooms_playing];
-          localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+          if (!_userManualRoomSelect) {
+            selectedRooms = [...msg.rooms_playing];
+            localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+          }
           renderRoomCheckboxes();
-        } else {
+        } else if (sseMatchesHouse && !data) {
           _sseRoomsBuffer = msg.rooms_playing; // Buffer until data loads
         }
       }
@@ -301,6 +312,7 @@ function scheduleRefresh(ms) {
 // ── House ─────────────────────────────────────────────────────────────────────
 function setHouse(h) {
   house = h;
+  _userManualRoomSelect = false; // Reset manual override on house switch
   localStorage.setItem('ll_house', h);
   selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
   renderHouseToggle();
@@ -381,6 +393,7 @@ function inferAndRenderRooms() {
 }
 
 function resetRooms() {
+  _userManualRoomSelect = false; // Allow SSE to auto-sync again
   const inferred = inferActiveRooms();
   selectedRooms = inferred.length > 0 ? inferred : [];
   localStorage.removeItem('ll_rooms_' + house);
@@ -410,6 +423,7 @@ function renderRoomCheckboxes() {
 }
 
 function toggleRoom(room, checked) {
+  _userManualRoomSelect = true; // User explicitly chose rooms — don't let SSE override
   if (checked) { if (!selectedRooms.includes(room)) selectedRooms.push(room); }
   else { selectedRooms = selectedRooms.filter(r => r !== room); }
   localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
