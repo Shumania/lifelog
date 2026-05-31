@@ -696,7 +696,7 @@ async function postNtfy(payload) {
 }
 
 // ── Discovery Log ────────────────────────────────────────────────────────────
-function renderDiscoveryEntry(cmd, idx) {
+function renderDiscoveryEntry(cmd, idx, expanded) {
     const d = new Date(cmd.timestamp);
     const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -711,34 +711,54 @@ function renderDiscoveryEntry(cmd, idx) {
       }
     }
     const sourceIcon = cmd.source === 'controller' ? '📱' : cmd.source === 'chat' ? '💬' : cmd.source === 'explore' ? '🔍' : '▶';
-    let html = `<div class="discovery-entry" id="disc-${idx}">`;
-    html += '<div class="discovery-header">';
-    html += `<div class="discovery-title">${sourceIcon} ${esc(cmd.title)}</div>`;
+    const suggCount = (cmd.suggestions && cmd.suggestions.length) || 0;
+
+    // Collapsed row — compact, scannable
+    const collapsedStyle = expanded ? 'display:none' : '';
+    const expandedStyle = expanded ? '' : 'display:none';
+    let html = `<div class="discovery-entry" id="disc-${idx}" style="padding:0">`;
+
+    // Collapsed view: artist row
+    html += `<div id="disc-row-${idx}" onclick="toggleDiscovery(${idx})" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;${collapsedStyle}">`;
+    html += `<span style="font-size:14px">${sourceIcon}</span>`;
+    html += `<div style="flex:1;min-width:0">`;
+    html += `<div style="font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cmd.artist || cmd.title)}</div>`;
+    html += `<div style="font-size:11px;color:#64748b">${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
+    html += `</div>`;
+    html += `<span style="color:#475569;font-size:12px">▸</span>`;
+    html += `</div>`;
+
+    // Expanded view: full card
+    html += `<div id="disc-full-${idx}" style="${expandedStyle}">`;
+    // Header with collapse toggle
+    html += `<div onclick="toggleDiscovery(${idx})" style="cursor:pointer;padding:12px 14px 4px;display:flex;align-items:center;gap:8px">`;
+    html += `<span style="color:#475569;font-size:12px">▾</span>`;
+    html += `<div class="discovery-title" style="flex:1">${sourceIcon} ${esc(cmd.title)}</div>`;
     if (cmd.uri) {
       const entryUri = (cmd.uri || '').replace(/'/g, "\\'");
       const entryLbl = (`${cmd.artist || ''} – ${cmd.title || ''}`).replace(/'/g, "\\'");
       const musicPlaying = isRoomActive();
       const playDflt = musicPlaying ? '' : ' btn-default';
       const queueDflt = musicPlaying ? ' btn-default' : '';
-      html += '<span class="discovery-entry-actions">';
+      html += '<span class="discovery-entry-actions" onclick="event.stopPropagation()">';
       html += `<button class="suggestion-btn btn-play${playDflt}" onclick="playFromDiscovery('play','${entryUri}','${entryLbl}')">▶ Play</button>`;
       html += `<button class="suggestion-btn btn-queue${queueDflt}" onclick="playFromDiscovery('queue','${entryUri}','${entryLbl}')">＋ Queue</button>`;
       html += '</span>';
     }
     html += '</div>';
-    html += `<div class="discovery-meta">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr} · ${dateStr} ${timeStr}${latencyBadge}</div>`;
+    html += `<div class="discovery-meta" style="padding:0 14px">${esc(cmd.artist || '')}${cmd.album && cmd.album !== cmd.title ? ' · ' + esc(cmd.album) : ''}${roomStr} · ${dateStr} ${timeStr}${latencyBadge}</div>`;
     if (cmd.narrative) {
-      html += `<div class="discovery-narrative">${esc(cmd.narrative)}</div>`;
+      html += `<div class="discovery-narrative" style="padding:4px 14px 8px">${esc(cmd.narrative)}</div>`;
     }
     if (cmd.suggestions && cmd.suggestions.length > 0) {
-      html += '<div class="discovery-suggestions-header">Where to go next</div>';
+      html += '<div class="discovery-suggestions-header" style="padding:0 14px">Where to go next</div>';
       for (const s of cmd.suggestions) {
         const uri = (s.uri || '').replace(/'/g, "\\'");
         const lbl = (s.label || '').replace(/'/g, "\\'");
         const musicPlaying = isRoomActive();
         const playDflt = musicPlaying ? '' : ' btn-default';
         const queueDflt = musicPlaying ? ' btn-default' : '';
-        html += '<div class="suggestion-item">';
+        html += '<div class="suggestion-item" style="padding:4px 14px" onclick="event.stopPropagation()">';
         html += '<div class="suggestion-play">';
         html += `<span class="suggestion-title">${esc(s.label)}</span>`;
         html += '<span class="suggestion-actions">';
@@ -751,19 +771,20 @@ function renderDiscoveryEntry(cmd, idx) {
         html += '</div>';
       }
     }
-    html += '</div>';
+    html += '</div>'; // end disc-full
+    html += '</div>'; // end discovery-entry
     return html;
 }
 
-function toggleOlderDiscoveries() {
-  const wrap = document.getElementById('disc-older');
-  const btn = document.getElementById('disc-toggle-btn');
-  if (wrap.style.display === 'none') {
-    wrap.style.display = 'block';
-    btn.textContent = '▲ Collapse older explorations';
+function toggleDiscovery(idx) {
+  const row = document.getElementById('disc-row-' + idx);
+  const full = document.getElementById('disc-full-' + idx);
+  if (full.style.display === 'none') {
+    row.style.display = 'none';
+    full.style.display = 'block';
   } else {
-    wrap.style.display = 'none';
-    btn.textContent = `▼ ${wrap.children.length} more explorations`;
+    full.style.display = 'none';
+    row.style.display = 'flex';
   }
 }
 
@@ -774,25 +795,11 @@ function renderDiscoveryLog() {
     return;
   }
   const cmds = data.play_commands;
-  const SHOW_EXPANDED = 3;
   let html = '';
-
-  // First N entries: fully expanded
-  for (let i = 0; i < Math.min(SHOW_EXPANDED, cmds.length); i++) {
-    html += renderDiscoveryEntry(cmds[i], i);
+  for (let i = 0; i < cmds.length; i++) {
+    // All entries start collapsed as a scannable list
+    html += renderDiscoveryEntry(cmds[i], i, false);
   }
-
-  // Remaining entries: collapsed by default
-  if (cmds.length > SHOW_EXPANDED) {
-    const remaining = cmds.length - SHOW_EXPANDED;
-    html += `<button id="disc-toggle-btn" onclick="toggleOlderDiscoveries()" style="width:100%;background:#1e2130;border:1px solid #2d3148;border-radius:10px;padding:10px;color:#94a3b8;font-size:13px;font-weight:600;cursor:pointer;margin:8px 0;">▼ ${remaining} more exploration${remaining > 1 ? 's' : ''}</button>`;
-    html += '<div id="disc-older" style="display:none">';
-    for (let i = SHOW_EXPANDED; i < cmds.length; i++) {
-      html += renderDiscoveryEntry(cmds[i], i);
-    }
-    html += '</div>';
-  }
-
   el.innerHTML = html;
 }
 
