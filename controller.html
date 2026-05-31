@@ -172,7 +172,8 @@ const POLL_INTERVAL_MS = 30000;
 
 // ── State ────────────────────────────────────────────────────────────────────
 let house = localStorage.getItem('ll_house') || 'caphill';
-let selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
+let selectedRooms = sanitizeRooms(JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]'), house);
+function sanitizeRooms(rooms, h) { const valid = ROOMS[h] || []; return rooms.filter(r => valid.includes(r)); }
 let commanderId = null;
 let _userManualRoomSelect = false; // True when user manually checks/unchecks a room — prevents SSE from overwriting
 let bannerAction = null;
@@ -314,7 +315,7 @@ function setHouse(h) {
   house = h;
   _userManualRoomSelect = false; // Reset manual override on house switch
   localStorage.setItem('ll_house', h);
-  selectedRooms = JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]');
+  selectedRooms = sanitizeRooms(JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]'), house);
   renderHouseToggle();
   inferAndRenderRooms();
   renderMachineStatus();
