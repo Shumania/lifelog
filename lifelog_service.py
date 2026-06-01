@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.52"
+SERVICE_VERSION = "1.53"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1025,6 +1025,10 @@ def _setup_rooms(cmd, devices):
     return dev, rooms, was_grouped
 
 
+# Actions that execute locally without any webhook POST (ack or result).
+# Avoids unnecessary agent invocations for high-frequency, low-value commands.
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume"}
+
 def execute_command(cmd):
     action = cmd.get("action", "")
     cmd_id = cmd.get("cmd_id", "")
@@ -1035,12 +1039,15 @@ def execute_command(cmd):
     if action != "update_check" and not is_my_command(cmd):
         return
 
-    # Ack immediately
-    try:
-        requests.post(WEBHOOK, json={"type":"sonos_ack","cmd_id":cmd_id,
-                                     "action":action,"house":house,"timestamp":now_iso()}, timeout=10)
-        log(f"[OK] Ack: {action}")
-    except Exception: pass
+    is_silent = action in SILENT_ACTIONS
+
+    # Ack immediately (skip for silent actions)
+    if not is_silent:
+        try:
+            requests.post(WEBHOOK, json={"type":"sonos_ack","cmd_id":cmd_id,
+                                         "action":action,"house":house,"timestamp":now_iso()}, timeout=10)
+            log(f"[OK] Ack: {action}")
+        except Exception: pass
 
     result = {"type":"sonos_result","cmd_id":cmd_id,"action":action,"house":house,
               "success":False,"message":"","data":None}
@@ -1450,6 +1457,12 @@ def execute_command(cmd):
         try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
         except: pass
     result["t_result_sent"] = now_iso()
+
+    # Silent actions (volume, etc.) -- log locally, skip webhook POST entirely
+    if is_silent:
+        log(f"Command (silent): {result['message']}")
+        return
+
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result -> HTTP {r.status_code}: {result['message']}")
