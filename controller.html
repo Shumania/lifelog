@@ -357,13 +357,67 @@ async function spotifyApi(method, path, body) {
 }
 
 // ── Spotify Device & Playback ──────────────────────────────────────────────
+const DEVICE_CACHE_MS = 120000;       // Keep vanished devices for 2 min
+const PHONE_TYPES = new Set(['Smartphone', 'Tablet']);
+let _deviceCache = {};                // id -> {device, lastSeen, stale}
+let _lastKnownPhone = null;           // Always show phone even after cache expires
+try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone = JSON.parse(lp); } catch(e) {}
+
+function _cacheExpiry(type) {
+  return PHONE_TYPES.has(type) ? Infinity : DEVICE_CACHE_MS;  // Phones never expire from cache
+}
+
+// Wake a stale/sleeping device via transfer_playback
+async function wakeDevice(deviceId) {
+  try {
+    await spotifyApi('PUT', '/me/player', { device_ids: [deviceId], play: false });
+    return true;
+  } catch(e) {
+    console.warn('Wake device failed (expected if app killed):', e);
+    return false;
+  }
+}
+
 async function fetchSpotifyDevices() {
   try {
     const d = await spotifyApi('GET', '/me/player/devices');
     if (d && d.devices) {
-      spotifyDevices = d.devices;
-      // Auto-select active device, or first device, or preserve previous selection
-      const active = spotifyDevices.find(x => x.is_active);
+      const now = Date.now();
+      const liveIds = new Set();
+      // Update cache with live devices
+      for (const dev of d.devices) {
+        liveIds.add(dev.id);
+        _deviceCache[dev.id] = { device: dev, lastSeen: now, stale: false };
+        // Remember phones permanently
+        if (PHONE_TYPES.has(dev.type)) {
+          _lastKnownPhone = { device: { ...dev }, lastSeen: now };
+          try { localStorage.setItem('ll_last_phone', JSON.stringify(_lastKnownPhone)); } catch(e) {}
+        }
+      }
+      // Mark cached devices as stale if not in live list; prune expired (phones never pruned)
+      for (const [id, entry] of Object.entries(_deviceCache)) {
+        if (!liveIds.has(id)) {
+          entry.stale = true;
+          const expiry = _cacheExpiry(entry.device.type);
+          if (now - entry.lastSeen > expiry) {
+            delete _deviceCache[id];
+          }
+        }
+      }
+      // Ensure last-known phone is always in cache (even if ID changed sessions ago)
+      if (_lastKnownPhone && !_deviceCache[_lastKnownPhone.device.id]) {
+        _deviceCache[_lastKnownPhone.device.id] = {
+          device: _lastKnownPhone.device,
+          lastSeen: _lastKnownPhone.lastSeen,
+          stale: true
+        };
+      }
+      // Build merged device list: live first, then stale
+      spotifyDevices = Object.values(_deviceCache)
+        .sort((a, b) => (a.stale === b.stale ? 0 : a.stale ? 1 : -1))
+        .map(e => ({ ...e.device, _stale: e.stale }));
+      // Auto-select: prefer active, then previously selected, then first
+      const active = spotifyDevices.find(x => x.is_active && !x._stale);
       if (active) {
         spotifySelectedDeviceId = active.id;
       } else if (!spotifySelectedDeviceId || !spotifyDevices.find(x => x.id === spotifySelectedDeviceId)) {
@@ -414,12 +468,16 @@ function renderSpotifyDevices() {
   }
   container.innerHTML = spotifyDevices.map(d => {
     const selected = d.id === spotifySelectedDeviceId;
-    const activeLabel = d.is_active ? ' <span class="text-green-400">● active</span>' : '';
-    return `<label class="flex items-center gap-2 cursor-pointer py-1">
+    const stale = d._stale;
+    const activeLabel = d.is_active && !stale ? ' <span class="text-green-400">● active</span>' : '';
+    const staleLabel = stale ? ' <span class="text-yellow-600">💤</span>' : '';
+    const textClass = stale ? 'text-slate-600 italic' : (selected ? 'text-green-300 font-semibold' : 'text-slate-400');
+    const opacity = stale ? 'opacity-60' : '';
+    return `<label class="flex items-center gap-2 cursor-pointer py-1 ${opacity}">
       <input type="radio" name="spotify_device" ${selected ? 'checked' : ''} onchange="selectSpotifyDevice('${d.id}')"
         class="w-4 h-4 accent-green-500">
       <span class="device-icon">${deviceIcon(d.type)}</span>
-      <span class="text-sm ${selected ? 'text-green-300 font-semibold' : 'text-slate-400'}">${esc(d.name)}${activeLabel}</span>
+      <span class="text-sm ${textClass}">${esc(d.name)}${activeLabel}${staleLabel}</span>
       <span class="text-xs text-slate-600 ml-auto">${d.volume_percent != null ? d.volume_percent + '%' : ''}</span>
     </label>`;
   }).join('');
@@ -444,7 +502,18 @@ function stopSpotifyPolling() {
 }
 
 // ── Spotify transport commands ──────────────────────────────────────────────
+async function _ensureDeviceAwake() {
+  if (!spotifySelectedDeviceId) return;
+  const cached = _deviceCache[spotifySelectedDeviceId];
+  if (cached && cached.stale) {
+    showToast('Waking device...');
+    await wakeDevice(spotifySelectedDeviceId);
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
 async function spotifyCmd(action) {
+  await _ensureDeviceAwake();
   const deviceParam = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
   try {
     switch(action) {
@@ -484,6 +553,7 @@ async function spotifyCmd(action) {
 }
 
 async function spotifyPlayUri(uri, startPlay = true) {
+  await _ensureDeviceAwake();
   const deviceParam = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
   try {
     const body = {};
