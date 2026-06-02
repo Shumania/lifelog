@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.53"
+SERVICE_VERSION = "1.54"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1027,7 +1027,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause"}
 
 def execute_command(cmd):
     action = cmd.get("action", "")
@@ -1306,6 +1306,55 @@ def execute_command(cmd):
                     except: pass
             result["success"] = True
             result["message"] = f"Paused: {', '.join(paused)}"
+
+        elif action in ("resume", "play_resume"):
+            rooms = cmd.get("rooms", [])
+            if isinstance(rooms, str): rooms = [rooms]
+            resumed = []
+            for r in rooms:
+                dev = devices.get(r)
+                if dev:
+                    try: dev.play(); resumed.append(r)
+                    except: pass
+            result["success"] = True
+            result["message"] = f"Resumed: {', '.join(resumed)}"
+
+        elif action == "next":
+            rooms = cmd.get("rooms", [])
+            if isinstance(rooms, str): rooms = [rooms]
+            skipped = []
+            for r in rooms:
+                dev = devices.get(r)
+                if dev:
+                    try:
+                        coord = dev.group.coordinator if dev.group else dev
+                        coord.next(); skipped.append(r)
+                    except: pass
+            result["success"] = True
+            result["message"] = f"Next track: {', '.join(skipped)}"
+
+        elif action == "previous":
+            rooms = cmd.get("rooms", [])
+            if isinstance(rooms, str): rooms = [rooms]
+            backed = []
+            for r in rooms:
+                dev = devices.get(r)
+                if dev:
+                    try:
+                        coord = dev.group.coordinator if dev.group else dev
+                        coord.previous(); backed.append(r)
+                    except: pass
+            result["success"] = True
+            result["message"] = f"Previous track: {', '.join(backed)}"
+
+        elif action == "get_volume":
+            vols = {}
+            for rname, dev in devices.items():
+                try: vols[rname] = dev.volume
+                except: pass
+            result["success"] = True
+            result["data"] = vols
+            result["message"] = f"Volume levels for {len(vols)} rooms"
 
         elif action in ("set_volume", "volume"):
             room   = cmd.get("room") or (cmd.get("rooms") or [None])[0]

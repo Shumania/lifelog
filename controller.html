@@ -957,23 +957,27 @@ function renderMachineStatus() {
 }
 
 // ── Transport commands (unified routing) ──────────────────────────────────────
+// Map UI action names to Sonos service action names
+const SONOS_ACTION_MAP = { play: 'resume', prev: 'previous' };
+
 async function sendCmd(action, extra = {}) {
   if (house === 'roaming') {
     await spotifyCmd(action);
     return;
   }
 
-  // Sonos path
+  // Sonos path — map action names for service compatibility
+  const sonosAction = SONOS_ACTION_MAP[action] || action;
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-  const payload = { action, rooms, target_client_id: commanderId, ...extra };
+  const payload = { action: sonosAction, rooms, target_client_id: commanderId, ...extra };
   await postNtfy(payload);
 
-  if (['play', 'play_spotify_uri', 'add_to_queue', 'queue_next'].includes(action)) {
+  if (['play', 'resume', 'play_spotify_uri', 'add_to_queue', 'queue_next'].includes(sonosAction)) {
     optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
     renderRoomCheckboxes();
   }
-  if (['next', 'prev', 'play', 'play_spotify_uri', 'add_to_queue'].includes(action)) {
+  if (['next', 'previous', 'resume', 'play_spotify_uri', 'add_to_queue'].includes(sonosAction)) {
     scheduleRefresh(10000);
   }
 }
