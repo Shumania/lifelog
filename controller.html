@@ -492,6 +492,12 @@ function startSpotifyPolling() {
   stopSpotifyPolling();
   fetchSpotifyDevices();
   fetchSpotifyNowPlaying();
+  // Burst: 3 rapid refreshes in first 6s to catch phone before iOS suspends Spotify
+  let burst = 0;
+  const burstTimer = setInterval(() => {
+    if (++burst >= 3) { clearInterval(burstTimer); return; }
+    fetchSpotifyDevices();
+  }, 2000);
   _spotifyDevicePollTimer = setInterval(fetchSpotifyDevices, SPOTIFY_DEVICE_POLL_MS);
   _spotifyNpPollTimer = setInterval(fetchSpotifyNowPlaying, 5000);
 }
