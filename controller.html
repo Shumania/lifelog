@@ -61,6 +61,10 @@
     .house-btn.active { background: #3b82f6; color: #fff; }
     .progress-bar { background: #2d3148; border-radius: 3px; height: 3px; overflow: hidden; }
     .progress-fill { background: #3b82f6; height: 100%; transition: width 0.5s; border-radius: 3px; }
+    .spotify-connect-card { background: linear-gradient(135deg, #1a2a1a, #1a1d2e); border: 1px solid #1db954; border-radius: 12px; padding: 20px; text-align: center; }
+    .btn-spotify { background: #1db954; color: #fff; border-radius: 24px; padding: 12px 28px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.15s; border: none; }
+    .btn-spotify:active { background: #1aa34a; }
+    .device-icon { font-size: 16px; }
   </style>
 </head>
 <body>
@@ -71,7 +75,7 @@
 <div class="sticky-header px-4 pb-3 pt-3">
   <div class="flex items-center justify-between mb-3">
     <div>
-      <h1 class="text-lg font-bold text-white">🔊 Sonos</h1>
+      <h1 class="text-lg font-bold text-white" id="page-title">🔊 Sonos</h1>
       <p id="status-line" class="text-xs text-slate-500 mt-0.5">Loading…</p>
     </div>
     <div class="flex items-center gap-2">
@@ -85,6 +89,7 @@
     <div class="house-toggle" id="house-toggle">
       <button class="house-btn active" id="btn-caphill" onclick="setHouse('caphill')">🏠 Cap Hill</button>
       <button class="house-btn" id="btn-vashon" onclick="setHouse('vashon')">🏝️ Vashon</button>
+      <button class="house-btn" id="btn-roaming" onclick="setHouse('roaming')">📱 Roaming</button>
     </div>
     <a href="index.html" class="text-xs text-slate-400 underline font-medium" style="padding:6px 2px;">📖 Life History</a>
   </div>
@@ -133,16 +138,25 @@
     </div>
   </div>
 
-  <!-- Room selector -->
-  <div class="card p-4">
-    <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide">Target Rooms</p>
+  <!-- Spotify connect prompt (hidden unless roaming + not authed) -->
+  <div id="spotify-connect-card" class="spotify-connect-card" style="display:none">
+    <p class="text-lg font-bold text-white mb-2">Connect Spotify</p>
+    <p class="text-sm text-slate-400 mb-4">Sign in to control Spotify playback directly from this page</p>
+    <button class="btn-spotify" onclick="spotifyAuth()">🎵 Connect with Spotify</button>
+  </div>
+
+  <!-- Room / device selector -->
+  <div class="card p-4" id="rooms-card">
+    <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide" id="rooms-card-title">Target Rooms</p>
     <p class="text-xs text-slate-600 mb-3" id="rooms-inferred-label">Auto-detected from recent play history</p>
     <div id="room-checkboxes" class="space-y-1"></div>
-    <button class="btn-secondary text-xs mt-3 w-full" onclick="resetRooms()">↺ Reset to active rooms</button>
+    <div id="rooms-actions" class="mt-3">
+      <button class="btn-secondary text-xs w-full" onclick="resetRooms()">↺ Reset to active rooms</button>
+    </div>
   </div>
 
   <!-- Machine status -->
-  <div class="card p-4">
+  <div class="card p-4" id="status-card">
     <p class="text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wide">Service Status</p>
     <div id="machine-status" class="space-y-1 text-xs text-slate-400">Loading…</div>
   </div>
@@ -170,34 +184,401 @@ const ROOMS = {
 const INFER_WINDOW_MIN = 120;
 const POLL_INTERVAL_MS = 30000;
 
+// ── Spotify PKCE Config ─────────────────────────────────────────────────────
+const SPOTIFY_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
+const SPOTIFY_REDIRECT_URI = window.location.origin + '/lifelog/controller.html';
+const SPOTIFY_SCOPES = 'user-modify-playback-state user-read-playback-state';
+const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
+const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
+const SPOTIFY_DEVICE_POLL_MS = 15000; // Refresh devices every 15s when roaming
+
 // ── State ────────────────────────────────────────────────────────────────────
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = sanitizeRooms(JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]'), house);
-function sanitizeRooms(rooms, h) { const valid = ROOMS[h] || []; return rooms.filter(r => valid.includes(r)); }
+function sanitizeRooms(rooms, h) {
+  if (h === 'roaming') return rooms; // Spotify device IDs don't need sanitizing against a fixed list
+  const valid = ROOMS[h] || [];
+  return rooms.filter(r => valid.includes(r));
+}
 let commanderId = null;
-let _userManualRoomSelect = false; // True when user manually checks/unchecks a room — prevents SSE from overwriting
+let _userManualRoomSelect = false;
 let bannerAction = null;
 let bannerCountdownTimer = null;
 let data = null;
 let lastETag = null;
-let optimisticNowPlaying = null;    // {label, room, ts} — set after sending a command
-let optimisticActiveRooms = null;   // {rooms: [...], ts} — set after play command fires
+let optimisticNowPlaying = null;
+let optimisticActiveRooms = null;
 let postCommandRefreshTimer = null;
-let _sseNowPlaying = null;          // {title, artist, album, rooms, ts} — from ntfy SSE
+let _sseNowPlaying = null;
+
+// Spotify roaming state
+let spotifyDevices = [];
+let spotifySelectedDeviceId = null;
+let spotifyNowPlaying = null; // {title, artist, album, device, progress_ms, duration_ms, is_playing}
+let _spotifyDevicePollTimer = null;
+let _spotifyNpPollTimer = null;
+
+// ── Spotify PKCE Auth ───────────────────────────────────────────────────────
+function generateRandomString(len) {
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const values = crypto.getRandomValues(new Uint8Array(len));
+  return values.reduce((acc, x) => acc + possible[x % possible.length], '');
+}
+async function sha256(plain) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+}
+function base64urlEncode(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function spotifyAuth() {
+  const verifier = generateRandomString(64);
+  const challenge = base64urlEncode(await sha256(verifier));
+  localStorage.setItem('spotify_pkce_verifier', verifier);
+  const params = new URLSearchParams({
+    client_id: SPOTIFY_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: SPOTIFY_REDIRECT_URI,
+    scope: SPOTIFY_SCOPES,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    state: 'roaming_auth'
+  });
+  window.location.href = SPOTIFY_AUTH_URL + '?' + params.toString();
+}
+
+async function handleSpotifyCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  if (!code || state !== 'roaming_auth') return false;
+
+  const verifier = localStorage.getItem('spotify_pkce_verifier');
+  if (!verifier) return false;
+
+  try {
+    const r = await fetch(SPOTIFY_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: SPOTIFY_CLIENT_ID,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: SPOTIFY_REDIRECT_URI,
+        code_verifier: verifier
+      })
+    });
+    const d = await r.json();
+    if (d.access_token) {
+      localStorage.setItem('spotify_access_token', d.access_token);
+      localStorage.setItem('spotify_refresh_token', d.refresh_token);
+      localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      localStorage.removeItem('spotify_pkce_verifier');
+      history.replaceState({}, '', window.location.pathname);
+      // Auto-switch to roaming after successful auth
+      setHouse('roaming');
+      return true;
+    }
+  } catch(e) { console.error('Spotify auth error:', e); }
+  return false;
+}
+
+async function refreshSpotifyToken() {
+  const rt = localStorage.getItem('spotify_refresh_token');
+  if (!rt) return false;
+  try {
+    const r = await fetch(SPOTIFY_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: SPOTIFY_CLIENT_ID,
+        grant_type: 'refresh_token',
+        refresh_token: rt
+      })
+    });
+    const d = await r.json();
+    if (d.access_token) {
+      localStorage.setItem('spotify_access_token', d.access_token);
+      if (d.refresh_token) localStorage.setItem('spotify_refresh_token', d.refresh_token);
+      localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+async function getSpotifyToken() {
+  const expiry = parseInt(localStorage.getItem('spotify_token_expiry') || '0');
+  if (Date.now() > expiry - 60000) {
+    if (!(await refreshSpotifyToken())) return null;
+  }
+  return localStorage.getItem('spotify_access_token');
+}
+
+function hasSpotifyAuth() {
+  return !!localStorage.getItem('spotify_refresh_token');
+}
+
+function disconnectSpotify() {
+  localStorage.removeItem('spotify_access_token');
+  localStorage.removeItem('spotify_refresh_token');
+  localStorage.removeItem('spotify_token_expiry');
+  localStorage.removeItem('spotify_pkce_verifier');
+  spotifyDevices = [];
+  spotifySelectedDeviceId = null;
+  spotifyNowPlaying = null;
+  renderRoamingUI();
+  showToast('Spotify disconnected');
+}
+
+// Generic Spotify API helper — returns null on auth failure
+async function spotifyApi(method, path, body) {
+  const token = await getSpotifyToken();
+  if (!token) { showToast('Spotify not connected', true); return null; }
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + token } };
+  if (body !== undefined && body !== null) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch('https://api.spotify.com/v1' + path, opts);
+  if (r.status === 401) {
+    if (await refreshSpotifyToken()) return spotifyApi(method, path, body);
+    showToast('Spotify session expired — reconnect', true);
+    return null;
+  }
+  if (r.status === 204 || r.status === 202) return {};
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    const msg = err.error?.message || ('HTTP ' + r.status);
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// ── Spotify Device & Playback ──────────────────────────────────────────────
+async function fetchSpotifyDevices() {
+  try {
+    const d = await spotifyApi('GET', '/me/player/devices');
+    if (d && d.devices) {
+      spotifyDevices = d.devices;
+      // Auto-select active device, or first device, or preserve previous selection
+      const active = spotifyDevices.find(x => x.is_active);
+      if (active) {
+        spotifySelectedDeviceId = active.id;
+      } else if (!spotifySelectedDeviceId || !spotifyDevices.find(x => x.id === spotifySelectedDeviceId)) {
+        spotifySelectedDeviceId = spotifyDevices.length > 0 ? spotifyDevices[0].id : null;
+      }
+      if (house === 'roaming') renderSpotifyDevices();
+    }
+  } catch(e) { console.error('Device fetch error:', e); }
+}
+
+async function fetchSpotifyNowPlaying() {
+  try {
+    const d = await spotifyApi('GET', '/me/player?additional_types=track,episode');
+    if (!d || !d.item) {
+      spotifyNowPlaying = null;
+    } else {
+      const item = d.item;
+      const deviceName = d.device ? d.device.name : '';
+      spotifyNowPlaying = {
+        title: item.name,
+        artist: item.type === 'track' ? (item.artists || []).map(a => a.name).join(', ') : (item.show ? item.show.name : ''),
+        album: item.type === 'track' ? (item.album ? item.album.name : '') : '',
+        device: deviceName,
+        progress_ms: d.progress_ms || 0,
+        duration_ms: item.duration_ms || 0,
+        is_playing: d.is_playing,
+        uri: item.uri,
+        image: item.album && item.album.images && item.album.images.length > 0
+          ? item.album.images[item.album.images.length > 1 ? 1 : 0].url : null
+      };
+      // Update selected device to match what's actually active
+      if (d.device && d.device.id) spotifySelectedDeviceId = d.device.id;
+    }
+    if (house === 'roaming') renderNowPlaying();
+  } catch(e) { console.error('Now playing fetch error:', e); }
+}
+
+function deviceIcon(type) {
+  const icons = { Computer: '💻', Smartphone: '📱', Speaker: '🔊', TV: '📺', AVR: '🎛️', Tablet: '📱', CastVideo: '📺', CastAudio: '🔊', Automobile: '🚗' };
+  return icons[type] || '🎵';
+}
+
+function renderSpotifyDevices() {
+  const container = document.getElementById('room-checkboxes');
+  if (spotifyDevices.length === 0) {
+    container.innerHTML = '<p class="text-sm text-slate-500">No Spotify devices found.<br><span class="text-xs">Open Spotify on a device to see it here.</span></p>';
+    return;
+  }
+  container.innerHTML = spotifyDevices.map(d => {
+    const selected = d.id === spotifySelectedDeviceId;
+    const activeLabel = d.is_active ? ' <span class="text-green-400">● active</span>' : '';
+    return `<label class="flex items-center gap-2 cursor-pointer py-1">
+      <input type="radio" name="spotify_device" ${selected ? 'checked' : ''} onchange="selectSpotifyDevice('${d.id}')"
+        class="w-4 h-4 accent-green-500">
+      <span class="device-icon">${deviceIcon(d.type)}</span>
+      <span class="text-sm ${selected ? 'text-green-300 font-semibold' : 'text-slate-400'}">${esc(d.name)}${activeLabel}</span>
+      <span class="text-xs text-slate-600 ml-auto">${d.volume_percent != null ? d.volume_percent + '%' : ''}</span>
+    </label>`;
+  }).join('');
+}
+
+function selectSpotifyDevice(id) {
+  spotifySelectedDeviceId = id;
+  renderSpotifyDevices();
+}
+
+function startSpotifyPolling() {
+  stopSpotifyPolling();
+  fetchSpotifyDevices();
+  fetchSpotifyNowPlaying();
+  _spotifyDevicePollTimer = setInterval(fetchSpotifyDevices, SPOTIFY_DEVICE_POLL_MS);
+  _spotifyNpPollTimer = setInterval(fetchSpotifyNowPlaying, 5000);
+}
+
+function stopSpotifyPolling() {
+  if (_spotifyDevicePollTimer) { clearInterval(_spotifyDevicePollTimer); _spotifyDevicePollTimer = null; }
+  if (_spotifyNpPollTimer) { clearInterval(_spotifyNpPollTimer); _spotifyNpPollTimer = null; }
+}
+
+// ── Spotify transport commands ──────────────────────────────────────────────
+async function spotifyCmd(action) {
+  const deviceParam = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+  try {
+    switch(action) {
+      case 'play':
+        await spotifyApi('PUT', '/me/player/play' + deviceParam);
+        break;
+      case 'pause':
+        await spotifyApi('PUT', '/me/player/pause' + deviceParam);
+        break;
+      case 'next':
+        await spotifyApi('POST', '/me/player/next' + deviceParam);
+        break;
+      case 'prev':
+        await spotifyApi('POST', '/me/player/previous' + deviceParam);
+        break;
+      case 'volume_up': {
+        const cur = spotifyNowPlaying ? (spotifyDevices.find(d => d.is_active)?.volume_percent || 50) : 50;
+        const vol = Math.min(100, cur + 10);
+        await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        document.getElementById('vol-label').textContent = vol + '%';
+        break;
+      }
+      case 'volume_down': {
+        const cur2 = spotifyNowPlaying ? (spotifyDevices.find(d => d.is_active)?.volume_percent || 50) : 50;
+        const vol2 = Math.max(0, cur2 - 10);
+        await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol2 + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        document.getElementById('vol-label').textContent = vol2 + '%';
+        break;
+      }
+    }
+    showToast('✓ ' + action);
+    // Refresh now-playing after transport command
+    setTimeout(fetchSpotifyNowPlaying, 500);
+  } catch(e) {
+    showToast('✗ ' + e.message, true);
+  }
+}
+
+async function spotifyPlayUri(uri, startPlay = true) {
+  const deviceParam = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+  try {
+    const body = {};
+    if (uri.includes(':track:')) {
+      body.uris = [uri];
+    } else {
+      // album, playlist, artist context
+      body.context_uri = uri;
+    }
+    await spotifyApi('PUT', '/me/player/play' + deviceParam, body);
+    showToast('✓ Playing on Spotify');
+    setTimeout(fetchSpotifyNowPlaying, 1000);
+  } catch(e) {
+    showToast('✗ ' + e.message, true);
+  }
+}
+
+async function spotifyQueueUri(uri) {
+  try {
+    const deviceParam = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
+    // Queue only supports individual tracks — for albums/playlists, fall back to play
+    if (uri.includes(':track:')) {
+      await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + deviceParam);
+      showToast('✓ Added to Spotify queue');
+    } else {
+      // Can't queue a context — play it instead
+      await spotifyPlayUri(uri);
+    }
+  } catch(e) {
+    showToast('✗ ' + e.message, true);
+  }
+}
+
+// ── Roaming UI ──────────────────────────────────────────────────────────────
+function renderRoamingUI() {
+  const isAuthed = hasSpotifyAuth();
+  document.getElementById('spotify-connect-card').style.display = isAuthed ? 'none' : 'block';
+  document.getElementById('rooms-card').style.display = isAuthed ? 'block' : 'none';
+  document.getElementById('status-card').style.display = isAuthed ? 'block' : 'none';
+
+  if (isAuthed) {
+    document.getElementById('rooms-card-title').textContent = 'Spotify Devices';
+    document.getElementById('rooms-inferred-label').textContent = 'Select a device to control';
+    document.getElementById('rooms-actions').innerHTML = `
+      <div class="flex gap-2">
+        <button class="btn-secondary text-xs flex-1" onclick="fetchSpotifyDevices()">↺ Refresh devices</button>
+        <button class="btn-secondary text-xs" onclick="disconnectSpotify()" style="color:#f87171;border-color:#7f1d1d;">Disconnect</button>
+      </div>`;
+    startSpotifyPolling();
+  } else {
+    stopSpotifyPolling();
+  }
+
+  // Status card for roaming shows Spotify connection status
+  if (isAuthed) {
+    const expiry = parseInt(localStorage.getItem('spotify_token_expiry') || '0');
+    const expiresIn = Math.max(0, Math.floor((expiry - Date.now()) / 60000));
+    document.getElementById('machine-status').innerHTML = `
+      <div class="flex items-center gap-1">
+        <span class="status-dot dot-green"></span>
+        <span>Spotify connected</span>
+        <span class="text-slate-600 ml-1">token refreshes in ${expiresIn}m</span>
+      </div>`;
+  }
+}
+
+function exitRoamingUI() {
+  stopSpotifyPolling();
+  document.getElementById('spotify-connect-card').style.display = 'none';
+  document.getElementById('rooms-card').style.display = 'block';
+  document.getElementById('status-card').style.display = 'block';
+  document.getElementById('rooms-card-title').textContent = 'Target Rooms';
+  document.getElementById('rooms-actions').innerHTML =
+    '<button class="btn-secondary text-xs w-full" onclick="resetRooms()">↺ Reset to active rooms</button>';
+  spotifyNowPlaying = null;
+}
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+  // Check for Spotify OAuth callback FIRST (before deep link handler)
+  const didAuth = await handleSpotifyCallback();
+  if (didAuth) { showToast('✓ Spotify connected!'); return; } // setHouse('roaming') already called
+
   renderHouseToggle();
+  if (house === 'roaming') renderRoamingUI();
   await loadData(true);
   handleDeepLink();
   setInterval(() => loadData(false), POLL_INTERVAL_MS);
 });
 
-// ── Real-time SSE via ntfy ─────────────────────────────────────────────────
+// ── Real-time SSE via ntfy (Sonos only) ────────────────────────────────────
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
 let _sseES = null;
 let _sseLastMsg = Date.now();
-let _sseRoomsBuffer = null; // Buffer SSE rooms_playing if it arrives before data loads
+let _sseRoomsBuffer = null;
 
 function connectSSE() {
   if (_sseES) { try { _sseES.close(); } catch(e) {} }
@@ -205,6 +586,7 @@ function connectSSE() {
   _sseLastMsg = Date.now();
   _sseES.addEventListener('message', (e) => {
     _sseLastMsg = Date.now();
+    if (house === 'roaming') return; // Ignore Sonos SSE when in Roaming mode
     try {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
@@ -213,20 +595,18 @@ function connectSSE() {
       const sseMatchesHouse = !sseHouse || sseHouse === house;
 
       if (msg.event === 'now_playing') {
-        // Only show now-playing for the currently selected house
         if (sseMatchesHouse) {
           _sseNowPlaying = {
             title: msg.title, artist: msg.artist, album: msg.album,
             rooms: msg.rooms || [], ts: Date.now()
           };
-          // Auto-sync rooms ONLY if user hasn't manually selected rooms
           if (msg.rooms && msg.rooms.length > 0 && data && !_userManualRoomSelect) {
             data.rooms_playing = msg.rooms;
             selectedRooms = [...msg.rooms];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
             renderRoomCheckboxes();
           } else if (msg.rooms && data) {
-            data.rooms_playing = msg.rooms; // Still update indicators, just don't override selection
+            data.rooms_playing = msg.rooms;
             renderRoomCheckboxes();
           }
           renderNowPlaying();
@@ -234,7 +614,6 @@ function connectSSE() {
       } else if (msg.event === 'stopped') {
         if (sseMatchesHouse) { _sseNowPlaying = null; renderNowPlaying(); }
       }
-      // Any event with rooms_playing → update 🔊 indicators; only sync selection if same house + no manual override
       if (msg.rooms_playing) {
         if (sseMatchesHouse && data) {
           data.rooms_playing = msg.rooms_playing;
@@ -244,10 +623,9 @@ function connectSSE() {
           }
           renderRoomCheckboxes();
         } else if (sseMatchesHouse && !data) {
-          _sseRoomsBuffer = msg.rooms_playing; // Buffer until data loads
+          _sseRoomsBuffer = msg.rooms_playing;
         }
       }
-      // Any event with client_id → update status bar freshness
       if (msg.client_id && data && data.client_status) {
         const c = data.client_status.find(s => s.client_id === msg.client_id);
         if (c) {
@@ -260,10 +638,16 @@ function connectSSE() {
   });
 }
 connectSSE();
-// Watchdog: if no SSE message in 2 min, force reconnect (iOS Safari kills EventSource silently)
 setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
-// Reconnect on visibility change (returning from background tab)
-document.addEventListener('visibilitychange', () => { if (!document.hidden) connectSSE(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    connectSSE();
+    if (house === 'roaming' && hasSpotifyAuth()) {
+      fetchSpotifyDevices();
+      fetchSpotifyNowPlaying();
+    }
+  }
+});
 
 // force=true skips ETag check and always re-renders
 async function loadData(force = false) {
@@ -271,16 +655,11 @@ async function loadData(force = false) {
   try {
     const headers = {};
     if (!force && lastETag) headers['If-None-Match'] = lastETag;
-    if (force) {
-      headers['Cache-Control'] = 'no-cache';
-      headers['Pragma'] = 'no-cache';
-    }
-
+    if (force) { headers['Cache-Control'] = 'no-cache'; headers['Pragma'] = 'no-cache'; }
     const fetchOptions = force ? { headers, cache: 'no-store' } : { headers };
     const r = await fetch(DATA_URL + '?t=' + Date.now(), fetchOptions);
 
     if (r.status === 304) {
-      // Not modified — update label but skip re-render
       document.getElementById('status-line').textContent =
         'Updated ' + fmtRelative(new Date(data.generated_at || Date.now())) + ' · no change';
       document.getElementById('load-indicator').style.display = 'none';
@@ -293,8 +672,10 @@ async function loadData(force = false) {
     data = await r.json();
     checkCommandLatency(data);
     renderNowPlaying();
-    renderMachineStatus();
-    inferAndRenderRooms();
+    if (house !== 'roaming') {
+      renderMachineStatus();
+      inferAndRenderRooms();
+    }
     renderDiscoveryLog();
     document.getElementById('status-line').textContent =
       'Updated ' + fmtRelative(new Date(data.generated_at || Date.now()));
@@ -304,7 +685,6 @@ async function loadData(force = false) {
   document.getElementById('load-indicator').style.display = 'none';
 }
 
-// Schedule a refresh N ms from now, cancelling any pending one
 function scheduleRefresh(ms) {
   if (postCommandRefreshTimer) clearTimeout(postCommandRefreshTimer);
   postCommandRefreshTimer = setTimeout(() => loadData(true), ms);
@@ -312,71 +692,69 @@ function scheduleRefresh(ms) {
 
 // ── House ─────────────────────────────────────────────────────────────────────
 function setHouse(h) {
+  const prevHouse = house;
   house = h;
-  _userManualRoomSelect = false; // Reset manual override on house switch
+  _userManualRoomSelect = false;
   localStorage.setItem('ll_house', h);
-  selectedRooms = sanitizeRooms(JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]'), house);
+
+  if (h === 'roaming') {
+    document.getElementById('page-title').textContent = '🎵 Spotify';
+    exitRoamingUI(); // Reset first
+    renderRoamingUI();
+  } else {
+    if (prevHouse === 'roaming') exitRoamingUI();
+    document.getElementById('page-title').textContent = '🔊 Sonos';
+    selectedRooms = sanitizeRooms(JSON.parse(localStorage.getItem('ll_rooms_' + house) || '[]'), house);
+    inferAndRenderRooms();
+    renderMachineStatus();
+  }
   renderHouseToggle();
-  inferAndRenderRooms();
-  renderMachineStatus();
+  renderNowPlaying();
   updateCommander();
 }
 
 function renderHouseToggle() {
-  ['caphill','vashon'].forEach(h => {
+  ['caphill','vashon','roaming'].forEach(h => {
     document.getElementById('btn-' + h).className = 'house-btn' + (h === house ? ' active' : '');
   });
 }
 
 // ── Commander ─────────────────────────────────────────────────────────────────
 function updateCommander() {
-  if (!data || !data.client_status) return;
+  if (house === 'roaming' || !data || !data.client_status) return;
   const cmdr = data.client_status.find(c => c.house === house && c.sonos_commander);
   commanderId = cmdr ? cmdr.client_id : null;
 }
 
-// ── Room inference ────────────────────────────────────────────────────────────
+// ── Room inference (Sonos only) ──────────────────────────────────────────────
 function inferActiveRooms() {
   const cutoff = Date.now() - INFER_WINDOW_MIN * 60 * 1000;
 
-  // 1. Optimistic rooms from play command sent in this browser session (highest priority — most recent intent)
   if (optimisticActiveRooms && optimisticActiveRooms.ts > cutoff) {
     return [...optimisticActiveRooms.rooms];
   }
-
-  // 2. Live transport state — rooms currently PLAYING (from service heartbeat)
   if (data && Array.isArray(data.rooms_playing) && data.rooms_playing.length > 0) {
     return [...data.rooms_playing];
   }
-
-  // 3. Server-side now_playing rooms (persisted across sessions — last agent command)
   const serverNp = data && data.now_playing;
   if (serverNp && Array.isArray(serverNp.rooms)) {
     const npTs = new Date(serverNp.played_at).getTime();
-    if (npTs > cutoff) {
-      return [...serverNp.rooms];
-    }
+    if (npTs > cutoff) return [...serverNp.rooms];
   }
-
-  // 4. Most recent Sonos history entry's rooms (NOT union of all recent rooms)
-  //    This picks the last-played group, avoiding merging independent groups.
   if (data && data.items) {
     for (const item of data.items) {
       if (!item.house || item.house !== house) continue;
       const ts = new Date(item.timestamp).getTime();
       if (ts < cutoff) break;
-      if (Array.isArray(item.rooms) && item.rooms.length > 0) {
-        return [...item.rooms];
-      } else if (item.room) {
-        return [item.room];
-      }
+      if (Array.isArray(item.rooms) && item.rooms.length > 0) return [...item.rooms];
+      else if (item.room) return [item.room];
     }
   }
   return [];
 }
 
 function inferAndRenderRooms() {
-  // SSE buffer takes priority — it arrived before data loaded and has the freshest state
+  if (house === 'roaming') return;
   if (_sseRoomsBuffer) {
     data.rooms_playing = _sseRoomsBuffer;
     selectedRooms = [..._sseRoomsBuffer];
@@ -394,7 +772,7 @@ function inferAndRenderRooms() {
 }
 
 function resetRooms() {
-  _userManualRoomSelect = false; // Allow SSE to auto-sync again
+  _userManualRoomSelect = false;
   const inferred = inferActiveRooms();
   selectedRooms = inferred.length > 0 ? inferred : [];
   localStorage.removeItem('ll_rooms_' + house);
@@ -403,9 +781,9 @@ function resetRooms() {
 }
 
 function renderRoomCheckboxes() {
+  if (house === 'roaming') { renderSpotifyDevices(); return; }
   const container = document.getElementById('room-checkboxes');
   const all = ROOMS[house] || [];
-  // Use live transport state for icons (actually playing right now)
   const liveRooms = (data && Array.isArray(data.rooms_playing)) ? data.rooms_playing : [];
   container.innerHTML = all.map(room => {
     const checked = selectedRooms.includes(room);
@@ -424,22 +802,18 @@ function renderRoomCheckboxes() {
 }
 
 function toggleRoom(room, checked) {
-  _userManualRoomSelect = true; // User explicitly chose rooms — don't let SSE override
+  _userManualRoomSelect = true;
   if (checked) { if (!selectedRooms.includes(room)) selectedRooms.push(room); }
   else { selectedRooms = selectedRooms.filter(r => r !== room); }
   localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
 }
 
 async function addRoomToGroup(room) {
-  // Find the current coordinator (first room in rooms_playing)
   const liveRooms = (data && Array.isArray(data.rooms_playing)) ? data.rooms_playing : selectedRooms;
   const source = liveRooms[0];
   if (!source) { showToast('No room currently playing', true); return; }
-
   const payload = { action: 'group', source, add: [room], target_client_id: commanderId };
   await postNtfy(payload);
-
-  // Optimistic: add room to playing state + selected rooms
   if (data) {
     if (!data.rooms_playing) data.rooms_playing = [];
     if (!data.rooms_playing.includes(room)) data.rooms_playing.push(room);
@@ -448,23 +822,55 @@ async function addRoomToGroup(room) {
   localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
   renderRoomCheckboxes();
   renderNowPlaying();
-
   showToast(`+ ${room} joined group`);
 }
 
 // ── Now playing ───────────────────────────────────────────────────────────────
 function renderNowPlaying() {
-  if (!data || !data.items) return;
-  const sonosItems = data.items.filter(i => (!i.house || i.house === house) && i.room);
-  const latest = sonosItems[0];
   const npEl = document.getElementById('now-playing-content');
   const roomsEl = document.getElementById('active-rooms');
   const labelEl = document.getElementById('now-playing-label');
 
-  // Priority: 1) optimisticNowPlaying (client-side, from this session's play command)
-  //           2) _sseNowPlaying (real-time SSE from ntfy — most authoritative live source)
-  //           3) data.now_playing (server-side, persisted across sessions)
-  //           4) latest sonosItem from history
+  // ── Roaming mode: Spotify now-playing ──
+  if (house === 'roaming') {
+    if (!spotifyNowPlaying) {
+      labelEl.textContent = 'NOW PLAYING';
+      labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
+      npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing on Spotify</p>';
+      roomsEl.innerHTML = '';
+      return;
+    }
+    const np = spotifyNowPlaying;
+    const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
+    const elapsed = fmtMs(np.progress_ms);
+    const total = fmtMs(np.duration_ms);
+
+    if (np.is_playing) {
+      labelEl.textContent = '▶ NOW PLAYING';
+      labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+    } else {
+      labelEl.textContent = '⏸ PAUSED';
+      labelEl.className = 'text-xs text-yellow-400 font-semibold mb-2';
+    }
+
+    npEl.innerHTML = `
+      <p class="text-base font-bold text-white leading-tight">${esc(np.title)}</p>
+      <p class="text-sm text-slate-300">${esc(np.artist)}</p>
+      <p class="text-xs text-slate-500 mt-0.5">${esc(np.album)}${np.device ? ' · ' + esc(np.device) : ''}</p>
+      <div class="progress-bar mt-2"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <p class="text-xs text-slate-600 mt-1">${elapsed} / ${total}</p>
+    `;
+    roomsEl.innerHTML = np.device
+      ? `<span class="room-chip">${deviceIcon(spotifyDevices.find(d => d.name === np.device)?.type || '')} ${esc(np.device)}</span>`
+      : '';
+    return;
+  }
+
+  // ── Sonos mode: existing logic ──
+  if (!data || !data.items) return;
+  const sonosItems = data.items.filter(i => (!i.house || i.house === house) && i.room);
+  const latest = sonosItems[0];
+
   const latestTs = latest ? new Date(latest.timestamp).getTime() : 0;
   const serverNp = data && data.now_playing;
   const serverNpTs = serverNp ? new Date(serverNp.played_at).getTime() : 0;
@@ -472,36 +878,18 @@ function renderNowPlaying() {
   const sseTs = _sseNowPlaying ? _sseNowPlaying.ts : 0;
 
   const useOptimistic = optTs > sseTs && optTs > latestTs && optTs > serverNpTs;
-  const useSSE = !useOptimistic && sseTs > 0 && (Date.now() - sseTs) < 600000; // fresh within 10 min
+  const useSSE = !useOptimistic && sseTs > 0 && (Date.now() - sseTs) < 600000;
   const useServerNp = !useOptimistic && !useSSE && serverNp && (serverNp.title || serverNp.label) && (isNaN(serverNpTs) || serverNpTs > latestTs || serverNpTs === 0);
 
   let item = null;
   if (useOptimistic) {
-    item = {
-      title: optimisticNowPlaying.label,
-      artist: optimisticNowPlaying.artist || '',
-      album: '',
-      timestamp: new Date(optimisticNowPlaying.ts).toISOString(),
-      room: optimisticNowPlaying.room
-    };
+    item = { title: optimisticNowPlaying.label, artist: optimisticNowPlaying.artist || '', album: '', timestamp: new Date(optimisticNowPlaying.ts).toISOString(), room: optimisticNowPlaying.room };
   } else if (useSSE) {
-    item = {
-      title: _sseNowPlaying.title || '',
-      artist: _sseNowPlaying.artist || '',
-      album: _sseNowPlaying.album || '',
-      timestamp: new Date(_sseNowPlaying.ts).toISOString(),
-      room: _sseNowPlaying.rooms.length > 1
-        ? _sseNowPlaying.rooms[0] + ' +' + (_sseNowPlaying.rooms.length - 1)
-        : (_sseNowPlaying.rooms[0] || '')
-    };
+    item = { title: _sseNowPlaying.title || '', artist: _sseNowPlaying.artist || '', album: _sseNowPlaying.album || '', timestamp: new Date(_sseNowPlaying.ts).toISOString(),
+      room: _sseNowPlaying.rooms.length > 1 ? _sseNowPlaying.rooms[0] + ' +' + (_sseNowPlaying.rooms.length - 1) : (_sseNowPlaying.rooms[0] || '') };
   } else if (useServerNp) {
-    item = {
-      title: serverNp.title || serverNp.label || '',
-      artist: serverNp.artist || '',
-      album: serverNp.type === 'album' ? serverNp.title : '',
-      timestamp: serverNp.played_at,
-      room: Array.isArray(serverNp.rooms) ? serverNp.rooms.join(' · ') : (serverNp.rooms || '')
-    };
+    item = { title: serverNp.title || serverNp.label || '', artist: serverNp.artist || '', album: serverNp.type === 'album' ? serverNp.title : '', timestamp: serverNp.played_at,
+      room: Array.isArray(serverNp.rooms) ? serverNp.rooms.join(' · ') : (serverNp.rooms || '') };
   } else {
     item = latest;
   }
@@ -515,19 +903,14 @@ function renderNowPlaying() {
   }
 
   const minAgo = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
-
   if (useOptimistic || useSSE || useServerNp) {
-    labelEl.textContent = '▶ NOW PLAYING';
-    labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+    labelEl.textContent = '▶ NOW PLAYING'; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 15) {
-    labelEl.textContent = 'NOW PLAYING';
-    labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+    labelEl.textContent = 'NOW PLAYING'; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 120) {
-    labelEl.textContent = 'RECENTLY PLAYED · ' + fmtRelative(new Date(item.timestamp));
-    labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
+    labelEl.textContent = 'RECENTLY PLAYED · ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
   } else {
-    labelEl.textContent = 'LAST PLAYED · ' + fmtRelative(new Date(item.timestamp));
-    labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
+    labelEl.textContent = 'LAST PLAYED · ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
   }
 
   npEl.innerHTML = `
@@ -536,25 +919,17 @@ function renderNowPlaying() {
     <p class="text-xs text-slate-500 mt-0.5">${esc(item.album || '')}${item.album && item.room ? ' · ' : ''}${esc(item.room || '')} · ${fmtRelative(new Date(item.timestamp))}</p>
   `;
 
-  // Determine which rooms are currently playing
   const playingRooms = useOptimistic && item.room ? [item.room]
     : useSSE && _sseNowPlaying && _sseNowPlaying.rooms.length > 0 ? [..._sseNowPlaying.rooms]
     : inferActiveRooms();
 
-  // Playing room chips
-  let roomHtml = playingRooms.map(r =>
-    `<span class="room-chip">🔊 ${esc(r)}</span>`
-  ).join('');
-
-  // "Add room" chips — show other rooms not currently playing for quick group expansion
+  let roomHtml = playingRooms.map(r => `<span class="room-chip">🔊 ${esc(r)}</span>`).join('');
   if (playingRooms.length > 0) {
     const allRooms = ROOMS[house] || [];
     const otherRooms = allRooms.filter(r => !playingRooms.includes(r));
     if (otherRooms.length > 0) {
       roomHtml += '<div class="flex flex-wrap gap-1 mt-1.5">';
-      roomHtml += otherRooms.map(r =>
-        `<span class="add-room-chip" onclick="addRoomToGroup('${r.replace(/'/g, "\\'")}')">+ ${esc(r)}</span>`
-      ).join('');
+      roomHtml += otherRooms.map(r => `<span class="add-room-chip" onclick="addRoomToGroup('${r.replace(/'/g, "\\'")}')">+ ${esc(r)}</span>`).join('');
       roomHtml += '</div>';
     }
   }
@@ -563,6 +938,7 @@ function renderNowPlaying() {
 
 // ── Machine status ─────────────────────────────────────────────────────────────
 function renderMachineStatus() {
+  if (house === 'roaming') return; // Handled by renderRoamingUI
   if (!data || !data.client_status) return;
   const el = document.getElementById('machine-status');
   const clients = data.client_status.filter(c => c.house === house);
@@ -580,21 +956,23 @@ function renderMachineStatus() {
   }).join('');
 }
 
-// ── Transport commands ────────────────────────────────────────────────────────
+// ── Transport commands (unified routing) ──────────────────────────────────────
 async function sendCmd(action, extra = {}) {
+  if (house === 'roaming') {
+    await spotifyCmd(action);
+    return;
+  }
+
+  // Sonos path
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-
   const payload = { action, rooms, target_client_id: commanderId, ...extra };
   await postNtfy(payload);
 
-  // Track optimistic active rooms for any play-type command
   if (['play', 'play_spotify_uri', 'add_to_queue', 'queue_next'].includes(action)) {
     optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
     renderRoomCheckboxes();
   }
-
-  // Refresh after transport commands — next track may appear in history
   if (['next', 'prev', 'play', 'play_spotify_uri', 'add_to_queue'].includes(action)) {
     scheduleRefresh(10000);
   }
@@ -610,55 +988,63 @@ function handleDeepLink() {
   const dlRoom  = p.get('room');
 
   if (!action || !uri) return;
-
   if (dlHouse && dlHouse !== house) setHouse(dlHouse);
-
-  if (dlRoom) {
+  if (dlRoom && house !== 'roaming') {
     selectedRooms = [dlRoom];
     localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
     renderRoomCheckboxes();
+  }
+
+  if (house === 'roaming') {
+    // Roaming deep links go directly to Spotify
+    document.getElementById('banner-action-label').textContent = '▶ ' + action;
+    document.getElementById('banner-label').textContent = decodeURIComponent(label);
+    document.getElementById('banner-rooms').textContent = 'Spotify';
+    document.getElementById('action-banner').style.display = 'block';
+    document.getElementById('banner-countdown').textContent = 'Sending…';
+    bannerAction = { action, uri, label };
+    bannerCountdownTimer = setTimeout(() => executeBannerAction(), 400);
+    return;
   }
 
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   const actionLabels = { queue: '▶ Add to queue', play: '▶ Play now', play_album: '▶ Play album' };
 
   bannerAction = { action, uri, label };
-
   document.getElementById('banner-action-label').textContent = actionLabels[action] || '▶ ' + action;
   document.getElementById('banner-label').textContent = decodeURIComponent(label);
   document.getElementById('banner-rooms').textContent = rooms.length ? rooms.join(', ') : 'No rooms selected';
   document.getElementById('action-banner').style.display = 'block';
-
-  // Instant-fire: show banner briefly for visual feedback, then execute
   document.getElementById('banner-countdown').textContent = 'Sending…';
   bannerCountdownTimer = setTimeout(() => executeBannerAction(), 400);
 }
 
 async function executeBannerAction() {
   if (!bannerAction) return;
-  const { action, uri, label } = bannerAction;  // Save BEFORE dismiss clears it
+  const { action, uri, label } = bannerAction;
   clearTimeout(bannerCountdownTimer);
   dismissBanner();
 
+  if (house === 'roaming') {
+    if (action === 'queue') {
+      await spotifyQueueUri(uri);
+    } else {
+      await spotifyPlayUri(uri);
+    }
+    return;
+  }
+
+  // Sonos path
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
-
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
 
-  // Optimistic now-playing + active rooms
-  optimisticNowPlaying = {
-    label: decodeURIComponent(label),
-    room: rooms[0] || null,
-    ts: Date.now()
-  };
+  optimisticNowPlaying = { label: decodeURIComponent(label), room: rooms[0] || null, ts: Date.now() };
   optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
   renderNowPlaying();
   renderRoomCheckboxes();
-
-  // Refresh after 10s to catch ack / history flush
   scheduleRefresh(10000);
-
   showToast(`✓ ${decodeURIComponent(label)} sent to ${rooms.length} room${rooms.length > 1 ? 's' : ''}`);
 }
 
@@ -670,28 +1056,26 @@ function dismissBanner() {
 }
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-let pendingCommandTimer = null;  // { uri, t_requested (ms), action }
+let pendingCommandTimer = null;
 
 function checkCommandLatency(data) {
   if (!pendingCommandTimer) return;
   const elapsed = Date.now() - pendingCommandTimer.t_requested;
-  if (elapsed > 120000) { pendingCommandTimer = null; return; } // expire after 2 min
-  // Check if now_playing or recent history reflects our command
+  if (elapsed > 120000) { pendingCommandTimer = null; return; }
   const np = data.now_playing;
   const uri = pendingCommandTimer.uri;
   const matched = (np && np.uri === uri) ||
     (data.items && data.items.length > 0 && data.items[0].uri && data.items[0].uri.includes(uri.split(':').pop()));
   if (matched) {
-    const secs = (elapsed / 1000).toFixed(1);
-    showToast(`⏱ ${secs}s to play`, false);
+    showToast(`⏱ ${(elapsed / 1000).toFixed(1)}s to play`);
     pendingCommandTimer = null;
   }
 }
 
-// ── ntfy POST ─────────────────────────────────────────────────────────────────
+// ── ntfy POST (Sonos) ────────────────────────────────────────────────────────
 async function postNtfy(payload) {
   const topic = NTFY[house];
-  // Inject timing into every command
+  if (!topic) { showToast('No ntfy topic for ' + house, true); return; }
   payload.t_requested = new Date().toISOString();
   try {
     const r = await fetch(topic, {
@@ -700,7 +1084,6 @@ async function postNtfy(payload) {
       body: JSON.stringify(payload)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    // Track pending command for latency measurement
     if (payload.uri && ['play_spotify_uri', 'add_to_queue', 'queue_next'].includes(payload.action)) {
       pendingCommandTimer = { uri: payload.uri, t_requested: Date.now(), action: payload.action };
     }
@@ -721,31 +1104,26 @@ function renderDiscoveryEntry(cmd, idx, expanded) {
       const reqMs = new Date(cmd.t_requested).getTime();
       const playMs = new Date(cmd.t_playing).getTime();
       if (playMs > reqMs && (playMs - reqMs) < 300000) {
-        const secs = ((playMs - reqMs) / 1000).toFixed(1);
-        latencyBadge = ` · <span style="color:#22d3ee;font-size:0.65rem">⏱ ${secs}s</span>`;
+        latencyBadge = ` · <span style="color:#22d3ee;font-size:0.65rem">⏱ ${((playMs - reqMs) / 1000).toFixed(1)}s</span>`;
       }
     }
     const sourceIcon = cmd.source === 'controller' ? '📱' : cmd.source === 'chat' ? '💬' : cmd.source === 'explore' ? '🔍' : '▶';
     const suggCount = (cmd.suggestions && cmd.suggestions.length) || 0;
 
-    // Collapsed row — compact, scannable
     const collapsedStyle = expanded ? 'display:none' : '';
     const expandedStyle = expanded ? '' : 'display:none';
     let html = `<div class="discovery-entry" id="disc-${idx}" style="padding:0">`;
 
-    // Collapsed view: artist row
+    // Collapsed view
     html += `<div id="disc-row-${idx}" onclick="toggleDiscovery(${idx})" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;gap:10px;${collapsedStyle}">`;
     html += `<span style="font-size:14px">${sourceIcon}</span>`;
     html += `<div style="flex:1;min-width:0">`;
     html += `<div style="font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div style="font-size:11px;color:#64748b">${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
-    html += `</div>`;
-    html += `<span style="color:#475569;font-size:12px">▸</span>`;
-    html += `</div>`;
+    html += `</div><span style="color:#475569;font-size:12px">▸</span></div>`;
 
-    // Expanded view: full card
+    // Expanded view
     html += `<div id="disc-full-${idx}" style="${expandedStyle}">`;
-    // Header with collapse toggle
     html += `<div onclick="toggleDiscovery(${idx})" style="cursor:pointer;padding:12px 14px 4px;display:flex;align-items:center;gap:8px">`;
     html += `<span style="color:#475569;font-size:12px">▾</span>`;
     html += `<div class="discovery-title" style="flex:1">${sourceIcon} ${esc(cmd.title)}</div>`;
@@ -780,27 +1158,19 @@ function renderDiscoveryEntry(cmd, idx, expanded) {
         html += `<button class="suggestion-btn btn-play${playDflt}" onclick="playFromDiscovery('play','${uri}','${lbl}')">▶ Play</button>`;
         html += `<button class="suggestion-btn btn-queue${queueDflt}" onclick="playFromDiscovery('queue','${uri}','${lbl}')">＋ Queue</button>`;
         html += '</span></div>';
-        if (s.note) {
-          html += `<div class="suggestion-note">${esc(s.note)}</div>`;
-        }
+        if (s.note) html += `<div class="suggestion-note">${esc(s.note)}</div>`;
         html += '</div>';
       }
     }
-    html += '</div>'; // end disc-full
-    html += '</div>'; // end discovery-entry
+    html += '</div></div>';
     return html;
 }
 
 function toggleDiscovery(idx) {
   const row = document.getElementById('disc-row-' + idx);
   const full = document.getElementById('disc-full-' + idx);
-  if (full.style.display === 'none') {
-    row.style.display = 'none';
-    full.style.display = 'block';
-  } else {
-    full.style.display = 'none';
-    row.style.display = 'flex';
-  }
+  if (full.style.display === 'none') { row.style.display = 'none'; full.style.display = 'block'; }
+  else { full.style.display = 'none'; row.style.display = 'flex'; }
 }
 
 function renderDiscoveryLog() {
@@ -809,27 +1179,22 @@ function renderDiscoveryLog() {
     el.innerHTML = '<p class="text-xs text-slate-600">No plays yet</p>';
     return;
   }
-  const cmds = data.play_commands;
   let html = '';
-  for (let i = 0; i < cmds.length; i++) {
-    // All entries start collapsed as a scannable list
-    html += renderDiscoveryEntry(cmds[i], i, false);
+  for (let i = 0; i < data.play_commands.length; i++) {
+    html += renderDiscoveryEntry(data.play_commands[i], i, false);
   }
   el.innerHTML = html;
 }
 
 // ── Discovery Log helpers ────────────────────────────────────────────────────
 function isRoomActive() {
-  // Check if selected rooms (or inferred rooms) have active playback
+  if (house === 'roaming') return spotifyNowPlaying && spotifyNowPlaying.is_playing;
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) return false;
-  // Check optimistic now-playing
   if (optimisticNowPlaying && (Date.now() - optimisticNowPlaying.ts) < 120*60*1000) return true;
-  // Check data.json now_playing
   if (data && data.now_playing && data.now_playing.rooms) {
     const npRooms = data.now_playing.rooms || [];
     if (rooms.some(r => npRooms.includes(r))) return true;
-    // Also check age — if now_playing is recent, something is probably going
     const npTs = new Date(data.now_playing.timestamp || 0).getTime();
     if ((Date.now() - npTs) < 15*60*1000) return true;
   }
@@ -837,6 +1202,17 @@ function isRoomActive() {
 }
 
 async function playFromDiscovery(action, uri, label) {
+  if (house === 'roaming') {
+    if (action === 'queue') {
+      await spotifyQueueUri(uri);
+    } else {
+      await spotifyPlayUri(uri);
+    }
+    showToast(`✓ ${label} → Spotify`);
+    return;
+  }
+
+  // Sonos path
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
@@ -852,9 +1228,7 @@ async function playFromDiscovery(action, uri, label) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function fmtRelative(d) {
   const diff = Date.now() - d.getTime();
@@ -866,6 +1240,13 @@ function fmtRelative(d) {
   if (hr < 24) return `${hr}h ${min % 60}m ago`;
   const days = Math.floor(hr / 24);
   return `${days}d ${hr % 24}h ago`;
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
 }
 
 function showToast(msg, isError = false) {
