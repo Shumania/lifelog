@@ -1052,6 +1052,37 @@ async function sendCmd(action, extra = {}) {
   }
 }
 
+// ── Spotify search for non-Spotify tracks ────────────────────────────────────
+async function resolveAndPlay(action, query, label, dlHouse, dlRoom) {
+  // Use Spotify PKCE token (from Roaming auth) to search
+  let token = await getSpotifyToken();
+  if (!token) {
+    showToast('Connect Spotify first (switch to Roaming tab)', true);
+    history.replaceState({}, '', window.location.pathname);
+    return;
+  }
+  showToast('Searching Spotify...');
+  try {
+    const resp = await spotifyApi('GET', '/v1/search?' + new URLSearchParams({
+      q: query, type: 'track', limit: '1'
+    }).toString());
+    const track = resp?.tracks?.items?.[0];
+    if (!track) {
+      showToast('Track not found on Spotify', true);
+      history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+    // Redirect to same deep link but with resolved URI
+    const params = new URLSearchParams({ action, uri: track.uri, label: label || (track.artists[0].name + ' - ' + track.name) });
+    if (dlHouse) params.set('house', dlHouse);
+    if (dlRoom) params.set('room', dlRoom);
+    window.location.replace(window.location.pathname + '?' + params.toString());
+  } catch (e) {
+    showToast('Spotify search failed: ' + e.message, true);
+    history.replaceState({}, '', window.location.pathname);
+  }
+}
+
 // ── Deep link handler ─────────────────────────────────────────────────────────
 function handleDeepLink() {
   const p = new URLSearchParams(window.location.search);
@@ -1061,7 +1092,15 @@ function handleDeepLink() {
   const dlHouse = p.get('house');
   const dlRoom  = p.get('room');
 
-  if (!action || !uri) return;
+  const searchQ = p.get('search');
+  if (!action || (!uri && !searchQ)) return;
+
+  // If no URI but search query provided, resolve via Spotify search first
+  if (!uri && searchQ) {
+    resolveAndPlay(action, searchQ, label, dlHouse, dlRoom);
+    return;
+  }
+
   if (dlHouse && dlHouse !== house) setHouse(dlHouse);
   if (dlRoom && house !== 'roaming') {
     selectedRooms = [dlRoom];

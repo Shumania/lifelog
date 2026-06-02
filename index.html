@@ -40,7 +40,12 @@
     .np-bar.active { display: block; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     .np-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s infinite; display: inline-block; }
-    .explore-btn { background:none; border:none; cursor:pointer; font-size:16px; padding:10px 12px; margin:-4px -6px; opacity:0.5; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color: rgba(255,255,255,0.1); min-width:40px; min-height:40px; display:flex; align-items:center; justify-content:center; }
+    .track-actions { display:flex; gap:2px; flex-shrink:0; align-items:center; }
+    .action-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; opacity:0.4; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color:rgba(255,255,255,0.1); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+    .action-btn:hover, .action-btn:active { opacity:0.9; }
+    .btn-play { font-size:11px; color:#1db954; }
+    .btn-queue { font-size:14px; color:#94a3b8; }
+    .explore-btn { background:none; border:none; cursor:pointer; font-size:14px; padding:0; margin:0; opacity:0.4; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color: rgba(255,255,255,0.1); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
     .explore-btn:hover { opacity:0.8; }
     .explore-btn.exploring { opacity:1; animation: pulse 1s infinite; }
     .explore-btn.done { opacity:0.6; }
@@ -217,10 +222,16 @@ function renderFeed() {
       }
       const sub = parts.map(escHtml).join(' · ');
       const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source})).replace(/'/g,'%27');
+      const playHref = buildPlayLink(item, 'play');
+      const queueHref = buildPlayLink(item, 'queue_next');
       return `<div class="item-row">
         <div class="icon-wrap ${cls}">${emoji}</div>
         <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
-        <button class="explore-btn" onclick="exploreArtist(this,'${exploreData}')" title="Explore this artist">🔍</button>
+        <div class="track-actions">
+          <a class="action-btn btn-play" href="${playHref}" title="Play now">▶</a>
+          <a class="action-btn btn-queue" href="${queueHref}" title="Queue next">+</a>
+          <button class="explore-btn" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>
+        </div>
       </div>`;
     } else {
       const sub = [item.show_name, item.listened_label].filter(Boolean).map(escHtml).join(' · ');
@@ -234,6 +245,21 @@ function renderFeed() {
 
 function escHtml(str) {
   return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildPlayLink(item, action) {
+  const base = 'controller.html';
+  const params = new URLSearchParams();
+  params.set('action', action);
+  if (item.uri) {
+    params.set('uri', item.uri);
+  } else {
+    // For non-Spotify tracks (Qobuz, radio), pass artist+title for search
+    params.set('search', (item.artist || '') + ' ' + (item.title || ''));
+  }
+  const label = [(item.artist || ''), (item.title || '')].filter(Boolean).join(' - ');
+  params.set('label', label);
+  return base + '?' + params.toString();
 }
 
 let archiveItems = [];
