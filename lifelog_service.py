@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.54"
+SERVICE_VERSION = "1.55"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1237,6 +1237,41 @@ def execute_command(cmd):
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
 
+        elif action == "play_next":
+            # "Play now" non-destructive: insert track at next queue position, then skip to it.
+            # After track finishes, playback resumes from previous queue position.
+            from soco.plugins.sharelink import ShareLinkPlugin
+            spotify_uri = cmd.get("uri", "")
+            title       = cmd.get("title", spotify_uri)
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            if not dev:
+                result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
+            elif not spotify_uri:
+                result["message"] = "No Spotify URI provided"
+            else:
+                uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
+                uri_id    = spotify_uri.split(":")[-1]
+                share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                try:
+                    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    plugin = ShareLinkPlugin(coordinator)
+                    # Get current position and insert right after
+                    info = coordinator.get_current_track_info()
+                    current_pos = int(info.get('playlist_position', 0))
+                    insert_pos = current_pos + 1
+                    log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
+                    plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                    # Skip to the inserted track
+                    coordinator.next()
+                    room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
+                    grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
+                    result["success"] = True
+                    result["message"] = f"Playing next: '{title}' in {room_label}{grp_note}"
+                    result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url,
+                                      "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
+                except Exception as e:
+                    result["message"] = f"play_next error: {e}"
+
         elif action == "play_radio":
             # Play a list of Spotify track URIs as a "radio station"
             # Agent builds the list (from playlist tracks, album tracks, etc.)
@@ -1477,18 +1512,18 @@ def execute_command(cmd):
 
     # Stamp t_playing immediately after successful play command execution
     if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_radio",
-                                             "queue_next", "queue", "add_to_queue", "search_and_play"):
+                                             "play_next", "queue_next", "queue", "add_to_queue", "search_and_play"):
         result["t_playing"] = now_iso()
 
     # Brief delay so speakers transition to PLAYING state before we query
-    if result.get("success") and action in ("play_spotify_uri", "play_album", "play"):
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next"):
         time.sleep(2)
 
     # Piggyback heartbeat + any buffered history on this command result
     result["heartbeat"] = heartbeat_fields()
 
     # Ensure the just-commanded room appears in rooms_playing after a successful play
-    if result.get("success") and action in ("play_spotify_uri", "play_album", "play"):
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next"):
         rp = result["heartbeat"].get("rooms_playing", [])
         cmd_room = result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None
         if not cmd_room:

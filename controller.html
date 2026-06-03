@@ -103,14 +103,15 @@
       <div class="flex-1 min-w-0">
         <p class="text-xs text-green-400 font-semibold mb-1" id="banner-action-label">▶ Add to queue</p>
         <p class="text-sm font-bold text-white truncate" id="banner-label">Track name</p>
-        <p class="text-xs text-slate-400 mt-1">Sending to: <span id="banner-rooms" class="text-blue-300"></span></p>
+        <p class="text-xs text-slate-400 mt-1" id="banner-target-line">Sending to: <span id="banner-rooms" class="text-blue-300"></span></p>
       </div>
       <div class="flex flex-col gap-2">
         <button class="btn-primary text-sm px-4 py-2" id="banner-go-btn" onclick="executeBannerAction()">Send ✓</button>
         <button class="btn-secondary text-xs px-3 py-1" onclick="dismissBanner()">Cancel</button>
       </div>
     </div>
-    <div id="banner-countdown" class="text-xs text-slate-500 mt-2"></div>
+    <div id="banner-alts" class="mt-2" style="display:none"></div>
+    <div id="banner-countdown" class="text-xs text-slate-500 mt-1"></div>
   </div>
 
   <!-- Now playing -->
@@ -1090,7 +1091,75 @@ async function resolveAndPlay(action, query, label, dlHouse, dlRoom) {
   }
 }
 
+// ── Smart target detection ────────────────────────────────────────────────────
+function detectBestTarget() {
+  // Returns { house, rooms, label, alternatives[] }
+  const alts = [];
+  const houses = ['caphill', 'vashon'];
+  let bestSonos = null;
+
+  if (data && data.client_status) {
+    for (const h of houses) {
+      const clients = data.client_status.filter(c => c.house === h && c.sonos_commander);
+      if (!clients.length) continue;
+      const best = clients.reduce((a, b) => new Date(a.last_seen) > new Date(b.last_seen) ? a : b);
+      const minAgo = Math.floor((Date.now() - new Date(best.last_seen).getTime()) / 60000);
+      if (minAgo > 30) {
+        // Offline — don't offer as default, but mention as alternative with warning
+        alts.push({ house: h, label: esc(h === 'caphill' ? 'Cap Hill' : 'Vashon') + ' ⚠️ offline', offline: true });
+        continue;
+      }
+      // Find rooms_playing for this house
+      let houseRooms = [];
+      if (data.rooms_playing && Array.isArray(data.rooms_playing)) {
+        // rooms_playing is from the current house context — check if this house matches
+        // We need to check per-client metadata for rooms_playing
+      }
+      // Check metadata.rooms_playing from client_status
+      try {
+        const meta = typeof best.metadata === 'string' ? JSON.parse(best.metadata) : best.metadata;
+        if (meta && Array.isArray(meta.rooms_playing) && meta.rooms_playing.length > 0) {
+          houseRooms = meta.rooms_playing;
+        }
+      } catch(e) {}
+
+      const houseLabel = h === 'caphill' ? 'Cap Hill' : 'Vashon';
+      if (houseRooms.length > 0) {
+        // Active playback — strong signal
+        if (!bestSonos || houseRooms.length > 0) {
+          bestSonos = { house: h, rooms: houseRooms, label: 'Sonos: ' + houseRooms.join(', ') + ' (' + houseLabel + ')' };
+        }
+      } else {
+        // Online but not playing — offer as alternative
+        alts.push({ house: h, label: houseLabel + ' (Sonos)', offline: false });
+      }
+    }
+  }
+
+  // Always offer Roaming/Spotify as an alternative
+  alts.push({ house: 'roaming', label: 'Spotify (Roaming)', offline: false });
+
+  if (bestSonos) {
+    // Remove the best from alternatives, add others
+    const filteredAlts = alts.filter(a => a.house !== bestSonos.house);
+    return { ...bestSonos, alternatives: filteredAlts };
+  }
+
+  // No active Sonos — check if any online Sonos house exists
+  const onlineSonos = alts.find(a => a.house !== 'roaming' && !a.offline);
+  if (onlineSonos) {
+    const otherAlts = alts.filter(a => a !== onlineSonos);
+    return { house: onlineSonos.house, rooms: [], label: onlineSonos.label, alternatives: otherAlts };
+  }
+
+  // Fall back to Roaming/Spotify
+  const spotifyAlts = alts.filter(a => a.house !== 'roaming');
+  return { house: 'roaming', rooms: [], label: 'Spotify (Roaming)', alternatives: spotifyAlts };
+}
+
 // ── Deep link handler ─────────────────────────────────────────────────────────
+const BANNER_COUNTDOWN_SEC = 5;
+
 function handleDeepLink() {
   const p = new URLSearchParams(window.location.search);
   const action = p.get('action');
@@ -1108,46 +1177,158 @@ function handleDeepLink() {
     return;
   }
 
-  if (dlHouse && dlHouse !== house) setHouse(dlHouse);
-  if (dlRoom && house !== 'roaming') {
-    selectedRooms = [dlRoom];
-    localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms));
+  // Smart target detection
+  let targetHouse, targetRooms, targetLabel;
+  if (dlHouse) {
+    // Explicit house from deep link — honor it
+    targetHouse = dlHouse;
+    targetRooms = dlRoom ? [dlRoom] : [];
+    targetLabel = dlHouse === 'roaming' ? 'Spotify (Roaming)' : (dlHouse === 'caphill' ? 'Cap Hill' : 'Vashon');
+  } else {
+    // No house specified — detect best target
+    const best = detectBestTarget();
+    targetHouse = best.house;
+    targetRooms = best.rooms;
+    targetLabel = best.label;
+  }
+
+  // Switch to the detected house
+  if (targetHouse !== house) setHouse(targetHouse);
+  if (targetRooms.length > 0 && targetHouse !== 'roaming') {
+    selectedRooms = [...targetRooms];
+    localStorage.setItem('ll_rooms_' + targetHouse, JSON.stringify(selectedRooms));
     renderRoomCheckboxes();
   }
 
-  if (house === 'roaming') {
-    // Roaming deep links go directly to Spotify
-    document.getElementById('banner-action-label').textContent = '▶ ' + action;
-    document.getElementById('banner-label').textContent = decodeURIComponent(label);
-    document.getElementById('banner-rooms').textContent = 'Spotify';
-    document.getElementById('action-banner').style.display = 'block';
-    document.getElementById('banner-countdown').textContent = 'Sending…';
-    bannerAction = { action, uri, label };
-    bannerCountdownTimer = setTimeout(() => executeBannerAction(), 400);
-    return;
+  // If Sonos house but no rooms detected, try inferring
+  if (targetHouse !== 'roaming' && targetRooms.length === 0) {
+    const inferred = inferActiveRooms();
+    if (inferred.length > 0) {
+      targetRooms = inferred;
+      targetLabel += ': ' + inferred.join(', ');
+    }
   }
 
-  const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
-  const actionLabels = { queue: '▶ Add to queue', play: '▶ Play now', play_album: '▶ Play album' };
+  const actionLabels = {
+    queue: '+ Queue next', queue_next: '+ Queue next',
+    play: '▶ Play now', play_album: '▶ Play album',
+    add_to_queue: '+ Add to queue'
+  };
 
-  bannerAction = { action, uri, label };
+  bannerAction = { action, uri, label, targetHouse };
   document.getElementById('banner-action-label').textContent = actionLabels[action] || '▶ ' + action;
   document.getElementById('banner-label').textContent = decodeURIComponent(label);
-  document.getElementById('banner-rooms').textContent = rooms.length ? rooms.join(', ') : 'No rooms selected';
+
+  // Target line
+  const targetLine = document.getElementById('banner-target-line');
+  const roomsEl = document.getElementById('banner-rooms');
+  if (targetHouse === 'roaming') {
+    roomsEl.textContent = 'Spotify';
+  } else {
+    roomsEl.textContent = targetRooms.length ? targetRooms.join(', ') + ' (' + (targetHouse === 'caphill' ? 'Cap Hill' : 'Vashon') + ')' : (targetHouse === 'caphill' ? 'Cap Hill' : 'Vashon') + ' (no rooms detected)';
+  }
+
+  // Show alternatives
+  const best = detectBestTarget();
+  const altsEl = document.getElementById('banner-alts');
+  const altChoices = best.alternatives || [];
+  if (altChoices.length > 0) {
+    const altBtns = altChoices.map(a =>
+      `<button class="text-xs px-2 py-1 rounded ${a.offline ? 'bg-red-900/40 text-red-300' : 'bg-slate-700 text-blue-300 hover:bg-slate-600'}" onclick="switchBannerTarget('${a.house}')" ${a.offline ? 'title="Service offline"' : ''}>${a.label}</button>`
+    ).join(' ');
+    altsEl.innerHTML = '<span class="text-xs text-slate-500 mr-2">Or:</span>' + altBtns;
+    altsEl.style.display = 'flex';
+    altsEl.style.alignItems = 'center';
+    altsEl.style.gap = '4px';
+    altsEl.style.flexWrap = 'wrap';
+  } else {
+    altsEl.style.display = 'none';
+  }
+
   document.getElementById('action-banner').style.display = 'block';
-  document.getElementById('banner-countdown').textContent = 'Sending…';
-  bannerCountdownTimer = setTimeout(() => executeBannerAction(), 400);
+
+  // Countdown
+  let remaining = BANNER_COUNTDOWN_SEC;
+  const cdEl = document.getElementById('banner-countdown');
+  cdEl.textContent = 'Auto-sending in ' + remaining + 's...';
+  bannerCountdownTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(bannerCountdownTimer);
+      executeBannerAction();
+    } else {
+      cdEl.textContent = 'Auto-sending in ' + remaining + 's...';
+    }
+  }, 1000);
+}
+
+function switchBannerTarget(newHouse) {
+  if (!bannerAction) return;
+  clearInterval(bannerCountdownTimer);
+
+  // Switch house
+  setHouse(newHouse);
+  bannerAction.targetHouse = newHouse;
+
+  // Update banner display
+  const roomsEl = document.getElementById('banner-rooms');
+  if (newHouse === 'roaming') {
+    roomsEl.textContent = 'Spotify';
+  } else {
+    const inferred = inferActiveRooms();
+    if (inferred.length > 0) {
+      selectedRooms = [...inferred];
+      renderRoomCheckboxes();
+    }
+    const houseLabel = newHouse === 'caphill' ? 'Cap Hill' : 'Vashon';
+    roomsEl.textContent = selectedRooms.length ? selectedRooms.join(', ') + ' (' + houseLabel + ')' : houseLabel;
+  }
+
+  // Rebuild alternatives (exclude new target)
+  const best = detectBestTarget();
+  const altsEl = document.getElementById('banner-alts');
+  const altChoices = (best.alternatives || []).filter(a => a.house !== newHouse);
+  // Also add the original best if it's not the new target
+  if (best.house !== newHouse) {
+    altChoices.unshift({ house: best.house, label: best.label.replace('Sonos: ', ''), offline: false });
+  }
+  if (altChoices.length > 0) {
+    const altBtns = altChoices.map(a =>
+      `<button class="text-xs px-2 py-1 rounded ${a.offline ? 'bg-red-900/40 text-red-300' : 'bg-slate-700 text-blue-300 hover:bg-slate-600'}" onclick="switchBannerTarget('${a.house}')">${a.label}</button>`
+    ).join(' ');
+    altsEl.innerHTML = '<span class="text-xs text-slate-500 mr-2">Or:</span>' + altBtns;
+  }
+
+  // Restart countdown
+  let remaining = BANNER_COUNTDOWN_SEC;
+  const cdEl = document.getElementById('banner-countdown');
+  cdEl.textContent = 'Auto-sending in ' + remaining + 's...';
+  bannerCountdownTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(bannerCountdownTimer);
+      executeBannerAction();
+    } else {
+      cdEl.textContent = 'Auto-sending in ' + remaining + 's...';
+    }
+  }, 1000);
 }
 
 async function executeBannerAction() {
   if (!bannerAction) return;
-  const { action, uri, label } = bannerAction;
-  clearTimeout(bannerCountdownTimer);
+  const { action, uri, label, targetHouse } = bannerAction;
+  clearInterval(bannerCountdownTimer);
   dismissBanner();
 
+  // Ensure we're on the right house
+  if (targetHouse && targetHouse !== house) setHouse(targetHouse);
+
   if (house === 'roaming') {
-    if (action === 'queue') {
+    if (action === 'queue' || action === 'queue_next' || action === 'add_to_queue') {
       await spotifyQueueUri(uri);
+    } else if (action === 'play') {
+      // "Play now" = queue next + skip — non-destructive, resumes after
+      await spotifyPlayNext(uri, decodeURIComponent(label));
     } else {
       await spotifyPlayUri(uri);
     }
@@ -1157,7 +1338,16 @@ async function executeBannerAction() {
   // Sonos path
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
+
+  let ntfyAction;
+  if (action === 'play') {
+    // "Play now" on Sonos = play_next (queue at next position + skip to it)
+    ntfyAction = 'play_next';
+  } else if (action === 'queue' || action === 'queue_next' || action === 'add_to_queue') {
+    ntfyAction = 'add_to_queue';
+  } else {
+    ntfyAction = 'play_spotify_uri';
+  }
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
 
   optimisticNowPlaying = { label: decodeURIComponent(label), room: rooms[0] || null, ts: Date.now() };
@@ -1168,10 +1358,32 @@ async function executeBannerAction() {
   showToast(`✓ ${decodeURIComponent(label)} sent to ${rooms.length} room${rooms.length > 1 ? 's' : ''}`);
 }
 
+// Spotify "Play Now" = queue next + skip (non-destructive, resumes after)
+async function spotifyPlayNext(uri, label) {
+  try {
+    const deviceParam = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
+    if (uri.includes(':track:')) {
+      await _ensureDeviceAwake();
+      await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + deviceParam);
+      // Small delay to ensure queue registers, then skip to it
+      await new Promise(r => setTimeout(r, 300));
+      await spotifyApi('POST', '/me/player/next');
+      showToast('✓ Playing: ' + (label || 'track'));
+      setTimeout(fetchSpotifyNowPlaying, 1000);
+    } else {
+      // For albums/playlists, can't queue+skip — fall back to direct play
+      await spotifyPlayUri(uri);
+    }
+  } catch(e) {
+    showToast('✗ ' + e.message, true);
+  }
+}
+
 function dismissBanner() {
-  clearTimeout(bannerCountdownTimer);
+  clearInterval(bannerCountdownTimer);
   document.getElementById('action-banner').style.display = 'none';
   bannerAction = null;
+  document.getElementById('banner-alts').style.display = 'none';
   history.replaceState({}, '', window.location.pathname);
 }
 
@@ -1204,7 +1416,7 @@ async function postNtfy(payload) {
       body: JSON.stringify(payload)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    if (payload.uri && ['play_spotify_uri', 'add_to_queue', 'queue_next'].includes(payload.action)) {
+    if (payload.uri && ['play_spotify_uri', 'add_to_queue', 'queue_next', 'play_next'].includes(payload.action)) {
       pendingCommandTimer = { uri: payload.uri, t_requested: Date.now(), action: payload.action };
     }
     showToast('✓ Command sent');
@@ -1325,6 +1537,9 @@ async function playFromDiscovery(action, uri, label) {
   if (house === 'roaming') {
     if (action === 'queue') {
       await spotifyQueueUri(uri);
+    } else if (action === 'play' && uri.includes(':track:')) {
+      // "Play now" = queue next + skip — non-destructive
+      await spotifyPlayNext(uri, label);
     } else {
       await spotifyPlayUri(uri);
     }
@@ -1335,9 +1550,17 @@ async function playFromDiscovery(action, uri, label) {
   // Sonos path
   const rooms = selectedRooms.length > 0 ? selectedRooms : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
+  let ntfyAction;
+  if (action === 'queue') {
+    ntfyAction = 'add_to_queue';
+  } else if (action === 'play') {
+    // "Play now" = play_next (queue at next position + skip) — non-destructive
+    ntfyAction = 'play_next';
+  } else {
+    ntfyAction = 'play_spotify_uri';
+  }
   const cmd = { action: ntfyAction, uri, rooms, target_client_id: commanderId };
-  if (uri.includes(':playlist:') && action !== 'queue') cmd.shuffle = true;
+  if (uri.includes(':playlist:') && action !== 'queue' && ntfyAction !== 'play_next') cmd.shuffle = true;
   await postNtfy(cmd);
   optimisticNowPlaying = { label, room: rooms[0] || null, ts: Date.now() };
   optimisticActiveRooms = { rooms: [...rooms], ts: Date.now() };
