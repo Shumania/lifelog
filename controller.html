@@ -211,6 +211,7 @@ let optimisticNowPlaying = null;
 let optimisticActiveRooms = null;
 let postCommandRefreshTimer = null;
 let _sseNowPlaying = null;
+let _sseNowPlayingGlobal = null;  // always updated regardless of house filter
 
 // Spotify roaming state
 let spotifyDevices = [];
@@ -673,6 +674,11 @@ function connectSSE() {
       const sseMatchesHouse = !sseHouse || sseHouse === house;
 
       if (msg.event === 'now_playing') {
+        // Always store global now-playing (for Roaming tab hint)
+        _sseNowPlayingGlobal = {
+          title: msg.title, artist: msg.artist, album: msg.album,
+          rooms: msg.rooms || [], house: sseHouse, ts: Date.now()
+        };
         if (sseMatchesHouse) {
           _sseNowPlaying = {
             title: msg.title, artist: msg.artist, album: msg.album,
@@ -688,9 +694,13 @@ function connectSSE() {
             renderRoomCheckboxes();
           }
           renderNowPlaying();
+        } else if (house === 'roaming') {
+          renderNowPlaying();  // re-render to show Sonos hint
         }
       } else if (msg.event === 'stopped') {
+        _sseNowPlayingGlobal = null;
         if (sseMatchesHouse) { _sseNowPlaying = null; renderNowPlaying(); }
+        else if (house === 'roaming') { renderNowPlaying(); }
       }
       if (msg.rooms_playing) {
         if (sseMatchesHouse && data) {
@@ -914,7 +924,20 @@ function renderNowPlaying() {
     if (!spotifyNowPlaying) {
       labelEl.textContent = 'NOW PLAYING';
       labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
-      npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing on Spotify</p>';
+      // Show Sonos hint if something is playing on Sonos
+      if (_sseNowPlayingGlobal && (Date.now() - _sseNowPlayingGlobal.ts) < 300000) {
+        const sonosHouse = _sseNowPlayingGlobal.house === 'caphill' ? 'Cap Hill' : 'Vashon';
+        const sonosRooms = _sseNowPlayingGlobal.rooms.join(', ');
+        npEl.innerHTML = `
+          <p class="text-sm text-slate-400">Nothing playing on Spotify Connect</p>
+          <div style="margin-top:8px;padding:8px 12px;background:rgba(59,130,246,0.15);border-radius:8px;border:1px solid rgba(59,130,246,0.3)">
+            <p class="text-sm text-blue-300">🔊 Sonos is playing in ${esc(sonosRooms)}</p>
+            <p class="text-xs text-slate-400" style="margin-top:2px">${esc(_sseNowPlayingGlobal.title)} — ${esc(_sseNowPlayingGlobal.artist)}</p>
+            <a href="#" onclick="switchHouse('${_sseNowPlayingGlobal.house}');return false" class="text-xs text-blue-400" style="margin-top:4px;display:inline-block">Switch to ${esc(sonosHouse)} →</a>
+          </div>`;
+      } else {
+        npEl.innerHTML = '<p class="text-sm text-slate-500">Nothing playing on Spotify</p>';
+      }
       roomsEl.innerHTML = '';
       return;
     }

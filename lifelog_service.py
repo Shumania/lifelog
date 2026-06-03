@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.56"
+SERVICE_VERSION = "1.57"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -109,7 +109,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 CMD_POLL_EVERY             = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
-HEARTBEAT_FALLBACK_SECS    = 1800  # standalone heartbeat only if no POST in 30 min
+HEARTBEAT_FALLBACK_SECS    = 3600  # keepalive heartbeat every 60 min (only if no real POST)
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -569,9 +569,9 @@ def flush_buffer(reason=""):
 
 # --- HEARTBEAT THREAD -------------------------------------------------------
 def heartbeat_thread():
-    """Fallback heartbeat: fires only if no other POST has gone out in HEARTBEAT_FALLBACK_SECS.
+    """60-min keepalive: fires only if no other POST has gone out in 60 min.
     During active sessions, every flush/command result carries heartbeat fields inline,
-    so this thread mostly sleeps."""
+    so this thread mostly sleeps. Exists for staleness monitor to detect 'service alive'."""
     global last_post_ts
 
     # Always send on startup so status shows online immediately
@@ -1039,7 +1039,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check"}
 
 def execute_command(cmd):
     action = cmd.get("action", "")
@@ -1053,13 +1053,8 @@ def execute_command(cmd):
 
     is_silent = action in SILENT_ACTIONS
 
-    # Ack immediately (skip for silent actions)
-    if not is_silent:
-        try:
-            requests.post(WEBHOOK, json={"type":"sonos_ack","cmd_id":cmd_id,
-                                         "action":action,"house":house,"timestamp":now_iso()}, timeout=10)
-            log(f"[OK] Ack: {action}")
-        except Exception: pass
+    # Ack removed (v1.57) -- was triggering unnecessary agent invocations.
+    # The sonos_result POST provides the confirmation that matters.
 
     result = {"type":"sonos_result","cmd_id":cmd_id,"action":action,"house":house,
               "success":False,"message":"","data":None}
