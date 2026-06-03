@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.55"
+SERVICE_VERSION = "1.56"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -201,8 +201,8 @@ speaker_failures         = {}
 speaker_offline_since    = {}
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
 last_cmd_sha             = None
-executed_cmd_hashes      = set()
-MAX_EXECUTED_HASHES      = 30
+executed_cmd_hashes      = {}   # hash -> timestamp (TTL-based dedup)
+CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s — covers ntfy replay window
 last_sonos_activity_ts   = 0.0  # updated when a track is buffered
 last_track_added_ts      = 0.0  # updated when a track is added to buffer
 last_post_ts             = 0.0  # updated whenever any POST succeeds
@@ -958,19 +958,31 @@ def is_my_command(cmd):
         return sonos_commander
 
 # --- SONOS: COMMAND DEDUP ---------------------------------------------------
+# TTL-based: hashes expire after CMD_DEDUP_TTL_SECONDS (60s).
+# This covers ntfy's since=5m replay window without permanently blocking
+# legitimate repeated commands (next/next, update_check, etc.).
 def _cmd_hash(cmd):
-    # Include cmd_ts so repeated commands with different timestamps are NOT deduped.
-    # Genuine duplicates (from ntfy since=5m replay) have the SAME cmd_ts and WILL be deduped.
     return hashlib.md5(json.dumps(cmd, sort_keys=True).encode()).hexdigest()
 
 def _mark_executed(cmd):
-    executed_cmd_hashes.add(_cmd_hash(cmd))
-    if len(executed_cmd_hashes) > MAX_EXECUTED_HASHES:
-        for h in list(executed_cmd_hashes)[:MAX_EXECUTED_HASHES // 2]:
-            executed_cmd_hashes.discard(h)
+    now = time.time()
+    executed_cmd_hashes[_cmd_hash(cmd)] = now
+    # Prune expired entries periodically
+    if len(executed_cmd_hashes) > 50:
+        cutoff = now - CMD_DEDUP_TTL_SECONDS
+        expired = [h for h, ts in executed_cmd_hashes.items() if ts < cutoff]
+        for h in expired:
+            del executed_cmd_hashes[h]
 
 def _already_executed(cmd):
-    return _cmd_hash(cmd) in executed_cmd_hashes
+    h = _cmd_hash(cmd)
+    ts = executed_cmd_hashes.get(h)
+    if ts is None:
+        return False
+    if time.time() - ts > CMD_DEDUP_TTL_SECONDS:
+        del executed_cmd_hashes[h]
+        return False
+    return True
 
 # --- SONOS: EXECUTE COMMAND -------------------------------------------------
 def _setup_rooms(cmd, devices):
