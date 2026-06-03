@@ -353,7 +353,8 @@ async function spotifyApi(method, path, body) {
     const msg = err.error?.message || ('HTTP ' + r.status);
     throw new Error(msg);
   }
-  return r.json();
+  const text = await r.text();
+  return text ? JSON.parse(text) : {};
 }
 
 // ── Spotify Device & Playback ──────────────────────────────────────────────
