@@ -674,6 +674,7 @@ function connectSSE() {
       const sseMatchesHouse = !sseHouse || sseHouse === house;
 
       if (msg.event === 'now_playing') {
+        // Clear any _fromStatus placeholder — real event takes over
         // Always store global now-playing (for Roaming tab hint)
         _sseNowPlayingGlobal = {
           title: msg.title, artist: msg.artist, album: msg.album,
@@ -682,7 +683,7 @@ function connectSSE() {
         if (sseMatchesHouse) {
           _sseNowPlaying = {
             title: msg.title, artist: msg.artist, album: msg.album,
-            rooms: msg.rooms || [], ts: Date.now()
+            rooms: msg.rooms || [], ts: Date.now(), _fromStatus: false
           };
           if (msg.rooms && msg.rooms.length > 0 && data && !_userManualRoomSelect) {
             data.rooms_playing = msg.rooms;
@@ -721,6 +722,19 @@ function connectSSE() {
           if (msg.version) c.version = msg.version;
         }
         renderMachineStatus();
+      }
+      // Opportunistic now-playing from status_update (v1.60)
+      if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && sseMatchesHouse && !_sseNowPlaying) {
+        const t = msg.now_playing_tracks[0];
+        _sseNowPlaying = { title: t.title || '', artist: t.artist || '', album: t.album || '',
+          rooms: msg.now_playing_tracks.map(x => x.room), ts: Date.now(), _fromStatus: true };
+        _sseNowPlayingGlobal = { ..._sseNowPlaying, house: msg.house || house };
+        renderNowPlaying();
+      } else if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && house === 'roaming' && !_sseNowPlayingGlobal) {
+        const t = msg.now_playing_tracks[0];
+        _sseNowPlayingGlobal = { title: t.title || '', artist: t.artist || '', album: t.album || '',
+          rooms: msg.now_playing_tracks.map(x => x.room), ts: Date.now(), _fromStatus: true, house: msg.house || '' };
+        renderNowPlaying();
       }
     } catch(err) {}
   });
@@ -980,7 +994,8 @@ function renderNowPlaying() {
 
   const useOptimistic = optTs > sseTs && optTs > latestTs && optTs > serverNpTs;
   const useSSE = !useOptimistic && sseTs > 0 && (Date.now() - sseTs) < 600000;
-  const useServerNp = !useOptimistic && !useSSE && serverNp && (serverNp.title || serverNp.label) && (isNaN(serverNpTs) || serverNpTs > latestTs || serverNpTs === 0);
+  const serverNpFresh = serverNpTs > 0 && (Date.now() - serverNpTs) < 1800000; // 30min staleness guard
+  const useServerNp = !useOptimistic && !useSSE && serverNp && (serverNp.title || serverNp.label) && serverNpFresh && (isNaN(serverNpTs) || serverNpTs > latestTs || serverNpTs === 0);
 
   let item = null;
   if (useOptimistic) {
