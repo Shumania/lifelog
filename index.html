@@ -40,6 +40,12 @@
     .np-bar.active { display: block; }
     @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     .np-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s infinite; display: inline-block; }
+    .np-dot-spotify { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #1DB954; animation: pulse-dot 2s infinite; flex-shrink: 0; }
+    .np-dot-spotify svg { width: 10px; height: 10px; }
+    .np-dot-dim { width: 6px; height: 6px; border-radius: 50%; background: #60a5fa; animation: pulse-dot 3s infinite; display: inline-block; opacity: 0.5; }
+    .np-dot-off { width: 6px; height: 6px; border-radius: 50%; background: #475569; display: inline-block; }
+    .np-bar.tier-recent { opacity: 0.7; }
+    .np-bar.tier-stale { opacity: 0.45; }
     .track-actions { display:flex; gap:2px; flex-shrink:0; align-items:center; }
     .action-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; opacity:0.4; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color:rgba(255,255,255,0.1); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none; }
     .action-btn:hover, .action-btn:active { opacity:0.9; }
@@ -105,6 +111,104 @@ const SPOTIFY_ICON = '<svg class="sp-logo" viewBox="0 0 24 24" fill="white"><pat
 
 let allData = [];
 let filter = 'all';
+let _npTier = null; // current tier of now-playing bar
+
+// ── Age formatter ────────────────────────────────────────────────────────────
+function fmtAge(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  return Math.floor(hr / 24) + 'd ago';
+}
+
+// ── Spotify awareness (reuses tokens from controller.html PKCE auth) ─────
+const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
+let _spotifyNp = null;
+let _spotifyPollTimer = null;
+
+async function getSpotifyToken() {
+  const expiry = parseInt(localStorage.getItem('spotify_token_expiry') || '0');
+  if (Date.now() > expiry - 60000) {
+    const rt = localStorage.getItem('spotify_refresh_token');
+    if (!rt) return null;
+    try {
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: SP_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt })
+      });
+      const d = await r.json();
+      if (d.access_token) {
+        localStorage.setItem('spotify_access_token', d.access_token);
+        if (d.refresh_token) localStorage.setItem('spotify_refresh_token', d.refresh_token);
+        localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      } else return null;
+    } catch(e) { return null; }
+  }
+  return localStorage.getItem('spotify_access_token');
+}
+
+async function checkSpotifyNowPlaying() {
+  const token = await getSpotifyToken();
+  if (!token) { _spotifyNp = null; return; }
+  try {
+    const r = await fetch('https://api.spotify.com/v1/me/player?additional_types=track', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (r.status === 204 || r.status === 401) { _spotifyNp = null; updateNowPlayingFallback(); return; }
+    const text = await r.text();
+    if (!text) { _spotifyNp = null; updateNowPlayingFallback(); return; }
+    const d = JSON.parse(text);
+    if (!d.item || !d.is_playing) { _spotifyNp = null; }
+    else {
+      _spotifyNp = {
+        title: d.item.name,
+        artist: (d.item.artists || []).map(a => a.name).join(', '),
+        album: d.item.album ? d.item.album.name : '',
+        device: d.device ? d.device.name : ''
+      };
+    }
+  } catch(e) { _spotifyNp = null; }
+  // Only update display if no live Sonos SSE
+  if (!_sseCurrentTrack) updateNowPlayingFallback();
+}
+
+function updateNowPlayingFallback() {
+  // Priority: live Sonos (handled by SSE caller) > live Spotify > history
+  if (_sseCurrentTrack) return; // SSE is active — don't override
+
+  if (_spotifyNp) {
+    showNowPlaying({
+      title: _spotifyNp.title, artist: _spotifyNp.artist,
+      album: _spotifyNp.album, rooms: [_spotifyNp.device]
+    }, 'live-spotify');
+    return;
+  }
+
+  // Fall back to most recent history item
+  if (allData.length > 0) {
+    const latest = allData[0];
+    const ageMs = Date.now() - new Date(latest.timestamp).getTime();
+    const tier = ageMs < 30 * 60000 ? 'recent' : 'stale';
+    showNowPlaying({
+      title: latest.title, artist: latest.artist || '',
+      album: latest.album || '',
+      rooms: latest.rooms || (latest.room ? [latest.room] : [])
+    }, tier, ageMs);
+    return;
+  }
+
+  hideNowPlaying();
+}
+
+function startSpotifyAwareness() {
+  if (_spotifyPollTimer) return;
+  if (!localStorage.getItem('spotify_refresh_token')) return;
+  checkSpotifyNowPlaying();
+  _spotifyPollTimer = setInterval(checkSpotifyNowPlaying, 30000);
+}
 
 function setFilter(f) {
   filter = f;
@@ -289,6 +393,8 @@ async function loadData(alsoArchive) {
     renderStatusBar(json.client_status || json.clients || []);
     updateCounts();
     renderFeed();
+    // Update now-playing fallback with fresh history data
+    if (!_sseCurrentTrack) updateNowPlayingFallback();
   } catch(e) {
     document.getElementById('feed').innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">⚠️</p><p class="text-sm">Could not load data</p></div>`;
   } finally {
@@ -363,20 +469,19 @@ function connectSSE() {
           prependLiveTrack(_sseCurrentTrack);
         }
         _sseCurrentTrack = { ...msg, _started: Date.now() };
-        showNowPlaying(msg);
+        showNowPlaying(msg, 'live-sonos');
       } else if (msg.event === 'status_update') {
         // Populate Now Playing from status_update if we don't have a current track
-        // This handles page-load-mid-track: first status_update within ~15s shows what's playing
         const npt = msg.now_playing_tracks;
         if (npt && npt.length > 0 && !_sseCurrentTrack) {
           const t = npt[0];
           _sseCurrentTrack = { ...t, _started: Date.now(), _fromStatus: true };
-          showNowPlaying(t);
+          showNowPlaying(t, 'live-sonos');
         } else if ((!npt || npt.length === 0) && msg.rooms_playing && msg.rooms_playing.length === 0) {
-          // Nothing playing anywhere — clear Now Playing if it was set from a stale status
+          // Nothing playing anywhere — clear and fall back to Spotify/history
           if (_sseCurrentTrack && _sseCurrentTrack._fromStatus) {
             _sseCurrentTrack = null;
-            hideNowPlaying();
+            updateNowPlayingFallback();
           }
         }
         // Update rooms_playing indicators on status bar
@@ -384,7 +489,7 @@ function connectSSE() {
       } else if (msg.event === 'stopped') {
         if (_sseCurrentTrack) { prependLiveTrack(_sseCurrentTrack); }
         _sseCurrentTrack = null;
-        hideNowPlaying();
+        updateNowPlayingFallback();
       }
     } catch(err) { /* ignore parse errors */ }
   });
@@ -394,9 +499,43 @@ setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 3000
 // Reconnect on visibility change (returning from background tab)
 document.addEventListener('visibilitychange', () => { if (!document.hidden) connectSSE(); });
 
-function showNowPlaying(msg) {
+function showNowPlaying(msg, tier = 'live-sonos', ageMs = 0) {
   const bar = document.getElementById('now-playing-bar');
-  bar.classList.add('active');
+  bar.className = 'np-bar active'; // reset tier classes
+  _npTier = tier;
+
+  let dotHtml, labelText, labelColor;
+  switch(tier) {
+    case 'live-sonos':
+      dotHtml = '<span class="np-dot"></span>';
+      labelText = 'NOW PLAYING';
+      labelColor = '#4ade80';
+      break;
+    case 'live-spotify':
+      dotHtml = '<span class="np-dot-spotify">' + SPOTIFY_ICON + '</span>';
+      labelText = 'NOW PLAYING';
+      labelColor = '#1DB954';
+      break;
+    case 'recent':
+      dotHtml = '<span class="np-dot-dim"></span>';
+      labelText = 'PLAYED ' + fmtAge(ageMs).toUpperCase();
+      labelColor = '#60a5fa';
+      bar.classList.add('tier-recent');
+      break;
+    case 'stale':
+      dotHtml = '<span class="np-dot-off"></span>';
+      labelText = 'LAST PLAYED · ' + fmtAge(ageMs).toUpperCase();
+      labelColor = '#475569';
+      bar.classList.add('tier-stale');
+      break;
+  }
+
+  // Rebuild the header row
+  const headerRow = bar.children[0];
+  headerRow.innerHTML = dotHtml
+    + '<span style="font-size:10px;color:' + labelColor + ';font-weight:700;letter-spacing:0.5px;">' + labelText + '</span>'
+    + '<span id="np-rooms" style="font-size:10px;color:#64748b;margin-left:auto;"></span>';
+
   document.getElementById('np-title').textContent = msg.title || '';
   const parts = [msg.artist, msg.album].filter(Boolean);
   document.getElementById('np-meta').textContent = parts.join(' · ');
@@ -430,6 +569,7 @@ function prependLiveTrack(track) {
 }
 
 connectSSE();
+startSpotifyAwareness();
 
 async function exploreArtist(btn, encodedData) {
   const trackData = JSON.parse(decodeURIComponent(encodedData));
