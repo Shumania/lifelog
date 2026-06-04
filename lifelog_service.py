@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.59"
+SERVICE_VERSION = "1.60"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1737,11 +1737,29 @@ def sonos_main_loop():
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or keepalive_due:
                 _sse_status_counter = 0
-                publish_ui_event("status_update", {
+                # Build now_playing_tracks from room_state for browser init
+                np_tracks = []
+                for coord_name, coord_key in _last_ui_track.items():
+                    rs = room_state.get(coord_name)
+                    if rs and rs.get("track_info"):
+                        ti = rs["track_info"]
+                        np_tracks.append({
+                            "title": ti.get("title", ""),
+                            "artist": ti.get("artist", ""),
+                            "album": ti.get("album", ""),
+                            "rooms": ti.get("rooms", [coord_name]),
+                            "service": ti.get("service", ""),
+                            "uri": ti.get("uri", ""),
+                        })
+                sse_data = {
                     "client_id": client_id,
                     "version": SERVICE_VERSION,
                     "rooms_playing": rp,
-                })
+                    "house": house,
+                }
+                if np_tracks:
+                    sse_data["now_playing_tracks"] = np_tracks
+                publish_ui_event("status_update", sse_data)
                 _last_sse_rooms_playing = rp
 
         except Exception as e:

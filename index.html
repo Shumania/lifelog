@@ -358,11 +358,29 @@ function connectSSE() {
 
       if (msg.event === 'now_playing') {
         // Retire previous track to history if different
-        if (_sseCurrentTrack && (_sseCurrentTrack.title !== msg.title || _sseCurrentTrack.artist !== msg.artist)) {
+        // Don't prepend status-sourced tracks (we don't know when they started)
+        if (_sseCurrentTrack && !_sseCurrentTrack._fromStatus && (_sseCurrentTrack.title !== msg.title || _sseCurrentTrack.artist !== msg.artist)) {
           prependLiveTrack(_sseCurrentTrack);
         }
         _sseCurrentTrack = { ...msg, _started: Date.now() };
         showNowPlaying(msg);
+      } else if (msg.event === 'status_update') {
+        // Populate Now Playing from status_update if we don't have a current track
+        // This handles page-load-mid-track: first status_update within ~15s shows what's playing
+        const npt = msg.now_playing_tracks;
+        if (npt && npt.length > 0 && !_sseCurrentTrack) {
+          const t = npt[0];
+          _sseCurrentTrack = { ...t, _started: Date.now(), _fromStatus: true };
+          showNowPlaying(t);
+        } else if ((!npt || npt.length === 0) && msg.rooms_playing && msg.rooms_playing.length === 0) {
+          // Nothing playing anywhere — clear Now Playing if it was set from a stale status
+          if (_sseCurrentTrack && _sseCurrentTrack._fromStatus) {
+            _sseCurrentTrack = null;
+            hideNowPlaying();
+          }
+        }
+        // Update rooms_playing indicators on status bar
+        if (msg.rooms_playing) { updateRoomsPlaying(msg.rooms_playing); }
       } else if (msg.event === 'stopped') {
         if (_sseCurrentTrack) { prependLiveTrack(_sseCurrentTrack); }
         _sseCurrentTrack = null;
@@ -390,6 +408,11 @@ function showNowPlaying(msg) {
 
 function hideNowPlaying() {
   document.getElementById('now-playing-bar').classList.remove('active');
+}
+
+function updateRoomsPlaying(rooms) {
+  // Update status bar with room-level 🔊 indicators (future enhancement)
+  // For now, rooms_playing is handled via status_update now_playing_tracks above
 }
 
 function prependLiveTrack(track) {
