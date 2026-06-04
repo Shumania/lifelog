@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.58"
+SERVICE_VERSION = "1.59"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1271,12 +1271,10 @@ def execute_command(cmd):
                     try:
                         coordinator.next()
                     except Exception as skip_err:
-                        if "711" in str(skip_err) or "Illegal seek" in str(skip_err):
-                            # Queue was empty / nothing playing - fall back to play from position 1
-                            log("play_next: next() failed (empty queue), falling back to play_from_queue(1)")
-                            coordinator.play_from_queue(0)
-                        else:
-                            raise
+                        # Any next() failure (701 Transition not available, 711 Illegal seek, etc.)
+                        # means nothing is playing or queue is empty -- just play directly
+                        log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
+                        coordinator.play_from_queue(0)
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
