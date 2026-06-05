@@ -1296,7 +1296,7 @@ async function directPlay(action, encodedData) {
   // If no URI, try Spotify search
   if (!uri) {
     const token = await getSpotifyToken();
-    if (!token) { showToast('No Spotify URI available', true); return; }
+    if (!token) { showToast('Open Controller to connect Spotify', true); return; }
     showToast('Searching...');
     try {
       const q = [info.artist, info.title].filter(Boolean).join(' ');

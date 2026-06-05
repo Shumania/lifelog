@@ -87,7 +87,7 @@ def main():
             music_seen[key] = t
 
     for t in music_seen.values():
-        items.append({
+        entry = {
             'type': 'music',
             'title': t.get('track_name', ''),
             'artist': t.get('artist_name', ''),
@@ -95,7 +95,10 @@ def main():
             'timestamp': t.get('played_at', ''),
             'source': t.get('source', ''),
             'house': 'vashon' if t.get('source') == 'spotify_teenbloods' else 'caphill',
-        })
+        }
+        if t.get('spotify_uri'):
+            entry['uri'] = t['spotify_uri']
+        items.append(entry)
 
     # --- Podcasts (dedup by title+show) ---
     pod_seen = {}
@@ -149,9 +152,35 @@ def main():
         }
         if container_name:
             entry['context'] = container_name
+        # Include Spotify URI if available (Sonos-via-Spotify tracks)
+        # Try direct URI first, then parse from Sonos transport URI
+        sonos_uri = best.get('sonos_uri') or ''
+        transport_uri = best.get('sonos_transport_uri') or ''
+        spotify_uri = ''
+        if sonos_uri and sonos_uri.startswith('spotify:'):
+            spotify_uri = sonos_uri
+        else:
+            # Check both fields for embedded Spotify URIs
+            # Format: x-sonos-spotify:spotify%3atrack%3a{ID}?sid=... or x-sonos-vli:...,spotify:{hash}
+            import urllib.parse
+            for candidate in [sonos_uri, transport_uri]:
+                if not candidate or 'spotify' not in candidate:
+                    continue
+                decoded = urllib.parse.unquote(candidate)
+                if 'spotify:track:' in decoded:
+                    tid = decoded.split('spotify:track:')[1].split('?')[0]
+                    spotify_uri = f'spotify:track:{tid}'
+                    break
+                elif 'spotify:album:' in decoded:
+                    aid = decoded.split('spotify:album:')[1].split('?')[0]
+                    spotify_uri = f'spotify:album:{aid}'
+                    break
+        if spotify_uri:
+            entry['uri'] = spotify_uri
         items.append(entry)
 
-    # --- Cross-source dedup (15-min window: keep Sonos, drop Spotify dupe) ---
+    # --- Cross-source dedup (2-hour window: keep Sonos, drop Spotify dupe) ---
+    # Spotify API reports Sonos-via-Connect plays with timestamps drifting up to 60+ min
     sonos_items = [i for i in items if i.get('room')]
     spotify_items = [i for i in items if not i.get('room') and i.get('type') == 'music']
     other_items = [i for i in items if i.get('type') != 'music' and not i.get('room')]
@@ -163,14 +192,48 @@ def main():
         if sp_ts:
             for so in sonos_items:
                 so_ts = ts_key(so.get('timestamp', ''))
-                if (so_ts and
-                    sp.get('title', '').lower() == so.get('title', '').lower() and
-                    sp.get('artist', '').lower() == so.get('artist', '').lower() and
-                    abs(sp_ts - so_ts) <= 900):
+                if not so_ts or abs(sp_ts - so_ts) > 7200:
+                    continue
+                sp_t = sp.get('title', '').lower()
+                so_t = so.get('title', '').lower()
+                sp_a = sp.get('artist', '').lower()
+                so_a = so.get('artist', '').lower()
+                # Prefix match: Sonos may truncate long titles
+                min_len = min(len(sp_t), len(so_t))
+                titles_match = (min_len >= 10 and sp_t[:min_len] == so_t[:min_len]) or sp_t == so_t
+                if (titles_match and sp_a == so_a):
                     is_dupe = True
                     break
         if not is_dupe:
             deduped.append(sp)
+
+    # --- Session inference: reclassify Spotify items that belong to a Sonos session ---
+    # If a Spotify item has the same artist AND album as a Sonos item within 30 min,
+    # it's almost certainly the same Sonos session (Spotify API picked it up via Connect)
+    for sp in deduped:
+        sp_ts = ts_key(sp.get('timestamp', ''))
+        if not sp_ts:
+            continue
+        for so in sonos_items:
+            so_ts = ts_key(so.get('timestamp', ''))
+            if not so_ts:
+                continue
+            if abs(sp_ts - so_ts) > 7200:
+                continue
+            if sp.get('artist', '').lower() != so.get('artist', '').lower():
+                continue
+            # Match if: same album (both non-empty), OR either album is empty (Sonos often lacks album)
+            sp_album = sp.get('album', '').lower()
+            so_album = so.get('album', '').lower()
+            if sp_album and so_album and sp_album != so_album:
+                continue
+            # Same artist, compatible album, within 2h → inherit Sonos source and room
+            sp['source'] = so.get('source', 'sonos_spotify')
+            sp['house'] = so.get('house', '')
+            sp['room'] = so.get('room', '')
+            if so.get('rooms'):
+                sp['rooms'] = so['rooms']
+            break
 
     items = deduped + sonos_items + other_items
     items.sort(key=lambda x: ts_key(x.get('timestamp', '')), reverse=True)
