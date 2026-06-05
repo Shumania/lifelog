@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.60"
+SERVICE_VERSION = "1.61"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1318,17 +1318,22 @@ def execute_command(cmd):
                     result["message"] = "Failed to queue any tracks"
 
         elif action == "play_uri":
-            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
-            uri   = cmd.get("uri")
+            # Generic Sonos URI play -- works with any service (Qobuz, Apple Music, Spotify, etc.)
+            uri   = cmd.get("uri", "")
             title = cmd.get("title", uri)
             meta  = cmd.get("meta", "")
-            dev   = devices.get(room)
-            if dev and uri:
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            if not dev:
+                result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
+            elif not uri:
+                result["message"] = "No URI provided"
+            else:
                 dev.play_uri(uri, meta=meta, title=title)
                 result["success"] = True
-                result["message"] = f"Playing '{title}' in {room}"
-            else:
-                result["message"] = f"Room '{room}' not found or no URI"
+                room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
+                grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
+                result["message"] = f"Playing '{title}' in {room_label}{grp_note}"
+                result["data"] = {"title": title, "uri": uri, "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
 
         elif action == "stop":
             rooms = cmd.get("rooms", list(devices.keys()))
@@ -1524,18 +1529,18 @@ def execute_command(cmd):
 
     # Stamp t_playing immediately after successful play command execution
     if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_radio",
-                                             "play_next", "queue_next", "queue", "add_to_queue", "search_and_play"):
+                                             "play_next", "play_uri", "queue_next", "queue", "add_to_queue", "search_and_play"):
         result["t_playing"] = now_iso()
 
     # Brief delay so speakers transition to PLAYING state before we query
-    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next"):
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next", "play_uri"):
         time.sleep(2)
 
     # Piggyback heartbeat + any buffered history on this command result
     result["heartbeat"] = heartbeat_fields()
 
     # Ensure the just-commanded room appears in rooms_playing after a successful play
-    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next"):
+    if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_next", "play_uri"):
         rp = result["heartbeat"].get("rooms_playing", [])
         cmd_room = result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None
         if not cmd_room:

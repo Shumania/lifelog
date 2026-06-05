@@ -1126,7 +1126,7 @@ function renderHistory() {
     const loc = getLocation(item);
     const badge = getSourceBadge(item);
     const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
-    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',title:item.title,artist:item.artist||''}));
+    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''}));
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''}));
 
     html += `<div class="history-item">
@@ -1329,6 +1329,20 @@ async function directPlay(action, encodedData) {
   // Sonos path
   const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
+
+  // Native Sonos URI (Qobuz, Apple Music, etc.) — use play_uri for direct replay
+  if (info.sonos_uri && !uri) {
+    if (action === 'queue') {
+      // Can't queue a raw Sonos URI — play_uri replaces current queue
+      showToast('Queue not supported for ' + (info.service || 'this service').replace('sonos_',''), true);
+      return;
+    }
+    await postNtfy({ action: 'play_uri', uri: info.sonos_uri, title: info.title || '', rooms, target_client_id: commanderId });
+    const svcLabel = (info.service || '').replace('sonos_','');
+    showToast('✓ Playing: ' + (info.title || '') + (svcLabel ? ' (' + svcLabel + ')' : '') + ' → ' + rooms.join(', '));
+    return;
+  }
+
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
   showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
