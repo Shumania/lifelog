@@ -23,7 +23,7 @@
     --apple: #fc3c44;
     --caphill: #4ade80;
     --vashon: #60a5fa;
-    --roaming: #1db954;
+    --roaming: #eab308;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -55,7 +55,7 @@
   }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .status-dot.green { background: var(--accent); }
-  .status-dot.red { background: #ef4444; }
+  .status-dot.yellow { background: #eab308; }
 
   .house-tabs { display: flex; gap: 0; padding: 10px 16px 0; }
   .house-tab {
@@ -161,53 +161,48 @@
   .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
 
-  /* History items - redesigned with time on left */
+  /* History items — compact two-line */
   .history-list { padding: 4px 0; }
   .history-item {
     display: flex; align-items: flex-start; gap: 0;
-    padding: 8px 10px 8px 0;
+    padding: 6px 10px 6px 0;
     border-bottom: 1px solid rgba(35, 41, 64, 0.6);
     transition: background 0.1s;
   }
   .history-item:active { background: var(--surface2); }
 
   .hi-time-col {
-    width: 54px; flex-shrink: 0; text-align: right;
-    padding: 2px 10px 0 6px;
+    width: 50px; flex-shrink: 0; text-align: right;
+    padding: 3px 8px 0 6px;
   }
   .hi-time {
     font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums;
   }
 
-  .hi-source-col {
-    width: 14px; flex-shrink: 0; padding-top: 5px;
-  }
-  .source-dot { width: 8px; height: 8px; border-radius: 50%; }
-  .source-dot.spotify { background: var(--spotify); }
-  .source-dot.qobuz { background: var(--qobuz); }
-  .source-dot.apple { background: var(--apple); }
-  .source-dot.radio { background: var(--radio); }
+  .hi-info { flex: 1; min-width: 0; padding-left: 4px; }
 
-  .hi-info { flex: 1; min-width: 0; padding-left: 6px; }
-  .hi-track {
-    font-size: 14px; font-weight: 600;
+  /* Line 1: track · album · artist */
+  .hi-line1 {
+    display: flex; align-items: baseline; gap: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 13px; line-height: 1.4;
   }
-  .hi-artist {
-    font-size: 12px; color: var(--text-dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    margin-top: 1px;
-  }
-  .hi-album {
-    font-size: 11px; color: #6b7899;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    margin-top: 1px;
-    font-style: italic;
+  .hi-track { font-weight: 600; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+  .hi-sep { color: var(--border); margin: 0 5px; flex-shrink: 0; }
+  .hi-album { color: #7b88a8; font-style: italic; flex-shrink: 2; overflow: hidden; text-overflow: ellipsis; }
+  .hi-artist { color: var(--text-dim); flex-shrink: 3; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Line 2: location badge + rooms */
+  .hi-line2 {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 2px;
+    font-size: 11px;
   }
   .hi-location {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 10px; margin-top: 3px;
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10px; font-weight: 600;
     padding: 1px 7px; border-radius: 8px;
+    flex-shrink: 0;
   }
   .hi-location.caphill {
     color: var(--caphill); background: rgba(74,222,128,0.08);
@@ -218,19 +213,26 @@
     border: 1px solid rgba(96,165,250,0.15);
   }
   .hi-location.roaming {
-    color: var(--roaming); background: rgba(29,185,84,0.08);
-    border: 1px solid rgba(29,185,84,0.15);
+    color: var(--roaming); background: rgba(234,179,8,0.08);
+    border: 1px solid rgba(234,179,8,0.15);
   }
   .hi-rooms {
-    font-size: 10px; color: var(--text-dim); margin-top: 1px;
+    font-size: 10px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hi-source-badge {
+    font-size: 9px; color: var(--text-dim); opacity: 0.7;
+    padding: 0 4px; border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    flex-shrink: 0;
   }
 
   .hi-actions {
-    display: flex; gap: 2px; flex-shrink: 0; padding-top: 2px;
+    display: flex; gap: 2px; flex-shrink: 0; padding-top: 1px;
   }
   .action-btn {
-    width: 28px; height: 28px; border-radius: 7px; border: none;
-    background: transparent; color: var(--accent); font-size: 12px;
+    width: 26px; height: 26px; border-radius: 7px; border: none;
+    background: transparent; color: var(--accent); font-size: 11px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
   .action-btn:hover { background: var(--surface2); }
@@ -297,10 +299,10 @@
   .discovery-card.open .discovery-expand { transform: rotate(90deg); }
 
   .discovery-narrative {
-    font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px;
+    font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 12px;
   }
+  .discovery-narrative strong { color: var(--text); font-weight: 600; }
 
-  /* Suggestion sections */
   .suggestion-section-label {
     font-size: 11px; font-weight: 700; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -310,16 +312,12 @@
   .suggestion-section-label:first-of-type { margin-top: 0; border-top: none; }
 
   .suggestion-item {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 6px;
     padding: 7px 0; border-top: 1px solid rgba(35,41,64,0.5);
   }
   .suggestion-info { flex: 1; min-width: 0; }
   .suggestion-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .suggestion-detail { font-size: 11px; color: var(--text-dim); }
-  .suggestion-type {
-    font-size: 10px; padding: 1px 6px; border-radius: 6px;
-    background: var(--surface); color: var(--text-dim); flex-shrink: 0;
-  }
+  .suggestion-detail { font-size: 11px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
@@ -330,7 +328,7 @@
     <h1>🎵 LifeLog</h1>
     <div class="status-dots">
       <span class="status-dot green"></span> shumaframe
-      <span class="status-dot red"></span> mind
+      <span class="status-dot yellow"></span> mind
     </div>
   </div>
   <div class="house-tabs">
@@ -457,13 +455,19 @@
         <!-- Cap Hill Sonos Spotify -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">9:41a</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">VI. Adagio quasi un poco andante</div>
-            <div class="hi-artist">Quatuor Diotima</div>
-            <div class="hi-album">Beethoven: The Late String Quartets</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Living Room, Kitchen</div>
+            <div class="hi-line1">
+              <span class="hi-track">VI. Adagio quasi un poco andante</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Beethoven: The Late String Quartets</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Quatuor Diotima</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Living Room, Kitchen</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -474,13 +478,19 @@
 
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">9:32a</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">V. Presto</div>
-            <div class="hi-artist">Quatuor Diotima</div>
-            <div class="hi-album">Beethoven: The Late String Quartets</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Living Room, Kitchen, Dining Room</div>
+            <div class="hi-line1">
+              <span class="hi-track">V. Presto</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Beethoven: The Late String Quartets</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Quatuor Diotima</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Living Room, Kitchen, Dining Room</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -492,13 +502,19 @@
         <!-- Cap Hill Sonos Qobuz -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">8:15a</div></div>
-          <div class="hi-source-col"><div class="source-dot qobuz"></div></div>
           <div class="hi-info">
-            <div class="hi-track">2400</div>
-            <div class="hi-artist">Martyn Heyne</div>
-            <div class="hi-album">Extended Newspapers</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Living Room, Media Room</div>
+            <div class="hi-line1">
+              <span class="hi-track">2400</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Extended Newspapers</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Martyn Heyne</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Living Room, Media Room</span>
+              <span class="hi-source-badge">Qobuz</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -510,13 +526,19 @@
         <!-- Cap Hill Sonos Apple Music -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">7:50a</div></div>
-          <div class="hi-source-col"><div class="source-dot apple"></div></div>
           <div class="hi-info">
-            <div class="hi-track">What I've Done</div>
-            <div class="hi-artist">Linkin Park</div>
-            <div class="hi-album">Minutes to Midnight</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Media Room</div>
+            <div class="hi-line1">
+              <span class="hi-track">What I've Done</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Minutes to Midnight</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Linkin Park</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Media Room</span>
+              <span class="hi-source-badge">Apple Music</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -528,13 +550,19 @@
         <!-- Cap Hill Sonos Radio -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">7:30a</div></div>
-          <div class="hi-source-col"><div class="source-dot radio"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Rose in the Dark</div>
-            <div class="hi-artist">Cleo Sol</div>
-            <div class="hi-album">KCRW Eclectic 24</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Kitchen</div>
+            <div class="hi-line1">
+              <span class="hi-track">Rose in the Dark</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Rose in the Dark</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Cleo Sol</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Kitchen</span>
+              <span class="hi-source-badge">KCRW</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -548,13 +576,19 @@
         <!-- Vashon Sonos Spotify -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">8:45p</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Sweetest Taboo</div>
-            <div class="hi-artist">Sade</div>
-            <div class="hi-album">Promise</div>
-            <div><span class="hi-location vashon">🏝 Vashon</span></div>
-            <div class="hi-rooms">Main Living Room Maury, Shed Arc</div>
+            <div class="hi-line1">
+              <span class="hi-track">Sweetest Taboo</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Promise</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Sade</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location vashon">🏝 Vashon</span>
+              <span class="hi-rooms">Main Living Room Maury, Shed Arc</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -565,13 +599,19 @@
 
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">8:40p</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Smooth Operator</div>
-            <div class="hi-artist">Sade</div>
-            <div class="hi-album">Diamond Life</div>
-            <div><span class="hi-location vashon">🏝 Vashon</span></div>
-            <div class="hi-rooms">Main Living Room Maury, Shed Arc</div>
+            <div class="hi-line1">
+              <span class="hi-track">Smooth Operator</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Diamond Life</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Sade</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location vashon">🏝 Vashon</span>
+              <span class="hi-rooms">Main Living Room Maury, Shed Arc</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -583,12 +623,18 @@
         <!-- Spotify Roaming -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">3:12p</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Dead Leaves and the Dirty Ground</div>
-            <div class="hi-artist">The White Stripes</div>
-            <div class="hi-album">White Blood Cells</div>
-            <div><span class="hi-location roaming">📱 Roaming</span></div>
+            <div class="hi-line1">
+              <span class="hi-track">Dead Leaves and the Dirty Ground</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">White Blood Cells</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">The White Stripes</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location roaming">📱 Roaming</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -599,12 +645,18 @@
 
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">3:08p</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Sleeping on the Blacktop</div>
-            <div class="hi-artist">Colter Wall</div>
-            <div class="hi-album">Imaginary Appalachia</div>
-            <div><span class="hi-location roaming">📱 Roaming</span></div>
+            <div class="hi-line1">
+              <span class="hi-track">Sleeping on the Blacktop</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Imaginary Appalachia</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Colter Wall</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location roaming">📱 Roaming</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -615,12 +667,18 @@
 
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">3:04p</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Move On Up</div>
-            <div class="hi-artist">Curtis Mayfield</div>
-            <div class="hi-album">Curtis</div>
-            <div><span class="hi-location roaming">📱 Roaming</span></div>
+            <div class="hi-line1">
+              <span class="hi-track">Move On Up</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Curtis</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Curtis Mayfield</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location roaming">📱 Roaming</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -629,16 +687,22 @@
           </div>
         </div>
 
-        <!-- Cap Hill evening -->
+        <!-- Cap Hill morning -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">11:20a</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">I Don't Know What It Is, But It Sure Is Funky</div>
-            <div class="hi-artist">Ripple</div>
-            <div class="hi-album">Ripple</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Dining Room, Kitchen</div>
+            <div class="hi-line1">
+              <span class="hi-track">I Don't Know What It Is, But It Sure Is Funky</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Ripple</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Ripple</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Dining Room, Kitchen</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -649,13 +713,19 @@
 
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">11:16a</div></div>
-          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Tea Thyme</div>
-            <div class="hi-artist">Damu The Fudgemunk</div>
-            <div class="hi-album">How It Should Sound</div>
-            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
-            <div class="hi-rooms">Dining Room, Kitchen</div>
+            <div class="hi-line1">
+              <span class="hi-track">Tea Thyme</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">How It Should Sound</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Damu The Fudgemunk</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location caphill">🏠 Cap Hill</span>
+              <span class="hi-rooms">Dining Room, Kitchen</span>
+              <span class="hi-source-badge">Spotify</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -664,16 +734,22 @@
           </div>
         </div>
 
-        <!-- Vashon morning -->
+        <!-- Vashon morning Qobuz -->
         <div class="history-item">
           <div class="hi-time-col"><div class="hi-time">8:10a</div></div>
-          <div class="hi-source-col"><div class="source-dot qobuz"></div></div>
           <div class="hi-info">
-            <div class="hi-track">Concert by the Sea (Live)</div>
-            <div class="hi-artist">Erroll Garner</div>
-            <div class="hi-album">Concert by the Sea</div>
-            <div><span class="hi-location vashon">🏝 Vashon</span></div>
-            <div class="hi-rooms">Main Kitchen Green Move 2</div>
+            <div class="hi-line1">
+              <span class="hi-track">Concert by the Sea (Live)</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-album">Concert by the Sea</span>
+              <span class="hi-sep">·</span>
+              <span class="hi-artist">Erroll Garner</span>
+            </div>
+            <div class="hi-line2">
+              <span class="hi-location vashon">🏝 Vashon</span>
+              <span class="hi-rooms">Main Kitchen Green Move 2</span>
+              <span class="hi-source-badge">Qobuz</span>
+            </div>
           </div>
           <div class="hi-actions">
             <button class="action-btn">▶</button>
@@ -723,9 +799,9 @@
   <div id="tab-discovery" hidden>
     <div class="content-panel">
       <div class="discovery-list">
-        <div style="padding:4px 0 8px; font-size:12px; color:var(--text-dim);">Explorations with recommendations to discover</div>
+        <div style="padding:4px 0 8px; font-size:12px; color:var(--text-dim);">17 artists explored · last on Jun 4, 2026 at 8:32p</div>
 
-        <!-- Card 1: expanded by default -->
+        <!-- Card 1: Abel Selaocoe — expanded -->
         <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
@@ -736,28 +812,28 @@
             <div class="discovery-expand">›</div>
           </div>
           <div class="discovery-body">
-            <div class="discovery-narrative">South African cellist blending classical with Zulu vocal traditions. His Bach interpretations weave in mbube harmonies — a radical reimagining that connects to your deep solo instrument thread (Bill Evans → Marcus Roberts → Quatuor Diotima).</div>
+            <div class="discovery-narrative">South African cellist blending classical with <strong>Zulu vocal traditions</strong>. His Bach interpretations weave in mbube harmonies — a radical reimagining that connects to your deep solo instrument thread (Bill Evans → Marcus Roberts → Quatuor Diotima). Trained at the Royal Northern College of Music in Manchester, but his performances feel rooted in Soweto's communal music-making. The cello becomes a <strong>voice</strong>, not just an instrument.</div>
 
             <div class="suggestion-section-label">By Abel Selaocoe</div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Where Is Home (Kulture Noir) (2021)</div>
-                <div class="suggestion-detail">Album · Debut — Zulu vocals meet cello</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">Song of the Birds</div>
-                <div class="suggestion-detail">Track · Casals reimagined with overtone singing</div>
+                <div class="suggestion-detail">Album · Debut — Zulu folk songs recast for cello, voice, and electronics. Start here.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Hae Ke Kae (2024)</div>
-                <div class="suggestion-detail">Album · Second album — deeper into improvisation</div>
+                <div class="suggestion-detail">Album · Second album — deeper into improvisation, with Manchester jazz players sitting in.</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Song of the Birds</div>
+                <div class="suggestion-detail">Track · Casals' signature piece reimagined with overtone singing — achingly beautiful.</div>
               </div>
             </div>
 
@@ -765,28 +841,28 @@
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
-                <div class="suggestion-title">Experience (2010)</div>
-                <div class="suggestion-detail">Ludovico Einaudi · Album · Minimalist piano meets strings</div>
+                <div class="suggestion-title">Cello Suites (2018)</div>
+                <div class="suggestion-detail">Yo-Yo Ma · Album · The sixth recording — after a lifetime with these pieces, he plays them like prayers.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
-                <div class="suggestion-title">Suite for Solo Cello No. 1 in G Major</div>
-                <div class="suggestion-detail">Yo-Yo Ma · Track · The touchstone performance</div>
+                <div class="suggestion-title">Cello Concerto in E Minor, Op. 85 (1965)</div>
+                <div class="suggestion-detail">Jacqueline du Pré · Track · The definitive romantic cello performance — du Pré was 20 when she recorded this.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
-                <div class="suggestion-title">Cello Concerto in E Minor, Op. 85</div>
-                <div class="suggestion-detail">Jacqueline du Pré · Track · The definitive romantic cello</div>
+                <div class="suggestion-title">Clap! Clap! · Tayi Bebba (2014)</div>
+                <div class="suggestion-detail">Track · Italian-Ghanaian producer — electronic music built from East African field recordings. Different path to the same fusion.</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Card 2: expanded -->
+        <!-- Card 2: Cleo Sol — expanded -->
         <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
@@ -797,21 +873,21 @@
             <div class="discovery-expand">›</div>
           </div>
           <div class="discovery-body">
-            <div class="discovery-narrative">British-Guyanese singer-songwriter from West London. Rose to prominence through SAULT — Inflo's anonymous collective. Her solo work distills neo-soul warmth with a spiritual, almost liturgical quality.</div>
+            <div class="discovery-narrative">British-Guyanese singer-songwriter from West London. Rose to prominence through <strong>SAULT</strong> — the anonymous collective led by producer <strong>Inflo</strong> (Dean Josiah Cover), who is also her partner. Her solo work distills neo-soul warmth with a spiritual, almost liturgical quality. The SAULT connection matters: that project's radical release strategy (albums appear and disappear) shaped her sense that music exists <strong>in the moment</strong>, not as product.</div>
 
             <div class="suggestion-section-label">By Cleo Sol</div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Heaven (2023)</div>
-                <div class="suggestion-detail">Album · Her most intimate — motherhood, faith, stillness</div>
+                <div class="suggestion-detail">Album · Her most intimate work — motherhood, faith, stillness. Inflo produces with barely-there arrangements.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Mother (2021)</div>
-                <div class="suggestion-detail">Album · Neo-soul lullabies; Motown lineage</div>
+                <div class="suggestion-detail">Album · Neo-soul lullabies with Motown lineage. "When I'm in Your Arms" is the standout.</div>
               </div>
             </div>
 
@@ -820,45 +896,52 @@
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">UNTITLED (Black Is) (2020)</div>
-                <div class="suggestion-detail">SAULT · Album · Inflo's anonymous collective — Cleo Sol's other world</div>
+                <div class="suggestion-detail">SAULT · Album · Inflo's anonymous collective — Cleo Sol's other world. Released during BLM summer, it burns quietly.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Devotion (2019)</div>
-                <div class="suggestion-detail">Tirzah · Album · Mica Levi-produced lo-fi soul from London</div>
+                <div class="suggestion-detail">Tirzah · Album · Mica Levi-produced lo-fi soul from South London — the same restraint, different texture.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Lovers Rock (2020)</div>
-                <div class="suggestion-detail">Sade · Album · The quiet storm thread you already love</div>
+                <div class="suggestion-detail">Sade · Album · The quiet storm thread you already love — Cleo Sol is the natural heir.</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Card 3: expanded -->
+        <!-- Card 3: Sade — expanded -->
         <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
             <div class="discovery-hinfo">
               <div class="discovery-title">Sade</div>
-              <div class="discovery-meta">from Sweetest Taboo · Jun 4 · 4 suggestions</div>
+              <div class="discovery-meta">from Sweetest Taboo · Jun 4 · 5 suggestions</div>
             </div>
             <div class="discovery-expand">›</div>
           </div>
           <div class="discovery-body">
-            <div class="discovery-narrative">The band, not just the singer. Stuart Matthewman's saxophone and guitar defined a sound that entire genres borrowed from — quiet storm, trip hop, neo-soul all owe a debt here.</div>
+            <div class="discovery-narrative">The band, not just the singer. <strong>Stuart Matthewman's</strong> saxophone and guitar defined a sound that entire genres borrowed from — quiet storm, trip hop, neo-soul all owe a debt. The secret weapon is <strong>Andrew Hale</strong> on keys and <strong>Paul Denman</strong> on bass, creating space where Adu's voice can simply <em>exist</em>. Their decade-long gaps between albums (10 years between <em>Lovers Rock</em> and <em>Soldier of Love</em>) are deliberate — they only record when they have something to say.</div>
 
             <div class="suggestion-section-label">By Sade</div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Soldier of Love (2010)</div>
-                <div class="suggestion-detail">Album · The comeback — darker, more cinematic</div>
+                <div class="suggestion-detail">Album · The comeback after 10 years — darker, more cinematic. "Babyfather" is devastating.</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Love Deluxe (1992)</div>
+                <div class="suggestion-detail">Album · Peak Sade — "No Ordinary Love" and "Cherish the Day." Matthewman's guitar work is extraordinary here.</div>
               </div>
             </div>
 
@@ -867,27 +950,27 @@
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Malibu (2016)</div>
-                <div class="suggestion-detail">Anderson .Paak · Album · Sade's warmth through a hip-hop lens</div>
+                <div class="suggestion-detail">Anderson .Paak · Album · Sade's warmth through a hip-hop lens. Knxwledge co-produced — the NxWorries connection.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Couldn't Leave</div>
-                <div class="suggestion-detail">Thee Sacred Souls · Track · Daptone Records' Sade disciples — you've been here</div>
+                <div class="suggestion-detail">Thee Sacred Souls · Track · Daptone Records' Sade disciples — you've been listening to them already.</div>
               </div>
             </div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Dummy (1994)</div>
-                <div class="suggestion-detail">Portishead · Album · What happened when trip hop met Sade's melancholy</div>
+                <div class="suggestion-detail">Portishead · Album · What happened when Bristol trip hop met Sade's melancholy. Beth Gibbons' voice lives in the same register.</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Card 4: collapsed -->
+        <!-- Card 4: Sigur Rós — collapsed -->
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
@@ -898,18 +981,27 @@
             <div class="discovery-expand">›</div>
           </div>
           <div class="discovery-body">
-            <div class="discovery-narrative">Icelandic post-rock. Jónsi's bowed guitar and falsetto created a new way to feel enormity.</div>
+            <div class="discovery-narrative">Icelandic post-rock. <strong>Jónsi's</strong> bowed guitar and falsetto created a new way to feel enormity — Hopelandic is a language of pure phonetic emotion.</div>
             <div class="suggestion-section-label">By Sigur Rós</div>
             <div class="suggestion-item">
               <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Takk... (2005)</div>
-                <div class="suggestion-detail">Album</div>
+                <div class="suggestion-detail">Album · Their most accessible — "Hoppípolla" broke them worldwide.</div>
+              </div>
+            </div>
+            <div class="suggestion-section-label">Related Artists</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">The Disintegration Loops (2002)</div>
+                <div class="suggestion-detail">William Basinski · Album · Ambient decay — tape loops deteriorating in real time. Recorded the morning of 9/11.</div>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Card 5: Oliver Nelson — collapsed -->
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
@@ -919,8 +1011,20 @@
             </div>
             <div class="discovery-expand">›</div>
           </div>
+          <div class="discovery-body">
+            <div class="discovery-narrative"><strong>The Blues and the Abstract Truth</strong> is one of jazz's perfect records — but Nelson was far more than one album. Arranger for everyone from Nancy Wilson to James Brown.</div>
+            <div class="suggestion-section-label">By Oliver Nelson</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">The Blues and the Abstract Truth (1961)</div>
+                <div class="suggestion-detail">Album · "Stolen Moments" alone justifies the record. Eric Dolphy and Bill Evans on the same date.</div>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Card 6: Neil Young — collapsed -->
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
@@ -930,6 +1034,17 @@
             </div>
             <div class="discovery-expand">›</div>
           </div>
+          <div class="discovery-body">
+            <div class="discovery-narrative">The <strong>godfather of grunge</strong> who recorded with Crazy Horse and Buffalo Springfield. His guitar tone — ragged, overdriven, emotional — influenced everything from Sonic Youth to Pearl Jam.</div>
+            <div class="suggestion-section-label">By Neil Young</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">On the Beach (1974)</div>
+                <div class="suggestion-detail">Album · His darkest — post-CSNY, post-Ditch Trilogy. Sounds like it was recorded in amber.</div>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -938,7 +1053,6 @@
 </div>
 
 <script>
-  // House tabs
   document.querySelectorAll('.house-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.house-tab').forEach(t => t.classList.remove('active'));
@@ -947,8 +1061,6 @@
       document.getElementById('panel-' + tab.dataset.house).hidden = false;
     });
   });
-
-  // Content tabs
   document.querySelectorAll('.content-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
@@ -957,8 +1069,6 @@
       document.getElementById('tab-discovery').hidden = tab.dataset.tab !== 'discovery';
     });
   });
-
-  // Sub-tabs
   document.querySelectorAll('.sub-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
@@ -967,13 +1077,9 @@
       document.getElementById('subtab-podcasts').hidden = tab.dataset.subtab !== 'podcasts';
     });
   });
-
-  // Room chip toggle
   document.querySelectorAll('.room-chip').forEach(chip => {
     chip.addEventListener('click', () => chip.classList.toggle('active'));
   });
-
-  // Discovery card expand/collapse
   document.querySelectorAll('.discovery-header').forEach(hdr => {
     hdr.addEventListener('click', () => hdr.closest('.discovery-card').classList.toggle('open'));
   });
