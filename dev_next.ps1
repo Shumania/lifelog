@@ -1,1 +1,1 @@
-# no-op
+python -c "import soco; print('SOCO_VERSION=' + soco.__version__)"
