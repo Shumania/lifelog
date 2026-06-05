@@ -1247,6 +1247,8 @@ def execute_command(cmd):
         elif action == "play_next":
             # "Play now" non-destructive: insert track at next queue position, then skip to it.
             # After track finishes, playback resumes from previous queue position.
+            # If a stream (TuneIn, radio, line-in, TV) is playing, there's no queue to insert into,
+            # so fall back to full play (clear queue, add, play from 0).
             from soco.plugins.sharelink import ShareLinkPlugin
             spotify_uri = cmd.get("uri", "")
             title       = cmd.get("title", spotify_uri)
@@ -1261,24 +1263,42 @@ def execute_command(cmd):
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
-                    plugin = ShareLinkPlugin(coordinator)
-                    # Get current position and insert right after
-                    info = coordinator.get_current_track_info()
-                    current_pos = int(info.get('playlist_position', 0))
-                    insert_pos = current_pos + 1
-                    log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
-                    plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                    # Check if current source is a stream (no queue to insert into)
+                    stream_prefixes = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
+                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:")
+                    is_stream = False
                     try:
-                        coordinator.next()
-                    except Exception as skip_err:
-                        # Any next() failure (701 Transition not available, 711 Illegal seek, etc.)
-                        # means nothing is playing or queue is empty -- just play directly
-                        log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
+                        media_info = coordinator.avTransport.GetMediaInfo([('InstanceID', 0)])
+                        current_uri = media_info.get('CurrentURI', '') or ''
+                        is_stream = any(current_uri.lower().startswith(p) for p in stream_prefixes)
+                        if is_stream:
+                            log(f"play_next: stream detected ({current_uri[:60]}), using full play instead of queue insert")
+                    except Exception as mi_err:
+                        log(f"play_next: GetMediaInfo failed ({mi_err}), assuming queue-based")
+                    plugin = ShareLinkPlugin(coordinator)
+                    if is_stream:
+                        # Stream active -- can't insert into queue; do a full play
+                        coordinator.clear_queue()
+                        plugin.add_share_link_to_queue(share_url)
                         coordinator.play_from_queue(0)
+                    else:
+                        # Queue-based source -- insert at next position and skip
+                        info = coordinator.get_current_track_info()
+                        current_pos = int(info.get('playlist_position', 0))
+                        insert_pos = current_pos + 1
+                        log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
+                        plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                        try:
+                            coordinator.next()
+                        except Exception as skip_err:
+                            # Any next() failure -- just play directly
+                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
+                            coordinator.play_from_queue(0)
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
-                    result["message"] = f"Playing next: '{title}' in {room_label}{grp_note}"
+                    mode_note = "full play (was stream)" if is_stream else "queue insert"
+                    result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}]{grp_note}"
                     result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url,
                                       "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
                 except Exception as e:
