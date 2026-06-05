@@ -267,6 +267,16 @@
   .discovery-card.open .disc-body { display: block; }
   .discovery-card.open .disc-expand { transform: rotate(90deg); }
 
+  .disc-source-track {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; margin-bottom: 10px;
+    background: rgba(30,215,96,0.08); border-radius: 8px; border: 1px solid rgba(30,215,96,0.15);
+  }
+  .disc-source-icon { font-size: 14px; flex-shrink: 0; }
+  .disc-source-info { flex: 1; min-width: 0; }
+  .disc-source-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); display: block; }
+  .disc-source-title { font-size: 13px; font-weight: 500; color: var(--text); }
+
   .disc-narrative { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 12px; }
   .disc-narrative strong { color: var(--text); font-weight: 600; }
   .disc-narrative em { font-style: italic; }
@@ -1118,7 +1128,7 @@ function renderHistory() {
     const badge = getSourceBadge(item);
     const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
     const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',title:item.title,artist:item.artist||''}));
-    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source}));
+    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''}));
 
     html += `<div class="history-item">
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
@@ -1198,25 +1208,51 @@ function renderDiscovery() {
     const isOpen = i < 3;
     const d = new Date(cmd.timestamp);
     const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-    const suggCount = (cmd.suggestions || []).length;
+
+    // Separate source_track from regular suggestions
+    const allSuggs = cmd.suggestions || [];
+    const sourceTrack = allSuggs.find(s => s.type === 'source_track');
+    const regularSuggs = allSuggs.filter(s => s.type !== 'source_track');
+    const suggCount = regularSuggs.length;
+
+    // Use source track label for "from" text instead of "Exploring: Artist"
+    const fromText = sourceTrack ? sourceTrack.label : cmd.title;
 
     html += `<div class="discovery-card${isOpen ? ' open' : ''}" id="disc-${i}">`;
     html += `<div class="disc-header" onclick="document.getElementById('disc-${i}').classList.toggle('open')">`;
     html += `<div class="disc-icon">🔍</div>`;
     html += `<div class="disc-hinfo">`;
     html += `<div class="disc-title">${esc(cmd.artist || cmd.title)}</div>`;
-    html += `<div class="disc-meta">from ${esc(cmd.title)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
+    html += `<div class="disc-meta">from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
     html += `</div><div class="disc-expand">›</div></div>`;
 
     // Body
     html += '<div class="disc-body">';
+
+    // Source track — the launch point
+    if (sourceTrack) {
+      const stUri = (sourceTrack.uri || '').replace(/'/g, "\\'");
+      const stLbl = (sourceTrack.label || '').replace(/'/g, "\\'");
+      html += `<div class="disc-source-track">
+        <div class="disc-source-icon">🎵</div>
+        <div class="disc-source-info">
+          <span class="disc-source-label">Started from</span>
+          <span class="disc-source-title">${esc(sourceTrack.label)}</span>
+        </div>
+        <div class="sugg-actions">
+          ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${stUri}','${stLbl}')">▶</button>
+          <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${stUri}','${stLbl}')">+</button>` : ''}
+        </div>
+      </div>`;
+    }
+
     if (cmd.narrative) {
       html += `<div class="disc-narrative">${formatNarrative(cmd.narrative)}</div>`;
     }
 
-    if (cmd.suggestions && cmd.suggestions.length > 0) {
+    if (regularSuggs.length > 0) {
       let currentSection = '';
-      for (const s of cmd.suggestions) {
+      for (const s of regularSuggs) {
         // Detect section from label prefix
         const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
                         s.label && s.label.startsWith('🤝') ? 'Related Artists' :
