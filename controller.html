@@ -423,6 +423,7 @@ async function fetchSpotifyDevices() {
       const active = spotifyDevices.find(x => x.is_active && !x._stale);
       if (active) {
         spotifySelectedDeviceId = active.id;
+        try { localStorage.setItem('ll_spotify_device', active.id); } catch(e) {}
       } else if (!spotifySelectedDeviceId || !spotifyDevices.find(x => x.id === spotifySelectedDeviceId)) {
         spotifySelectedDeviceId = spotifyDevices.length > 0 ? spotifyDevices[0].id : null;
       }
@@ -452,7 +453,7 @@ async function fetchSpotifyNowPlaying() {
           ? item.album.images[item.album.images.length > 1 ? 1 : 0].url : null
       };
       // Update selected device to match what's actually active
-      if (d.device && d.device.id) spotifySelectedDeviceId = d.device.id;
+      if (d.device && d.device.id) { spotifySelectedDeviceId = d.device.id; try { localStorage.setItem('ll_spotify_device', d.device.id); } catch(e) {} }
     }
     if (house === 'roaming') renderNowPlaying();
   } catch(e) { console.error('Now playing fetch error:', e); }
@@ -488,6 +489,7 @@ function renderSpotifyDevices() {
 
 function selectSpotifyDevice(id) {
   spotifySelectedDeviceId = id;
+  try { localStorage.setItem('ll_spotify_device', id); } catch(e) {}
   renderSpotifyDevices();
 }
 
