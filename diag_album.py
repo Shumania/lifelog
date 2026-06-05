@@ -1,47 +1,61 @@
 import soco
-from soco.plugins.sharelink import ShareLinkPlugin
-import traceback
-
-print(f'soco {soco.__version__}')
+from soco.music_services import MusicService
+import xml.etree.ElementTree as ET
 
 devices = {d.player_name: d for d in soco.discover(timeout=5) or []}
-print(f'Found speakers: {list(devices.keys())}')
+dev = devices.get('Living Room') or devices.get('Basement Study')
+if not dev:
+    print('No speaker found')
+    exit(1)
 
-for name in ['Basement Study', 'Living Room']:
-    dev = devices.get(name)
-    if not dev:
-        print(f'{name}: NOT FOUND')
-        continue
-    print(f'\n=== {name} (IP: {dev.ip_address}) ===')
-    info = dev.get_speaker_info()
-    print(f'Firmware: {info.get("software_version", "unknown")}')
-    plugin = ShareLinkPlugin(dev)
+print(f'Speaker: {dev.player_name} ({dev.ip_address})')
 
-    # Test 1: Single track
-    try:
-        dev.clear_queue()
-        pos = plugin.add_share_link_to_queue('https://open.spotify.com/track/1Q3YAMql2Uj7OlNmOOoRJE')
-        print(f'Track enqueue: OK (pos={pos})')
-    except Exception as e:
-        print(f'Track enqueue FAILED: {e}')
-        traceback.print_exc()
+# Method 1: Query available music services
+print('\n=== Available Music Services ===')
+try:
+    services = MusicService.get_subscribed_services_names(dev)
+    print(f'Subscribed: {services}')
+except Exception as e:
+    print(f'Error getting services: {e}')
 
-    # Test 2: Album
-    try:
-        dev.clear_queue()
-        pos = plugin.add_share_link_to_queue('https://open.spotify.com/album/4vVDNMbR2dJxsCla0v6TBf')
-        print(f'Album enqueue: OK (pos={pos})')
-    except Exception as e:
-        print(f'Album enqueue FAILED: {e}')
-        traceback.print_exc()
+# Method 2: Direct SOAP query for service list
+print('\n=== Direct Service Query ===')
+try:
+    resp = dev.musicServices.ListAvailableServices()
+    # Parse the descriptor XML to find Spotify entries
+    desc = resp.get('AvailableServiceDescriptorList', '')
+    root = ET.fromstring(f'<root>{desc}</root>')
+    for svc in root.findall('.//'):
+        name = svc.get('Name', '')
+        if name and ('potif' in name.lower() or 'spotify' in name.lower()):
+            print(f'  Name={name}, Id={svc.get("Id")}, SecureUri={svc.get("SecureUri", "?")}')
+            for child in svc:
+                print(f'    {child.tag}: {child.attrib}')
+except Exception as e:
+    print(f'Error: {e}')
 
-    # Test 3: Playlist
-    try:
-        dev.clear_queue()
-        pos = plugin.add_share_link_to_queue('https://open.spotify.com/playlist/37i9dQZF1DX2VgMYP6hVjt')
-        print(f'Playlist enqueue: OK (pos={pos})')
-    except Exception as e:
-        print(f'Playlist enqueue FAILED: {e}')
-        traceback.print_exc()
+# Method 3: Check the account credentials stored on the speaker
+print('\n=== Stored Account Info ===')
+try:
+    from soco.services import Service
+    system_props = dev.systemProperties
+    # Try to enumerate stored accounts
+    print(dir(system_props))
+except Exception as e:
+    print(f'Error: {e}')
+
+# Method 4: Try to find what SN the speaker actually uses for Spotify
+print('\n=== Account Serial Numbers ===')
+try:
+    resp = dev.musicServices.ListAvailableServices()
+    desc = resp.get('AvailableServiceDescriptorList', '')
+    root = ET.fromstring(f'<root>{desc}</root>')
+    for svc in root.iter():
+        if svc.tag == 'Service':
+            name = svc.get('Name', '')
+            sid = svc.get('Id', '')
+            print(f'  {name}: Id={sid}')
+except Exception as e:
+    print(f'Error: {e}')
 
 print('\nDone.')
