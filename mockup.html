@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Listening Log">
 <title>Listening Log</title>
 <style>
   :root {
@@ -28,34 +31,20 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column;
   }
 
   /* ========== TOP SECTION ========== */
-  .top-section {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .top-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px 0;
-  }
+  .top-section { background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .top-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 0; }
   .top-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
-  .status-dots {
-    display: flex; gap: 8px; align-items: center;
-    font-size: 11px; color: var(--text-dim);
-  }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .status-dots { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim); flex-wrap: wrap; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
   .status-dot.green { background: var(--accent); }
   .status-dot.yellow { background: #eab308; }
+  .status-dot.red { background: #f87171; }
 
   .house-tabs { display: flex; gap: 0; padding: 10px 16px 0; }
   .house-tab {
@@ -64,16 +53,10 @@
     border-radius: 8px 8px 0 0; background: transparent;
     color: var(--tab-inactive); transition: all 0.15s;
   }
-  .house-tab.active {
-    background: var(--surface2); color: var(--tab-active);
-    border-color: var(--tab-active); border-bottom: 1px solid var(--surface2);
-  }
+  .house-tab.active { background: var(--surface2); color: var(--tab-active); border-color: var(--tab-active); border-bottom: 1px solid var(--surface2); }
   .house-tab:not(.active):hover { color: var(--text); background: var(--surface2); }
 
-  .house-panel {
-    background: var(--surface2); border-top: 1px solid var(--border);
-    padding: 12px 16px 14px;
-  }
+  .house-panel { background: var(--surface2); border-top: 1px solid var(--border); padding: 12px 16px 14px; }
   .house-panel[hidden] { display: none; }
 
   .now-playing {
@@ -96,25 +79,24 @@
   .np-stale .np-indicator { background: #6b7280; animation: none; }
   .np-stale .np-label { color: var(--text-dim); }
 
-  .controls-row {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
-  }
+  .controls-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .ctrl-btn {
     width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border);
     background: var(--surface); color: var(--text); font-size: 16px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s;
+    transition: all 0.15s; flex-shrink: 0;
   }
   .ctrl-btn:hover { background: var(--surface2); border-color: var(--text-dim); }
   .ctrl-btn:active { transform: scale(0.95); }
   .volume-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-  .vol-label { font-size: 11px; color: var(--text-dim); }
+  .vol-label { font-size: 11px; color: var(--text-dim); min-width: 28px; text-align: center; }
 
   .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
   .room-chip {
     font-size: 12px; padding: 5px 12px; border-radius: 16px;
     border: 1px solid var(--border); background: var(--surface);
     color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
   }
   .room-chip.active { background: rgba(74,222,128,0.12); color: var(--accent); border-color: var(--accent); }
   .room-chip.playing::after { content: ' 🔊'; font-size: 10px; }
@@ -125,12 +107,25 @@
     display: flex; align-items: center; gap: 10px;
     padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--surface); cursor: pointer; font-size: 13px;
+    transition: all 0.15s;
   }
   .device-item.active { border-color: var(--spotify); background: rgba(29,185,84,0.08); }
-  .device-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+  .device-item:active { transform: scale(0.98); }
+  .device-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
   .device-item.active .device-dot { background: var(--spotify); }
   .device-name { flex: 1; }
   .device-type { font-size: 11px; color: var(--text-dim); }
+
+  .spotify-connect-btn {
+    display: block; width: 100%; padding: 12px; border-radius: 10px;
+    background: var(--spotify); color: #fff; font-size: 14px; font-weight: 700;
+    border: none; cursor: pointer; text-align: center; transition: all 0.15s;
+  }
+  .spotify-connect-btn:active { opacity: 0.8; }
+  .spotify-disconnect-btn {
+    font-size: 11px; color: #f87171; background: none; border: none;
+    cursor: pointer; padding: 4px 0; margin-top: 8px;
+  }
 
   /* ========== BOTTOM SECTION ========== */
   .bottom-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -163,27 +158,19 @@
   .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
 
-  /* History items — compact two-line */
+  /* History items */
   .history-list { padding: 4px 0; }
   .history-item {
     display: flex; align-items: flex-start; gap: 0;
     padding: 6px 10px 6px 0;
     border-bottom: 1px solid rgba(35, 41, 64, 0.6);
-    transition: background 0.1s;
   }
   .history-item:active { background: var(--surface2); }
 
-  .hi-time-col {
-    width: 50px; flex-shrink: 0; text-align: right;
-    padding: 3px 8px 0 6px;
-  }
-  .hi-time {
-    font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums;
-  }
+  .hi-time-col { width: 50px; flex-shrink: 0; text-align: right; padding: 3px 8px 0 6px; }
+  .hi-time { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
   .hi-info { flex: 1; min-width: 0; padding-left: 4px; }
-
-  /* Line 1: track · album · artist */
   .hi-line1 {
     display: flex; align-items: baseline; gap: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -194,51 +181,30 @@
   .hi-album { color: #7b88a8; font-style: italic; flex-shrink: 2; overflow: hidden; text-overflow: ellipsis; }
   .hi-artist { color: var(--text-dim); flex-shrink: 3; overflow: hidden; text-overflow: ellipsis; }
 
-  /* Line 2: location badge + rooms */
-  .hi-line2 {
-    display: flex; align-items: center; gap: 6px;
-    margin-top: 2px;
-    font-size: 11px;
-  }
+  .hi-line2 { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 11px; }
   .hi-location {
     display: inline-flex; align-items: center; gap: 3px;
     font-size: 10px; font-weight: 600;
-    padding: 1px 7px; border-radius: 8px;
-    flex-shrink: 0;
+    padding: 1px 7px; border-radius: 8px; flex-shrink: 0;
   }
-  .hi-location.caphill {
-    color: var(--caphill); background: rgba(74,222,128,0.08);
-    border: 1px solid rgba(74,222,128,0.15);
-  }
-  .hi-location.vashon {
-    color: var(--vashon); background: rgba(96,165,250,0.08);
-    border: 1px solid rgba(96,165,250,0.15);
-  }
-  .hi-location.roaming {
-    color: var(--roaming); background: rgba(234,179,8,0.08);
-    border: 1px solid rgba(234,179,8,0.15);
-  }
-  .hi-rooms {
-    font-size: 10px; color: var(--text-dim);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
+  .hi-location.caphill { color: var(--caphill); background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.15); }
+  .hi-location.vashon { color: var(--vashon); background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.15); }
+  .hi-location.roaming { color: var(--roaming); background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.15); }
+  .hi-rooms { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hi-source-badge {
     font-size: 9px; color: var(--text-dim); opacity: 0.7;
-    padding: 0 4px; border-radius: 4px;
-    background: rgba(255,255,255,0.04);
-    flex-shrink: 0;
+    padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,0.04); flex-shrink: 0;
   }
-
-  .hi-actions {
-    display: flex; gap: 2px; flex-shrink: 0; padding-top: 1px;
-  }
+  .hi-actions { display: flex; gap: 2px; flex-shrink: 0; padding-top: 1px; }
   .action-btn {
     width: 26px; height: 26px; border-radius: 7px; border: none;
     background: transparent; color: var(--accent); font-size: 11px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; transition: background 0.1s;
   }
   .action-btn:hover { background: var(--surface2); }
   .action-btn.explore { color: var(--accent2); }
+  .action-btn.exploring { animation: pulse 1s infinite; }
 
   .day-header {
     padding: 10px 16px 6px; font-size: 12px; font-weight: 700;
@@ -253,7 +219,7 @@
   .sync-btn {
     font-size: 12px; padding: 6px 14px; border-radius: 16px;
     border: 1px solid var(--border); background: var(--surface);
-    color: var(--text-dim); cursor: pointer;
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
   }
   .sync-btn:hover { border-color: var(--text-dim); color: var(--text); }
   .updated-label { font-size: 11px; color: var(--text-dim); }
@@ -277,39 +243,38 @@
 
   /* ========== DISCOVERY ========== */
   .discovery-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .discovery-stat { padding: 4px 0 8px; font-size: 12px; color: var(--text-dim); }
   .discovery-card {
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden; transition: border-color 0.15s;
   }
   .discovery-card:hover { border-color: var(--text-dim); }
-  .discovery-header {
+  .disc-header {
     display: flex; align-items: center; gap: 12px;
     padding: 14px 16px; cursor: pointer;
   }
-  .discovery-icon {
+  .disc-icon {
     width: 40px; height: 40px; border-radius: 50%; background: var(--surface);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px; flex-shrink: 0;
   }
-  .discovery-hinfo { flex: 1; min-width: 0; }
-  .discovery-title { font-size: 15px; font-weight: 600; }
-  .discovery-meta { font-size: 12px; color: var(--text-dim); }
-  .discovery-expand { margin-left: auto; color: var(--text-dim); font-size: 14px; transition: transform 0.2s; }
+  .disc-hinfo { flex: 1; min-width: 0; }
+  .disc-title { font-size: 15px; font-weight: 600; }
+  .disc-meta { font-size: 12px; color: var(--text-dim); }
+  .disc-expand { margin-left: auto; color: var(--text-dim); font-size: 14px; transition: transform 0.2s; }
 
-  .discovery-body { padding: 0 16px 14px; display: none; }
-  .discovery-card.open .discovery-body { display: block; }
-  .discovery-card.open .discovery-expand { transform: rotate(90deg); }
+  .disc-body { padding: 0 16px 14px; display: none; }
+  .discovery-card.open .disc-body { display: block; }
+  .discovery-card.open .disc-expand { transform: rotate(90deg); }
 
-  .discovery-narrative {
-    font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 12px;
-  }
-  .discovery-narrative strong { color: var(--text); font-weight: 600; }
+  .disc-narrative { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 12px; }
+  .disc-narrative strong { color: var(--text); font-weight: 600; }
+  .disc-narrative em { font-style: italic; }
 
   .suggestion-section-label {
     font-size: 11px; font-weight: 700; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.5px;
-    padding: 8px 0 4px; border-top: 1px solid var(--border);
-    margin-top: 4px;
+    padding: 8px 0 4px; border-top: 1px solid var(--border); margin-top: 4px;
   }
   .suggestion-section-label:first-of-type { margin-top: 0; border-top: none; }
 
@@ -319,817 +284,1178 @@
   }
   .suggestion-info { flex: 1; min-width: 0; }
   .suggestion-title { font-size: 13px; font-weight: 500; }
-  .suggestion-detail { font-size: 11px; color: var(--text-dim); }
+  .suggestion-detail { font-size: 11px; color: var(--text-dim); line-height: 1.4; margin-top: 2px; }
+
+  .sugg-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .sugg-btn {
+    font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
+    cursor: pointer; border: none; transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sugg-btn:active { opacity: 0.7; }
+  .sugg-btn-play { background: #2563eb; color: #fff; }
+  .sugg-btn-queue { background: #374151; color: #93c5fd; border: 1px solid #4b5563; }
+
+  /* Empty/loading states */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--accent2); border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    left: 50%; transform: translateX(-50%);
+    background: rgba(26,58,26,0.95); border: 1px solid var(--accent);
+    color: var(--accent); border-radius: 10px; padding: 10px 20px;
+    font-size: 14px; font-weight: 600; z-index: 100;
+    transition: opacity 0.4s; white-space: nowrap; pointer-events: none;
+  }
+  .toast.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
+
+  /* Sonos hint card */
+  .sonos-hint {
+    margin-top: 8px; padding: 8px 12px; border-radius: 8px;
+    background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2);
+  }
+  .sonos-hint a { color: var(--accent2); text-decoration: none; }
+  .sonos-hint a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
+
+<!-- Toast -->
+<div id="toast" class="toast" style="display:none;opacity:0;"></div>
 
 <!-- ==================== TOP SECTION ==================== -->
 <div class="top-section">
   <div class="top-header">
     <h1>🎵 Listening Log</h1>
-    <div class="status-dots">
-      <span class="status-dot green"></span> shumaframe
-      <span class="status-dot yellow"></span> mind
+    <div class="status-dots" id="status-bar">
+      <span class="spinner" id="load-spinner" style="display:none"></span>
     </div>
   </div>
   <div class="house-tabs">
-    <div class="house-tab active" data-house="caphill">🏠 Cap Hill</div>
-    <div class="house-tab" data-house="vashon">🏝 Vashon</div>
-    <div class="house-tab" data-house="roaming">📱 Roaming</div>
+    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill')">🏠 Cap Hill</div>
+    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon')">🏝 Vashon</div>
+    <div class="house-tab" data-house="roaming" onclick="setHouse('roaming')">📱 Roaming</div>
   </div>
 
+  <!-- Cap Hill panel -->
   <div class="house-panel" id="panel-caphill">
-    <div class="now-playing">
+    <div class="now-playing" id="np-caphill">
       <div class="np-indicator"></div>
       <div class="np-info">
-        <div class="np-label">Now Playing</div>
-        <div class="np-track">VI. Adagio quasi un poco andante</div>
-        <div class="np-artist">Quatuor Diotima · Beethoven: The Late String Quartets</div>
+        <div class="np-label">Loading...</div>
+        <div class="np-track">—</div>
+        <div class="np-artist">—</div>
       </div>
     </div>
     <div class="controls-row">
-      <button class="ctrl-btn">⏮</button>
-      <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">⏭</button>
+      <button class="ctrl-btn" onclick="sendCmd('prev')">⏮</button>
+      <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
+      <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
+      <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
       <div class="volume-group">
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
-        <span class="vol-label">Vol</span>
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
+        <span class="vol-label" id="vol-label-caphill">Vol</span>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
-    <div class="room-selector">
-      <div class="room-chip active playing">Dining Room</div>
-      <div class="room-chip active playing">Living Room</div>
-      <div class="room-chip active playing">Kitchen</div>
-      <div class="room-chip">Backyard</div>
-      <div class="room-chip">Basement Study</div>
-      <div class="room-chip">Master Bathroom</div>
-      <div class="room-chip">Master Bedroom</div>
-      <div class="room-chip">Media Room</div>
-      <div class="room-chip">Study Computer Playbar</div>
-    </div>
+    <div class="room-selector" id="rooms-caphill"></div>
   </div>
 
+  <!-- Vashon panel -->
   <div class="house-panel" id="panel-vashon" hidden>
-    <div class="now-playing np-stale">
+    <div class="now-playing np-stale" id="np-vashon">
       <div class="np-indicator"></div>
       <div class="np-info">
-        <div class="np-label">Last Played · 7d ago</div>
-        <div class="np-track">Tick</div>
-        <div class="np-artist">Yeah Yeah Yeahs · Fever to Tell</div>
+        <div class="np-label">Loading...</div>
+        <div class="np-track">—</div>
+        <div class="np-artist">—</div>
       </div>
     </div>
     <div class="controls-row">
-      <button class="ctrl-btn">⏮</button>
-      <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">⏭</button>
+      <button class="ctrl-btn" onclick="sendCmd('prev')">⏮</button>
+      <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
+      <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
+      <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
       <div class="volume-group">
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
-        <span class="vol-label">Vol</span>
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
+        <span class="vol-label" id="vol-label-vashon">Vol</span>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
-    <div class="room-selector">
-      <div class="room-chip">Garage Living Room</div>
-      <div class="room-chip">Main Living Room Maury</div>
-      <div class="room-chip">Main Kitchen Green Move 2</div>
-      <div class="room-chip">Shed Arc</div>
-      <div class="room-chip">Media Room</div>
-      <div class="room-chip">Main Lower Deck</div>
-    </div>
+    <div class="room-selector" id="rooms-vashon"></div>
   </div>
 
+  <!-- Roaming panel -->
   <div class="house-panel" id="panel-roaming" hidden>
-    <div class="now-playing np-stale">
+    <div class="now-playing np-stale" id="np-roaming">
       <div class="np-indicator" style="background:var(--spotify);"></div>
       <div class="np-info">
-        <div class="np-label" style="color:var(--spotify);">Spotify · Last played 2h ago</div>
-        <div class="np-track">2400</div>
-        <div class="np-artist">Martyn Heyne · <span style="font-style:italic;">Umbra</span></div>
+        <div class="np-label" style="color:var(--spotify);">Spotify</div>
+        <div class="np-track">—</div>
+        <div class="np-artist">—</div>
       </div>
     </div>
     <div class="controls-row">
-      <button class="ctrl-btn">⏮</button>
-      <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">⏭</button>
+      <button class="ctrl-btn" onclick="sendCmd('prev')">⏮</button>
+      <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
+      <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
+      <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
       <div class="volume-group">
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
-        <span class="vol-label">Vol</span>
-        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
+        <span class="vol-label" id="vol-label-roaming">Vol</span>
+        <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
-    <div class="device-list">
-      <div class="device-item">
-        <div class="device-dot"></div>
-        <div class="device-name">Andrew's iPhone</div>
-        <div class="device-type">Smartphone</div>
-      </div>
-      <div class="device-item">
-        <div class="device-dot"></div>
-        <div class="device-name">SHUMAFRAME</div>
-        <div class="device-type">Computer</div>
-      </div>
-    </div>
+    <div id="roaming-devices"></div>
   </div>
 </div>
 
 <!-- ==================== BOTTOM SECTION ==================== -->
 <div class="bottom-section">
   <div class="content-tabs">
-    <div class="content-tab active" data-tab="history">History</div>
-    <div class="content-tab" data-tab="discovery">Discovery</div>
+    <div class="content-tab active" data-tab="history" onclick="setContentTab('history')">History</div>
+    <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
   </div>
 
   <div id="tab-history">
     <div class="sub-tabs">
-      <div class="sub-tab active" data-subtab="music">Music <span class="count">3371</span></div>
+      <div class="sub-tab active" data-subtab="music" onclick="setSubTab('music')">Music <span class="count" id="cnt-music"></span></div>
       <span class="sub-tab-sep">·</span>
-      <div class="sub-tab" data-subtab="podcasts">Podcasts <span class="count">2009</span></div>
+      <div class="sub-tab" data-subtab="podcasts" onclick="setSubTab('podcasts')">Podcasts <span class="count" id="cnt-podcasts"></span></div>
     </div>
     <div class="history-toolbar">
-      <span class="updated-label">Updated 2m ago</span>
-      <button class="sync-btn">↻ Sync Spotify</button>
+      <span class="updated-label" id="updated-label">Loading...</span>
+      <button class="sync-btn" id="sync-btn" onclick="syncNow()">↻ Sync Spotify</button>
     </div>
-
     <div class="content-panel" id="subtab-music">
-      <div class="history-list">
-        <div class="day-header">Today · Thu Jun 5</div>
-
-        <!-- Cap Hill Sonos Spotify -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">9:41a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">VI. Adagio quasi un poco andante</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Beethoven: The Late String Quartets</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Quatuor Diotima</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Living Room, Kitchen</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">9:32a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">V. Presto</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Beethoven: The Late String Quartets</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Quatuor Diotima</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Living Room, Kitchen, Dining Room</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Cap Hill Sonos Qobuz -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">8:15a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">2400</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Extended Newspapers</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Martyn Heyne</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Living Room, Media Room</span>
-              <span class="hi-source-badge">Qobuz</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Cap Hill Sonos Apple Music -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">7:50a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">What I've Done</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Minutes to Midnight</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Linkin Park</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Media Room</span>
-              <span class="hi-source-badge">Apple Music</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Cap Hill Sonos Radio -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">7:30a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Rose in the Dark</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Rose in the Dark</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Cleo Sol</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Kitchen</span>
-              <span class="hi-source-badge">KCRW</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="day-header">Yesterday · Wed Jun 4</div>
-
-        <!-- Vashon Sonos Spotify -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">8:45p</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Sweetest Taboo</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Promise</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Sade</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location vashon">🏝 Vashon</span>
-              <span class="hi-rooms">Main Living Room Maury, Shed Arc</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">8:40p</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Smooth Operator</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Diamond Life</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Sade</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location vashon">🏝 Vashon</span>
-              <span class="hi-rooms">Main Living Room Maury, Shed Arc</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Spotify Roaming -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">3:12p</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Dead Leaves and the Dirty Ground</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">White Blood Cells</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">The White Stripes</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location roaming">📱 Roaming</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">3:08p</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Sleeping on the Blacktop</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Imaginary Appalachia</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Colter Wall</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location roaming">📱 Roaming</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">3:04p</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Move On Up</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Curtis</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Curtis Mayfield</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location roaming">📱 Roaming</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Cap Hill morning -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">11:20a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">I Don't Know What It Is, But It Sure Is Funky</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Ripple</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Ripple</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Dining Room, Kitchen</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">11:16a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Tea Thyme</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">How It Should Sound</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Damu The Fudgemunk</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location caphill">🏠 Cap Hill</span>
-              <span class="hi-rooms">Dining Room, Kitchen</span>
-              <span class="hi-source-badge">Spotify</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <!-- Vashon morning Qobuz -->
-        <div class="history-item">
-          <div class="hi-time-col"><div class="hi-time">8:10a</div></div>
-          <div class="hi-info">
-            <div class="hi-line1">
-              <span class="hi-track">Concert by the Sea (Live)</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-album">Concert by the Sea</span>
-              <span class="hi-sep">·</span>
-              <span class="hi-artist">Erroll Garner</span>
-            </div>
-            <div class="hi-line2">
-              <span class="hi-location vashon">🏝 Vashon</span>
-              <span class="hi-rooms">Main Kitchen Green Move 2</span>
-              <span class="hi-source-badge">Qobuz</span>
-            </div>
-          </div>
-          <div class="hi-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
+      <div class="history-list" id="music-list">
+        <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading history...</p></div>
       </div>
     </div>
-
     <div class="content-panel" id="subtab-podcasts" hidden>
-      <div class="history-list">
-        <div class="day-header">This Week</div>
-        <div class="podcast-item">
-          <div class="podcast-icon">🎙</div>
-          <div class="podcast-info">
-            <div class="podcast-show">The Daily</div>
-            <div class="podcast-title">The Supreme Court's Biggest Decisions</div>
-            <div class="podcast-meta">Jun 4 · 28 min</div>
-            <div class="podcast-progress"><div class="podcast-progress-fill" style="width:100%"></div></div>
-          </div>
-        </div>
-        <div class="podcast-item">
-          <div class="podcast-icon">🎙</div>
-          <div class="podcast-info">
-            <div class="podcast-show">Hardcore History</div>
-            <div class="podcast-title">Supernova in the East VI</div>
-            <div class="podcast-meta">Jun 3 · 5h 12min</div>
-            <div class="podcast-progress"><div class="podcast-progress-fill" style="width:72%"></div></div>
-          </div>
-        </div>
-        <div class="podcast-item">
-          <div class="podcast-icon">🎙</div>
-          <div class="podcast-info">
-            <div class="podcast-show">Lex Fridman Podcast</div>
-            <div class="podcast-title">#421 — Sam Altman: OpenAI, GPT-5</div>
-            <div class="podcast-meta">Jun 2 · 3h 44min</div>
-            <div class="podcast-progress"><div class="podcast-progress-fill" style="width:45%"></div></div>
-          </div>
-        </div>
+      <div class="history-list" id="podcast-list">
+        <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading podcasts...</p></div>
       </div>
     </div>
   </div>
 
-  <!-- DISCOVERY TAB -->
   <div id="tab-discovery" hidden>
     <div class="content-panel">
-      <div class="discovery-list">
-        <div style="padding:4px 0 8px; font-size:12px; color:var(--text-dim);">17 artists explored · last on Jun 4, 2026 at 8:32p</div>
-
-        <!-- Card 1: Abel Selaocoe — expanded (real data) -->
-        <div class="discovery-card open">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Abel Selaocoe</div>
-              <div class="discovery-meta">from III. Scherzando vivace · Jun 5 · 6 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative">Your first encounter with Abel Selaocoe — a South African cellist, vocalist, and composer who fuses <strong>Bantu throat singing</strong> and African percussion with Baroque cello repertoire. This Bach Sarabande arrangement (by Fred Thomas for cello &amp; string orchestra) comes from his sophomore album <em>Hymns of Bantu</em> (2025, Warner Classics), where it sits alongside traditional South African hymns and Giovanni Sollima's <em>LBFiles</em> suite. Selaocoe trained at the Royal Northern College of Music in Manchester and collaborates regularly with <strong>Manchester Collective</strong>, percussionist Bernhard Schimpelsberger, and djembe player Sidiki Dembélé — and <strong>Yo-Yo Ma</strong> guests on his debut album <em>Where Is Home</em>.</div>
-
-            <div class="suggestion-section-label">By Abel Selaocoe</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Hymns of Bantu (2025)</div>
-                <div class="suggestion-detail">The full album this Sarabande comes from — 12 tracks weaving Bach and Marais with South African hymns, featuring Manchester Collective strings, Fred Thomas on prepared piano, and Dudù Kouaté on African percussion.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Where Is Home / Hae ke Kae (2022)</div>
-                <div class="suggestion-detail">Selaocoe's acclaimed debut on Warner Classics — features a collaboration with Yo-Yo Ma on 'Ibuyile I'Africa' and named one of the Best Albums of 2022 by Songlines magazine.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Four Spirits (Live, 2025) — with Aurora Orchestra &amp; Bernhard Schimpelsberger</div>
-                <div class="suggestion-detail">Live recording with Aurora Orchestra and conductor Nicholas Collon — Selaocoe's improvising percussionist Bernhard Schimpelsberger joins for a fusion of orchestral and world music traditions.</div>
-              </div>
-            </div>
-
-            <div class="suggestion-section-label">Related Artists</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🎛️ We Were Trees (2008) — Giovanni Sollima</div>
-                <div class="suggestion-detail">The Sicilian cellist-composer who wrote the 'LBFiles' suite that Selaocoe performs — Sollima is a boundary-crossing cellist in his own right, blending classical with Mediterranean folk and improvisation.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🎛️ J.S. Bach: Cello Suites (2024) — Giovanni Sollima</div>
-                <div class="suggestion-detail">Sollima's own reading of the complete Bach Cello Suites — a fascinating comparison with Selaocoe's reimagined Sarabande arrangement. Same repertoire, different cultural lens.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">📻 Abel Selaocoe — The Complete Playlist (Warner Classics)</div>
-                <div class="suggestion-detail">Official Warner Classics playlist spanning Selaocoe's full catalog — 35 tracks including both albums and singles, curated by the label.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 2: Cleo Sol — expanded (real data) -->
-        <div class="discovery-card open">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Cleo Sol</div>
-              <div class="discovery-meta">from Rose in the Dark · Jun 4 · 9 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative">Cleo Sol's <em>Rose in the Dark</em> is where it all begins — her 2020 debut, entirely produced by her husband <strong>Inflo</strong> (Dean Josiah Cover), who also helms the mysterious UK collective <strong>SAULT</strong> and produced Michael Kiwanuka's Mercury Prize-winning <em>KIWANUKA</em>. Every Cleo Sol album lives on Inflo's Forever Living Originals label, making their partnership one of the most prolific artist-producer marriages in modern British soul. She's also featured on two <strong>Little Simz</strong> albums — "Selfish" on <em>Grey Area</em> (2019) and "Woman" on <em>Sometimes I Might Be Introvert</em> (2021), both also produced by Inflo — a triangle of London talent that keeps feeding itself.</div>
-
-            <div class="suggestion-section-label">By Cleo Sol</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Rose in the Dark (2020)</div>
-                <div class="suggestion-detail">The album this track is from — her debut, all 11 tracks produced by Inflo. Play the whole thing.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Mother (2021)</div>
-                <div class="suggestion-detail">Her second album, also produced by Inflo, inspired by the birth of their child — intimate soul-jazz that deepens everything Rose in the Dark started.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Heaven (2023)</div>
-                <div class="suggestion-detail">Her surprise-released third solo album, continuing the Inflo-produced lineage into more devotional, spiritually-rooted territory.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Gold (2023)</div>
-                <div class="suggestion-detail">Released just two weeks after Heaven — a companion piece and her most sonically lush album to date.</div>
-              </div>
-            </div>
-
-            <div class="suggestion-section-label">Related Artists</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🎛️ KIWANUKA (2019) — Michael Kiwanuka</div>
-                <div class="suggestion-detail">Produced by Inflo, same as all Cleo Sol albums — won the Mercury Prize. If you love Inflo's warm, expansive production, this is essential.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🤝 Sometimes I Might Be Introvert (2021) — Little Simz</div>
-                <div class="suggestion-detail">Cleo Sol features on "Woman" and Inflo produced the entire album — the same creative family behind Rose in the Dark.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🤝 UNTITLED (Black Is) (2020) — SAULT</div>
-                <div class="suggestion-detail">Cleo Sol is the lead vocalist of SAULT, the secretive collective she runs with Inflo — this critically acclaimed album dropped the same year as Rose in the Dark.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🤝 5 (2019) — SAULT</div>
-                <div class="suggestion-detail">SAULT's debut album with Cleo Sol on vocals — raw funk and soul that predates both Rose in the Dark and the collective's critical breakthrough.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">📻 This is Cleo Sol</div>
-                <div class="suggestion-detail">Community-curated playlist spanning her solo work and features — a good overview if you want the highlights.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 3: Cécile McLorin Salvant — expanded (real data from latest exploration) -->
-        <div class="discovery-card open">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Cécile McLorin Salvant</div>
-              <div class="discovery-meta">from ARTEMIS · Jun 4 · 7 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative">You heard her via ARTEMIS — the jazz supergroup with pianist <strong>Renee Rosnes</strong>, saxophonist <strong>Nicole Glover</strong>, trumpeter <strong>Ingrid Jensen</strong>, and bassist <strong>Noriko Ueda</strong>. But Salvant's solo career is one of the most decorated in modern jazz: three Grammy wins, a MacArthur "genius" grant, and a voice that channels <strong>Bessie Smith</strong>, <strong>Sarah Vaughan</strong>, and French chanson simultaneously. Born in Miami to a French mother and Haitian father, she studied Baroque music at the Darius Milhaud Conservatory in Aix-en-Provence before pivoting to jazz — that classical training shapes her theatrical phrasing and her obsession with <strong>obscure pre-war repertoire</strong>.</div>
-
-            <div class="suggestion-section-label">By Cécile McLorin Salvant</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Dreams and Daggers (2017)</div>
-                <div class="suggestion-detail">Grammy-winning live album recorded at the Village Vanguard — captures her theatrical stage presence and risk-taking improvisation.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Ghost Song (2022)</div>
-                <div class="suggestion-detail">Her most ambitious album — original compositions alongside Kate Bush and Gregory Porter covers, with a haunted, cinematic production.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">💿 Mélusine (2023)</div>
-                <div class="suggestion-detail">Her French-language album exploring medieval myth — a radical departure that weaves Haitian Creole, Baroque ornamentation, and jazz.</div>
-              </div>
-            </div>
-
-            <div class="suggestion-section-label">Related Artists</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🤝 ARTEMIS (2020) — ARTEMIS</div>
-                <div class="suggestion-detail">The supergroup that brought you here — Salvant leads alongside Renee Rosnes, Nicole Glover, Ingrid Jensen, and Noriko Ueda. All-female jazz at the highest level.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🎛️ After Blue (2017) — Sarah Vaughan</div>
-                <div class="suggestion-detail">The vocal ancestor Salvant most channels — Vaughan's late-career ballad work has the same dramatic range and harmonic daring.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🎛️ Alive at the Village Vanguard (2024) — Samara Joy</div>
-                <div class="suggestion-detail">The next generation — Joy won the Grammy for Best New Artist and shares Salvant's love of the Great American Songbook, but with a warmer, more restrained instrument.</div>
-              </div>
-            </div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">🤝 Written in the Stars (2018) — Renee Rosnes</div>
-                <div class="suggestion-detail">ARTEMIS pianist's own album — elegant post-bop with Bill Charlap. The compositional mind behind the supergroup's arrangements.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 4: Sigur Rós — collapsed -->
-        <div class="discovery-card">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Sigur Rós</div>
-              <div class="discovery-meta">Jun 4 · 8 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative">Icelandic post-rock. <strong>Jónsi's</strong> bowed guitar and falsetto created a new way to feel enormity — Hopelandic is a language of pure phonetic emotion.</div>
-            <div class="suggestion-section-label">By Sigur Rós</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">Takk... (2005)</div>
-                <div class="suggestion-detail">Album · Their most accessible — "Hoppípolla" broke them worldwide.</div>
-              </div>
-            </div>
-            <div class="suggestion-section-label">Related Artists</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">The Disintegration Loops (2002)</div>
-                <div class="suggestion-detail">William Basinski · Album · Ambient decay — tape loops deteriorating in real time. Recorded the morning of 9/11.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 5: Oliver Nelson — collapsed -->
-        <div class="discovery-card">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Oliver Nelson</div>
-              <div class="discovery-meta">Jun 3 · 8 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative"><strong>The Blues and the Abstract Truth</strong> is one of jazz's perfect records — but Nelson was far more than one album. Arranger for everyone from Nancy Wilson to James Brown.</div>
-            <div class="suggestion-section-label">By Oliver Nelson</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">The Blues and the Abstract Truth (1961)</div>
-                <div class="suggestion-detail">Album · "Stolen Moments" alone justifies the record. Eric Dolphy and Bill Evans on the same date.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card 6: Neil Young — collapsed -->
-        <div class="discovery-card">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div class="discovery-hinfo">
-              <div class="discovery-title">Neil Young</div>
-              <div class="discovery-meta">Jun 3 · 9 suggestions</div>
-            </div>
-            <div class="discovery-expand">›</div>
-          </div>
-          <div class="discovery-body">
-            <div class="discovery-narrative">The <strong>godfather of grunge</strong> who recorded with Crazy Horse and Buffalo Springfield. His guitar tone — ragged, overdriven, emotional — influenced everything from Sonic Youth to Pearl Jam.</div>
-            <div class="suggestion-section-label">By Neil Young</div>
-            <div class="suggestion-item">
-              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
-              <div class="suggestion-info">
-                <div class="suggestion-title">On the Beach (1974)</div>
-                <div class="suggestion-detail">Album · His darkest — post-CSNY, post-Ditch Trilogy. Sounds like it was recorded in amber.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <div class="discovery-list" id="discovery-list">
+        <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading discoveries...</p></div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  document.querySelectorAll('.house-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.house-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
-      document.getElementById('panel-' + tab.dataset.house).hidden = false;
-    });
-  });
-  document.querySelectorAll('.content-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('tab-history').hidden = tab.dataset.tab !== 'history';
-      document.getElementById('tab-discovery').hidden = tab.dataset.tab !== 'discovery';
-    });
-  });
-  document.querySelectorAll('.sub-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('subtab-music').hidden = tab.dataset.subtab !== 'music';
-      document.getElementById('subtab-podcasts').hidden = tab.dataset.subtab !== 'podcasts';
-    });
-  });
-  document.querySelectorAll('.room-chip').forEach(chip => {
-    chip.addEventListener('click', () => chip.classList.toggle('active'));
-  });
-  document.querySelectorAll('.discovery-header').forEach(hdr => {
-    hdr.addEventListener('click', () => hdr.closest('.discovery-card').classList.toggle('open'));
-  });
-</script>
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════════════════════
+const NTFY = {
+  caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
+  vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
+};
+const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
+const DATA_HEAD_URL = 'https://shumania.github.io/lifelog/data-head.json';
+const DATA_FULL_URL = 'https://shumania.github.io/lifelog/data.json';
+const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e';
+const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
+const ROOMS_LIST = {
+  caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Master Bedroom','Media Room','Study Computer Playbar'],
+  vashon: ['Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
+};
 
+// ══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════════════
+let house = localStorage.getItem('ll_house') || 'caphill';
+let selectedRooms = {};  // per-house
+let _userManualRoomSelect = {};
+let data = null;  // data-head.json
+let archiveItems = [];
+let archiveLoaded = false;
+let allItems = [];  // merged head + archive
+let commanderId = null;
+
+// SSE state
+let _sseSource = null;
+let _sseLastMsg = Date.now();
+let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromStatus}
+let _sseNowPlayingGlobal = null;  // latest across all houses
+
+// Spotify state
+const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
+const SP_REDIRECT = location.origin + '/lifelog/controller.html';
+let spotifyDevices = [];
+let spotifySelectedDeviceId = localStorage.getItem('ll_spotify_device') || null;
+let spotifyNowPlaying = null;
+let _spotifyDevicePollTimer = null;
+let _spotifyNpPollTimer = null;
+let _deviceCache = {};
+let _lastKnownPhone = null;
+try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone = JSON.parse(lp); } catch(e) {}
+
+// Init selected rooms from localStorage
+['caphill','vashon'].forEach(h => {
+  try { selectedRooms[h] = JSON.parse(localStorage.getItem('ll_rooms_' + h) || '[]'); } catch(e) { selectedRooms[h] = []; }
+  _userManualRoomSelect[h] = false;
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════════════════════════
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  let h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'p' : 'a';
+  h = h % 12 || 12;
+  return h + ':' + (m < 10 ? '0' : '') + m + ampm;
+}
+
+function fmtAge(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  return Math.floor(hr / 24) + 'd ago';
+}
+
+function fmtRelative(d) {
+  const diff = Date.now() - d.getTime();
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return sec < 5 ? 'just now' : sec + 's ago';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ' + (min % 60) + 'm ago';
+  return Math.floor(hr / 24) + 'd ago';
+}
+
+function fmtMs(ms) {
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60);
+  return m + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+}
+
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((nowDate - dDate) / 86400000);
+  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff === 0) return 'Today · ' + dayName + ' ' + monthDay;
+  if (diff === 1) return 'Yesterday · ' + dayName + ' ' + monthDay;
+  return dayName + ' ' + monthDay;
+}
+
+function dayKey(iso) {
+  const d = new Date(iso);
+  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.style.display = 'none', 400); }, 2500);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPOTIFY AUTH (reuse tokens from controller.html PKCE)
+// ══════════════════════════════════════════════════════════════════════════════
+function hasSpotifyAuth() { return !!localStorage.getItem('spotify_refresh_token'); }
+
+async function getSpotifyToken() {
+  const expiry = parseInt(localStorage.getItem('spotify_token_expiry') || '0');
+  if (Date.now() > expiry - 60000) {
+    const rt = localStorage.getItem('spotify_refresh_token');
+    if (!rt) return null;
+    try {
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST', headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({ client_id: SP_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt })
+      });
+      const d = await r.json();
+      if (d.access_token) {
+        localStorage.setItem('spotify_access_token', d.access_token);
+        if (d.refresh_token) localStorage.setItem('spotify_refresh_token', d.refresh_token);
+        localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      } else return null;
+    } catch(e) { return null; }
+  }
+  return localStorage.getItem('spotify_access_token');
+}
+
+async function spotifyApi(method, path, body) {
+  const token = await getSpotifyToken();
+  if (!token) return null;
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + token } };
+  if (body !== undefined && body !== null) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch('https://api.spotify.com/v1' + path, opts);
+  if (r.status === 401) {
+    localStorage.removeItem('spotify_token_expiry');
+    const retry = await getSpotifyToken();
+    if (retry) return spotifyApi(method, path, body);
+    return null;
+  }
+  if (r.status === 204 || r.status === 202) return {};
+  if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error?.message || 'HTTP ' + r.status); }
+  const text = await r.text();
+  return text ? JSON.parse(text) : {};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HOUSE SWITCHING
+// ══════════════════════════════════════════════════════════════════════════════
+function setHouse(h) {
+  house = h;
+  localStorage.setItem('ll_house', h);
+  document.querySelectorAll('.house-tab').forEach(t => t.classList.toggle('active', t.dataset.house === h));
+  document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
+  document.getElementById('panel-' + h).hidden = false;
+  updateCommander();
+  if (h === 'roaming') {
+    renderRoamingPanel();
+    startSpotifyPolling();
+  } else {
+    stopSpotifyPolling();
+    renderRooms(h);
+    renderNowPlayingSonos(h);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROOM SELECTION (Sonos)
+// ══════════════════════════════════════════════════════════════════════════════
+function inferActiveRooms(h) {
+  h = h || house;
+  // From data rooms_playing (per-client metadata)
+  if (data && data.client_status) {
+    for (const c of data.client_status) {
+      if (c.house !== h || !c.sonos_commander) continue;
+      try {
+        const meta = typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata;
+        if (meta && Array.isArray(meta.rooms_playing) && meta.rooms_playing.length > 0) return [...meta.rooms_playing];
+      } catch(e) {}
+    }
+  }
+  // From recent history
+  if (allItems.length > 0) {
+    const cutoff = Date.now() - 120 * 60000;
+    for (const item of allItems) {
+      if (item.house !== h) continue;
+      const ts = new Date(item.timestamp).getTime();
+      if (ts < cutoff) break;
+      if (Array.isArray(item.rooms) && item.rooms.length > 0) return [...item.rooms];
+      if (item.room) return [item.room];
+    }
+  }
+  return [];
+}
+
+function renderRooms(h) {
+  h = h || house;
+  const container = document.getElementById('rooms-' + h);
+  if (!container) return;
+  const all = ROOMS_LIST[h] || [];
+  const sel = selectedRooms[h] || [];
+  const liveRooms = inferActiveRooms(h);
+  // Auto-set rooms if user hasn't manually selected
+  if (!_userManualRoomSelect[h] && liveRooms.length > 0) {
+    selectedRooms[h] = [...liveRooms];
+    localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+  }
+  const curSel = selectedRooms[h] || [];
+  container.innerHTML = all.map(room => {
+    const isActive = curSel.includes(room);
+    const isPlaying = liveRooms.includes(room);
+    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
+  }).join('');
+}
+
+function toggleRoom(h, room) {
+  _userManualRoomSelect[h] = true;
+  const sel = selectedRooms[h] || [];
+  const idx = sel.indexOf(room);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(room);
+  selectedRooms[h] = sel;
+  localStorage.setItem('ll_rooms_' + h, JSON.stringify(sel));
+  renderRooms(h);
+}
+
+function updateCommander() {
+  if (house === 'roaming' || !data || !data.client_status) { commanderId = null; return; }
+  const cmdr = data.client_status.find(c => c.house === house && c.sonos_commander);
+  commanderId = cmdr ? cmdr.client_id : null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSPORT CONTROLS
+// ══════════════════════════════════════════════════════════════════════════════
+const SONOS_MAP = { play: 'resume', prev: 'previous' };
+
+async function sendCmd(action) {
+  if (house === 'roaming') { await spotifyCmd(action); return; }
+  const sonosAction = SONOS_MAP[action] || action;
+  const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+  if (!rooms.length) { showToast('No rooms selected', true); return; }
+  const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
+  await postNtfy(payload);
+}
+
+async function postNtfy(payload) {
+  const topic = NTFY[house];
+  if (!topic) { showToast('No ntfy topic for ' + house, true); return; }
+  if (!payload.t_requested) payload.t_requested = new Date().toISOString();
+  try {
+    const r = await fetch(topic, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast('✓ Command sent');
+  } catch(e) { showToast('✗ Failed: ' + e.message, true); }
+}
+
+// Spotify transport
+async function _ensureDeviceAwake() {
+  if (!spotifySelectedDeviceId) return;
+  const cached = _deviceCache[spotifySelectedDeviceId];
+  if (cached && cached.stale) {
+    showToast('Waking device...');
+    try { await spotifyApi('PUT', '/me/player', { device_ids: [spotifySelectedDeviceId], play: false }); } catch(e) {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
+async function spotifyCmd(action) {
+  if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+  await _ensureDeviceAwake();
+  const dp = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+  try {
+    switch(action) {
+      case 'play': await spotifyApi('PUT', '/me/player/play' + dp); break;
+      case 'pause': await spotifyApi('PUT', '/me/player/pause' + dp); break;
+      case 'next': await spotifyApi('POST', '/me/player/next' + dp); break;
+      case 'prev': await spotifyApi('POST', '/me/player/previous' + dp); break;
+      case 'volume_up': case 'volume_down': {
+        const cur = spotifyDevices.find(d => d.is_active)?.volume_percent || 50;
+        const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 10 : -10)));
+        await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        document.getElementById('vol-label-roaming').textContent = vol + '%';
+        break;
+      }
+    }
+    showToast('✓ ' + action);
+    setTimeout(fetchSpotifyNowPlaying, 500);
+  } catch(e) { showToast('✗ ' + e.message, true); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SPOTIFY DEVICES & NOW PLAYING (Roaming)
+// ══════════════════════════════════════════════════════════════════════════════
+const PHONE_TYPES = new Set(['Smartphone', 'Tablet']);
+function deviceIcon(type) {
+  return { Computer:'💻', Smartphone:'📱', Speaker:'🔊', TV:'📺', AVR:'🎛️', Tablet:'📱', Automobile:'🚗' }[type] || '🎵';
+}
+
+async function fetchSpotifyDevices() {
+  try {
+    const d = await spotifyApi('GET', '/me/player/devices');
+    if (!d || !d.devices) return;
+    const now = Date.now();
+    const liveIds = new Set();
+    for (const dev of d.devices) {
+      liveIds.add(dev.id);
+      _deviceCache[dev.id] = { device: dev, lastSeen: now, stale: false };
+      if (PHONE_TYPES.has(dev.type)) {
+        _lastKnownPhone = { device: {...dev}, lastSeen: now };
+        try { localStorage.setItem('ll_last_phone', JSON.stringify(_lastKnownPhone)); } catch(e) {}
+      }
+    }
+    for (const [id, entry] of Object.entries(_deviceCache)) {
+      if (!liveIds.has(id)) {
+        entry.stale = true;
+        if (!PHONE_TYPES.has(entry.device.type) && now - entry.lastSeen > 120000) delete _deviceCache[id];
+      }
+    }
+    if (_lastKnownPhone && !_deviceCache[_lastKnownPhone.device.id]) {
+      _deviceCache[_lastKnownPhone.device.id] = { device: _lastKnownPhone.device, lastSeen: _lastKnownPhone.lastSeen, stale: true };
+    }
+    spotifyDevices = Object.values(_deviceCache).sort((a,b) => a.stale === b.stale ? 0 : a.stale ? 1 : -1).map(e => ({...e.device, _stale: e.stale}));
+    const active = spotifyDevices.find(x => x.is_active && !x._stale);
+    if (active) { spotifySelectedDeviceId = active.id; localStorage.setItem('ll_spotify_device', active.id); }
+    else if (!spotifySelectedDeviceId || !spotifyDevices.find(x => x.id === spotifySelectedDeviceId)) {
+      spotifySelectedDeviceId = spotifyDevices[0]?.id || null;
+    }
+    if (house === 'roaming') renderSpotifyDevices();
+  } catch(e) {}
+}
+
+async function fetchSpotifyNowPlaying() {
+  try {
+    const d = await spotifyApi('GET', '/me/player?additional_types=track,episode');
+    if (!d || !d.item) { spotifyNowPlaying = null; }
+    else {
+      spotifyNowPlaying = {
+        title: d.item.name,
+        artist: d.item.type === 'track' ? (d.item.artists||[]).map(a=>a.name).join(', ') : (d.item.show?.name||''),
+        album: d.item.type === 'track' ? (d.item.album?.name||'') : '',
+        device: d.device?.name || '',
+        progress_ms: d.progress_ms || 0, duration_ms: d.item.duration_ms || 0,
+        is_playing: d.is_playing, uri: d.item.uri
+      };
+      if (d.device?.id) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
+    }
+  } catch(e) { spotifyNowPlaying = null; }
+  if (house === 'roaming') renderNowPlayingRoaming();
+}
+
+function startSpotifyPolling() {
+  stopSpotifyPolling();
+  if (!hasSpotifyAuth()) return;
+  fetchSpotifyDevices(); fetchSpotifyNowPlaying();
+  let burst = 0;
+  const bt = setInterval(() => { if (++burst >= 3) { clearInterval(bt); return; } fetchSpotifyDevices(); }, 2000);
+  _spotifyDevicePollTimer = setInterval(fetchSpotifyDevices, 15000);
+  _spotifyNpPollTimer = setInterval(fetchSpotifyNowPlaying, 5000);
+}
+function stopSpotifyPolling() {
+  if (_spotifyDevicePollTimer) { clearInterval(_spotifyDevicePollTimer); _spotifyDevicePollTimer = null; }
+  if (_spotifyNpPollTimer) { clearInterval(_spotifyNpPollTimer); _spotifyNpPollTimer = null; }
+}
+
+function renderSpotifyDevices() {
+  const el = document.getElementById('roaming-devices');
+  if (!el) return;
+  if (!hasSpotifyAuth()) {
+    el.innerHTML = '<button class="spotify-connect-btn" onclick="window.location.href=\'controller.html\'">🎵 Connect with Spotify</button><p style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center;">Opens controller page to authenticate</p>';
+    return;
+  }
+  let html = '<div class="device-list">';
+  if (spotifyDevices.length === 0) {
+    html += '<p style="font-size:12px;color:var(--text-dim);padding:8px 0;">No devices found. Open Spotify on a device.</p>';
+  } else {
+    html += spotifyDevices.map(d => {
+      const sel = d.id === spotifySelectedDeviceId;
+      const stale = d._stale;
+      return `<div class="device-item${sel ? ' active' : ''}" onclick="selectSpotifyDevice('${d.id}')" style="${stale?'opacity:0.5':''}">
+        <div class="device-dot"></div>
+        <div class="device-name">${esc(d.name)}${d.is_active && !stale ? ' <span style="color:var(--accent);font-size:10px;">● active</span>':''}${stale?' <span style="font-size:10px;">💤</span>':''}</div>
+        <div class="device-type">${deviceIcon(d.type)} ${d.volume_percent != null ? d.volume_percent + '%' : ''}</div>
+      </div>`;
+    }).join('');
+  }
+  html += '</div>';
+  html += '<button class="spotify-disconnect-btn" onclick="disconnectSpotify()">Disconnect Spotify</button>';
+  el.innerHTML = html;
+}
+
+function selectSpotifyDevice(id) {
+  spotifySelectedDeviceId = id;
+  localStorage.setItem('ll_spotify_device', id);
+  renderSpotifyDevices();
+}
+
+function disconnectSpotify() {
+  ['spotify_access_token','spotify_refresh_token','spotify_token_expiry','spotify_pkce_verifier'].forEach(k => localStorage.removeItem(k));
+  spotifyDevices = []; spotifySelectedDeviceId = null; spotifyNowPlaying = null;
+  stopSpotifyPolling();
+  renderRoamingPanel();
+  showToast('Spotify disconnected');
+}
+
+function renderRoamingPanel() {
+  renderNowPlayingRoaming();
+  renderSpotifyDevices();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOW PLAYING
+// ══════════════════════════════════════════════════════════════════════════════
+function renderNowPlayingSonos(h) {
+  const el = document.getElementById('np-' + h);
+  if (!el) return;
+  const sse = _sseNowPlaying[h];
+  const isLive = sse && (Date.now() - sse.ts) < 600000;
+
+  // Find latest history item for this house
+  let latestItem = null;
+  if (allItems.length > 0) {
+    latestItem = allItems.find(i => i.house === h && i.type === 'music');
+  }
+
+  let title = '—', artist = '—', label = 'No recent activity', isPlaying = false;
+  let rooms = '';
+
+  if (isLive) {
+    title = sse.title || '—';
+    artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
+    label = 'Now Playing';
+    isPlaying = true;
+    rooms = (sse.rooms || []).join(', ');
+  } else if (latestItem) {
+    title = latestItem.title || '—';
+    artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
+    const age = Date.now() - new Date(latestItem.timestamp).getTime();
+    if (age < 30 * 60000) { label = 'Played ' + fmtAge(age); isPlaying = false; }
+    else { label = 'Last played · ' + fmtAge(age); isPlaying = false; }
+    rooms = Array.isArray(latestItem.rooms) ? latestItem.rooms.join(', ') : (latestItem.room || '');
+  }
+
+  el.className = 'now-playing' + (isPlaying ? '' : ' np-stale');
+  el.innerHTML = `
+    <div class="np-indicator"></div>
+    <div class="np-info">
+      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}</div>
+      <div class="np-track">${esc(title)}</div>
+      <div class="np-artist">${esc(artist)}</div>
+    </div>`;
+}
+
+function renderNowPlayingRoaming() {
+  const el = document.getElementById('np-roaming');
+  if (!el) return;
+
+  if (spotifyNowPlaying && spotifyNowPlaying.is_playing) {
+    const np = spotifyNowPlaying;
+    const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
+    el.className = 'now-playing';
+    el.innerHTML = `
+      <div class="np-indicator" style="background:var(--spotify);"></div>
+      <div class="np-info">
+        <div class="np-label" style="color:var(--spotify);">▶ Now Playing · ${esc(np.device)}</div>
+        <div class="np-track">${esc(np.title)}</div>
+        <div class="np-artist">${esc(np.artist)}${np.album ? ' · ' + esc(np.album) : ''}</div>
+        <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;background:var(--spotify);border-radius:2px;width:${pct}%"></div></div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${fmtMs(np.progress_ms)} / ${fmtMs(np.duration_ms)}</div>
+      </div>`;
+  } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
+    el.className = 'now-playing np-stale';
+    el.innerHTML = `
+      <div class="np-indicator" style="background:var(--spotify);animation:none;"></div>
+      <div class="np-info">
+        <div class="np-label" style="color:#eab308;">⏸ Paused · ${esc(spotifyNowPlaying.device)}</div>
+        <div class="np-track">${esc(spotifyNowPlaying.title)}</div>
+        <div class="np-artist">${esc(spotifyNowPlaying.artist)}</div>
+      </div>`;
+  } else {
+    el.className = 'now-playing np-stale';
+    let hint = '';
+    if (_sseNowPlayingGlobal && (Date.now() - _sseNowPlayingGlobal.ts) < 300000) {
+      const sonosHouse = _sseNowPlayingGlobal.house === 'caphill' ? 'Cap Hill' : 'Vashon';
+      hint = `<div class="sonos-hint" style="margin-top:6px;">
+        <div style="font-size:12px;color:var(--accent2);">🔊 Sonos is playing in ${esc((_sseNowPlayingGlobal.rooms||[]).join(', '))}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(_sseNowPlayingGlobal.title)} — ${esc(_sseNowPlayingGlobal.artist)}</div>
+        <a href="#" onclick="setHouse('${_sseNowPlayingGlobal.house}');return false" style="font-size:11px;color:var(--accent2);display:inline-block;margin-top:3px;">Switch to ${esc(sonosHouse)} →</a>
+      </div>`;
+    }
+    el.innerHTML = `
+      <div class="np-indicator" style="background:var(--spotify);animation:none;"></div>
+      <div class="np-info">
+        <div class="np-label" style="color:var(--text-dim);">Spotify · Idle</div>
+        <div class="np-track" style="color:var(--text-dim);">Nothing playing</div>
+        <div class="np-artist">${hint}</div>
+      </div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATUS BAR
+// ══════════════════════════════════════════════════════════════════════════════
+function renderStatusBar() {
+  const bar = document.getElementById('status-bar');
+  if (!data || !data.client_status) { bar.innerHTML = ''; return; }
+  const now = Date.now();
+  const spinner = document.getElementById('load-spinner');
+  let html = spinner ? spinner.outerHTML : '';
+  html += data.client_status.map(c => {
+    const age = c.last_seen ? Math.round((now - new Date(c.last_seen).getTime()) / 60000) : null;
+    const cls = age === null ? 'red' : age < 10 ? 'green' : age < 30 ? 'yellow' : 'red';
+    const label = c.client_id.replace('sonos_vashon','Vashon').replace('sonos_caphill','Cap Hill').replace('backup_','💾 ');
+    return `<span style="white-space:nowrap"><span class="status-dot ${cls}"></span> ${esc(label)}</span>`;
+  }).join('');
+  bar.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DATA LOADING
+// ══════════════════════════════════════════════════════════════════════════════
+function mergeItems(head, archive) {
+  if (!archive.length) return head;
+  const keys = new Set(head.map(i => (i.timestamp||'') + '|' + (i.title||'').toLowerCase()));
+  return [...head, ...archive.filter(i => !keys.has((i.timestamp||'') + '|' + (i.title||'').toLowerCase()))];
+}
+
+async function loadData(loadArchive) {
+  const spinner = document.getElementById('load-spinner');
+  if (spinner) spinner.style.display = 'inline-block';
+  try {
+    const r = await fetch(DATA_HEAD_URL + '?t=' + Date.now());
+    data = await r.json();
+    const headItems = data.items || [];
+    allItems = mergeItems(headItems, archiveItems);
+    renderAll();
+  } catch(e) {
+    document.getElementById('music-list').innerHTML = '<div class="empty-state">⚠️ Could not load data</div>';
+  }
+  if (spinner) spinner.style.display = 'none';
+
+  if (loadArchive || !archiveLoaded) {
+    try {
+      const r2 = await fetch(DATA_FULL_URL + '?t=' + Date.now());
+      const full = await r2.json();
+      archiveItems = full.items || [];
+      archiveLoaded = true;
+      const headItems = data ? (data.items || []) : [];
+      allItems = mergeItems(headItems, archiveItems);
+      renderHistory();
+      updateCounts();
+    } catch(e) {}
+  }
+}
+
+function renderAll() {
+  renderStatusBar();
+  updateCommander();
+  renderRooms(house);
+  if (house === 'roaming') renderRoamingPanel();
+  else renderNowPlayingSonos(house);
+  renderHistory();
+  renderPodcasts();
+  renderDiscovery();
+  updateCounts();
+  if (data && data.generated_at) {
+    document.getElementById('updated-label').textContent = 'Updated ' + fmtRelative(new Date(data.generated_at));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// HISTORY RENDERING
+// ══════════════════════════════════════════════════════════════════════════════
+function getLocation(item) {
+  const src = item.source || '';
+  if (item.house === 'vashon') return { cls: 'vashon', label: '🏝 Vashon' };
+  if (item.house === 'caphill') return { cls: 'caphill', label: '🏠 Cap Hill' };
+  if (src === 'spotify' || src === 'spotify_teenbloods') return { cls: 'roaming', label: '📱 Roaming' };
+  if (src.startsWith('sonos_')) return { cls: 'caphill', label: '🏠 Cap Hill' };
+  return { cls: 'roaming', label: '📱 Roaming' };
+}
+
+function getSourceBadge(item) {
+  const src = item.source || '';
+  if (src.includes('spotify')) return 'Spotify';
+  if (src.includes('apple')) return 'Apple Music';
+  if (src.includes('qobuz')) return 'Qobuz';
+  if (src.includes('kcrw')) return 'KCRW';
+  if (src.includes('kexp')) return 'KEXP';
+  if (src.includes('tunein') || src.includes('radio')) return 'Radio';
+  return '';
+}
+
+function renderHistory() {
+  const el = document.getElementById('music-list');
+  const music = allItems.filter(i => i.type === 'music');
+  if (music.length === 0) { el.innerHTML = '<div class="empty-state">🎧 No music history yet</div>'; return; }
+
+  let html = '', lastDay = '';
+  for (const item of music) {
+    const dk = dayKey(item.timestamp);
+    if (dk !== lastDay) {
+      lastDay = dk;
+      html += `<div class="day-header">${esc(dayLabel(item.timestamp))}</div>`;
+    }
+    const loc = getLocation(item);
+    const badge = getSourceBadge(item);
+    const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
+    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',title:item.title,artist:item.artist||''}));
+    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source}));
+
+    html += `<div class="history-item">
+      <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
+      <div class="hi-info">
+        <div class="hi-line1">
+          <span class="hi-track">${esc(item.title)}</span>
+          ${item.album ? '<span class="hi-sep">·</span><span class="hi-album">' + esc(item.album) + '</span>' : ''}
+          ${item.artist ? '<span class="hi-sep">·</span><span class="hi-artist">' + esc(item.artist) + '</span>' : ''}
+        </div>
+        <div class="hi-line2">
+          <span class="hi-location ${loc.cls}">${loc.label}</span>
+          ${rooms ? '<span class="hi-rooms">' + esc(rooms) + '</span>' : ''}
+          ${badge ? '<span class="hi-source-badge">' + esc(badge) + '</span>' : ''}
+        </div>
+      </div>
+      <div class="hi-actions">
+        <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
+        <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
+        <button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore">🔍</button>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderPodcasts() {
+  const el = document.getElementById('podcast-list');
+  const pods = allItems.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
+  if (pods.length === 0) { el.innerHTML = '<div class="empty-state">🎙 No podcasts yet</div>'; return; }
+
+  let html = '', lastDay = '';
+  for (const item of pods) {
+    const dk = dayKey(item.timestamp);
+    if (dk !== lastDay) {
+      lastDay = dk;
+      html += `<div class="day-header">${esc(dayLabel(item.timestamp))}</div>`;
+    }
+    const dur = item.duration_seconds ? Math.round(item.duration_seconds / 60) + ' min' : '';
+    const pct = (item.progress_seconds && item.duration_seconds) ? Math.round(item.progress_seconds / item.duration_seconds * 100) : (item.percent_complete || 0);
+    html += `<div class="podcast-item">
+      <div class="podcast-icon">🎙</div>
+      <div class="podcast-info">
+        ${item.show_name ? '<div class="podcast-show">' + esc(item.show_name) + '</div>' : ''}
+        <div class="podcast-title">${esc(item.title)}</div>
+        <div class="podcast-meta">${fmtTime(item.timestamp)}${dur ? ' · ' + dur : ''}</div>
+        ${pct > 0 ? '<div class="podcast-progress"><div class="podcast-progress-fill" style="width:' + pct + '%"></div></div>' : ''}
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function updateCounts() {
+  const music = allItems.filter(i => i.type === 'music').length;
+  const pods = allItems.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0).length;
+  document.getElementById('cnt-music').textContent = music || '';
+  document.getElementById('cnt-podcasts').textContent = pods || '';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DISCOVERY LOG RENDERING
+// ══════════════════════════════════════════════════════════════════════════════
+function renderDiscovery() {
+  const el = document.getElementById('discovery-list');
+  if (!data || !data.play_commands || data.play_commands.length === 0) {
+    el.innerHTML = '<div class="empty-state">🔍 No discoveries yet</div>';
+    return;
+  }
+  const cmds = data.play_commands;
+  // Stat line
+  const lastDate = new Date(cmds[0].timestamp);
+  const statLine = `${cmds.length} artists explored · last on ${lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} at ${fmtTime(cmds[0].timestamp)}`;
+  let html = `<div class="discovery-stat">${esc(statLine)}</div>`;
+
+  for (let i = 0; i < cmds.length; i++) {
+    const cmd = cmds[i];
+    const isOpen = i < 3;
+    const d = new Date(cmd.timestamp);
+    const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const suggCount = (cmd.suggestions || []).length;
+
+    html += `<div class="discovery-card${isOpen ? ' open' : ''}" id="disc-${i}">`;
+    html += `<div class="disc-header" onclick="document.getElementById('disc-${i}').classList.toggle('open')">`;
+    html += `<div class="disc-icon">🔍</div>`;
+    html += `<div class="disc-hinfo">`;
+    html += `<div class="disc-title">${esc(cmd.artist || cmd.title)}</div>`;
+    html += `<div class="disc-meta">from ${esc(cmd.title)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
+    html += `</div><div class="disc-expand">›</div></div>`;
+
+    // Body
+    html += '<div class="disc-body">';
+    if (cmd.narrative) {
+      html += `<div class="disc-narrative">${formatNarrative(cmd.narrative)}</div>`;
+    }
+
+    if (cmd.suggestions && cmd.suggestions.length > 0) {
+      let currentSection = '';
+      for (const s of cmd.suggestions) {
+        // Detect section from label prefix
+        const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
+                        s.label && s.label.startsWith('🤝') ? 'Related Artists' :
+                        s.label && s.label.startsWith('📻') ? 'Related Artists' :
+                        'By ' + esc(cmd.artist || cmd.title);
+        if (section !== currentSection) {
+          currentSection = section;
+          html += `<div class="suggestion-section-label">${section}</div>`;
+        }
+        const uri = (s.uri || '').replace(/'/g, "\\'");
+        const lbl = (s.label || '').replace(/'/g, "\\'");
+        html += `<div class="suggestion-item">
+          <div class="sugg-actions">
+            <button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
+            <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>
+          </div>
+          <div class="suggestion-info">
+            <div class="suggestion-title">${esc(s.label)}</div>
+            ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+          </div>
+        </div>`;
+      }
+    }
+    html += '</div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function formatNarrative(text) {
+  // Bold **text** and italic *text*
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DIRECT PLAY / QUEUE / EXPLORE
+// ══════════════════════════════════════════════════════════════════════════════
+async function directPlay(action, encodedData) {
+  const info = JSON.parse(decodeURIComponent(encodedData));
+  let uri = info.uri;
+
+  // If no URI, try Spotify search
+  if (!uri) {
+    const token = await getSpotifyToken();
+    if (!token) { showToast('No Spotify URI available', true); return; }
+    showToast('Searching...');
+    try {
+      const q = [info.artist, info.title].filter(Boolean).join(' ');
+      const r = await spotifyApi('GET', '/search?type=track&limit=1&q=' + encodeURIComponent(q));
+      uri = r?.tracks?.items?.[0]?.uri;
+      if (!uri) { showToast('Not found on Spotify', true); return; }
+    } catch(e) { showToast('Search failed', true); return; }
+  }
+
+  if (house === 'roaming') {
+    // Spotify direct
+    if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    const dp = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
+    const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+    try {
+      if (action === 'queue') {
+        await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + dp);
+        showToast('✓ Queued: ' + (info.title || ''));
+      } else {
+        await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + dp);
+        await new Promise(r => setTimeout(r, 300));
+        await spotifyApi('POST', '/me/player/next');
+        showToast('✓ Playing: ' + (info.title || ''));
+      }
+      setTimeout(fetchSpotifyNowPlaying, 1000);
+    } catch(e) { showToast('✗ ' + e.message, true); }
+    return;
+  }
+
+  // Sonos path
+  const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+  if (!rooms.length) { showToast('No rooms selected', true); return; }
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+  await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
+  showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
+}
+
+async function playDiscovery(action, uri, label) {
+  if (!uri) { showToast('No URI', true); return; }
+
+  if (house === 'roaming') {
+    if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    try {
+      if (action === 'queue' && uri.includes(':track:')) {
+        const dp = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
+        await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + dp);
+        showToast('✓ Queued: ' + label);
+      } else {
+        const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+        const body = uri.includes(':track:') ? { uris: [uri] } : { context_uri: uri };
+        await spotifyApi('PUT', '/me/player/play' + dpQ, body);
+        showToast('✓ Playing: ' + label);
+      }
+      setTimeout(fetchSpotifyNowPlaying, 1000);
+    } catch(e) { showToast('✗ ' + e.message, true); }
+    return;
+  }
+
+  // Sonos
+  const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+  if (!rooms.length) { showToast('No rooms selected', true); return; }
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+  await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
+  showToast('✓ ' + label + ' → ' + rooms.join(', '));
+}
+
+async function exploreArtist(btn, encodedData) {
+  const trackData = JSON.parse(decodeURIComponent(encodedData));
+  btn.classList.add('exploring');
+  btn.textContent = '⏳';
+  try {
+    await fetch(EXPLORE_WEBHOOK, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(trackData)
+    });
+    btn.textContent = '✓'; btn.classList.remove('exploring');
+    setTimeout(() => { btn.textContent = '🔍'; }, 3000);
+  } catch(e) {
+    btn.textContent = '✗'; btn.classList.remove('exploring');
+    setTimeout(() => { btn.textContent = '🔍'; }, 3000);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SYNC
+// ══════════════════════════════════════════════════════════════════════════════
+async function syncNow() {
+  const btn = document.getElementById('sync-btn');
+  btn.textContent = '⏳ Syncing...'; btn.disabled = true; btn.style.opacity = '0.6';
+  try {
+    await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
+    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
+    setTimeout(async () => {
+      await loadData(true);
+      btn.textContent = '↻ Sync Spotify'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+    }, 35000);
+  } catch(e) {
+    btn.textContent = '↻ Sync Spotify'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════════════════════════════════
+function setContentTab(tab) {
+  document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('tab-history').hidden = tab !== 'history';
+  document.getElementById('tab-discovery').hidden = tab !== 'discovery';
+}
+
+function setSubTab(sub) {
+  document.querySelectorAll('.sub-tab').forEach(t => t.classList.toggle('active', t.dataset.subtab === sub));
+  document.getElementById('subtab-music').hidden = sub !== 'music';
+  document.getElementById('subtab-podcasts').hidden = sub !== 'podcasts';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SSE (Real-time from ntfy)
+// ══════════════════════════════════════════════════════════════════════════════
+function connectSSE() {
+  if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
+  _sseSource = new EventSource(NTFY_UI_SSE + '?since=5m');
+  _sseLastMsg = Date.now();
+  _sseSource.addEventListener('message', (e) => {
+    _sseLastMsg = Date.now();
+    try {
+      const outer = JSON.parse(e.data);
+      if (!outer.message) return;
+      const msg = JSON.parse(outer.message);
+      const sseHouse = msg.house || null;
+
+      if (msg.event === 'now_playing') {
+        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], house: sseHouse, ts: Date.now() };
+        if (sseHouse) {
+          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], ts: Date.now() };
+          if (sseHouse === house) {
+            renderNowPlayingSonos(house);
+            // Auto-update rooms
+            if (msg.rooms && msg.rooms.length > 0 && !_userManualRoomSelect[house]) {
+              selectedRooms[house] = [...msg.rooms];
+              localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
+              renderRooms(house);
+            }
+          }
+        }
+        if (house === 'roaming') renderNowPlayingRoaming();  // Update Sonos hint
+      } else if (msg.event === 'stopped') {
+        _sseNowPlayingGlobal = null;
+        if (sseHouse) { delete _sseNowPlaying[sseHouse]; if (sseHouse === house) renderNowPlayingSonos(house); }
+        if (house === 'roaming') renderNowPlayingRoaming();
+      } else if (msg.event === 'status_update') {
+        // Update rooms_playing from status
+        if (sseHouse && msg.rooms_playing) {
+          if (sseHouse === house && !_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
+            selectedRooms[house] = [...msg.rooms_playing];
+            localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
+            renderRooms(house);
+          }
+        }
+        // Opportunistic now-playing from status_update
+        if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0) {
+          const t = msg.now_playing_tracks[0];
+          const h = sseHouse || house;
+          if (!_sseNowPlaying[h]) {
+            _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
+              rooms: msg.now_playing_tracks.map(x=>x.room), ts: Date.now(), _fromStatus: true };
+            if (h === house) renderNowPlayingSonos(house);
+          }
+          if (!_sseNowPlayingGlobal) {
+            _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
+            if (house === 'roaming') renderNowPlayingRoaming();
+          }
+        }
+        // Update status dot
+        if (msg.client_id && data && data.client_status) {
+          const c = data.client_status.find(s => s.client_id === msg.client_id);
+          if (c) { c.last_seen = new Date().toISOString(); if (msg.version) c.version = msg.version; }
+          renderStatusBar();
+        }
+      }
+    } catch(err) {}
+  });
+}
+
+// SSE watchdog + reconnect
+setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    connectSSE();
+    if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DEEP LINK HANDLER (from controller.html)
+// ══════════════════════════════════════════════════════════════════════════════
+function handleDeepLink() {
+  const p = new URLSearchParams(location.search);
+  const action = p.get('action');
+  const uri = p.get('uri');
+  const label = p.get('label') || '';
+  if (!action || !uri) return;
+  const dlHouse = p.get('house');
+  if (dlHouse && dlHouse !== house) setHouse(dlHouse);
+  history.replaceState({}, '', location.pathname);
+
+  // Auto-execute
+  setTimeout(async () => {
+    if (house === 'roaming') {
+      if (action === 'queue') await playDiscovery('queue', uri, label);
+      else await playDiscovery('play', uri, label);
+    } else {
+      const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
+      if (!rooms.length) { showToast('No rooms', true); return; }
+      const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+      await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
+      showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
+    }
+  }, 500);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════════
+(async () => {
+  setHouse(house);
+  connectSSE();
+  await loadData(true);
+  handleDeepLink();
+  // Auto-refresh head every 60s
+  setInterval(() => loadData(false), 60000);
+})();
+</script>
 </body>
 </html>
