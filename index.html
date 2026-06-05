@@ -917,19 +917,29 @@ function renderNowPlayingSonos(h) {
   const dataNp = data && data.now_playing && data.now_playing.house === h ? data.now_playing : null;
   const dataNpAge = dataNp ? Date.now() - new Date(dataNp.timestamp || dataNp.ts || 0).getTime() : Infinity;
 
+  // Map service codes to display names
+  function svcLabel(svc) {
+    if (!svc) return '';
+    const m = { 'sonos_spotify':'Spotify', 'sonos_apple_music':'Apple Music', 'sonos_qobuz':'Qobuz',
+      'sonos_kcrw':'KCRW', 'sonos_kexp':'KEXP', 'spotify':'Spotify' };
+    return m[svc] || svc.replace('sonos_','');
+  }
+  let svc = '';
+
   if (isLive) {
     title = sse.title || '—';
     artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
     label = 'Now Playing';
     isPlaying = true;
     rooms = (sse.rooms || []).join(', ');
+    svc = svcLabel(sse.service);
   } else if (dataNp && dataNpAge < 30 * 60000) {
-    // Published now_playing — fresher than history, but not live SSE
     title = dataNp.title || '—';
     artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
     if (dataNpAge < 5 * 60000) { label = 'Now Playing'; isPlaying = true; }
     else { label = 'Played ' + fmtAge(dataNpAge); }
     rooms = Array.isArray(dataNp.rooms) ? dataNp.rooms.join(', ') : (dataNp.room || '');
+    svc = svcLabel(dataNp.service || dataNp.source);
   } else if (latestItem) {
     title = latestItem.title || '—';
     artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
@@ -937,13 +947,14 @@ function renderNowPlayingSonos(h) {
     if (age < 30 * 60000) { label = 'Played ' + fmtAge(age); isPlaying = false; }
     else { label = 'Last played · ' + fmtAge(age); isPlaying = false; }
     rooms = Array.isArray(latestItem.rooms) ? latestItem.rooms.join(', ') : (latestItem.room || '');
+    svc = svcLabel(latestItem.source);
   }
 
   el.className = 'now-playing' + (isPlaying ? '' : ' np-stale');
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
-      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}</div>
+      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
     </div>`;
@@ -1388,12 +1399,35 @@ function connectSSE() {
         else if (outer.topic.includes('vashon')) sseHouse = 'vashon';
       }
 
+      // Helper: retire a track from Now Playing into history list
+      function retireTrackToHistory(track, h) {
+        if (!track || !track.title || allItems.length === 0) return;
+        const endedItem = {
+          type: 'music', title: track.title, artist: track.artist||'', album: track.album||'',
+          source: track.service ? 'sonos_' + track.service.replace('sonos_','') : 'sonos',
+          timestamp: new Date().toISOString(),
+          domain: (track.rooms||[]).join(', '), house: h||house,
+          uri: track.uri||'', _fromSSE: true
+        };
+        // Dedup: don't prepend if top item is same track within last 2 min
+        const top = allItems[0];
+        if (!(top && top.title === endedItem.title && top.artist === endedItem.artist &&
+              Math.abs(new Date(top.timestamp) - new Date(endedItem.timestamp)) < 120000)) {
+          allItems.unshift(endedItem);
+          renderHistory();
+        }
+      }
+
       if (msg.event === 'now_playing') {
-        // Cancel any pending track_ended clear — a new track arrived
+        // Cancel any pending stopped/track_ended clear — a new track arrived
         if (_trackEndedTimer) { clearTimeout(_trackEndedTimer); _trackEndedTimer = null; }
-        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], house: sseHouse, ts: Date.now() };
+        // Retire PREVIOUS track into history (track transition)
+        if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
+          retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
+        }
+        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], house: sseHouse, service: msg.service||'', ts: Date.now() };
         if (sseHouse) {
-          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], ts: Date.now() };
+          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], service: msg.service||'', ts: Date.now() };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
             // Auto-update rooms
@@ -1405,22 +1439,10 @@ function connectSSE() {
           }
         }
         if (house === 'roaming') renderNowPlayingRoaming();  // Update Sonos hint
-      } else if (msg.event === 'track_ended') {
-        // Prepend ended track to history list in real-time
-        if (msg.title && allItems.length > 0) {
-          const endedItem = {
-            type: 'music', title: msg.title, artist: msg.artist||'', album: msg.album||'',
-            source: 'sonos', timestamp: new Date().toISOString(),
-            domain: (msg.rooms||[]).join(', '), house: sseHouse||house,
-            uri: msg.uri||'', _fromSSE: true
-          };
-          // Dedup: don't prepend if top item is same track within last 2 min
-          const top = allItems[0];
-          if (!(top && top.title === endedItem.title && top.artist === endedItem.artist &&
-                Math.abs(new Date(top.timestamp) - new Date(endedItem.timestamp)) < 120000)) {
-            allItems.unshift(endedItem);
-            renderHistory();
-          }
+      } else if (msg.event === 'track_ended' || msg.event === 'stopped') {
+        // Retire the current track into history
+        if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
+          retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
         // Debounce Now Playing clear — wait 3s for a new now_playing event
         if (_trackEndedTimer) clearTimeout(_trackEndedTimer);
