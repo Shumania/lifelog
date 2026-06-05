@@ -941,14 +941,14 @@ function renderNowPlayingSonos(h) {
     artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
     label = 'Now Playing';
     isPlaying = true;
-    rooms = (sse.rooms || []).join(', ');
+    rooms = [...new Set(sse.rooms || [])].join(', ');
     svc = svcLabel(sse.service);
   } else if (dataNp && dataNpAge < 30 * 60000) {
     title = dataNp.title || '—';
     artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
     if (dataNpAge < 5 * 60000) { label = 'Now Playing'; isPlaying = true; }
     else { label = 'Played ' + fmtAge(dataNpAge); }
-    rooms = Array.isArray(dataNp.rooms) ? dataNp.rooms.join(', ') : (dataNp.room || '');
+    rooms = [...new Set(Array.isArray(dataNp.rooms) ? dataNp.rooms : (dataNp.room ? [dataNp.room] : []))].join(', ');
     svc = svcLabel(dataNp.service || dataNp.source);
   } else if (latestItem) {
     title = latestItem.title || '—';
@@ -956,7 +956,7 @@ function renderNowPlayingSonos(h) {
     const age = Date.now() - new Date(latestItem.timestamp).getTime();
     if (age < 30 * 60000) { label = 'Played ' + fmtAge(age); isPlaying = false; }
     else { label = 'Last played · ' + fmtAge(age); isPlaying = false; }
-    rooms = Array.isArray(latestItem.rooms) ? latestItem.rooms.join(', ') : (latestItem.room || '');
+    rooms = [...new Set(Array.isArray(latestItem.rooms) ? latestItem.rooms : (latestItem.room ? [latestItem.room] : []))].join(', ');
     svc = svcLabel(latestItem.source);
   }
 
@@ -1002,7 +1002,7 @@ function renderNowPlayingRoaming() {
     if (_sseNowPlayingGlobal && (Date.now() - _sseNowPlayingGlobal.ts) < 300000) {
       const sonosHouse = _sseNowPlayingGlobal.house === 'caphill' ? 'Cap Hill' : 'Vashon';
       hint = `<div class="sonos-hint" style="margin-top:6px;">
-        <div style="font-size:12px;color:var(--accent2);">🔊 Sonos is playing in ${esc((_sseNowPlayingGlobal.rooms||[]).join(', '))}</div>
+        <div style="font-size:12px;color:var(--accent2);">🔊 Sonos is playing in ${esc([...new Set(_sseNowPlayingGlobal.rooms||[])].join(', '))}</div>
         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(_sseNowPlayingGlobal.title)} — ${esc(_sseNowPlayingGlobal.artist)}</div>
         <a href="#" onclick="setHouse('${_sseNowPlayingGlobal.house}');return false" style="font-size:11px;color:var(--accent2);display:inline-block;margin-top:3px;">Switch to ${esc(sonosHouse)} →</a>
       </div>`;
@@ -1461,9 +1461,9 @@ function connectSSE() {
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
-        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], house: sseHouse, service: msg.service||'', ts: Date.now() };
+        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', ts: Date.now() };
         if (sseHouse) {
-          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], service: msg.service||'', ts: Date.now() };
+          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', ts: Date.now() };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
             // Auto-update rooms
@@ -1504,7 +1504,7 @@ function connectSSE() {
           const h = sseHouse || house;
           if (!_sseNowPlaying[h]) {
             _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
-              rooms: msg.now_playing_tracks.map(x=>x.room), ts: Date.now(), _fromStatus: true };
+              rooms: [...new Set(msg.now_playing_tracks.map(x=>x.room))], ts: Date.now(), _fromStatus: true };
             if (h === house) renderNowPlayingSonos(house);
           }
           if (!_sseNowPlayingGlobal) {
