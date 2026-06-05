@@ -286,7 +286,7 @@
   .suggestion-title { font-size: 13px; font-weight: 500; }
   .suggestion-detail { font-size: 11px; color: var(--text-dim); line-height: 1.4; margin-top: 2px; }
 
-  .sugg-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .sugg-actions { display: flex; gap: 2px; flex-shrink: 0; margin-left: auto; }
   .sugg-btn {
     font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 10px;
     cursor: pointer; border: none; transition: opacity 0.15s;
@@ -487,6 +487,7 @@ let _sseLastMsg = Date.now();
 let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromStatus}
 let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
+let _roomsPlaying = [];  // rooms currently playing (from SSE status_update)
 
 // Spotify state
 const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
@@ -691,10 +692,23 @@ function toggleRoom(h, room) {
   _userManualRoomSelect[h] = true;
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
-  if (idx >= 0) sel.splice(idx, 1); else sel.push(room);
+  const adding = idx < 0;
+  if (adding) sel.push(room); else sel.splice(idx, 1);
   selectedRooms[h] = sel;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(sel));
   renderRooms(h);
+
+  // Live group/ungroup: if Sonos is actively playing, send command immediately
+  if (h === 'roaming' || !_roomsPlaying || _roomsPlaying.length === 0) return;
+  // Find a room that's currently playing to use as coordinator
+  const coordinator = _roomsPlaying[0];
+  if (adding) {
+    postNtfy({ action: 'group', source: coordinator, add: [room], target_client_id: commanderId, t_requested: new Date().toISOString() });
+    showToast(`Adding ${room} to group`);
+  } else {
+    postNtfy({ action: 'ungroup', room: room, target_client_id: commanderId, t_requested: new Date().toISOString() });
+    showToast(`Removing ${room} from group`);
+  }
 }
 
 function updateCommander() {
@@ -1040,6 +1054,8 @@ async function loadData(loadArchive) {
 function renderAll() {
   renderStatusBar();
   updateCommander();
+  // Seed _roomsPlaying from data
+  _roomsPlaying = inferActiveRooms(house) || [];
   renderRooms(house);
   if (house === 'roaming') renderRoamingPanel();
   else renderNowPlayingSonos(house);
@@ -1202,13 +1218,13 @@ function renderDiscovery() {
         const uri = (s.uri || '').replace(/'/g, "\\'");
         const lbl = (s.label || '').replace(/'/g, "\\'");
         html += `<div class="suggestion-item">
-          <div class="sugg-actions">
-            <button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
-            <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>
-          </div>
           <div class="suggestion-info">
             <div class="suggestion-title">${esc(s.label)}</div>
             ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+          </div>
+          <div class="sugg-actions">
+            <button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
+            <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>
           </div>
         </div>`;
       }
@@ -1417,6 +1433,7 @@ function connectSSE() {
       } else if (msg.event === 'status_update') {
         // Update rooms_playing from status
         if (sseHouse && msg.rooms_playing) {
+          if (sseHouse === house) _roomsPlaying = [...msg.rooms_playing];
           if (sseHouse === house && !_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
