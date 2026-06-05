@@ -1343,9 +1343,13 @@ async function directPlay(action, encodedData) {
     return;
   }
 
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-  await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
-  showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
+  if (action === 'queue') {
+    await postNtfy({ action: 'play_next', uri, rooms, target_client_id: commanderId });
+    showToast('✓ Queued: ' + (info.title || '') + ' → ' + rooms.join(', '));
+  } else {
+    await postNtfy({ action: 'play_spotify_uri', uri, rooms, target_client_id: commanderId });
+    showToast('✓ Playing: ' + (info.title || '') + ' → ' + rooms.join(', '));
+  }
 }
 
 async function playDiscovery(action, uri, label) {
