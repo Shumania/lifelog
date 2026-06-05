@@ -1365,7 +1365,12 @@ function connectSSE() {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
       const msg = JSON.parse(outer.message);
-      const sseHouse = msg.house || null;
+      // Infer house from msg.house OR ntfy topic name
+      let sseHouse = msg.house || null;
+      if (!sseHouse && outer.topic) {
+        if (outer.topic.includes('caphill')) sseHouse = 'caphill';
+        else if (outer.topic.includes('vashon')) sseHouse = 'vashon';
+      }
 
       if (msg.event === 'now_playing') {
         // Cancel any pending track_ended clear — a new track arrived

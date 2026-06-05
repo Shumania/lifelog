@@ -672,7 +672,11 @@ function connectSSE() {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
       const msg = JSON.parse(outer.message);
-      const sseHouse = msg.house || null;
+      let sseHouse = msg.house || null;
+      if (!sseHouse && outer.topic) {
+        if (outer.topic.includes('caphill')) sseHouse = 'caphill';
+        else if (outer.topic.includes('vashon')) sseHouse = 'vashon';
+      }
       const sseMatchesHouse = !sseHouse || sseHouse === house;
 
       if (msg.event === 'now_playing') {
@@ -700,7 +704,7 @@ function connectSSE() {
         } else if (house === 'roaming') {
           renderNowPlaying();  // re-render to show Sonos hint
         }
-      } else if (msg.event === 'stopped') {
+      } else if (msg.event === 'track_ended') {
         _sseNowPlayingGlobal = null;
         if (sseMatchesHouse) { _sseNowPlaying = null; renderNowPlaying(); }
         else if (house === 'roaming') { renderNowPlaying(); }
