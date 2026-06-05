@@ -146,17 +146,18 @@
   .content-tab:hover:not(.active) { color: var(--text); }
 
   .sub-tabs {
-    display: flex; gap: 0; padding: 8px 16px;
+    display: flex; gap: 4px; padding: 6px 16px; align-items: center;
     background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
   .sub-tab {
-    padding: 6px 14px; font-size: 12px; font-weight: 600;
-    border-radius: 16px; cursor: pointer; color: var(--text-dim);
-    background: transparent; transition: all 0.15s;
+    padding: 0; font-size: 12px; font-weight: 400;
+    cursor: pointer; color: var(--text-dim);
+    background: transparent; transition: color 0.15s; opacity: 0.5;
   }
-  .sub-tab.active { background: var(--accent); color: var(--bg); }
-  .sub-tab:hover:not(.active) { background: var(--surface2); color: var(--text); }
-  .sub-tab .count { font-weight: 400; opacity: 0.7; margin-left: 4px; }
+  .sub-tab.active { color: var(--text); opacity: 1; font-weight: 500; }
+  .sub-tab:hover:not(.active) { color: var(--text); opacity: 0.7; }
+  .sub-tab .count { font-weight: 400; opacity: 0.5; margin-left: 2px; font-size: 11px; }
+  .sub-tab-sep { color: var(--text-dim); opacity: 0.3; font-size: 12px; padding: 0 2px; }
 
   .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
@@ -440,8 +441,9 @@
 
   <div id="tab-history">
     <div class="sub-tabs">
-      <div class="sub-tab active" data-subtab="music">Music<span class="count">3371</span></div>
-      <div class="sub-tab" data-subtab="podcasts">Podcasts<span class="count">2009</span></div>
+      <div class="sub-tab active" data-subtab="music">Music <span class="count">3371</span></div>
+      <span class="sub-tab-sep">·</span>
+      <div class="sub-tab" data-subtab="podcasts">Podcasts <span class="count">2009</span></div>
     </div>
     <div class="history-toolbar">
       <span class="updated-label">Updated 2m ago</span>
