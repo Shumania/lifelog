@@ -486,6 +486,7 @@ let _sseSource = null;
 let _sseLastMsg = Date.now();
 let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromStatus}
 let _sseNowPlayingGlobal = null;  // latest across all houses
+let _trackEndedTimer = null;  // debounce timer for track_ended clear
 
 // Spotify state
 const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
@@ -898,12 +899,23 @@ function renderNowPlayingSonos(h) {
   let title = '—', artist = '—', label = 'No recent activity', isPlaying = false;
   let rooms = '';
 
+  // Check published now_playing from data.json (bridge between SSE and history)
+  const dataNp = data && data.now_playing && data.now_playing.house === h ? data.now_playing : null;
+  const dataNpAge = dataNp ? Date.now() - new Date(dataNp.timestamp || dataNp.ts || 0).getTime() : Infinity;
+
   if (isLive) {
     title = sse.title || '—';
     artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
     label = 'Now Playing';
     isPlaying = true;
     rooms = (sse.rooms || []).join(', ');
+  } else if (dataNp && dataNpAge < 30 * 60000) {
+    // Published now_playing — fresher than history, but not live SSE
+    title = dataNp.title || '—';
+    artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
+    if (dataNpAge < 5 * 60000) { label = 'Now Playing'; isPlaying = true; }
+    else { label = 'Played ' + fmtAge(dataNpAge); }
+    rooms = Array.isArray(dataNp.rooms) ? dataNp.rooms.join(', ') : (dataNp.room || '');
   } else if (latestItem) {
     title = latestItem.title || '—';
     artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
@@ -1285,7 +1297,7 @@ async function playDiscovery(action, uri, label) {
   // Sonos
   const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
   if (!rooms.length) { showToast('No rooms selected', true); return; }
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
   await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
   showToast('✓ ' + label + ' → ' + rooms.join(', '));
 }
@@ -1356,6 +1368,8 @@ function connectSSE() {
       const sseHouse = msg.house || null;
 
       if (msg.event === 'now_playing') {
+        // Cancel any pending track_ended clear — a new track arrived
+        if (_trackEndedTimer) { clearTimeout(_trackEndedTimer); _trackEndedTimer = null; }
         _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], house: sseHouse, ts: Date.now() };
         if (sseHouse) {
           _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: msg.rooms||[], ts: Date.now() };
@@ -1370,10 +1384,31 @@ function connectSSE() {
           }
         }
         if (house === 'roaming') renderNowPlayingRoaming();  // Update Sonos hint
-      } else if (msg.event === 'stopped') {
-        _sseNowPlayingGlobal = null;
-        if (sseHouse) { delete _sseNowPlaying[sseHouse]; if (sseHouse === house) renderNowPlayingSonos(house); }
-        if (house === 'roaming') renderNowPlayingRoaming();
+      } else if (msg.event === 'track_ended') {
+        // Prepend ended track to history list in real-time
+        if (msg.title && allItems.length > 0) {
+          const endedItem = {
+            type: 'music', title: msg.title, artist: msg.artist||'', album: msg.album||'',
+            source: 'sonos', timestamp: new Date().toISOString(),
+            domain: (msg.rooms||[]).join(', '), house: sseHouse||house,
+            uri: msg.uri||'', _fromSSE: true
+          };
+          // Dedup: don't prepend if top item is same track within last 2 min
+          const top = allItems[0];
+          if (!(top && top.title === endedItem.title && top.artist === endedItem.artist &&
+                Math.abs(new Date(top.timestamp) - new Date(endedItem.timestamp)) < 120000)) {
+            allItems.unshift(endedItem);
+            renderHistory();
+          }
+        }
+        // Debounce Now Playing clear — wait 3s for a new now_playing event
+        if (_trackEndedTimer) clearTimeout(_trackEndedTimer);
+        _trackEndedTimer = setTimeout(() => {
+          _trackEndedTimer = null;
+          _sseNowPlayingGlobal = null;
+          if (sseHouse) { delete _sseNowPlaying[sseHouse]; if (sseHouse === house) renderNowPlayingSonos(house); }
+          if (house === 'roaming') renderNowPlayingRoaming();
+        }, 3000);
       } else if (msg.event === 'status_update') {
         // Update rooms_playing from status
         if (sseHouse && msg.rooms_playing) {
@@ -1438,7 +1473,7 @@ function handleDeepLink() {
     } else {
       const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
       if (!rooms.length) { showToast('No rooms', true); return; }
-      const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+      const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_spotify_uri';
       await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
       showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
     }
