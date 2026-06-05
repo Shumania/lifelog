@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Life History">
+  <title>Life History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1117; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .tab-active { background: #3b82f6; color: #fff; }
+    .tab-inactive { background: #1e2130; color: #94a3b8; }
+    .card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 12px; }
+    .sticky-header { position: sticky; top: 0; background: #0f1117; z-index: 10; padding-top: env(safe-area-inset-top); }
+    .bottom-pad { padding-bottom: calc(env(safe-area-inset-bottom) + 16px); }
+    .item-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid #1e2130; }
+    .item-row:last-child { border-bottom: none; }
+    .icon-wrap { width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 9px; }
+    .icon-spotify-pure { background: #1DB954; border-radius: 50%; }
+    .icon-spotify-cap  { background: #1e3a5f; }
+    .icon-spotify-vas  { background: #1a3a2a; }
+    .icon-apple-cap    { background: #3a1a2a; }
+    .icon-apple-vas    { background: #2a2a1a; }
+    .icon-qobuz        { background: #1e1a3a; }
+    .icon-radio        { background: #1a2a2a; }
+    .icon-kcrw         { background: #b91c1c; }
+    .icon-kexp         { background: #15803d; }
+    .icon-kcrw .st-lbl, .icon-kexp .st-lbl { font-size: 5.5px; font-weight: 900; letter-spacing: -0.3px; color: #fff; line-height: 1; }
+    .icon-sonos        { background: #2a2020; }
+    .icon-podcast      { background: #3b1f0f; }
+    .item-line { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 1.4; }
+    .t { color: #e2e8f0; font-weight: 600; }
+    .s { color: #64748b; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
+    .np-bar { background: linear-gradient(135deg, #1a2a4a 0%, #1a1d2e 100%); border: 1px solid #2a3a5a; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; display: none; }
+    .np-bar.active { display: block; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .np-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-dot 2s infinite; display: inline-block; }
+    .np-dot-spotify { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #1DB954; animation: pulse-dot 2s infinite; flex-shrink: 0; }
+    .np-dot-spotify svg { width: 10px; height: 10px; }
+    .np-dot-dim { width: 6px; height: 6px; border-radius: 50%; background: #60a5fa; animation: pulse-dot 3s infinite; display: inline-block; opacity: 0.5; }
+    .np-dot-off { width: 6px; height: 6px; border-radius: 50%; background: #475569; display: inline-block; }
+    .np-bar.tier-recent { opacity: 0.7; }
+    .np-bar.tier-stale { opacity: 0.45; }
+    .track-actions { display:flex; gap:2px; flex-shrink:0; align-items:center; }
+    .action-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; opacity:0.4; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color:rgba(255,255,255,0.1); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-decoration:none; }
+    .action-btn:hover, .action-btn:active { opacity:0.9; }
+    .btn-play { font-size:11px; color:#1db954; }
+    .btn-queue { font-size:14px; color:#94a3b8; }
+    .explore-btn { background:none; border:none; cursor:pointer; font-size:14px; padding:0; margin:0; opacity:0.4; transition:opacity 0.15s; flex-shrink:0; -webkit-tap-highlight-color: rgba(255,255,255,0.1); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+    .explore-btn:hover { opacity:0.8; }
+    .toast-error { background: #3a1a1a !important; border-color: #f87171 !important; color: #f87171 !important; }
+    .explore-btn.exploring { opacity:1; animation: pulse 1s infinite; }
+    .explore-btn.done { opacity:0.6; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+    .filter-btn { border-radius: 8px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .count-badge { font-size: 11px; opacity: 0.75; font-weight: 500; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+    .dot-green  { background: #4ade80; }
+    .dot-yellow { background: #facc15; }
+    .dot-red    { background: #f87171; }
+    /* Spotify mini logo SVG inline */
+    .sp-logo { width: 10px; height: 10px; }
+  </style>
+</head>
+<body>
+<div id="toast" style="display:none;opacity:0;position:fixed;bottom:calc(env(safe-area-inset-bottom) + 20px);left:50%;transform:translateX(-50%);background:#1a3a1a;border:1px solid #4ade80;color:#4ade80;border-radius:10px;padding:10px 20px;font-size:14px;font-weight:600;z-index:100;transition:opacity 0.4s;white-space:nowrap;"></div>
+
+<div class="sticky-header px-4 pb-2 pt-3">
+  <div class="flex items-center justify-between mb-1">
+    <div>
+      <h1 class="text-lg font-bold text-white">Life History</h1>
+      <p id="updated-at" class="text-xs text-slate-500 mt-0.5"></p>
+    </div>
+    <div id="load-indicator" class="spinner" style="display:none"></div>
+  </div>
+  <!-- Service status bar -->
+  <div id="status-bar" class="flex gap-3 flex-wrap mb-2" style="font-size:11px;color:#475569;min-height:14px;"></div>
+  <div class="flex gap-2 items-center">
+    <button class="filter-btn tab-active" id="btn-all" onclick="setFilter('all')">All <span id="cnt-all" class="count-badge"></span></button>
+    <button class="filter-btn tab-inactive" id="btn-music" onclick="setFilter('music')">🎵 Music <span id="cnt-music" class="count-badge"></span></button>
+    <button class="filter-btn tab-inactive" id="btn-podcast" onclick="setFilter('podcast')">🎙 Podcasts <span id="cnt-podcast" class="count-badge"></span></button>
+    <a href="controller.html" style="margin-left:auto;background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:5px 11px;font-size:13px;font-weight:600;color:#a78bfa;cursor:pointer;white-space:nowrap;text-decoration:none;">🎛 Control</a>
+    <button id="sync-btn" onclick="syncNow()" style="background:#1e2130;border:1px solid #2d3148;border-radius:8px;padding:5px 11px;font-size:13px;font-weight:600;color:#60a5fa;cursor:pointer;white-space:nowrap;transition:all 0.15s;">↻ Sync</button>
+  </div>
+</div>
+
+<div class="px-4 bottom-pad">
+  <div id="now-playing-bar" class="np-bar">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span class="np-dot"></span>
+      <span style="font-size:10px;color:#60a5fa;font-weight:700;letter-spacing:0.5px;">NOW PLAYING</span>
+      <span id="np-rooms" style="font-size:10px;color:#64748b;margin-left:auto;"></span>
+    </div>
+    <div id="np-title" style="font-size:13px;font-weight:600;color:#e2e8f0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+    <div id="np-meta" style="font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  </div>
+  <div id="feed" class="card px-3">
+    <div class="empty-state">
+      <div class="spinner mx-auto mb-3"></div>
+      <p class="text-sm">Loading your history…</p>
+    </div>
+  </div>
+  <p class="text-center text-xs text-slate-600 mt-3">Updated automatically · <a href="https://tasklet.ai" class="text-slate-500 underline">Tasklet</a></p>
+</div>
+
+<script>
+const SPOTIFY_ICON = '<svg class="sp-logo" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>';
+
+let allData = [];
+let filter = 'all';
+let _npTier = null; // current tier of now-playing bar
+
+// ── Age formatter ────────────────────────────────────────────────────────────
+function fmtAge(ms) {
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  return Math.floor(hr / 24) + 'd ago';
+}
+
+// ── Spotify awareness (reuses tokens from controller.html PKCE auth) ─────
+const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
+let _spotifyNp = null;
+let _spotifyPollTimer = null;
+
+async function getSpotifyToken() {
+  const expiry = parseInt(localStorage.getItem('spotify_token_expiry') || '0');
+  if (Date.now() > expiry - 60000) {
+    const rt = localStorage.getItem('spotify_refresh_token');
+    if (!rt) return null;
+    try {
+      const r = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: SP_CLIENT_ID, grant_type: 'refresh_token', refresh_token: rt })
+      });
+      const d = await r.json();
+      if (d.access_token) {
+        localStorage.setItem('spotify_access_token', d.access_token);
+        if (d.refresh_token) localStorage.setItem('spotify_refresh_token', d.refresh_token);
+        localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      } else return null;
+    } catch(e) { return null; }
+  }
+  return localStorage.getItem('spotify_access_token');
+}
+
+async function checkSpotifyNowPlaying() {
+  const token = await getSpotifyToken();
+  if (!token) { _spotifyNp = null; return; }
+  try {
+    const r = await fetch('https://api.spotify.com/v1/me/player?additional_types=track', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (r.status === 204 || r.status === 401) { _spotifyNp = null; updateNowPlayingFallback(); return; }
+    const text = await r.text();
+    if (!text) { _spotifyNp = null; updateNowPlayingFallback(); return; }
+    const d = JSON.parse(text);
+    if (!d.item || !d.is_playing) { _spotifyNp = null; }
+    else {
+      _spotifyNp = {
+        title: d.item.name,
+        artist: (d.item.artists || []).map(a => a.name).join(', '),
+        album: d.item.album ? d.item.album.name : '',
+        device: d.device ? d.device.name : ''
+      };
+    }
+  } catch(e) { _spotifyNp = null; }
+  // Only update display if no live Sonos SSE
+  if (!_sseCurrentTrack) updateNowPlayingFallback();
+}
+
+function updateNowPlayingFallback() {
+  // Priority: live Sonos (handled by SSE caller) > live Spotify > history
+  if (_sseCurrentTrack) return; // SSE is active — don't override
+
+  if (_spotifyNp) {
+    showNowPlaying({
+      title: _spotifyNp.title, artist: _spotifyNp.artist,
+      album: _spotifyNp.album, rooms: [_spotifyNp.device]
+    }, 'live-spotify');
+    return;
+  }
+
+  // Fall back to most recent history item
+  if (allData.length > 0) {
+    const latest = allData[0];
+    const ageMs = Date.now() - new Date(latest.timestamp).getTime();
+    const tier = ageMs < 30 * 60000 ? 'recent' : 'stale';
+    showNowPlaying({
+      title: latest.title, artist: latest.artist || '',
+      album: latest.album || '',
+      rooms: latest.rooms || (latest.room ? [latest.room] : [])
+    }, tier, ageMs);
+    return;
+  }
+
+  hideNowPlaying();
+}
+
+function startSpotifyAwareness() {
+  if (_spotifyPollTimer) return;
+  if (!localStorage.getItem('spotify_refresh_token')) return;
+  checkSpotifyNowPlaying();
+  _spotifyPollTimer = setInterval(checkSpotifyNowPlaying, 30000);
+}
+
+function setFilter(f) {
+  filter = f;
+  ['all','music','podcast'].forEach(k => {
+    document.getElementById('btn-' + k).className = 'filter-btn ' + (k === f ? 'tab-active' : 'tab-inactive');
+  });
+  renderFeed();
+}
+
+function updateCounts() {
+  const music = allData.filter(i => i.type === 'music');
+  const pods  = allData.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0);
+  document.getElementById('cnt-all').textContent    = allData.length ? (music.length + pods.length) : '';
+  document.getElementById('cnt-music').textContent   = music.length  ? music.length  : '';
+  document.getElementById('cnt-podcast').textContent = pods.length   ? pods.length   : '';
+}
+
+function renderStatusBar(clients) {
+  const bar = document.getElementById('status-bar');
+  if (!clients || !clients.length) { bar.innerHTML = ''; return; }
+  const now = Date.now();
+  bar.innerHTML = clients.map(c => {
+    const lastSeen = c.last_seen ? new Date(c.last_seen).getTime() : 0;
+    const ageMin = lastSeen ? Math.round((now - lastSeen) / 60000) : null;
+    const dotCls = ageMin === null ? 'dot-red' : ageMin < 10 ? 'dot-green' : ageMin < 30 ? 'dot-yellow' : 'dot-red';
+    const label = c.client_id
+      .replace('sonos_vashon', '🏝 Sonos')
+      .replace('sonos_caphill', '🏙 Sonos')
+      .replace('backup_', '💾 ');
+    const age = ageMin === null ? 'offline' : (() => {
+      if (ageMin < 1) return 'just now';
+      if (ageMin < 60) return `${ageMin}m ago`;
+      const hr = Math.floor(ageMin / 60);
+      if (hr < 24) return `${hr}h ${ageMin % 60}m ago`;
+      const days = Math.floor(hr / 24);
+      return `${days}d ${hr % 24}h ago`;
+    })();
+    const ver = c.version ? ` <span style="color:#6b7280;font-size:10px">v${escHtml(c.version)}</span>` : '';
+    return `<span style="white-space:nowrap"><span class="status-dot ${dotCls}"></span>${escHtml(label)}${ver} <span style="color:#374151">${escHtml(age)}</span></span>`;
+  }).join('');
+}
+
+function formatTime(isoStr) {
+  const d   = new Date(isoStr);
+  const now = new Date();
+  const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const dDate   = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((nowDate - dDate) / 86400000);
+  if (diffDays === 0)  return 'Today ' + timeStr;
+  if (diffDays === 1)  return 'Yesterday ' + timeStr;
+  const dateStr = d.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+  });
+  return dateStr + ' ' + timeStr;
+}
+
+function getMusicIcon(item) {
+  const src = item.source || '';
+  const house = item.house || '';
+  const isVashon = house === 'vashon';
+  // Pure Spotify (phone/car) — green circle with Spotify logo
+  if (src === 'spotify' || src === 'spotify_teenbloods') {
+    return { cls: 'icon-spotify-pure', emoji: SPOTIFY_ICON };
+  }
+  // Sonos Spotify
+  if (src.startsWith('sonos_spotify')) {
+    return { cls: isVashon ? 'icon-spotify-vas' : 'icon-spotify-cap', emoji: '🎵' };
+  }
+  if (src.startsWith('sonos_apple')) {
+    return { cls: isVashon ? 'icon-apple-vas' : 'icon-apple-cap', emoji: '🍎' };
+  }
+  if (src.startsWith('sonos_qobuz')) {
+    return { cls: 'icon-qobuz', emoji: '🎼' };
+  }
+  if (src === 'sonos_kcrw') {
+    return { cls: 'icon-kcrw', emoji: '<span class="st-lbl">KCRW</span>' };
+  }
+  if (src === 'sonos_kexp') {
+    return { cls: 'icon-kexp', emoji: '<span class="st-lbl">KEXP</span>' };
+  }
+  if (src.startsWith('sonos_tunein') || src.startsWith('sonos_radio')) {
+    return { cls: 'icon-radio', emoji: '📻' };
+  }
+  if (src.startsWith('sonos_')) {
+    return { cls: isVashon ? 'icon-spotify-vas' : 'icon-sonos', emoji: isVashon ? '🏝️' : '🔊' };
+  }
+  return { cls: 'icon-spotify-cap', emoji: '🎵' };
+}
+
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  const filtered = allData.filter(i => {
+    if (i.type === 'podcast' && !(i.duration_seconds > 0)) return false;
+    if (filter !== 'all' && i.type !== filter) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    feed.innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">🎧</p><p class="text-sm">No ${filter === 'all' ? '' : filter + ' '}history yet</p></div>`;
+    return;
+  }
+
+  feed.innerHTML = filtered.map(item => {
+    const ts = formatTime(item.timestamp);
+    if (item.type === 'music') {
+      const { cls, emoji } = getMusicIcon(item);
+      const parts = [item.artist, item.album].filter(Boolean);
+      if (item.context) parts.push('📋 ' + item.context);
+      if (item.rooms && item.rooms.length > 1) {
+        parts.push('🔊 ' + item.rooms[0] + ' +' + (item.rooms.length - 1));
+      } else if (item.room) {
+        parts.push(item.room);
+      }
+      const sub = parts.map(escHtml).join(' · ');
+      const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source})).replace(/'/g,'%27');
+      const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',title:item.title,artist:item.artist||''})).replace(/'/g,'%27');
+      return `<div class="item-row">
+        <div class="icon-wrap ${cls}">${emoji}</div>
+        <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
+        <div class="track-actions">
+          <button class="action-btn btn-play" onclick="directPlay('play','${playData}')" title="Play now">▶</button>
+          <button class="action-btn btn-queue" onclick="directPlay('queue','${playData}')" title="Queue next">+</button>
+          <button class="explore-btn" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>
+        </div>
+      </div>`;
+    } else {
+      const sub = [item.show_name, item.listened_label].filter(Boolean).map(escHtml).join(' · ');
+      return `<div class="item-row">
+        <div class="icon-wrap icon-podcast">🎙</div>
+        <div class="item-line"><span class="t">${escHtml(item.title)}</span><span class="s">${sub ? ' · ' + sub : ''} · ${ts}</span></div>
+      </div>`;
+    }
+  }).join('');
+}
+
+function escHtml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Direct Play Infrastructure ─────────────────────────────────────────────
+const NTFY_PLAY = {
+  caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
+  vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
+};
+
+function _getPlayConfig() {
+  const h = localStorage.getItem('ll_house') || 'caphill';
+  const rooms = JSON.parse(localStorage.getItem('ll_rooms_' + h) || '[]');
+  return { house: h, rooms };
+}
+
+function _getCommanderId() {
+  // Get from loaded data (client_status array)
+  if (!allData._clientStatus) return null;
+  const { house } = _getPlayConfig();
+  const cmdr = allData._clientStatus.find(c => c.house === house && c.sonos_commander);
+  return cmdr ? cmdr.client_id : null;
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'toast-error' : '';
+  t.style.display = 'block';
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.display = 'none'; }, 400); }, 2500);
+}
+
+async function directPlay(action, encodedData) {
+  const info = JSON.parse(decodeURIComponent(encodedData));
+  let uri = info.uri;
+  const { house, rooms } = _getPlayConfig();
+  const label = [info.artist, info.title].filter(Boolean).join(' — ');
+
+  // If no URI, try Spotify search first
+  if (!uri) {
+    const token = await getSpotifyToken();
+    if (!token) {
+      // Fall back to controller deep link
+      window.location.href = 'controller.html?action=' + action + '&search=' + encodeURIComponent((info.artist||'') + ' ' + (info.title||'')) + '&label=' + encodeURIComponent(label);
+      return;
+    }
+    showToast('Searching...');
+    try {
+      const q = [(info.artist||''), (info.title||'')].filter(Boolean).join(' ');
+      const r = await fetch('https://api.spotify.com/v1/search?type=track&limit=1&q=' + encodeURIComponent(q), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const d = await r.json();
+      const track = d?.tracks?.items?.[0];
+      if (!track) { showToast('Not found on Spotify', true); return; }
+      uri = track.uri;
+    } catch(e) { showToast('Search failed', true); return; }
+  }
+
+  // ── Roaming: Spotify API direct ──
+  if (house === 'roaming') {
+    const token = await getSpotifyToken();
+    if (!token) { showToast('Connect Spotify in Controller first', true); return; }
+    const devId = localStorage.getItem('ll_spotify_device') || '';
+    const deviceParam = devId ? '?device_id=' + devId : '';
+    try {
+      if (action === 'queue') {
+        if (uri.includes(':track:')) {
+          await fetch('https://api.spotify.com/v1/me/player/queue?uri=' + encodeURIComponent(uri) + (devId ? '&device_id=' + devId : ''), {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+          });
+          showToast('✓ Queued: ' + (info.title || 'track'));
+        } else {
+          // Can't queue context — play it
+          await fetch('https://api.spotify.com/v1/me/player/play' + deviceParam, {
+            method: 'PUT', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify(uri.includes(':track:') ? { uris: [uri] } : { context_uri: uri })
+          });
+          showToast('✓ Playing: ' + (info.title || ''));
+        }
+      } else {
+        // Play now: queue + skip for tracks, direct play for albums
+        if (uri.includes(':track:')) {
+          await fetch('https://api.spotify.com/v1/me/player/queue?uri=' + encodeURIComponent(uri) + (devId ? '&device_id=' + devId : ''), {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+          });
+          await new Promise(r => setTimeout(r, 300));
+          await fetch('https://api.spotify.com/v1/me/player/next', {
+            method: 'POST', headers: { 'Authorization': 'Bearer ' + token }
+          });
+          showToast('✓ Playing: ' + (info.title || ''));
+        } else {
+          await fetch('https://api.spotify.com/v1/me/player/play' + deviceParam, {
+            method: 'PUT', headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ context_uri: uri })
+          });
+          showToast('✓ Playing: ' + (info.title || ''));
+        }
+      }
+    } catch(e) { showToast('✗ ' + (e.message || 'Spotify error'), true); }
+    // Refresh Spotify now-playing
+    setTimeout(checkSpotifyNowPlaying, 1000);
+    return;
+  }
+
+  // ── Sonos: ntfy direct ──
+  if (!rooms.length) { showToast('No rooms — open Controller to select', true); return; }
+  const topic = NTFY_PLAY[house];
+  if (!topic) { showToast('Unknown house: ' + house, true); return; }
+
+  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+  const payload = {
+    action: ntfyAction, uri, rooms,
+    target_client_id: _getCommanderId(),
+    t_requested: new Date().toISOString()
+  };
+  try {
+    const r = await fetch(topic, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
+  } catch(e) { showToast('✗ Send failed', true); }
+}
+
+let archiveItems = [];
+let archiveLoaded = false;
+
+function mergeItems(headItems, archive) {
+  if (!archive.length) return headItems;
+  const headKeys = new Set(headItems.map(i =>
+    (i.timestamp||'') + '|' + (i.title||'').toLowerCase() + '|' + (i.artist||i.show_name||'').toLowerCase()
+  ));
+  const older = archive.filter(i =>
+    !headKeys.has((i.timestamp||'') + '|' + (i.title||'').toLowerCase() + '|' + (i.artist||i.show_name||'').toLowerCase())
+  );
+  return [...headItems, ...older];
+}
+
+async function loadData(alsoArchive) {
+  document.getElementById('load-indicator').style.display = 'inline-block';
+  try {
+    const res = await fetch('data-head.json?t=' + Date.now());
+    const json = await res.json();
+    const headItems = json.items || [];
+    allData = mergeItems(headItems, archiveItems);
+    allData._clientStatus = json.client_status || json.clients || [];
+    if (json.generated_at) {
+      document.getElementById('updated-at').textContent = 'Updated ' + formatTime(json.generated_at);
+    }
+    renderStatusBar(json.client_status || json.clients || []);
+    updateCounts();
+    renderFeed();
+    // Update now-playing fallback with fresh history data
+    if (!_sseCurrentTrack) updateNowPlayingFallback();
+  } catch(e) {
+    document.getElementById('feed').innerHTML = `<div class="empty-state"><p class="text-2xl mb-2">⚠️</p><p class="text-sm">Could not load data</p></div>`;
+  } finally {
+    document.getElementById('load-indicator').style.display = 'none';
+  }
+  // Load full archive in background on first load or when requested
+  if (alsoArchive || !archiveLoaded) {
+    try {
+      const r2 = await fetch('data.json?t=' + Date.now());
+      const full = await r2.json();
+      archiveItems = full.items || [];
+      archiveLoaded = true;
+      // Re-merge with fresh archive
+      const headRes = allData.slice(0, 75); // current head
+      allData = mergeItems(headRes, archiveItems);
+      allData._clientStatus = allData._clientStatus || [];
+      updateCounts();
+      renderFeed();
+    } catch(e) { /* archive is optional — head is enough */ }
+  }
+}
+
+loadData(true);
+// Auto-refresh data-head.json every 60s to keep status bar and history current
+setInterval(() => loadData(false), 60000);
+
+// ── Live status bar updates from SSE ───────────────────────────────────────
+function updateStatusFromSSE(msg) {
+  // Update the status bar dot/age for this client to "just now"
+  const bar = document.getElementById('status-bar');
+  if (!bar) return;
+  const spans = bar.querySelectorAll('span[style*="white-space"]');
+  const clientLabel = (msg.client_id || '')
+    .replace('sonos_vashon', '🏝 Sonos')
+    .replace('sonos_caphill', '🏙 Sonos')
+    .replace('backup_', '💾 ');
+  for (const span of spans) {
+    if (span.textContent.includes(clientLabel) || span.textContent.includes(msg.client_id)) {
+      // Update dot to green + age to "just now"
+      const dot = span.querySelector('.status-dot');
+      if (dot) { dot.className = 'status-dot dot-green'; }
+      const ageSpan = span.querySelector('span[style*="color"]');
+      if (ageSpan) { ageSpan.textContent = 'just now'; }
+      return;
+    }
+  }
+  // Client not in bar yet — do a full re-render on next data load
+}
+
+// ── Real-time SSE via ntfy ─────────────────────────────────────────────────
+const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-771b06,lifelog-ui-vashon-c47cbf/sse';
+let _sseCurrentTrack = null;
+let _sseSource = null;
+let _sseLastMsg = Date.now();
+
+function connectSSE() {
+  if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
+  _sseSource = new EventSource(NTFY_UI_SSE + '?since=5m');
+  _sseLastMsg = Date.now();
+  _sseSource.addEventListener('message', (e) => {
+    _sseLastMsg = Date.now();
+    try {
+      const outer = JSON.parse(e.data);
+      if (!outer.message) return;
+      const msg = JSON.parse(outer.message);
+      // Any SSE event with client_id → update status bar freshness
+      if (msg.client_id) { updateStatusFromSSE(msg); }
+
+      if (msg.event === 'now_playing') {
+        // Retire previous track to history if different
+        // Don't prepend status-sourced tracks (we don't know when they started)
+        if (_sseCurrentTrack && !_sseCurrentTrack._fromStatus && (_sseCurrentTrack.title !== msg.title || _sseCurrentTrack.artist !== msg.artist)) {
+          prependLiveTrack(_sseCurrentTrack);
+        }
+        _sseCurrentTrack = { ...msg, _started: Date.now() };
+        showNowPlaying(msg, 'live-sonos');
+      } else if (msg.event === 'status_update') {
+        // Populate Now Playing from status_update if we don't have a current track
+        const npt = msg.now_playing_tracks;
+        if (npt && npt.length > 0 && !_sseCurrentTrack) {
+          const t = npt[0];
+          _sseCurrentTrack = { ...t, _started: Date.now(), _fromStatus: true };
+          showNowPlaying(t, 'live-sonos');
+        } else if ((!npt || npt.length === 0) && msg.rooms_playing && msg.rooms_playing.length === 0) {
+          // Nothing playing anywhere — clear and fall back to Spotify/history
+          if (_sseCurrentTrack && _sseCurrentTrack._fromStatus) {
+            _sseCurrentTrack = null;
+            updateNowPlayingFallback();
+          }
+        }
+        // Update rooms_playing indicators on status bar
+        if (msg.rooms_playing) { updateRoomsPlaying(msg.rooms_playing); }
+      } else if (msg.event === 'stopped') {
+        if (_sseCurrentTrack) { prependLiveTrack(_sseCurrentTrack); }
+        _sseCurrentTrack = null;
+        updateNowPlayingFallback();
+      }
+    } catch(err) { /* ignore parse errors */ }
+  });
+}
+// Watchdog: if no SSE message in 2 min, force reconnect (iOS Safari kills EventSource silently)
+setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+// Reconnect on visibility change (returning from background tab)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) connectSSE(); });
+
+function showNowPlaying(msg, tier = 'live-sonos', ageMs = 0) {
+  const bar = document.getElementById('now-playing-bar');
+  bar.className = 'np-bar active'; // reset tier classes
+  _npTier = tier;
+
+  let dotHtml, labelText, labelColor;
+  switch(tier) {
+    case 'live-sonos':
+      dotHtml = '<span class="np-dot"></span>';
+      labelText = 'NOW PLAYING';
+      labelColor = '#4ade80';
+      break;
+    case 'live-spotify':
+      dotHtml = '<span class="np-dot-spotify">' + SPOTIFY_ICON + '</span>';
+      labelText = 'NOW PLAYING';
+      labelColor = '#1DB954';
+      break;
+    case 'recent':
+      dotHtml = '<span class="np-dot-dim"></span>';
+      labelText = 'PLAYED ' + fmtAge(ageMs).toUpperCase();
+      labelColor = '#60a5fa';
+      bar.classList.add('tier-recent');
+      break;
+    case 'stale':
+      dotHtml = '<span class="np-dot-off"></span>';
+      labelText = 'LAST PLAYED · ' + fmtAge(ageMs).toUpperCase();
+      labelColor = '#475569';
+      bar.classList.add('tier-stale');
+      break;
+  }
+
+  // Rebuild the header row
+  const headerRow = bar.children[0];
+  headerRow.innerHTML = dotHtml
+    + '<span style="font-size:10px;color:' + labelColor + ';font-weight:700;letter-spacing:0.5px;">' + labelText + '</span>'
+    + '<span id="np-rooms" style="font-size:10px;color:#64748b;margin-left:auto;"></span>';
+
+  document.getElementById('np-title').textContent = msg.title || '';
+  const parts = [msg.artist, msg.album].filter(Boolean);
+  document.getElementById('np-meta').textContent = parts.join(' · ');
+  const rooms = msg.rooms || [];
+  document.getElementById('np-rooms').textContent = rooms.length > 1
+    ? '🔊 ' + rooms[0] + ' +' + (rooms.length - 1)
+    : rooms.length === 1 ? '🔊 ' + rooms[0] : '';
+}
+
+function hideNowPlaying() {
+  document.getElementById('now-playing-bar').classList.remove('active');
+}
+
+function updateRoomsPlaying(rooms) {
+  // Update status bar with room-level 🔊 indicators (future enhancement)
+  // For now, rooms_playing is handled via status_update now_playing_tracks above
+}
+
+function prependLiveTrack(track) {
+  // Build an item that looks like what data-head.json provides
+  const item = {
+    type: 'music', title: track.title, artist: track.artist,
+    album: track.album, source: track.service ? ('sonos_' + track.service) : 'sonos',
+    rooms: track.rooms, timestamp: new Date(track._started).toISOString(), _live: true
+  };
+  // Don't dupe if any recent item matches (SSE replay on reconnect may re-deliver)
+  if (allData.slice(0, 20).some(x => x.title === item.title && x.artist === item.artist)) return;
+  allData.unshift(item);
+  updateCounts();
+  renderFeed();
+}
+
+connectSSE();
+startSpotifyAwareness();
+
+async function exploreArtist(btn, encodedData) {
+  const trackData = JSON.parse(decodeURIComponent(encodedData));
+  btn.classList.add('exploring');
+  btn.textContent = '⏳';
+  try {
+    await fetch('https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(trackData)
+    });
+    btn.textContent = '✓';
+    btn.classList.remove('exploring');
+    btn.classList.add('done');
+    setTimeout(() => { btn.textContent = '🔍'; btn.classList.remove('done'); }, 3000);
+  } catch(e) {
+    btn.textContent = '✗';
+    btn.classList.remove('exploring');
+    setTimeout(() => { btn.textContent = '🔍'; }, 3000);
+  }
+}
+
+async function syncNow() {
+  const btn = document.getElementById('sync-btn');
+  btn.textContent = '⏳ Syncing…';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  try {
+    await fetch('https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e', { method: 'POST', mode: 'no-cors' });
+    btn.textContent = '✓ Syncing…';
+    btn.style.color = '#4ade80';
+    setTimeout(async () => {
+      await loadData(true);
+      btn.textContent = '↻ Sync';
+      btn.style.color = '#60a5fa';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    }, 35000);
+  } catch(e) {
+    btn.textContent = '↻ Sync';
+    btn.style.color = '#60a5fa';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
