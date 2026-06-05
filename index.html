@@ -253,10 +253,9 @@
     display: flex; align-items: center; gap: 12px;
     padding: 14px 16px; cursor: pointer;
   }
-  .disc-icon {
-    width: 40px; height: 40px; border-radius: 50%; background: var(--surface);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
+  .disc-artist-badge {
+    font-size: 15px; font-weight: 700; color: var(--accent);
+    white-space: nowrap; flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
   }
   .disc-hinfo { flex: 1; min-width: 0; }
   .disc-title { font-size: 15px; font-weight: 600; }
@@ -1220,9 +1219,8 @@ function renderDiscovery() {
 
     html += `<div class="discovery-card${isOpen ? ' open' : ''}" id="disc-${i}">`;
     html += `<div class="disc-header" onclick="document.getElementById('disc-${i}').classList.toggle('open')">`;
-    html += `<div class="disc-icon">🔍</div>`;
+    html += `<div class="disc-artist-badge">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div class="disc-hinfo">`;
-    html += `<div class="disc-title">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div class="disc-meta">from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
     html += `</div><div class="disc-expand">›</div></div>`;
 
