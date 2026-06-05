@@ -21,10 +21,11 @@
     --qobuz: #4285f4;
     --radio: #f59e0b;
     --apple: #fc3c44;
+    --caphill: #4ade80;
+    --vashon: #60a5fa;
+    --roaming: #1db954;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     background: var(--bg);
@@ -35,472 +36,290 @@
     flex-direction: column;
   }
 
-  /* ========== TOP SECTION: Now Playing + Controls ========== */
+  /* ========== TOP SECTION ========== */
   .top-section {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
-
   .top-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px 0;
   }
-
-  .top-header h1 {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.3px;
-  }
-
+  .top-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
   .status-dots {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    font-size: 11px;
-    color: var(--text-dim);
+    display: flex; gap: 8px; align-items: center;
+    font-size: 11px; color: var(--text-dim);
   }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    display: inline-block;
-  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .status-dot.green { background: var(--accent); }
   .status-dot.red { background: #ef4444; }
 
-  /* House tabs */
-  .house-tabs {
-    display: flex;
-    gap: 0;
-    padding: 10px 16px 0;
-  }
+  .house-tabs { display: flex; gap: 0; padding: 10px 16px 0; }
   .house-tab {
-    padding: 8px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-    background: transparent;
-    color: var(--tab-inactive);
-    transition: all 0.15s;
+    padding: 8px 20px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); border-bottom: none;
+    border-radius: 8px 8px 0 0; background: transparent;
+    color: var(--tab-inactive); transition: all 0.15s;
   }
   .house-tab.active {
-    background: var(--surface2);
-    color: var(--tab-active);
-    border-color: var(--tab-active);
-    border-bottom: 1px solid var(--surface2);
+    background: var(--surface2); color: var(--tab-active);
+    border-color: var(--tab-active); border-bottom: 1px solid var(--surface2);
   }
-  .house-tab:not(.active):hover {
-    color: var(--text);
-    background: var(--surface2);
-  }
+  .house-tab:not(.active):hover { color: var(--text); background: var(--surface2); }
 
-  /* House panel */
   .house-panel {
-    background: var(--surface2);
-    border-top: 1px solid var(--border);
+    background: var(--surface2); border-top: 1px solid var(--border);
     padding: 12px 16px 14px;
   }
   .house-panel[hidden] { display: none; }
 
-  /* Now Playing strip */
   .now-playing {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    background: rgba(74, 222, 128, 0.06);
-    border: 1px solid rgba(74, 222, 128, 0.15);
-    border-radius: 10px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; background: rgba(74, 222, 128, 0.06);
+    border: 1px solid rgba(74, 222, 128, 0.15); border-radius: 10px;
     margin-bottom: 12px;
   }
   .np-indicator {
     width: 10px; height: 10px; border-radius: 50%;
-    background: var(--playing);
-    flex-shrink: 0;
+    background: var(--playing); flex-shrink: 0;
     animation: pulse 2s ease-in-out infinite;
   }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .np-info { flex: 1; min-width: 0; }
   .np-label { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .np-track { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-artist { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .np-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-  .np-rooms {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .np-room-chip {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: rgba(74, 222, 128, 0.12);
-    color: var(--accent);
-    border: 1px solid rgba(74, 222, 128, 0.25);
-  }
-  .np-stale {
-    background: rgba(255,255,255,0.03);
-    border-color: var(--border);
-  }
-  .np-stale .np-indicator {
-    background: #6b7280;
-    animation: none;
-  }
+  .np-stale { background: rgba(255,255,255,0.03); border-color: var(--border); }
+  .np-stale .np-indicator { background: #6b7280; animation: none; }
   .np-stale .np-label { color: var(--text-dim); }
 
-  /* Controls row */
   .controls-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
   }
   .ctrl-btn {
-    width: 40px; height: 40px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 16px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: all 0.15s;
   }
   .ctrl-btn:hover { background: var(--surface2); border-color: var(--text-dim); }
   .ctrl-btn:active { transform: scale(0.95); }
-  .volume-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
-  }
+  .volume-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
   .vol-label { font-size: 11px; color: var(--text-dim); }
 
-  /* Room chips */
-  .room-selector {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
+  .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
   .room-chip {
-    font-size: 12px;
-    padding: 5px 12px;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: all 0.15s;
+    font-size: 12px; padding: 5px 12px; border-radius: 16px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
   }
-  .room-chip.active {
-    background: rgba(74, 222, 128, 0.12);
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-  .room-chip.playing::after {
-    content: ' 🔊';
-    font-size: 10px;
-  }
-  .room-chip:hover:not(.active) {
-    border-color: var(--text-dim);
-    color: var(--text);
-  }
+  .room-chip.active { background: rgba(74,222,128,0.12); color: var(--accent); border-color: var(--accent); }
+  .room-chip.playing::after { content: ' 🔊'; font-size: 10px; }
+  .room-chip:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
 
-  /* Roaming - Spotify devices */
   .device-list { display: flex; flex-direction: column; gap: 6px; }
   .device-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    cursor: pointer;
-    font-size: 13px;
+    padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer; font-size: 13px;
   }
-  .device-item.active {
-    border-color: var(--spotify);
-    background: rgba(29, 185, 84, 0.08);
-  }
+  .device-item.active { border-color: var(--spotify); background: rgba(29,185,84,0.08); }
   .device-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
   .device-item.active .device-dot { background: var(--spotify); }
   .device-name { flex: 1; }
   .device-type { font-size: 11px; color: var(--text-dim); }
 
-  /* ========== BOTTOM SECTION: History + Discovery ========== */
-  .bottom-section {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
+  /* ========== BOTTOM SECTION ========== */
+  .bottom-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   .content-tabs {
-    display: flex;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 0 16px;
-    flex-shrink: 0;
+    display: flex; background: var(--surface);
+    border-bottom: 1px solid var(--border); padding: 0 16px; flex-shrink: 0;
   }
   .content-tab {
-    padding: 12px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    color: var(--tab-inactive);
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s;
+    padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+    color: var(--tab-inactive); border-bottom: 2px solid transparent; transition: all 0.15s;
   }
-  .content-tab.active {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-  }
-  .content-tab:hover:not(.active) {
-    color: var(--text);
-  }
+  .content-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .content-tab:hover:not(.active) { color: var(--text); }
 
-  /* Sub-tabs for History */
   .sub-tabs {
-    display: flex;
-    gap: 0;
-    padding: 8px 16px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
+    display: flex; gap: 0; padding: 8px 16px;
+    background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0;
   }
   .sub-tab {
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    border-radius: 16px;
-    cursor: pointer;
-    color: var(--text-dim);
-    background: transparent;
-    transition: all 0.15s;
+    padding: 6px 14px; font-size: 12px; font-weight: 600;
+    border-radius: 16px; cursor: pointer; color: var(--text-dim);
+    background: transparent; transition: all 0.15s;
   }
-  .sub-tab.active {
-    background: var(--accent);
-    color: var(--bg);
-  }
-  .sub-tab:hover:not(.active) {
-    background: var(--surface2);
-    color: var(--text);
-  }
-  .sub-tab .count {
-    font-weight: 400;
-    opacity: 0.7;
-    margin-left: 4px;
-  }
+  .sub-tab.active { background: var(--accent); color: var(--bg); }
+  .sub-tab:hover:not(.active) { background: var(--surface2); color: var(--text); }
+  .sub-tab .count { font-weight: 400; opacity: 0.7; margin-left: 4px; }
 
-  /* Content panels */
-  .content-panel {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0;
-  }
+  .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
 
-  /* History list */
-  .history-list {
-    padding: 4px 0;
-  }
+  /* History items - redesigned with time on left */
+  .history-list { padding: 4px 0; }
   .history-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 16px;
+    display: flex; align-items: flex-start; gap: 0;
+    padding: 8px 10px 8px 0;
     border-bottom: 1px solid rgba(35, 41, 64, 0.6);
     transition: background 0.1s;
   }
-  .history-item:active {
-    background: var(--surface2);
+  .history-item:active { background: var(--surface2); }
+
+  .hi-time-col {
+    width: 54px; flex-shrink: 0; text-align: right;
+    padding: 2px 10px 0 6px;
+  }
+  .hi-time {
+    font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums;
   }
 
-  .source-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    flex-shrink: 0;
+  .hi-source-col {
+    width: 14px; flex-shrink: 0; padding-top: 5px;
   }
+  .source-dot { width: 8px; height: 8px; border-radius: 50%; }
   .source-dot.spotify { background: var(--spotify); }
   .source-dot.qobuz { background: var(--qobuz); }
   .source-dot.apple { background: var(--apple); }
   .source-dot.radio { background: var(--radio); }
 
-  .track-info { flex: 1; min-width: 0; }
-  .track-title {
-    font-size: 14px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .hi-info { flex: 1; min-width: 0; padding-left: 6px; }
+  .hi-track {
+    font-size: 14px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .track-detail {
-    font-size: 12px;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .hi-artist {
+    font-size: 12px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 1px;
   }
-  .track-time {
-    font-size: 11px;
-    color: var(--text-dim);
-    flex-shrink: 0;
-    text-align: right;
+  .hi-album {
+    font-size: 11px; color: #6b7899;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 1px;
+    font-style: italic;
+  }
+  .hi-location {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; margin-top: 3px;
+    padding: 1px 7px; border-radius: 8px;
+  }
+  .hi-location.caphill {
+    color: var(--caphill); background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.15);
+  }
+  .hi-location.vashon {
+    color: var(--vashon); background: rgba(96,165,250,0.08);
+    border: 1px solid rgba(96,165,250,0.15);
+  }
+  .hi-location.roaming {
+    color: var(--roaming); background: rgba(29,185,84,0.08);
+    border: 1px solid rgba(29,185,84,0.15);
+  }
+  .hi-rooms {
+    font-size: 10px; color: var(--text-dim); margin-top: 1px;
   }
 
-  .track-actions {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
+  .hi-actions {
+    display: flex; gap: 2px; flex-shrink: 0; padding-top: 2px;
   }
   .action-btn {
-    width: 30px; height: 30px;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    color: var(--accent);
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 28px; height: 28px; border-radius: 7px; border: none;
+    background: transparent; color: var(--accent); font-size: 12px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
   .action-btn:hover { background: var(--surface2); }
   .action-btn.explore { color: var(--accent2); }
 
-  /* Day header */
   .day-header {
-    padding: 10px 16px 6px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    background: var(--bg);
-    position: sticky;
-    top: 0;
-    z-index: 5;
+    padding: 10px 16px 6px; font-size: 12px; font-weight: 700;
+    color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bg); position: sticky; top: 0; z-index: 5;
   }
 
-  /* Discovery list */
-  .discovery-list {
-    padding: 12px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  .history-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--border);
   }
-  .discovery-card {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: border-color 0.15s;
+  .sync-btn {
+    font-size: 12px; padding: 6px 14px; border-radius: 16px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); cursor: pointer;
   }
-  .discovery-card:hover { border-color: var(--text-dim); }
-  .discovery-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-  }
-  .discovery-icon {
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: var(--surface);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-  .discovery-title { font-size: 15px; font-weight: 600; }
-  .discovery-meta { font-size: 12px; color: var(--text-dim); }
-  .discovery-expand { margin-left: auto; color: var(--text-dim); font-size: 14px; }
+  .sync-btn:hover { border-color: var(--text-dim); color: var(--text); }
+  .updated-label { font-size: 11px; color: var(--text-dim); }
 
-  .discovery-body {
-    padding: 0 16px 14px;
-    display: none;
-  }
-  .discovery-card.open .discovery-body { display: block; }
-  .discovery-card.open .discovery-expand { transform: rotate(90deg); }
-
-  .discovery-narrative {
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.5;
-    margin-bottom: 10px;
-  }
-
-  .suggestion-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-  }
-  .suggestion-info { flex: 1; min-width: 0; }
-  .suggestion-title { font-size: 13px; font-weight: 500; }
-  .suggestion-detail { font-size: 11px; color: var(--text-dim); }
-
-  /* Podcast items */
+  /* Podcasts */
   .podcast-item {
-    display: flex;
-    gap: 10px;
-    padding: 12px 16px;
+    display: flex; gap: 10px; padding: 12px 16px;
     border-bottom: 1px solid rgba(35, 41, 64, 0.6);
   }
   .podcast-icon {
-    width: 44px; height: 44px;
-    border-radius: 8px;
-    background: var(--surface2);
+    width: 44px; height: 44px; border-radius: 8px; background: var(--surface2);
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
+    font-size: 20px; flex-shrink: 0;
   }
   .podcast-info { flex: 1; min-width: 0; }
   .podcast-show { font-size: 11px; color: var(--accent2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
   .podcast-title { font-size: 14px; font-weight: 600; margin-top: 2px; }
   .podcast-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
-  .podcast-progress {
-    height: 3px;
-    background: var(--border);
-    border-radius: 2px;
-    margin-top: 6px;
-    overflow: hidden;
+  .podcast-progress { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .podcast-progress-fill { height: 100%; background: var(--accent2); border-radius: 2px; }
+
+  /* ========== DISCOVERY ========== */
+  .discovery-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .discovery-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; transition: border-color 0.15s;
   }
-  .podcast-progress-fill {
-    height: 100%;
-    background: var(--accent2);
-    border-radius: 2px;
+  .discovery-card:hover { border-color: var(--text-dim); }
+  .discovery-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; cursor: pointer;
+  }
+  .discovery-icon {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .discovery-hinfo { flex: 1; min-width: 0; }
+  .discovery-title { font-size: 15px; font-weight: 600; }
+  .discovery-meta { font-size: 12px; color: var(--text-dim); }
+  .discovery-expand { margin-left: auto; color: var(--text-dim); font-size: 14px; transition: transform 0.2s; }
+
+  .discovery-body { padding: 0 16px 14px; display: none; }
+  .discovery-card.open .discovery-body { display: block; }
+  .discovery-card.open .discovery-expand { transform: rotate(90deg); }
+
+  .discovery-narrative {
+    font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px;
   }
 
-  /* Sync button in history tab */
-  .history-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+  /* Suggestion sections */
+  .suggestion-section-label {
+    font-size: 11px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 8px 0 4px; border-top: 1px solid var(--border);
+    margin-top: 4px;
   }
-  .sync-btn {
-    font-size: 12px;
-    padding: 6px 14px;
-    border-radius: 16px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-dim);
-    cursor: pointer;
+  .suggestion-section-label:first-of-type { margin-top: 0; border-top: none; }
+
+  .suggestion-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 0; border-top: 1px solid rgba(35,41,64,0.5);
   }
-  .sync-btn:hover { border-color: var(--text-dim); color: var(--text); }
-  .updated-label { font-size: 11px; color: var(--text-dim); }
+  .suggestion-info { flex: 1; min-width: 0; }
+  .suggestion-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggestion-detail { font-size: 11px; color: var(--text-dim); }
+  .suggestion-type {
+    font-size: 10px; padding: 1px 6px; border-radius: 6px;
+    background: var(--surface); color: var(--text-dim); flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -514,28 +333,24 @@
       <span class="status-dot red"></span> mind
     </div>
   </div>
-
   <div class="house-tabs">
     <div class="house-tab active" data-house="caphill">🏠 Cap Hill</div>
     <div class="house-tab" data-house="vashon">🏝 Vashon</div>
     <div class="house-tab" data-house="roaming">📱 Roaming</div>
   </div>
 
-  <!-- Cap Hill panel -->
   <div class="house-panel" id="panel-caphill">
     <div class="now-playing">
       <div class="np-indicator"></div>
       <div class="np-info">
         <div class="np-label">Now Playing</div>
-        <div class="np-track">III. Scherzando vivace</div>
+        <div class="np-track">VI. Adagio quasi un poco andante</div>
         <div class="np-artist">Quatuor Diotima · Beethoven: The Late String Quartets</div>
       </div>
     </div>
-
     <div class="controls-row">
       <button class="ctrl-btn">⏮</button>
       <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">▶</button>
       <button class="ctrl-btn">⏭</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
@@ -543,7 +358,6 @@
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
       </div>
     </div>
-
     <div class="room-selector">
       <div class="room-chip active playing">Dining Room</div>
       <div class="room-chip active playing">Living Room</div>
@@ -557,21 +371,18 @@
     </div>
   </div>
 
-  <!-- Vashon panel -->
   <div class="house-panel" id="panel-vashon" hidden>
     <div class="now-playing np-stale">
       <div class="np-indicator"></div>
       <div class="np-info">
         <div class="np-label">Last Played · 7d ago</div>
         <div class="np-track">Tick</div>
-        <div class="np-artist">Yeah Yeah Yeahs</div>
+        <div class="np-artist">Yeah Yeah Yeahs · Fever to Tell</div>
       </div>
     </div>
-
     <div class="controls-row">
       <button class="ctrl-btn">⏮</button>
       <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">▶</button>
       <button class="ctrl-btn">⏭</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
@@ -579,7 +390,6 @@
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
       </div>
     </div>
-
     <div class="room-selector">
       <div class="room-chip">Garage Living Room</div>
       <div class="room-chip">Main Living Room Maury</div>
@@ -590,7 +400,6 @@
     </div>
   </div>
 
-  <!-- Roaming panel -->
   <div class="house-panel" id="panel-roaming" hidden>
     <div class="now-playing np-stale">
       <div class="np-indicator" style="background:var(--spotify);"></div>
@@ -599,11 +408,9 @@
         <div class="np-track" style="color:var(--text-dim);">No active playback</div>
       </div>
     </div>
-
     <div class="controls-row">
       <button class="ctrl-btn">⏮</button>
       <button class="ctrl-btn">⏸</button>
-      <button class="ctrl-btn">▶</button>
       <button class="ctrl-btn">⏭</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">−</button>
@@ -611,7 +418,6 @@
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;">+</button>
       </div>
     </div>
-
     <div class="device-list">
       <div class="device-item">
         <div class="device-dot"></div>
@@ -634,30 +440,32 @@
     <div class="content-tab" data-tab="discovery">Discovery</div>
   </div>
 
-  <!-- HISTORY TAB -->
   <div id="tab-history">
     <div class="sub-tabs">
-      <div class="sub-tab active" data-subtab="music">Music<span class="count">1587</span></div>
-      <div class="sub-tab" data-subtab="podcasts">Podcasts<span class="count">1890</span></div>
+      <div class="sub-tab active" data-subtab="music">Music<span class="count">3371</span></div>
+      <div class="sub-tab" data-subtab="podcasts">Podcasts<span class="count">2009</span></div>
     </div>
     <div class="history-toolbar">
       <span class="updated-label">Updated 2m ago</span>
       <button class="sync-btn">↻ Sync Spotify</button>
     </div>
 
-    <!-- Music sub-tab -->
     <div class="content-panel" id="subtab-music">
       <div class="history-list">
-        <div class="day-header">Today</div>
+        <div class="day-header">Today · Thu Jun 5</div>
 
+        <!-- Cap Hill Sonos Spotify -->
         <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">III. Scherzando vivace</div>
-            <div class="track-detail">Quatuor Diotima · Beethoven: The Late String Quartets · Dining Room +2</div>
+          <div class="hi-time-col"><div class="hi-time">9:41a</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">VI. Adagio quasi un poco andante</div>
+            <div class="hi-artist">Quatuor Diotima</div>
+            <div class="hi-album">Beethoven: The Late String Quartets</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Living Room, Kitchen</div>
           </div>
-          <div class="track-time">7:40 AM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -665,13 +473,90 @@
         </div>
 
         <div class="history-item">
-          <div class="source-dot qobuz"></div>
-          <div class="track-info">
-            <div class="track-title">2400</div>
-            <div class="track-detail">Martyn Heyne · Living Room, Media Room</div>
+          <div class="hi-time-col"><div class="hi-time">9:32a</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">V. Presto</div>
+            <div class="hi-artist">Quatuor Diotima</div>
+            <div class="hi-album">Beethoven: The Late String Quartets</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Living Room, Kitchen, Dining Room</div>
           </div>
-          <div class="track-time">7:40 AM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
+            <button class="action-btn">▶</button>
+            <button class="action-btn">+</button>
+            <button class="action-btn explore">🔍</button>
+          </div>
+        </div>
+
+        <!-- Cap Hill Sonos Qobuz -->
+        <div class="history-item">
+          <div class="hi-time-col"><div class="hi-time">8:15a</div></div>
+          <div class="hi-source-col"><div class="source-dot qobuz"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">2400</div>
+            <div class="hi-artist">Martyn Heyne</div>
+            <div class="hi-album">Extended Newspapers</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Living Room, Media Room</div>
+          </div>
+          <div class="hi-actions">
+            <button class="action-btn">▶</button>
+            <button class="action-btn">+</button>
+            <button class="action-btn explore">🔍</button>
+          </div>
+        </div>
+
+        <!-- Cap Hill Sonos Apple Music -->
+        <div class="history-item">
+          <div class="hi-time-col"><div class="hi-time">7:50a</div></div>
+          <div class="hi-source-col"><div class="source-dot apple"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">What I've Done</div>
+            <div class="hi-artist">Linkin Park</div>
+            <div class="hi-album">Minutes to Midnight</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Media Room</div>
+          </div>
+          <div class="hi-actions">
+            <button class="action-btn">▶</button>
+            <button class="action-btn">+</button>
+            <button class="action-btn explore">🔍</button>
+          </div>
+        </div>
+
+        <!-- Cap Hill Sonos Radio -->
+        <div class="history-item">
+          <div class="hi-time-col"><div class="hi-time">7:30a</div></div>
+          <div class="hi-source-col"><div class="source-dot radio"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Rose in the Dark</div>
+            <div class="hi-artist">Cleo Sol</div>
+            <div class="hi-album">KCRW Eclectic 24</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Kitchen</div>
+          </div>
+          <div class="hi-actions">
+            <button class="action-btn">▶</button>
+            <button class="action-btn">+</button>
+            <button class="action-btn explore">🔍</button>
+          </div>
+        </div>
+
+        <div class="day-header">Yesterday · Wed Jun 4</div>
+
+        <!-- Vashon Sonos Spotify -->
+        <div class="history-item">
+          <div class="hi-time-col"><div class="hi-time">8:45p</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Sweetest Taboo</div>
+            <div class="hi-artist">Sade</div>
+            <div class="hi-album">Promise</div>
+            <div><span class="hi-location vashon">🏝 Vashon</span></div>
+            <div class="hi-rooms">Main Living Room Maury, Shed Arc</div>
+          </div>
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -679,43 +564,33 @@
         </div>
 
         <div class="history-item">
-          <div class="source-dot qobuz"></div>
-          <div class="track-info">
-            <div class="track-title">2400</div>
-            <div class="track-detail">Martyn Heyne · Living Room</div>
+          <div class="hi-time-col"><div class="hi-time">8:40p</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Smooth Operator</div>
+            <div class="hi-artist">Sade</div>
+            <div class="hi-album">Diamond Life</div>
+            <div><span class="hi-location vashon">🏝 Vashon</span></div>
+            <div class="hi-rooms">Main Living Room Maury, Shed Arc</div>
           </div>
-          <div class="track-time">7:39 AM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
           </div>
         </div>
 
-        <div class="day-header">Yesterday</div>
-
+        <!-- Spotify Roaming -->
         <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">I Don't Know What It Is, But It Sure Is Funky</div>
-            <div class="track-detail">Ripple · Dining Room, Shuma Dark Roam, Kitchen</div>
+          <div class="hi-time-col"><div class="hi-time">3:12p</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Dead Leaves and the Dirty Ground</div>
+            <div class="hi-artist">The White Stripes</div>
+            <div class="hi-album">White Blood Cells</div>
+            <div><span class="hi-location roaming">📱 Roaming</span></div>
           </div>
-          <div class="track-time">7:23 PM</div>
-          <div class="track-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Tea Thyme</div>
-            <div class="track-detail">Damu The Fudgemunk · Dining Room, Shuma Dark Roam, Kitchen</div>
-          </div>
-          <div class="track-time">7:21 PM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -723,13 +598,15 @@
         </div>
 
         <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Them</div>
-            <div class="track-detail">Nils Frahm · Dining Room, Shuma Dark Roam, Kitchen</div>
+          <div class="hi-time-col"><div class="hi-time">3:08p</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Sleeping on the Blacktop</div>
+            <div class="hi-artist">Colter Wall</div>
+            <div class="hi-album">Imaginary Appalachia</div>
+            <div><span class="hi-location roaming">📱 Roaming</span></div>
           </div>
-          <div class="track-time">7:17 PM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -737,13 +614,33 @@
         </div>
 
         <div class="history-item">
-          <div class="source-dot radio"></div>
-          <div class="track-info">
-            <div class="track-title">Rose in the Dark</div>
-            <div class="track-detail">Cleo Sol · KCRW Eclectic 24 · Kitchen</div>
+          <div class="hi-time-col"><div class="hi-time">3:04p</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Move On Up</div>
+            <div class="hi-artist">Curtis Mayfield</div>
+            <div class="hi-album">Curtis</div>
+            <div><span class="hi-location roaming">📱 Roaming</span></div>
           </div>
-          <div class="track-time">6:19 PM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
+            <button class="action-btn">▶</button>
+            <button class="action-btn">+</button>
+            <button class="action-btn explore">🔍</button>
+          </div>
+        </div>
+
+        <!-- Cap Hill evening -->
+        <div class="history-item">
+          <div class="hi-time-col"><div class="hi-time">11:20a</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">I Don't Know What It Is, But It Sure Is Funky</div>
+            <div class="hi-artist">Ripple</div>
+            <div class="hi-album">Ripple</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Dining Room, Kitchen</div>
+          </div>
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -751,69 +648,34 @@
         </div>
 
         <div class="history-item">
-          <div class="source-dot apple"></div>
-          <div class="track-info">
-            <div class="track-title">What I've Done</div>
-            <div class="track-detail">Linkin Park · Minutes to Midnight · Media Room</div>
+          <div class="hi-time-col"><div class="hi-time">11:16a</div></div>
+          <div class="hi-source-col"><div class="source-dot spotify"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Tea Thyme</div>
+            <div class="hi-artist">Damu The Fudgemunk</div>
+            <div class="hi-album">How It Should Sound</div>
+            <div><span class="hi-location caphill">🏠 Cap Hill</span></div>
+            <div class="hi-rooms">Dining Room, Kitchen</div>
           </div>
-          <div class="track-time">6:10 PM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
           </div>
         </div>
 
+        <!-- Vashon morning -->
         <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Dead Leaves and the Dirty Ground</div>
-            <div class="track-detail">The White Stripes · White Blood Cells</div>
+          <div class="hi-time-col"><div class="hi-time">8:10a</div></div>
+          <div class="hi-source-col"><div class="source-dot qobuz"></div></div>
+          <div class="hi-info">
+            <div class="hi-track">Concert by the Sea (Live)</div>
+            <div class="hi-artist">Erroll Garner</div>
+            <div class="hi-album">Concert by the Sea</div>
+            <div><span class="hi-location vashon">🏝 Vashon</span></div>
+            <div class="hi-rooms">Main Kitchen Green Move 2</div>
           </div>
-          <div class="track-time">6:03 PM</div>
-          <div class="track-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Tambourine</div>
-            <div class="track-detail">Eve · Tambourine</div>
-          </div>
-          <div class="track-time">6:00 PM</div>
-          <div class="track-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Sleeping on the Blacktop</div>
-            <div class="track-detail">Colter Wall · Imaginary Appalachia</div>
-          </div>
-          <div class="track-time">5:45 PM</div>
-          <div class="track-actions">
-            <button class="action-btn">▶</button>
-            <button class="action-btn">+</button>
-            <button class="action-btn explore">🔍</button>
-          </div>
-        </div>
-
-        <div class="history-item">
-          <div class="source-dot spotify"></div>
-          <div class="track-info">
-            <div class="track-title">Move On Up (Mark Knight Remix)</div>
-            <div class="track-detail">Curtis Mayfield · Move On Up</div>
-          </div>
-          <div class="track-time">5:36 PM</div>
-          <div class="track-actions">
+          <div class="hi-actions">
             <button class="action-btn">▶</button>
             <button class="action-btn">+</button>
             <button class="action-btn explore">🔍</button>
@@ -823,11 +685,9 @@
       </div>
     </div>
 
-    <!-- Podcasts sub-tab -->
     <div class="content-panel" id="subtab-podcasts" hidden>
       <div class="history-list">
         <div class="day-header">This Week</div>
-
         <div class="podcast-item">
           <div class="podcast-icon">🎙</div>
           <div class="podcast-info">
@@ -837,7 +697,6 @@
             <div class="podcast-progress"><div class="podcast-progress-fill" style="width:100%"></div></div>
           </div>
         </div>
-
         <div class="podcast-item">
           <div class="podcast-icon">🎙</div>
           <div class="podcast-info">
@@ -847,7 +706,6 @@
             <div class="podcast-progress"><div class="podcast-progress-fill" style="width:72%"></div></div>
           </div>
         </div>
-
         <div class="podcast-item">
           <div class="podcast-icon">🎙</div>
           <div class="podcast-info">
@@ -857,7 +715,6 @@
             <div class="podcast-progress"><div class="podcast-progress-fill" style="width:45%"></div></div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
@@ -868,82 +725,195 @@
       <div class="discovery-list">
         <div style="padding:4px 0 8px; font-size:12px; color:var(--text-dim);">Explorations with recommendations to discover</div>
 
-        <div class="discovery-card">
+        <!-- Card 1: expanded by default -->
+        <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Abel Selaocoe</div>
-              <div class="discovery-meta">Jun 5 · 6 suggestions</div>
+              <div class="discovery-meta">from III. Scherzando vivace · Jun 5 · 6 suggestions</div>
             </div>
             <div class="discovery-expand">›</div>
           </div>
           <div class="discovery-body">
-            <div class="discovery-narrative">South African cellist blending classical with Zulu vocal traditions. His Bach interpretations weave in mbube harmonies — a radical reimagining that connects to your deep solo instrument thread.</div>
+            <div class="discovery-narrative">South African cellist blending classical with Zulu vocal traditions. His Bach interpretations weave in mbube harmonies — a radical reimagining that connects to your deep solo instrument thread (Bill Evans → Marcus Roberts → Quatuor Diotima).</div>
+
+            <div class="suggestion-section-label">By Abel Selaocoe</div>
             <div class="suggestion-item">
-              <div class="track-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Where Is Home (Kulture Noir) (2021)</div>
-                <div class="suggestion-detail">Abel Selaocoe · Album</div>
+                <div class="suggestion-detail">Album · Debut — Zulu vocals meet cello</div>
               </div>
             </div>
             <div class="suggestion-item">
-              <div class="track-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
               <div class="suggestion-info">
                 <div class="suggestion-title">Song of the Birds</div>
-                <div class="suggestion-detail">Abel Selaocoe · Track</div>
+                <div class="suggestion-detail">Track · Casals reimagined with overtone singing</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Hae Ke Kae (2024)</div>
+                <div class="suggestion-detail">Album · Second album — deeper into improvisation</div>
+              </div>
+            </div>
+
+            <div class="suggestion-section-label">Related Artists</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Experience (2010)</div>
+                <div class="suggestion-detail">Ludovico Einaudi · Album · Minimalist piano meets strings</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Suite for Solo Cello No. 1 in G Major</div>
+                <div class="suggestion-detail">Yo-Yo Ma · Track · The touchstone performance</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Cello Concerto in E Minor, Op. 85</div>
+                <div class="suggestion-detail">Jacqueline du Pré · Track · The definitive romantic cello</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="discovery-card">
+        <!-- Card 2: expanded -->
+        <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Cleo Sol</div>
-              <div class="discovery-meta">Jun 5 · 9 suggestions</div>
+              <div class="discovery-meta">from Rose in the Dark · Jun 5 · 5 suggestions</div>
             </div>
             <div class="discovery-expand">›</div>
           </div>
+          <div class="discovery-body">
+            <div class="discovery-narrative">British-Guyanese singer-songwriter from West London. Rose to prominence through SAULT — Inflo's anonymous collective. Her solo work distills neo-soul warmth with a spiritual, almost liturgical quality.</div>
+
+            <div class="suggestion-section-label">By Cleo Sol</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Heaven (2023)</div>
+                <div class="suggestion-detail">Album · Her most intimate — motherhood, faith, stillness</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Mother (2021)</div>
+                <div class="suggestion-detail">Album · Neo-soul lullabies; Motown lineage</div>
+              </div>
+            </div>
+
+            <div class="suggestion-section-label">Related Artists</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">UNTITLED (Black Is) (2020)</div>
+                <div class="suggestion-detail">SAULT · Album · Inflo's anonymous collective — Cleo Sol's other world</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Devotion (2019)</div>
+                <div class="suggestion-detail">Tirzah · Album · Mica Levi-produced lo-fi soul from London</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Lovers Rock (2020)</div>
+                <div class="suggestion-detail">Sade · Album · The quiet storm thread you already love</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="discovery-card">
+        <!-- Card 3: expanded -->
+        <div class="discovery-card open">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Sade</div>
-              <div class="discovery-meta">Jun 4 · 8 suggestions</div>
+              <div class="discovery-meta">from Sweetest Taboo · Jun 4 · 4 suggestions</div>
             </div>
             <div class="discovery-expand">›</div>
           </div>
+          <div class="discovery-body">
+            <div class="discovery-narrative">The band, not just the singer. Stuart Matthewman's saxophone and guitar defined a sound that entire genres borrowed from — quiet storm, trip hop, neo-soul all owe a debt here.</div>
+
+            <div class="suggestion-section-label">By Sade</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Soldier of Love (2010)</div>
+                <div class="suggestion-detail">Album · The comeback — darker, more cinematic</div>
+              </div>
+            </div>
+
+            <div class="suggestion-section-label">Related Artists</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Malibu (2016)</div>
+                <div class="suggestion-detail">Anderson .Paak · Album · Sade's warmth through a hip-hop lens</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Couldn't Leave</div>
+                <div class="suggestion-detail">Thee Sacred Souls · Track · Daptone Records' Sade disciples — you've been here</div>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Dummy (1994)</div>
+                <div class="suggestion-detail">Portishead · Album · What happened when trip hop met Sade's melancholy</div>
+              </div>
+            </div>
+          </div>
         </div>
 
+        <!-- Card 4: collapsed -->
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Sigur Rós</div>
               <div class="discovery-meta">Jun 4 · 8 suggestions</div>
             </div>
             <div class="discovery-expand">›</div>
           </div>
-        </div>
-
-        <div class="discovery-card">
-          <div class="discovery-header">
-            <div class="discovery-icon">🔍</div>
-            <div>
-              <div class="discovery-title">Boards of Canada</div>
-              <div class="discovery-meta">Jun 4 · 8 suggestions</div>
+          <div class="discovery-body">
+            <div class="discovery-narrative">Icelandic post-rock. Jónsi's bowed guitar and falsetto created a new way to feel enormity.</div>
+            <div class="suggestion-section-label">By Sigur Rós</div>
+            <div class="suggestion-item">
+              <div class="hi-actions"><button class="action-btn">▶</button><button class="action-btn">+</button></div>
+              <div class="suggestion-info">
+                <div class="suggestion-title">Takk... (2005)</div>
+                <div class="suggestion-detail">Album</div>
+              </div>
             </div>
-            <div class="discovery-expand">›</div>
           </div>
         </div>
 
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Oliver Nelson</div>
               <div class="discovery-meta">Jun 3 · 8 suggestions</div>
             </div>
@@ -954,7 +924,7 @@
         <div class="discovery-card">
           <div class="discovery-header">
             <div class="discovery-icon">🔍</div>
-            <div>
+            <div class="discovery-hinfo">
               <div class="discovery-title">Neil Young</div>
               <div class="discovery-meta">Jun 3 · 9 suggestions</div>
             </div>
@@ -1000,16 +970,12 @@
 
   // Room chip toggle
   document.querySelectorAll('.room-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      chip.classList.toggle('active');
-    });
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
   });
 
-  // Discovery card expand
-  document.querySelectorAll('.discovery-card').forEach(card => {
-    card.querySelector('.discovery-header').addEventListener('click', () => {
-      card.classList.toggle('open');
-    });
+  // Discovery card expand/collapse
+  document.querySelectorAll('.discovery-header').forEach(hdr => {
+    hdr.addEventListener('click', () => hdr.closest('.discovery-card').classList.toggle('open'));
   });
 </script>
 
