@@ -1126,8 +1126,10 @@ function renderHistory() {
     const loc = getLocation(item);
     const badge = getSourceBadge(item);
     const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
-    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''}));
-    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''}));
+    // CRITICAL: encodeURIComponent does NOT encode single quotes — they break onclick='...' attributes.
+    // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
+    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''})).replace(/'/g,'%27');
+    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
 
     html += `<div class="history-item">
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
