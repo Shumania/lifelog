@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.65.2"
+SERVICE_VERSION = "1.65.3"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1400,6 +1400,14 @@ def execute_command(cmd):
                         _add_to_queue(coordinator, pos=insert_pos)
                         try:
                             coordinator.next()
+                            # DESIGN NOTE: next() on a STOPPED speaker advances queue pointer
+                            # but doesn't start playback. Check and force play if needed.
+                            import time as _t; _t.sleep(0.3)
+                            ts = coordinator.get_current_transport_info()
+                            state = ts.get('current_transport_state', '')
+                            if state != 'PLAYING':
+                                log(f"play_next: after next(), state={state} -> forcing play_from_queue({insert_pos - 1})")
+                                coordinator.play_from_queue(insert_pos - 1)
                         except Exception as skip_err:
                             # Any next() failure -- just play directly
                             log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
