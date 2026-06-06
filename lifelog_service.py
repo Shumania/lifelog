@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.65.1"
+SERVICE_VERSION = "1.65.2"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -985,6 +985,26 @@ def _already_executed(cmd):
     return True
 
 # --- SONOS: EXECUTE COMMAND -------------------------------------------------
+def _decode_sonos_spotify_uri(uri):
+    """Decode Sonos-encoded Spotify URIs back to native spotify: format.
+    
+    DESIGN NOTE: The UI sends sonos_uri from the url column (Sonos transport format
+    like x-sonos-spotify:spotify%3atrack%3aID?sid=12&flags=...). The service needs
+    native spotify:track:ID format for ShareLinkPlugin. This decoder handles that
+    conversion so both play_next and add_to_queue route Spotify content correctly.
+    """
+    if uri and uri.startswith("x-sonos-spotify:"):
+        from urllib.parse import unquote
+        # Strip x-sonos-spotify: prefix and any ?sid=... suffix
+        inner = uri[len("x-sonos-spotify:"):]
+        if "?" in inner:
+            inner = inner.split("?")[0]
+        decoded = unquote(inner)  # spotify%3atrack%3aID -> spotify:track:ID
+        if decoded.startswith("spotify:"):
+            return decoded
+    return uri
+
+
 def _setup_rooms(cmd, devices):
     """Resolve room(s) from command. Returns (device, rooms_list, was_grouped_with).
     Multiple rooms: groups them (first = coordinator). Single room: makes it solo."""
@@ -1199,6 +1219,9 @@ def execute_command(cmd):
             elif not track_uri:
                 result["message"] = "No URI provided"
             else:
+                # DESIGN NOTE: Decode x-sonos-spotify: URIs to native spotify: format
+                # so ShareLinkPlugin is used instead of raw DIDL (which causes "No Content")
+                track_uri = _decode_sonos_spotify_uri(track_uri)
                 is_spotify = track_uri.startswith("spotify:") or "open.spotify.com" in track_uri
                 if is_spotify:
                     uri_type  = "track" if ":track:" in track_uri else "album" if ":album:" in track_uri else "playlist"
@@ -1300,6 +1323,9 @@ def execute_command(cmd):
             elif not track_uri:
                 result["message"] = "No URI provided"
             else:
+                # DESIGN NOTE: Decode x-sonos-spotify: URIs to native spotify: format
+                # so ShareLinkPlugin is used instead of raw DIDL (which causes "No Content")
+                track_uri = _decode_sonos_spotify_uri(track_uri)
                 # Determine if this is a Spotify URI (use ShareLinkPlugin) or raw Sonos URI (use add_uri_to_queue)
                 is_spotify = track_uri.startswith("spotify:") or "open.spotify.com" in track_uri
                 if is_spotify:
