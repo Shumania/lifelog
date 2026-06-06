@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.64"
+SERVICE_VERSION = "1.65"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1188,39 +1188,78 @@ def execute_command(cmd):
 
         elif action in ("queue_next", "queue", "add_to_queue"):
             # Add to Sonos queue WITHOUT clearing it or starting playback
+            # v1.65: handles both Spotify URIs (ShareLinkPlugin) and raw Sonos URIs (DIDL metadata)
             from soco.plugins.sharelink import ShareLinkPlugin
             room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
-            spotify_uri = cmd.get("uri", "")
-            title       = cmd.get("title", spotify_uri)
+            track_uri   = cmd.get("uri", "")
+            title       = cmd.get("title", track_uri)
             dev = devices.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
-            elif not spotify_uri:
-                result["message"] = "No Spotify URI provided"
+            elif not track_uri:
+                result["message"] = "No URI provided"
             else:
-                uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
-                uri_id    = spotify_uri.split(":")[-1]
-                share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                is_spotify = track_uri.startswith("spotify:") or "open.spotify.com" in track_uri
+                if is_spotify:
+                    uri_type  = "track" if ":track:" in track_uri else "album" if ":album:" in track_uri else "playlist"
+                    uri_id    = track_uri.split(":")[-1]
+                    share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                else:
+                    share_url = None
                 try:
                     if dev.group and dev.group.coordinator != dev:
                         coordinator = dev.group.coordinator
                     else:
                         coordinator = dev
-                    plugin = ShareLinkPlugin(coordinator)
                     as_next = action == "queue_next" or cmd.get("position") == "next"
+
+                    def _do_queue(coord, spotify, pos=None, next_flag=False):
+                        """Queue a track -- Spotify via ShareLinkPlugin, others via add_uri_to_queue with DIDL."""
+                        if spotify:
+                            plugin = ShareLinkPlugin(coord)
+                            if pos is not None:
+                                plugin.add_share_link_to_queue(share_url, position=pos)
+                            elif next_flag:
+                                plugin.add_share_link_to_queue(share_url, as_next=True)
+                            else:
+                                plugin.add_share_link_to_queue(share_url)
+                        else:
+                            # [DESIGN NOTE] Raw Sonos URI (Qobuz, Apple Music, etc.)
+                            # Same DIDL-Lite approach as play_next -- proper item IDs for title display
+                            from xml.sax.saxutils import escape as xml_escape
+                            safe_title = xml_escape(title or "Unknown Track")
+                            safe_uri = xml_escape(track_uri)
+                            meta = (
+                                '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
+                                '<dc:title>' + safe_title + '</dc:title>'
+                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
+                                '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
+                                '</item></DIDL-Lite>'
+                            )
+                            log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            if pos is not None:
+                                coord.add_uri_to_queue(track_uri, meta, position=pos)
+                            elif next_flag:
+                                coord.add_uri_to_queue(track_uri, meta, as_next=True)
+                            else:
+                                coord.add_uri_to_queue(track_uri, meta)
+
                     if as_next:
-                        # Position-based "play next": insert right after current track
                         try:
                             info = coordinator.get_current_track_info()
                             current_pos = int(info.get('playlist_position', 0))
-                            insert_pos = current_pos + 1  # 1-based, after current
+                            insert_pos = current_pos + 1
                             log(f"Queueing as NEXT at position {insert_pos} (current={current_pos})")
-                            plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                            _do_queue(coordinator, is_spotify, pos=insert_pos)
                         except Exception as pos_err:
                             log(f"Position-based queue failed ({pos_err}), falling back to as_next flag")
-                            plugin.add_share_link_to_queue(share_url, as_next=True)
+                            _do_queue(coordinator, is_spotify, next_flag=True)
                     else:
-                        plugin.add_share_link_to_queue(share_url)
+                        _do_queue(coordinator, is_spotify)
                     # Auto-play if nothing is currently playing
                     transport = coordinator.get_current_transport_info()
                     state = transport.get('current_transport_state', '')
@@ -1236,9 +1275,9 @@ def execute_command(cmd):
                     # Verify queue after add
                     try:
                         qsize = coordinator.queue_size
-                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "queue_size": qsize, "room": room}
+                        result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri, "queue_size": qsize, "room": room}
                     except:
-                        result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url, "room": room}
+                        result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri, "room": room}
                     result["success"] = True
                     result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items)"
                 except Exception as e:
@@ -1286,8 +1325,8 @@ def execute_command(cmd):
 
                     def _add_to_queue(coord, pos=None):
                         """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue.
-                        For non-Spotify URIs, we build a DidlMusicTrack with the title so Sonos
-                        displays proper metadata instead of 'No Content'."""
+                        For non-Spotify URIs, we use add_uri_to_queue with hand-crafted DIDL-Lite
+                        XML metadata so Sonos displays the track title correctly."""
                         if is_spotify:
                             plugin = ShareLinkPlugin(coord)
                             if pos is not None:
@@ -1296,20 +1335,29 @@ def execute_command(cmd):
                                 plugin.add_share_link_to_queue(share_url)
                         else:
                             # [DESIGN NOTE] Raw Sonos URI (Qobuz, Apple Music, etc.)
-                            # add_uri_to_queue(uri) passes empty DIDL metadata -> Sonos shows "No Content".
-                            # Instead, build a DidlMusicTrack with title from the command payload,
-                            # and use add_to_queue() which sends proper metadata to Sonos.
-                            from soco.data_structures import DidlMusicTrack, DidlResource
-                            log(f"play_next: building DidlMusicTrack for non-Spotify URI: {track_uri[:80]}")
-                            resource = DidlResource(uri=track_uri, protocol_info="*:*:*:*")
-                            didl_item = DidlMusicTrack(
-                                title=title or "Unknown Track",
-                                parent_id="",
-                                item_id="",
-                                resources=[resource]
+                            # v1.64: DidlMusicTrack with empty item_id="" -> Sonos ignores metadata
+                            #   -> shows "No Content" in Sonos app. Album art resolves but title does not.
+                            # v1.65 fix: Use add_uri_to_queue() with hand-crafted DIDL-Lite XML
+                            #   that includes proper item IDs (R:0/0/0) and dc:title.
+                            from xml.sax.saxutils import escape as xml_escape
+                            safe_title = xml_escape(title or "Unknown Track")
+                            safe_uri = xml_escape(track_uri)
+                            meta = (
+                                '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
+                                '<dc:title>' + safe_title + '</dc:title>'
+                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
+                                '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
+                                '</item></DIDL-Lite>'
                             )
-                            kwargs = {"as_next": True} if pos is None else {"position": pos}
-                            coord.add_to_queue(didl_item, **kwargs)
+                            log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            if pos is not None:
+                                coord.add_uri_to_queue(track_uri, meta, position=pos)
+                            else:
+                                coord.add_uri_to_queue(track_uri, meta, as_next=True)
 
                     if is_stream:
                         # Stream active -- can't insert into queue; do a full play

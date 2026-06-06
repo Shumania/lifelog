@@ -1545,6 +1545,7 @@ setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 3000
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     connectSSE();
+    loadData(false);  // v1.65: refresh data-head.json on page foreground (mobile Safari kills setInterval)
     if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
   }
 });
