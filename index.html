@@ -501,7 +501,7 @@ let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 
 // Spotify state
 const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
-const SP_REDIRECT = location.origin + '/lifelog/controller.html';
+const SP_REDIRECT = location.origin + '/lifelog/index.html';
 let spotifyDevices = [];
 let spotifySelectedDeviceId = localStorage.getItem('ll_spotify_device') || null;
 let spotifyNowPlaying = null;
@@ -583,8 +583,73 @@ function showToast(msg, isError) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SPOTIFY AUTH (reuse tokens from controller.html PKCE)
+// SPOTIFY PKCE AUTH (self-contained — no controller.html needed)
 // ══════════════════════════════════════════════════════════════════════════════
+function generateRandomString(len) {
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const values = crypto.getRandomValues(new Uint8Array(len));
+  return values.reduce((acc, x) => acc + possible[x % possible.length], '');
+}
+async function sha256(plain) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+}
+function base64urlEncode(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function spotifyAuth() {
+  const verifier = generateRandomString(64);
+  const challenge = base64urlEncode(await sha256(verifier));
+  localStorage.setItem('spotify_pkce_verifier', verifier);
+  const params = new URLSearchParams({
+    client_id: SP_CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: SP_REDIRECT,
+    scope: 'user-modify-playback-state user-read-playback-state user-read-recently-played streaming',
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    state: 'roaming_auth'
+  });
+  window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+}
+
+async function handleSpotifyCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  if (!code || state !== 'roaming_auth') return false;
+
+  const verifier = localStorage.getItem('spotify_pkce_verifier');
+  if (!verifier) return false;
+
+  try {
+    const r = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: SP_CLIENT_ID,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: SP_REDIRECT,
+        code_verifier: verifier
+      })
+    });
+    const d = await r.json();
+    if (d.access_token) {
+      localStorage.setItem('spotify_access_token', d.access_token);
+      localStorage.setItem('spotify_refresh_token', d.refresh_token);
+      localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
+      localStorage.removeItem('spotify_pkce_verifier');
+      history.replaceState({}, '', window.location.pathname);
+      setHouse('roaming');
+      showToast('Spotify connected!');
+      return true;
+    }
+  } catch(e) { console.error('Spotify auth error:', e); }
+  return false;
+}
+
 function hasSpotifyAuth() { return !!localStorage.getItem('spotify_refresh_token'); }
 
 async function getSpotifyToken() {
@@ -864,7 +929,7 @@ function renderSpotifyDevices() {
   const el = document.getElementById('roaming-devices');
   if (!el) return;
   if (!hasSpotifyAuth()) {
-    el.innerHTML = '<button class="spotify-connect-btn" onclick="window.location.href=\'controller.html\'">🎵 Connect with Spotify</button><p style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center;">Opens controller page to authenticate</p>';
+    el.innerHTML = '<button class="spotify-connect-btn" onclick="spotifyAuth()">🎵 Connect with Spotify</button><p style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center;">Authenticates directly with Spotify</p>';
     return;
   }
   let html = '<div class="device-list">';
@@ -1597,10 +1662,12 @@ function handleDeepLink() {
 // INIT
 // ══════════════════════════════════════════════════════════════════════════════
 (async () => {
+  // Handle Spotify OAuth callback FIRST (before anything else)
+  const didAuth = await handleSpotifyCallback();
   setHouse(house);
   connectSSE();
   await loadData(true);
-  handleDeepLink();
+  if (!didAuth) handleDeepLink();
   // Auto-refresh head every 60s
   setInterval(() => loadData(false), 60000);
 })();
