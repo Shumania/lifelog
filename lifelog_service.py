@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.74"
+SERVICE_VERSION = "1.75"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -120,6 +120,7 @@ OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
+BUFFER_MAX_AGE_SECS        = 30    # flush if oldest item in buffer exceeds this age (SSE relay)
 
 # --- CONFIG -----------------------------------------------------------------
 # [ROLLBACK-UNSAFE] load_config() runs at module level. If it crashes (bad JSON,
@@ -819,8 +820,11 @@ def heartbeat_fields():
     return fields
 
 def _send_heartbeat():
+    sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
     payload.update(heartbeat_fields())
+    if sse_relay:
+        payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=10)
         log(f"* Heartbeat (standalone) -> HTTP {r.status_code}")
@@ -897,65 +901,53 @@ def _sse_schedule_flush():
     _sse_flush_timer.start()
 
 def _sse_do_flush():
-    """Flush the accumulated bundle as a single ntfy message with exponential 429 backoff.
-    # DESIGN NOTE: ntfy free tier rate-limits aggressively. Each failed retry counts as
-    # a request, perpetuating the penalty window. On 429, we back off exponentially
-    # (30s -> 2m -> 5m) and STOP retrying until the backoff expires. This lets the
-    # rate limit window actually clear instead of hammering it every few seconds."""
-    global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429, _sse_send_attempts
-
+    """DISABLED in v1.75: SSE relay mode -- events relayed via webhook -> Tasklet -> ntfy.
+    Service no longer POSTs directly to ntfy (IP rate-limited). Instead, SSE data
+    is included in every webhook POST via build_sse_relay_payload(), and the server
+    relays it to ntfy from a non-rate-limited IP."""
+    global _sse_send_attempts
     _sse_send_attempts += 1
-    log(f"SSE flush #{_sse_send_attempts} (topic={ntfy_ui_topic}, 429s={_sse_consecutive_429}, backoff_until={_sse_backoff_until})")
-
-    # Check backoff — if we're in a penalty window, re-queue for later
-    now = time.time()
-    if now < _sse_backoff_until:
-        remaining = int(_sse_backoff_until - now)
-        log(f"SSE backoff: {remaining}s remaining, skipping flush")
-        # Re-schedule flush for when backoff expires
-        threading.Timer(_sse_backoff_until - now + 1, _sse_do_flush).start()
-        return
-
+    # Drain the bundle so it doesn't accumulate stale data
     with _sse_bundle_lock:
         if not _sse_bundle:
             return
         payload = dict(_sse_bundle)
         _sse_bundle.clear()
-
     event_types = payload.pop("_event_types", [])
-    payload["events"] = event_types
-    payload["ts"] = time.time()
+    log(f"SSE relay mode: queued events {event_types} will be relayed via next webhook POST")
 
-    # Enrich with full state snapshot
+def build_sse_relay_payload():
+    """Build SSE data for inclusion in webhook POSTs. Server relays this to ntfy.
+    Returns a dict with the same structure the browser expects from ntfy SSE messages."""
+    payload = {}
     try:
         _sse_enrich_state(payload)
     except Exception as e:
-        log(f"SSE enrich failed: {e}")
-
-    def _send():
-        global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429
-        try:
-            body = json.dumps(payload)
-            r = requests.post(
-                f"https://ntfy.sh/{ntfy_ui_topic}",
-                data=body.encode("utf-8"), timeout=5
-            )
-            if r.status_code == 429:
-                _sse_consecutive_429 += 1
-                idx = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
-                backoff_s = SSE_BACKOFF_STEPS[idx]
-                _sse_backoff_until = time.time() + backoff_s
-                log(f"SSE -> 429 (attempt {_sse_consecutive_429}), backing off {backoff_s}s")
-                # Don't retry immediately — let the rate limit window clear
-                return
-            # Success — reset backoff state
-            _sse_consecutive_429 = 0
-            _sse_backoff_until = 0.0
-            _sse_last_send_ts = time.time()
-            log(f"SSE -> {r.status_code} ({len(body)}b) events={event_types}")
-        except Exception as e:
-            log(f"SSE FAILED: {e}")
-    threading.Thread(target=_send, daemon=True).start()
+        log(f"SSE relay enrich failed: {e}")
+        return None
+    # Determine event types from current state
+    events = []
+    rp = payload.get("rooms_playing", [])
+    if rp:
+        events.append("status_update")
+        # Check if there's a now-playing track
+        npt = payload.get("now_playing_tracks", [])
+        if npt:
+            events.append("now_playing")
+            # Include title/artist at top level for browser compat
+            payload["title"] = npt[0].get("title", "")
+            payload["artist"] = npt[0].get("artist", "")
+            payload["album"] = npt[0].get("album", "")
+            payload["uri"] = npt[0].get("uri", "")
+            payload["service"] = npt[0].get("service", "")
+            if len(npt[0].get("rooms", [])) > 0:
+                payload["rooms"] = npt[0]["rooms"]
+    else:
+        events.append("status_update")
+    payload["events"] = events
+    payload["ts"] = time.time()
+    payload["topic"] = ntfy_ui_topic
+    return payload
 
 def flush_buffer(reason=""):
     global last_post_ts
@@ -971,12 +963,15 @@ def flush_buffer(reason=""):
     except Exception as e:
         log(f"Warning: couldn't persist buffer: {e}")
 
+    sse_relay = build_sse_relay_payload()
     payload = {
         "type":      "sonos_history_batch",
         "house":     house,
         "items":     items,
         "heartbeat": heartbeat_fields(),
     }
+    if sse_relay:
+        payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=20)
         log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
@@ -1023,13 +1018,21 @@ def heartbeat_thread():
 
 # --- BUFFER MONITOR THREAD --------------------------------------------------
 def buffer_monitor_thread():
-    """Flush buffer on trailing-edge timer: 5 min after last track was added."""
+    """Flush buffer on trailing-edge OR max-age timer.
+    Max-age (30s) ensures organic track changes relay to browser quickly via SSE relay.
+    Trailing-edge (30 min) is the safety net for long pauses."""
     while True:
-        time.sleep(30)  # check every 30s
+        time.sleep(10)  # check every 10s (was 30s -- tighter for max-age relay)
         with pending_buffer_lock:
             count = len(pending_buffer)
+            oldest_age = (time.time() - pending_buffer[0].get("_buffered_at", time.time())) if pending_buffer else 0
         if count == 0:
             continue
+        # Max-age flush: oldest item has been buffered > 30s -> relay to browser ASAP
+        if oldest_age >= BUFFER_MAX_AGE_SECS:
+            flush_buffer(reason="max-age-relay")
+            continue
+        # Trailing-edge flush: nothing new added in 30 min
         since_last_track = time.time() - last_track_added_ts
         if since_last_track >= BATCH_TRAILING_SECS:
             flush_buffer(reason="trailing-edge")
@@ -1347,6 +1350,7 @@ def post_history(track, room, started_at, ended_at):
         item["container_type"] = container.get("container_type", "")
         if container.get("spotify_context"):
             item["spotify_context"] = container["spotify_context"]
+    item["_buffered_at"] = time.time()  # for max-age relay flush
     with pending_buffer_lock:
         pending_buffer.append(item)
         last_track_added_ts = time.time()
@@ -2186,6 +2190,12 @@ def execute_command(cmd, source="unknown"):
     if is_silent:
         log(f"Command (silent): {result['message']}")
         return
+
+    # Include SSE relay data for server-side relay to ntfy
+    sse_relay = build_sse_relay_payload()
+    if sse_relay:
+        result["sse_relay"] = sse_relay
+    result["heartbeat"] = heartbeat_fields()
 
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
