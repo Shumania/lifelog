@@ -34,6 +34,7 @@ import os
 import threading
 import subprocess
 import traceback
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -58,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.73"
+SERVICE_VERSION = "1.74"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -233,6 +234,15 @@ LOG_FILE        = INSTALL_DIR / "lifelog_service.log"
 _log_write_count = 0
 _log_lock        = threading.Lock()
 
+# --- IN-MEMORY LOG RING BUFFER -----------------------------------------------
+# DESIGN NOTE: Captures recent log lines so they can ride along on webhook POSTs.
+# Last 50 lines included in every heartbeat; full 200-line buffer available via
+# 'get_logs' ntfy command. Zero file I/O overhead (appends to deque only).
+# ensure_ascii=True used when serializing to avoid cp1252 encoding issues on Windows.
+_LOG_RING_MAX    = 200
+_log_ring        = deque(maxlen=_LOG_RING_MAX)
+_log_ring_lock   = threading.Lock()
+
 def _rotate_log_if_needed():
     """Trim log file to last 800 lines if it exceeds 500 KB."""
     try:
@@ -246,6 +256,10 @@ def log(msg):
     global _log_write_count
     line = f"[{now_iso()}] {msg}"
     print(line, flush=True)
+    # Append to in-memory ring buffer (lock-free deque is thread-safe for appends,
+    # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
+    with _log_ring_lock:
+        _log_ring.append(line)
     try:
         with _log_lock:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -255,6 +269,19 @@ def log(msg):
                 _rotate_log_if_needed()
     except Exception:
         pass
+
+
+def get_recent_logs(n=50):
+    """Return last n log lines from ring buffer (for embedding in heartbeats)."""
+    with _log_ring_lock:
+        lines = list(_log_ring)
+    return lines[-n:]
+
+
+def get_full_logs():
+    """Return all log lines in ring buffer (for on-demand get_logs command)."""
+    with _log_ring_lock:
+        return list(_log_ring)
 
 def gh_headers():
     h = {"Accept": "application/vnd.github.v3+json", "User-Agent": "LifeLog-Service"}
@@ -787,6 +814,8 @@ def heartbeat_fields():
         "send_attempts": _sse_send_attempts,
         "topic": ntfy_ui_topic,
     }
+    # Recent log lines — ride along on every POST for visibility
+    fields["recent_logs"] = get_recent_logs(50)
     return fields
 
 def _send_heartbeat():
@@ -1451,7 +1480,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -1504,6 +1533,23 @@ def execute_command(cmd, source="unknown"):
                                            "album":info["album"],"service":info["service"]} if info else None})
             result["success"] = True
             result["data"]    = state
+
+        elif action == "get_logs":
+            # DESIGN NOTE: Returns full 200-line in-memory log ring buffer.
+            # Marked SILENT so it doesn't drain pending_buffer or trigger agent invocations.
+            # The result is POSTed directly to DEV_WEBHOOK (not main WEBHOOK) to avoid
+            # triggering sonos event processing. Handled separately below.
+            full_logs = get_full_logs()
+            result["success"] = True
+            result["message"] = f"Returning {len(full_logs)} log lines"
+            result["data"]    = {"log_lines": full_logs, "buffer_capacity": _LOG_RING_MAX}
+            # POST to DEV_WEBHOOK directly (bypasses silent skip below)
+            try:
+                r = requests.post(DEV_WEBHOOK, json=result, timeout=15)
+                log(f"get_logs -> DEV_WEBHOOK HTTP {r.status_code} ({len(full_logs)} lines)")
+            except Exception as e:
+                log(f"get_logs POST failed: {e}")
+            return  # early return -- skip normal silent/non-silent POST logic
 
         elif action == "group":
             source    = cmd.get("source")
