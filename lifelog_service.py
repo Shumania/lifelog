@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.68"
+SERVICE_VERSION = "1.69"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1729,8 +1729,9 @@ def execute_command(cmd, source="unknown"):
                             "uri": track_uri,
                             "client_id": client_id, "version": SERVICE_VERSION,
                         }
-                        if _current_play_modes:
-                            np_data["play_modes"] = _current_play_modes
+                        # DESIGN NOTE: Always include play_modes (even empty {}) so browser
+                        # can distinguish "repeat off" from "no data received yet"
+                        np_data["play_modes"] = dict(_current_play_modes)
                         publish_ui_event("now_playing", np_data)
                         coord_name = coordinator.player_name
                         coord_key = f"{title}|{artist}|{track_uri}"
@@ -2171,8 +2172,9 @@ def sonos_main_loop():
                             "uri": info.get("uri", ""),
                             "client_id": client_id, "version": SERVICE_VERSION,
                         }
-                        if _current_play_modes:
-                            np_data["play_modes"] = _current_play_modes
+                        # DESIGN NOTE: Always include play_modes (even empty {}) so browser
+                        # can distinguish "repeat off" from "no data received yet"
+                        np_data["play_modes"] = dict(_current_play_modes)
                         publish_ui_event("now_playing", np_data)
                 else:
                     if coord_name in _last_ui_track:
@@ -2249,8 +2251,9 @@ def sonos_main_loop():
                     "rooms_playing": rp,
                     "house": house,
                 }
-                if _current_play_modes:
-                    sse_data["play_modes"] = _current_play_modes
+                # DESIGN NOTE: Always include play_modes (even empty {}) so browser
+                # can distinguish "repeat off" from "no data received yet"
+                sse_data["play_modes"] = dict(_current_play_modes)
                 if np_tracks:
                     sse_data["now_playing_tracks"] = np_tracks
                 publish_ui_event("status_update", sse_data)
