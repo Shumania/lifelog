@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.65.4"
+SERVICE_VERSION = "1.66"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -197,6 +197,7 @@ room_state               = {}
 _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
 _last_sse_rooms_playing  = []   # for change detection on status_update SSE
 _sse_status_counter      = 0    # emit status_update every N poll cycles
+_current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, etc.)
 speaker_failures         = {}
 speaker_offline_since    = {}
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
@@ -435,11 +436,14 @@ def self_update_check():
 
 # --- HEARTBEAT HELPERS ------------------------------------------------------
 def get_rooms_playing():
-    """Query each known Sonos device for transport state, return list of rooms currently PLAYING."""
+    """Query each known Sonos device for transport state, return list of rooms currently PLAYING.
+    Also updates _current_play_modes with play mode per coordinator (NORMAL, REPEAT_ALL, etc.)."""
+    global _current_play_modes
     if "sonos" not in modules:
         return []
     playing = []
     states = {}
+    modes = {}
     for name, dev in current_devices_by_name.items():
         try:
             # Skip group members -- only query coordinators and solo speakers
@@ -460,6 +464,12 @@ def get_rooms_playing():
                         continue
                 except Exception:
                     pass  # If we can't check, include it
+                # Capture play mode for this coordinator (repeat/shuffle status)
+                try:
+                    mode = dev.play_mode  # NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, SHUFFLE_NOREPEAT, SHUFFLE_REPEAT_ONE
+                    modes[name] = mode
+                except Exception:
+                    pass
                 # Coordinator is playing -- add all visible members of this group
                 if dev.group:
                     for member in dev.group.members:
@@ -470,6 +480,7 @@ def get_rooms_playing():
         except Exception as e:
             states[name] = f"ERROR:{e}"
     log(f"[sonos] Transport states: {states}")
+    _current_play_modes = modes
     return sorted(set(playing))
 
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
@@ -1938,6 +1949,8 @@ def sonos_main_loop():
                     "rooms_playing": rp,
                     "house": house,
                 }
+                if _current_play_modes:
+                    sse_data["play_modes"] = _current_play_modes
                 if np_tracks:
                     sse_data["now_playing_tracks"] = np_tracks
                 publish_ui_event("status_update", sse_data)
