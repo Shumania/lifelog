@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.65.3"
+SERVICE_VERSION = "1.65.4"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1234,7 +1234,9 @@ def execute_command(cmd):
                         coordinator = dev.group.coordinator
                     else:
                         coordinator = dev
-                    as_next = action == "queue_next" or cmd.get("position") == "next"
+                    # DESIGN NOTE: + button should ALWAYS insert at next position.
+                    # User expectation: "play this next" -- never append to end of queue.
+                    as_next = True
 
                     def _do_queue(coord, spotify, pos=None, next_flag=False):
                         """Queue a track -- Spotify via ShareLinkPlugin, others via add_uri_to_queue with DIDL."""
@@ -1420,6 +1422,36 @@ def execute_command(cmd):
                     result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}"
                     result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri,
                                       "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
+                    # DESIGN NOTE: For non-Spotify URIs, Sonos may not report track metadata
+                    # (shows "No Content" in Sonos app). The polling loop's get_track_info()
+                    # returns None for empty titles -> no SSE now_playing fires.
+                    # Fix: publish SSE immediately from command payload so browser updates.
+                    # Also inject into _last_ui_track to prevent duplicate SSE from polling loop.
+                    try:
+                        artist = cmd.get("artist", "")
+                        album = cmd.get("album", "")
+                        service_name = "Spotify" if is_spotify else detect_service(track_uri, "")
+                        publish_ui_event("now_playing", {
+                            "title": title, "artist": artist, "album": album,
+                            "rooms": rooms, "service": service_name,
+                            "uri": track_uri,
+                            "client_id": client_id, "version": SERVICE_VERSION,
+                        })
+                        coord_name = coordinator.player_name
+                        coord_key = f"{title}|{artist}|{track_uri}"
+                        _last_ui_track[coord_name] = coord_key
+                        # Also inject into room_state so status_update SSE has correct data
+                        room_state[coord_name] = {
+                            "track_key": coord_key,
+                            "track_info": {
+                                "title": title, "artist": artist, "album": album,
+                                "uri": track_uri, "service": service_name,
+                                "rooms": rooms, "coordinator": coord_name,
+                            },
+                            "started_at": datetime.datetime.utcnow(),
+                        }
+                    except Exception as sse_err:
+                        log(f"play_next: SSE publish failed ({sse_err})")
                 except Exception as e:
                     result["message"] = f"play_next error: {e}"
 
