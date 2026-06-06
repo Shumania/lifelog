@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.72"
+SERVICE_VERSION = "1.73"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -596,6 +596,10 @@ def build_status_snapshot():
         },
         "sse": {
             "last_publish_age_s": now - _sse_last_send_ts if _sse_last_send_ts else None,
+            "consecutive_429": _sse_consecutive_429,
+            "backoff_remaining_s": max(0, int(_sse_backoff_until - now)) if _sse_backoff_until else 0,
+            "topic": ntfy_ui_topic,
+            "send_attempts": _sse_send_attempts,
         },
         "speakers": {
             "offline_names": list(speaker_offline_since.keys()),
@@ -775,6 +779,14 @@ def heartbeat_fields():
     }
     if "sonos" in modules:
         fields["rooms_playing"] = get_rooms_playing()
+    # SSE diagnostic state — visible in webhook heartbeats
+    fields["sse_state"] = {
+        "consecutive_429": _sse_consecutive_429,
+        "backoff_remaining_s": max(0, int(_sse_backoff_until - time.time())) if _sse_backoff_until else 0,
+        "last_send_age_s": int(time.time() - _sse_last_send_ts) if _sse_last_send_ts else None,
+        "send_attempts": _sse_send_attempts,
+        "topic": ntfy_ui_topic,
+    }
     return fields
 
 def _send_heartbeat():
@@ -799,6 +811,7 @@ _sse_flush_timer  = None              # threading.Timer for debounced flush
 _sse_last_send_ts = 0.0               # epoch of last actual ntfy POST
 _sse_backoff_until = 0.0              # epoch — skip all sends until this time (429 backoff)
 _sse_consecutive_429 = 0              # count consecutive 429 failures for exponential backoff
+_sse_send_attempts = 0                # total flush attempts since startup (diagnostic)
 SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collapse into one message
 SSE_MIN_GAP_S     = 10.0              # absolute floor between sends (burst protection)
 SSE_BACKOFF_STEPS = [30, 120, 300]    # backoff durations: 30s, 2m, 5m (then stays at 5m)
@@ -860,7 +873,10 @@ def _sse_do_flush():
     # a request, perpetuating the penalty window. On 429, we back off exponentially
     # (30s -> 2m -> 5m) and STOP retrying until the backoff expires. This lets the
     # rate limit window actually clear instead of hammering it every few seconds."""
-    global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429
+    global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429, _sse_send_attempts
+
+    _sse_send_attempts += 1
+    log(f"SSE flush #{_sse_send_attempts} (topic={ntfy_ui_topic}, 429s={_sse_consecutive_429}, backoff_until={_sse_backoff_until})")
 
     # Check backoff — if we're in a penalty window, re-queue for later
     now = time.time()
