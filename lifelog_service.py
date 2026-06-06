@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.67"
+SERVICE_VERSION = "1.68"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1723,12 +1723,15 @@ def execute_command(cmd, source="unknown"):
                         artist = cmd.get("artist", "")
                         album = cmd.get("album", "")
                         service_name = "Spotify" if is_spotify else detect_service(track_uri, "")
-                        publish_ui_event("now_playing", {
+                        np_data = {
                             "title": title, "artist": artist, "album": album,
                             "rooms": rooms, "service": service_name,
                             "uri": track_uri,
                             "client_id": client_id, "version": SERVICE_VERSION,
-                        })
+                        }
+                        if _current_play_modes:
+                            np_data["play_modes"] = _current_play_modes
+                        publish_ui_event("now_playing", np_data)
                         coord_name = coordinator.player_name
                         coord_key = f"{title}|{artist}|{track_uri}"
                         _last_ui_track[coord_name] = coord_key
@@ -2161,13 +2164,16 @@ def sonos_main_loop():
                     coord_key = f"{info['title']}|{info['artist']}|{info['uri']}"
                     if coord_key != _last_ui_track.get(coord_name):
                         _last_ui_track[coord_name] = coord_key
-                        publish_ui_event("now_playing", {
+                        np_data = {
                             "title": info["title"], "artist": info["artist"],
                             "album": info["album"], "rooms": rooms_in_group,
                             "service": info.get("service", ""),
                             "uri": info.get("uri", ""),
                             "client_id": client_id, "version": SERVICE_VERSION,
-                        })
+                        }
+                        if _current_play_modes:
+                            np_data["play_modes"] = _current_play_modes
+                        publish_ui_event("now_playing", np_data)
                 else:
                     if coord_name in _last_ui_track:
                         del _last_ui_track[coord_name]

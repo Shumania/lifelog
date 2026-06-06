@@ -1567,6 +1567,8 @@ function connectSSE() {
             }
           }
         }
+        // Update play_modes from now_playing event too (not just status_update)
+        if (msg.play_modes) _playModes = msg.play_modes;
         if (house === 'roaming') renderNowPlayingRoaming();  // Update Sonos hint
       } else if (msg.event === 'track_ended' || msg.event === 'stopped') {
         // Retire the current track into history
@@ -1587,7 +1589,7 @@ function connectSSE() {
           if (sseHouse === house) {
             _roomsPlaying = [...msg.rooms_playing];
             if (msg.play_modes) _playModes = msg.play_modes;
-            else _playModes = {};
+            // Don't clear _playModes when field is absent — keep last known state
           }
           if (sseHouse === house && !_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
