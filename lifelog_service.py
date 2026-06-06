@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.70"
+SERVICE_VERSION = "1.71"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -797,8 +797,11 @@ _sse_bundle       = {}                # accumulated payload fields
 _sse_bundle_lock  = threading.Lock()
 _sse_flush_timer  = None              # threading.Timer for debounced flush
 _sse_last_send_ts = 0.0               # epoch of last actual ntfy POST
+_sse_backoff_until = 0.0              # epoch — skip all sends until this time (429 backoff)
+_sse_consecutive_429 = 0              # count consecutive 429 failures for exponential backoff
 SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collapse into one message
 SSE_MIN_GAP_S     = 10.0              # absolute floor between sends (burst protection)
+SSE_BACKOFF_STEPS = [30, 120, 300]    # backoff durations: 30s, 2m, 5m (then stays at 5m)
 
 def _sse_enrich_state(payload):
     """Inject full state snapshot into any outbound SSE payload.
@@ -852,8 +855,22 @@ def _sse_schedule_flush():
     _sse_flush_timer.start()
 
 def _sse_do_flush():
-    """Flush the accumulated bundle as a single ntfy message with 429 retry."""
-    global _sse_last_send_ts
+    """Flush the accumulated bundle as a single ntfy message with exponential 429 backoff.
+    # DESIGN NOTE: ntfy free tier rate-limits aggressively. Each failed retry counts as
+    # a request, perpetuating the penalty window. On 429, we back off exponentially
+    # (30s -> 2m -> 5m) and STOP retrying until the backoff expires. This lets the
+    # rate limit window actually clear instead of hammering it every few seconds."""
+    global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429
+
+    # Check backoff — if we're in a penalty window, re-queue for later
+    now = time.time()
+    if now < _sse_backoff_until:
+        remaining = int(_sse_backoff_until - now)
+        log(f"SSE backoff: {remaining}s remaining, skipping flush")
+        # Re-schedule flush for when backoff expires
+        threading.Timer(_sse_backoff_until - now + 1, _sse_do_flush).start()
+        return
+
     with _sse_bundle_lock:
         if not _sse_bundle:
             return
@@ -871,7 +888,7 @@ def _sse_do_flush():
         log(f"SSE enrich failed: {e}")
 
     def _send():
-        global _sse_last_send_ts
+        global _sse_last_send_ts, _sse_backoff_until, _sse_consecutive_429
         try:
             body = json.dumps(payload)
             r = requests.post(
@@ -879,12 +896,16 @@ def _sse_do_flush():
                 data=body.encode("utf-8"), timeout=5
             )
             if r.status_code == 429:
-                log("SSE -> 429, retry in 5s...")
-                time.sleep(5)
-                r = requests.post(
-                    f"https://ntfy.sh/{ntfy_ui_topic}",
-                    data=body.encode("utf-8"), timeout=5
-                )
+                _sse_consecutive_429 += 1
+                idx = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
+                backoff_s = SSE_BACKOFF_STEPS[idx]
+                _sse_backoff_until = time.time() + backoff_s
+                log(f"SSE -> 429 (attempt {_sse_consecutive_429}), backing off {backoff_s}s")
+                # Don't retry immediately — let the rate limit window clear
+                return
+            # Success — reset backoff state
+            _sse_consecutive_429 = 0
+            _sse_backoff_until = 0.0
             _sse_last_send_ts = time.time()
             log(f"SSE -> {r.status_code} ({len(body)}b) events={event_types}")
         except Exception as e:
