@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.66"
+SERVICE_VERSION = "1.67"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -203,13 +203,25 @@ speaker_offline_since    = {}
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
 last_cmd_sha             = None
 executed_cmd_hashes      = {}   # hash -> timestamp (TTL-based dedup)
-CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s — covers ntfy replay window
+CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s -- covers ntfy replay window
 last_sonos_activity_ts   = 0.0  # updated when a track is buffered
 last_track_added_ts      = 0.0  # updated when a track is added to buffer
 last_post_ts             = 0.0  # updated whenever any POST succeeds
 pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
+
+# --- DIAGNOSTIC STATE -------------------------------------------------------
+_service_start_ts        = 0.0
+_last_command_at         = 0.0
+_last_command_action     = ""
+_last_command_source     = ""
+_commands_received_count = 0
+_track_changes           = []   # ring buffer of last 10 track changes [{room, at, track, commanded}]
+_ntfy_connected          = False
+_ntfy_reconnects         = 0
+_last_transport_states   = {}   # room -> state string (updated by get_rooms_playing)
+_prev_diag_fingerprint   = ""   # for change detection
 
 # --- UTILITIES --------------------------------------------------------------
 # [ROLLBACK-UNSAFE] log(), gh_headers(), gh_get(), gh_decode() are all called by
@@ -458,7 +470,7 @@ def get_rooms_playing():
                 # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
-                    log(f"[sonos] [DBG] {name} URI: {track_uri[:120]}")
+                    pass  # URI checked for TV passthrough (diagnostic block shows details)
                     if track_uri.startswith(("x-sonos-htastream:", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
@@ -479,9 +491,271 @@ def get_rooms_playing():
                     playing.append(name)
         except Exception as e:
             states[name] = f"ERROR:{e}"
-    log(f"[sonos] Transport states: {states}")
+    _last_transport_states.clear()
+    _last_transport_states.update(states)
     _current_play_modes = modes
     return sorted(set(playing))
+
+
+# --- DIAGNOSTIC STATUS BLOCK ------------------------------------------------
+def _format_age(seconds):
+    """Format age in human-readable form."""
+    if seconds is None:
+        return "never"
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s ago"
+    elif s < 3600:
+        return f"{s // 60}m ago"
+    else:
+        h = s // 3600
+        m = (s % 3600) // 60
+        return f"{h}h{m}m ago" if m else f"{h}h ago"
+
+
+def _format_service(svc):
+    """Short service label for display."""
+    if not svc:
+        return ""
+    MAP = {"sonos_spotify": "Spotify", "sonos_apple_music": "Apple Music",
+           "sonos_qobuz": "Qobuz", "sonos_tunein": "TuneIn", "sonos_radio": "Radio"}
+    return MAP.get(svc, svc.replace("sonos_", "").title())
+
+
+def build_status_snapshot():
+    """Build structured diagnostic snapshot from current module state.
+    Returns a dict suitable for JSON serialization (future webhook upload)
+    or console formatting. Makes ZERO soco calls -- reads only from
+    module-level state populated by the normal poll loop."""
+    now = time.time()
+
+    # Build room details from room_state + transport states
+    active_rooms = []
+    stopped_names = []
+    grouped_members = set()  # rooms shown as part of a group (skip in stopped)
+
+    all_rooms = sorted(set(room_state.keys()) | set(_last_transport_states.keys()))
+
+    for room_name in all_rooms:
+        rs = room_state.get(room_name)
+        transport = _last_transport_states.get(room_name, "UNKNOWN")
+
+        entry = {"room": room_name, "state": transport}
+
+        if rs and rs.get("track_info"):
+            ti = rs["track_info"]
+            entry["track"] = ti.get("title", "")
+            entry["artist"] = ti.get("artist", "")
+            entry["album"] = ti.get("album", "")
+            entry["service"] = ti.get("service", "")
+            entry["uri"] = (ti.get("uri", "") or "")[:80]
+            ctx = ti.get("container")
+            if ctx and isinstance(ctx, dict) and ctx.get("container_name"):
+                entry["container"] = ctx["container_name"]
+            members = ti.get("rooms", [room_name])
+            entry["rooms_in_group"] = members
+            entry["coordinator"] = ti.get("coordinator", room_name)
+            for m in members:
+                if m != room_name:
+                    grouped_members.add(m)
+
+        if room_name in _current_play_modes:
+            entry["play_mode"] = _current_play_modes[room_name]
+
+        if transport in ("PLAYING", "PAUSED_PLAYBACK", "PLAYING_TV", "TRANSITIONING"):
+            active_rooms.append(entry)
+        elif transport == "GROUPED_MEMBER_SKIP":
+            grouped_members.add(room_name)
+        else:
+            stopped_names.append(room_name)
+
+    # Remove grouped members from stopped list (they are shown with their coordinator)
+    stopped_names = [n for n in stopped_names if n not in grouped_members]
+
+    # Buffer state
+    with pending_buffer_lock:
+        buf_count = len(pending_buffer)
+
+    snapshot = {
+        "diag_version": 1,
+        "timestamp": now,
+        "uptime_s": now - _service_start_ts if _service_start_ts else 0,
+        "active_rooms": active_rooms,
+        "stopped_rooms": stopped_names,
+        "last_command": {
+            "action": _last_command_action,
+            "at": _last_command_at,
+            "age_s": now - _last_command_at if _last_command_at else None,
+            "source": _last_command_source,
+        },
+        "commands_total": _commands_received_count,
+        "buffer": {
+            "count": buf_count,
+            "last_added_age_s": now - last_track_added_ts if last_track_added_ts else None,
+            "last_post_age_s": now - last_post_ts if last_post_ts else None,
+        },
+        "sse": {
+            "last_publish_age_s": now - _last_sse_publish_ts if _last_sse_publish_ts else None,
+        },
+        "speakers": {
+            "offline_names": list(speaker_offline_since.keys()),
+            "offline_ips": len(_offline_ips),
+        },
+        "ntfy": {
+            "connected": _ntfy_connected,
+            "reconnects": _ntfy_reconnects,
+        },
+        "track_changes": list(_track_changes[-5:]),
+    }
+
+    # Check skip_version file
+    skip_path = INSTALL_DIR / "skip_version"
+    if skip_path.exists():
+        try:
+            snapshot["skip_version"] = skip_path.read_text(encoding="utf-8").strip()
+        except Exception:
+            snapshot["skip_version"] = "exists"
+
+    return snapshot
+
+
+def format_status_log(snapshot):
+    """Render structured snapshot as pretty console text for local debugging."""
+    lines = []
+
+    # Header with Seattle time + uptime
+    try:
+        from zoneinfo import ZoneInfo
+        seattle = datetime.now(ZoneInfo("America/Los_Angeles"))
+        time_str = seattle.strftime("%H:%M:%S %Z")
+    except Exception:
+        time_str = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+
+    uptime_s = snapshot.get("uptime_s", 0)
+    if uptime_s < 3600:
+        up_str = f"{int(uptime_s) // 60}m"
+    else:
+        h = int(uptime_s) // 3600
+        m = (int(uptime_s) % 3600) // 60
+        up_str = f"{h}h{m}m"
+    lines.append(f"--- Sonos Status ({time_str}) | up {up_str} ---")
+
+    # Active rooms with detail
+    for r in snapshot.get("active_rooms", []):
+        state = r["state"]
+        room = r["room"]
+
+        if state == "PLAYING_TV":
+            lines.append(f"  {room}: PLAYING_TV (HDMI)")
+            continue
+
+        state_label = "PLAYING" if state == "PLAYING" else "PAUSED" if "PAUSE" in state else state
+        track = r.get("track", "?")
+        artist = r.get("artist", "?")
+        album = r.get("album", "")
+        svc = _format_service(r.get("service", ""))
+
+        line = f'  {room}: {state_label} | "{track}" - {artist}'
+        if album:
+            line += f" - {album}"
+        if svc:
+            line += f" [{svc}]"
+        lines.append(line)
+
+        # Second line: container + play mode + group
+        details = []
+        if r.get("container"):
+            details.append(f"From: {r['container']}")
+        mode = r.get("play_mode", "NORMAL")
+        if mode and mode != "NORMAL":
+            details.append(mode)
+        members = r.get("rooms_in_group", [])
+        if len(members) > 1:
+            others = [m for m in members if m != room]
+            if others:
+                details.append(f"Group: +{', +'.join(others)}")
+        if details:
+            lines.append(f"    -> {' | '.join(details)}")
+
+    # Stopped rooms (collapsed)
+    stopped = snapshot.get("stopped_rooms", [])
+    if stopped:
+        lines.append(f"  ({len(stopped)} rooms stopped)")
+
+    # Command summary
+    cmd = snapshot.get("last_command", {})
+    if cmd.get("action"):
+        cmd_str = f"Last cmd: {cmd['action']} {_format_age(cmd.get('age_s'))} ({cmd.get('source', '?')})"
+    else:
+        cmd_str = "Last cmd: none"
+    cmd_str += f" | Total: {snapshot.get('commands_total', 0)}"
+    lines.append(f"  {cmd_str}")
+
+    # Buffer + SSE summary
+    buf = snapshot.get("buffer", {})
+    buf_str = f"Buffer: {buf.get('count', 0)} pending"
+    if buf.get("last_added_age_s") is not None:
+        buf_str += f", added {_format_age(buf['last_added_age_s'])}"
+    if buf.get("last_post_age_s") is not None:
+        buf_str += f" | POST {_format_age(buf['last_post_age_s'])}"
+    sse = snapshot.get("sse", {})
+    if sse.get("last_publish_age_s") is not None:
+        buf_str += f" | SSE {_format_age(sse['last_publish_age_s'])}"
+    lines.append(f"  {buf_str}")
+
+    # Speaker health (only if issues)
+    speakers = snapshot.get("speakers", {})
+    offline = speakers.get("offline_names", [])
+    if offline:
+        lines.append(f"  [WARN] Speakers offline: {', '.join(offline)}")
+
+    # ntfy health (only if disconnected)
+    ntfy = snapshot.get("ntfy", {})
+    if not ntfy.get("connected"):
+        lines.append(f"  [WARN] ntfy disconnected (reconnects: {ntfy.get('reconnects', 0)})")
+
+    # skip_version warning
+    if snapshot.get("skip_version"):
+        lines.append(f"  [WARN] skip_version: {snapshot['skip_version']}")
+
+    # Recent track changes (last 3)
+    changes = snapshot.get("track_changes", [])
+    if changes:
+        recent = changes[-3:]
+        change_parts = []
+        now = time.time()
+        for c in recent:
+            age = _format_age(now - c["at"])
+            tag = "cmd" if c.get("commanded") else "organic"
+            change_parts.append(f"{c['room']} {age} ({tag})")
+        lines.append(f"  Changes: {' | '.join(change_parts)}")
+
+    return "\n".join(lines)
+
+
+def _diag_fingerprint(snapshot):
+    """Generate a fingerprint for change detection."""
+    parts = []
+    for r in snapshot.get("active_rooms", []):
+        parts.append(f"{r['room']}:{r['state']}:{r.get('track','')}")
+    parts.append(f"stopped:{len(snapshot.get('stopped_rooms', []))}")
+    parts.append(f"buf:{snapshot.get('buffer', {}).get('count', 0)}")
+    parts.append(f"cmd:{snapshot.get('commands_total', 0)}")
+    parts.append(f"tc:{len(snapshot.get('track_changes', []))}")
+    return "|".join(parts)
+
+
+def _log_diagnostic_status():
+    """Build snapshot, check for changes, log if changed."""
+    global _prev_diag_fingerprint
+    try:
+        snapshot = build_status_snapshot()
+        fp = _diag_fingerprint(snapshot)
+        if fp != _prev_diag_fingerprint:
+            _prev_diag_fingerprint = fp
+            log("\n" + format_status_log(snapshot))
+    except Exception as e:
+        log(f"[diag] Error building status: {e}")
 
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
 _just_commanded_room = None
@@ -1072,11 +1346,18 @@ def _setup_rooms(cmd, devices):
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
 SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check"}
 
-def execute_command(cmd):
+def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
     cmd_id = cmd.get("cmd_id", "")
     if action in ("none", "", "idle") or cmd_id == "idle":
         return
+
+    # Track command for diagnostics
+    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count
+    _last_command_at = time.time()
+    _last_command_action = action
+    _last_command_source = source
+    _commands_received_count += 1
 
     # update_check is always self-targeted (every machine updates itself)
     if action != "update_check" and not is_my_command(cmd):
@@ -1459,7 +1740,7 @@ def execute_command(cmd):
                                 "uri": track_uri, "service": service_name,
                                 "rooms": rooms, "coordinator": coord_name,
                             },
-                            "started_at": datetime.datetime.utcnow(),
+                            "started_at": datetime.now(timezone.utc),
                         }
                     except Exception as sse_err:
                         log(f"play_next: SSE publish failed ({sse_err})")
@@ -1500,7 +1781,7 @@ def execute_command(cmd):
                     result["message"] = "Failed to queue any tracks"
 
         elif action == "play_uri":
-            # DESIGN: Generic Sonos-native URI play — replays a track on its ORIGINAL service.
+            # DESIGN: Generic Sonos-native URI play -- replays a track on its ORIGINAL service.
             # Used by index.html when replaying Qobuz/Apple Music/TuneIn tracks from history.
             # The raw Sonos URI (e.g. x-sonos-http:song%3a1234.mp4?sid=204) is passed through
             # directly to soco.play_uri(), which Sonos resolves via the original service.
@@ -1785,12 +2066,13 @@ def poll_commands():
         return
     _mark_executed(cmd)
     log(f"New command (GitHub fallback): {cmd}")
-    execute_command(cmd)
+    execute_command(cmd, source="github")
 
 # --- NTFY LISTENER THREAD ---------------------------------------------------
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
 # execute_command() -> self_update_check(). The old version's parsing + dispatch runs here.
 def ntfy_listener_thread():
+    global _ntfy_connected, _ntfy_reconnects
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
@@ -1799,6 +2081,7 @@ def ntfy_listener_thread():
         log(f"ntfy connecting: {url}")
         try:
             with requests.get(url, stream=True, timeout=90) as r:
+                _ntfy_connected = True
                 for line in r.iter_lines():
                     if not line: continue
                     try:    msg = json.loads(line)
@@ -1818,11 +2101,13 @@ def ntfy_listener_thread():
                             log(f"Duplicate: {cmd.get('action')}")
                             continue
                         _mark_executed(cmd)
-                        execute_command(cmd)
+                        execute_command(cmd, source="ntfy")
                     except Exception as e:
                         log(f"ntfy parse/execute error: {e}")
         except Exception as e:
-            log(f"ntfy stream error: {e} -- reconnecting in 5s")
+            _ntfy_connected = False
+            _ntfy_reconnects += 1
+            log(f"ntfy stream error: {e} -- reconnecting in 5s (reconnects: {_ntfy_reconnects})")
             time.sleep(5)
 
 # --- SONOS MAIN LOOP --------------------------------------------------------
@@ -1901,6 +2186,15 @@ def sonos_main_loop():
                                 post_history(prev["track_info"], room, prev["started_at"], now)
                             room_state[room] = {"track_key": track_key, "track_info": info, "started_at": now}
                             log(f'> {room}: "{info["title"]}" - {info["artist"]} [{info["service"]}]')
+                            # Track change detection: commanded (within 8s of a command) vs organic (user/app)
+                            _is_commanded = (time.time() - _last_command_at < 8)
+                            _track_changes.append({
+                                "room": room, "at": time.time(),
+                                "track": f'{info["title"]} - {info["artist"]}',
+                                "commanded": _is_commanded
+                            })
+                            if len(_track_changes) > 10:
+                                _track_changes.pop(0)
                     else:
                         if prev and prev.get("track_key") and prev.get("started_at"):
                             post_history(prev["track_info"], room, prev["started_at"], now)
@@ -1966,6 +2260,9 @@ def sonos_main_loop():
             else:
                 post_error(msg, module="sonos")
 
+        # --- Diagnostic status block (change-driven) ---
+        _log_diagnostic_status()
+
         time.sleep(POLL_INTERVAL)
 
 # --- MAIN -------------------------------------------------------------------
@@ -1988,6 +2285,8 @@ def main():
     except Exception as e:
         log(f"Warning: single-instance check failed ({e}) -- proceeding anyway")
 
+    global _service_start_ts
+    _service_start_ts = time.time()
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
 
     # -- Self-update rollback detection ----------------------------------------
