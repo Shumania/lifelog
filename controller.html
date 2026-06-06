@@ -212,6 +212,7 @@ let optimisticActiveRooms = null;
 let postCommandRefreshTimer = null;
 let _sseNowPlaying = null;
 let _sseNowPlayingGlobal = null;  // always updated regardless of house filter
+let _playModes = {};  // room -> play mode (REPEAT_ALL, REPEAT_ONE, SHUFFLE, NORMAL)
 
 // Spotify roaming state
 let spotifyDevices = [];
@@ -704,10 +705,14 @@ function connectSSE() {
         } else if (house === 'roaming') {
           renderNowPlaying();  // re-render to show Sonos hint
         }
-      } else if (msg.event === 'track_ended') {
+      } else if (msg.event === 'stopped') {
         _sseNowPlayingGlobal = null;
         if (sseMatchesHouse) { _sseNowPlaying = null; renderNowPlaying(); }
         else if (house === 'roaming') { renderNowPlaying(); }
+      }
+      if (msg.play_modes && sseMatchesHouse) {
+        _playModes = msg.play_modes;
+        renderNowPlaying();  // update repeat badge
       }
       if (msg.rooms_playing) {
         if (sseMatchesHouse && data) {
@@ -933,6 +938,18 @@ async function addRoomToGroup(room) {
   showToast(`+ ${room} joined group`);
 }
 
+// ── Repeat badge helper ──────────────────────────────────────────────────────
+function getRepeatBadge() {
+  // Check all rooms in _playModes for non-NORMAL modes
+  const rooms = Object.keys(_playModes);
+  for (const r of rooms) {
+    const m = _playModes[r];
+    if (m === 'REPEAT_ONE') return ' \uD83D\uDD02';  // 🔂
+    if (m === 'REPEAT_ALL') return ' \uD83D\uDD01';  // 🔁
+  }
+  return '';
+}
+
 // ── Now playing ───────────────────────────────────────────────────────────────
 function renderNowPlaying() {
   const npEl = document.getElementById('now-playing-content');
@@ -1025,14 +1042,15 @@ function renderNowPlaying() {
   }
 
   const minAgo = Math.floor((Date.now() - new Date(item.timestamp).getTime()) / 60000);
+  const rpBadge = getRepeatBadge();
   if (useOptimistic || useSSE || useServerNp) {
-    labelEl.textContent = '▶ NOW PLAYING'; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+    labelEl.textContent = '\u25B6 NOW PLAYING' + rpBadge; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 15) {
-    labelEl.textContent = 'NOW PLAYING'; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
+    labelEl.textContent = 'NOW PLAYING' + rpBadge; labelEl.className = 'text-xs text-green-400 font-semibold mb-2';
   } else if (minAgo < 120) {
-    labelEl.textContent = 'RECENTLY PLAYED · ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
+    labelEl.textContent = 'RECENTLY PLAYED \u00B7 ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-blue-300 font-semibold mb-2';
   } else {
-    labelEl.textContent = 'LAST PLAYED · ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
+    labelEl.textContent = 'LAST PLAYED \u00B7 ' + fmtRelative(new Date(item.timestamp)); labelEl.className = 'text-xs text-slate-500 font-semibold mb-2';
   }
 
   npEl.innerHTML = `
