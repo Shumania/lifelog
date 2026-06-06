@@ -1460,7 +1460,7 @@ function connectSSE() {
           source: track.service ? 'sonos_' + track.service.replace('sonos_','') : 'sonos',
           timestamp: new Date().toISOString(),
           domain: (track.rooms||[]).join(', '), house: h||house,
-          uri: track.uri||'', _fromSSE: true
+          uri: track.uri||'', sonos_uri: track.uri||'', _fromSSE: true
         };
         // Dedup: don't prepend if top item is same track within last 2 min
         const top = allItems[0];
@@ -1478,9 +1478,9 @@ function connectSSE() {
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
-        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', ts: Date.now() };
+        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', uri: msg.uri||'', ts: Date.now() };
         if (sseHouse) {
-          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', ts: Date.now() };
+          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: Date.now() };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
             // Auto-update rooms
@@ -1521,7 +1521,7 @@ function connectSSE() {
           const h = sseHouse || house;
           if (!_sseNowPlaying[h]) {
             _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
-              rooms: [...new Set(msg.now_playing_tracks.map(x=>x.room))], ts: Date.now(), _fromStatus: true };
+              rooms: [...new Set(msg.now_playing_tracks.map(x=>x.room))], uri: t.uri||'', ts: Date.now(), _fromStatus: true };
             if (h === house) renderNowPlayingSonos(house);
           }
           if (!_sseNowPlayingGlobal) {
