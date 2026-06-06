@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.62"
+SERVICE_VERSION = "1.63"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1245,22 +1245,30 @@ def execute_command(cmd):
                     result["message"] = f"Queue error: {e}"
 
         elif action == "play_next":
+            # [DESIGN NOTE - play_next: queue-preserving play for ANY service]
             # "Play now" non-destructive: insert track at next queue position, then skip to it.
             # After track finishes, playback resumes from previous queue position.
+            # Works with Spotify URIs (via ShareLinkPlugin) AND raw Sonos URIs like Qobuz/Apple Music
+            # (via soco.add_uri_to_queue directly). This is the PRIMARY play action for all services.
             # If a stream (TuneIn, radio, line-in, TV) is playing, there's no queue to insert into,
             # so fall back to full play (clear queue, add, play from 0).
             from soco.plugins.sharelink import ShareLinkPlugin
-            spotify_uri = cmd.get("uri", "")
-            title       = cmd.get("title", spotify_uri)
+            track_uri   = cmd.get("uri", "")
+            title       = cmd.get("title", track_uri)
             dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
-            elif not spotify_uri:
-                result["message"] = "No Spotify URI provided"
+            elif not track_uri:
+                result["message"] = "No URI provided"
             else:
-                uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
-                uri_id    = spotify_uri.split(":")[-1]
-                share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                # Determine if this is a Spotify URI (use ShareLinkPlugin) or raw Sonos URI (use add_uri_to_queue)
+                is_spotify = track_uri.startswith("spotify:") or "open.spotify.com" in track_uri
+                if is_spotify:
+                    uri_type  = "track" if ":track:" in track_uri else "album" if ":album:" in track_uri else "playlist"
+                    uri_id    = track_uri.split(":")[-1]
+                    share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
+                else:
+                    share_url = None  # Raw Sonos URI -- no share link needed
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
                     # Check if current source is a stream (no queue to insert into)
@@ -1275,11 +1283,27 @@ def execute_command(cmd):
                             log(f"play_next: stream detected ({current_uri[:60]}), using full play instead of queue insert")
                     except Exception as mi_err:
                         log(f"play_next: GetMediaInfo failed ({mi_err}), assuming queue-based")
-                    plugin = ShareLinkPlugin(coordinator)
+
+                    def _add_to_queue(coord, pos=None):
+                        """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue."""
+                        if is_spotify:
+                            plugin = ShareLinkPlugin(coord)
+                            if pos is not None:
+                                plugin.add_share_link_to_queue(share_url, position=pos)
+                            else:
+                                plugin.add_share_link_to_queue(share_url)
+                        else:
+                            # Raw Sonos URI (Qobuz, Apple Music, etc.) -- add directly
+                            log(f"play_next: using add_uri_to_queue for non-Spotify URI: {track_uri[:80]}")
+                            if pos is not None:
+                                coord.add_uri_to_queue(track_uri, position=pos)
+                            else:
+                                coord.add_uri_to_queue(track_uri)
+
                     if is_stream:
                         # Stream active -- can't insert into queue; do a full play
                         coordinator.clear_queue()
-                        plugin.add_share_link_to_queue(share_url)
+                        _add_to_queue(coordinator)
                         coordinator.play_from_queue(0)
                     else:
                         # Queue-based source -- insert at next position and skip
@@ -1287,7 +1311,7 @@ def execute_command(cmd):
                         current_pos = int(info.get('playlist_position', 0))
                         insert_pos = current_pos + 1
                         log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
-                        plugin.add_share_link_to_queue(share_url, position=insert_pos)
+                        _add_to_queue(coordinator, pos=insert_pos)
                         try:
                             coordinator.next()
                         except Exception as skip_err:
@@ -1298,8 +1322,9 @@ def execute_command(cmd):
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
                     mode_note = "full play (was stream)" if is_stream else "queue insert"
-                    result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}]{grp_note}"
-                    result["data"] = {"title": title, "uri": spotify_uri, "share_url": share_url,
+                    svc_note = "spotify" if is_spotify else "native"
+                    result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}"
+                    result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri,
                                       "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
                 except Exception as e:
                     result["message"] = f"play_next error: {e}"
@@ -1338,7 +1363,12 @@ def execute_command(cmd):
                     result["message"] = "Failed to queue any tracks"
 
         elif action == "play_uri":
-            # Generic Sonos URI play -- works with any service (Qobuz, Apple Music, Spotify, etc.)
+            # DESIGN: Generic Sonos-native URI play — replays a track on its ORIGINAL service.
+            # Used by index.html when replaying Qobuz/Apple Music/TuneIn tracks from history.
+            # The raw Sonos URI (e.g. x-sonos-http:song%3a1234.mp4?sid=204) is passed through
+            # directly to soco.play_uri(), which Sonos resolves via the original service.
+            # This avoids Spotify search fallback for non-Spotify content.
+            # Future: Apple MusicKit Atmos detection could flag tracks for Apple Music replay.
             uri   = cmd.get("uri", "")
             title = cmd.get("title", uri)
             meta  = cmd.get("meta", "")
