@@ -497,6 +497,7 @@ let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromS
 let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
 let _roomsPlaying = [];  // rooms currently playing (from SSE status_update)
+let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 
 // Spotify state
 const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
@@ -907,6 +908,15 @@ function renderRoamingPanel() {
 // ══════════════════════════════════════════════════════════════════════════════
 // NOW PLAYING
 // ══════════════════════════════════════════════════════════════════════════════
+function getRepeatBadge() {
+  // Check _playModes for any active repeat mode
+  for (const [room, mode] of Object.entries(_playModes)) {
+    if (mode === 'REPEAT_ONE' || mode === 'SHUFFLE_REPEAT_ONE') return '🔂';
+    if (mode === 'REPEAT_ALL' || mode === 'SHUFFLE') return '🔁';
+  }
+  return '';
+}
+
 function renderNowPlayingSonos(h) {
   const el = document.getElementById('np-' + h);
   if (!el) return;
@@ -959,11 +969,12 @@ function renderNowPlayingSonos(h) {
     svc = svcLabel(latestItem.source);
   }
 
+  const repeatBadge = isPlaying ? getRepeatBadge() : '';
   el.className = 'now-playing' + (isPlaying ? '' : ' np-stale');
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
-      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}</div>
+      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
     </div>`;
@@ -1508,7 +1519,11 @@ function connectSSE() {
       } else if (msg.event === 'status_update') {
         // Update rooms_playing from status
         if (sseHouse && msg.rooms_playing) {
-          if (sseHouse === house) _roomsPlaying = [...msg.rooms_playing];
+          if (sseHouse === house) {
+            _roomsPlaying = [...msg.rooms_playing];
+            if (msg.play_modes) _playModes = msg.play_modes;
+            else _playModes = {};
+          }
           if (sseHouse === house && !_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
