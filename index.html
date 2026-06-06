@@ -1547,10 +1547,12 @@ function connectSSE() {
         }
       }
 
-      if (msg.event === 'now_playing') {
-        // Cancel any pending stopped/track_ended clear — a new track arrived
+      // v1.70 bundled SSE: messages have "events" array (new) or "event" string (old)
+      const events = msg.events || (msg.event ? [msg.event] : []);
+
+      // --- Handle now_playing ---
+      if (events.includes('now_playing')) {
         if (_trackEndedTimer) { clearTimeout(_trackEndedTimer); _trackEndedTimer = null; }
-        // Retire PREVIOUS track into history (track transition)
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
@@ -1559,7 +1561,6 @@ function connectSSE() {
           _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: Date.now() };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
-            // Auto-update rooms
             if (msg.rooms && msg.rooms.length > 0 && !_userManualRoomSelect[house]) {
               selectedRooms[house] = [...msg.rooms];
               localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
@@ -1567,15 +1568,14 @@ function connectSSE() {
             }
           }
         }
-        // Update play_modes from now_playing event too (not just status_update)
-        if (msg.play_modes) _playModes = msg.play_modes;
-        if (house === 'roaming') renderNowPlayingRoaming();  // Update Sonos hint
-      } else if (msg.event === 'track_ended' || msg.event === 'stopped') {
-        // Retire the current track into history
+        if (house === 'roaming') renderNowPlayingRoaming();
+      }
+
+      // --- Handle stopped ---
+      if (events.includes('stopped') || events.includes('track_ended')) {
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
-        // Debounce Now Playing clear — wait 3s for a new now_playing event
         if (_trackEndedTimer) clearTimeout(_trackEndedTimer);
         _trackEndedTimer = setTimeout(() => {
           _trackEndedTimer = null;
@@ -1583,40 +1583,41 @@ function connectSSE() {
           if (sseHouse) { delete _sseNowPlaying[sseHouse]; if (sseHouse === house) renderNowPlayingSonos(house); }
           if (house === 'roaming') renderNowPlayingRoaming();
         }, 3000);
-      } else if (msg.event === 'status_update') {
-        // Update rooms_playing from status
-        if (sseHouse && msg.rooms_playing) {
-          if (sseHouse === house) {
-            _roomsPlaying = [...msg.rooms_playing];
-            if (msg.play_modes) _playModes = msg.play_modes;
-            // Don't clear _playModes when field is absent — keep last known state
-          }
-          if (sseHouse === house && !_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
+      }
+
+      // --- Always process state fields (every bundled message is a full snapshot) ---
+      if (msg.play_modes !== undefined) _playModes = msg.play_modes;
+      if (sseHouse && msg.rooms_playing) {
+        if (sseHouse === house) {
+          _roomsPlaying = [...msg.rooms_playing];
+          if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
             renderRooms(house);
           }
         }
-        // Opportunistic now-playing from status_update
-        if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0) {
-          const t = msg.now_playing_tracks[0];
-          const h = sseHouse || house;
-          if (!_sseNowPlaying[h]) {
-            _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
-              rooms: [...new Set(msg.now_playing_tracks.map(x=>x.room))], uri: t.uri||'', ts: Date.now(), _fromStatus: true };
-            if (h === house) renderNowPlayingSonos(house);
-          }
-          if (!_sseNowPlayingGlobal) {
-            _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
-            if (house === 'roaming') renderNowPlayingRoaming();
-          }
+      }
+
+      // --- Opportunistic now-playing from now_playing_tracks (status/snapshot) ---
+      if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && !events.includes('now_playing')) {
+        const t = msg.now_playing_tracks[0];
+        const h = sseHouse || house;
+        if (!_sseNowPlaying[h]) {
+          _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
+            rooms: [...new Set(msg.now_playing_tracks.map(x=>x.rooms||[]).flat())], uri: t.uri||'', ts: Date.now(), _fromStatus: true };
+          if (h === house) renderNowPlayingSonos(house);
         }
-        // Update status dot
-        if (msg.client_id && data && data.client_status) {
-          const c = data.client_status.find(s => s.client_id === msg.client_id);
-          if (c) { c.last_seen = new Date().toISOString(); if (msg.version) c.version = msg.version; }
-          renderStatusBar();
+        if (!_sseNowPlayingGlobal) {
+          _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
+          if (house === 'roaming') renderNowPlayingRoaming();
         }
+      }
+
+      // --- Update status dot ---
+      if (msg.client_id && data && data.client_status) {
+        const c = data.client_status.find(s => s.client_id === msg.client_id);
+        if (c) { c.last_seen = new Date().toISOString(); if (msg.version) c.version = msg.version; }
+        renderStatusBar();
       }
     } catch(err) {}
   });

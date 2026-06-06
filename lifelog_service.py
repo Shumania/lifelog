@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.69"
+SERVICE_VERSION = "1.70"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -595,7 +595,7 @@ def build_status_snapshot():
             "last_post_age_s": now - last_post_ts if last_post_ts else None,
         },
         "sse": {
-            "last_publish_age_s": now - _last_sse_publish_ts if _last_sse_publish_ts else None,
+            "last_publish_age_s": now - _sse_last_send_ts if _sse_last_send_ts else None,
         },
         "speakers": {
             "offline_names": list(speaker_offline_since.keys()),
@@ -787,38 +787,108 @@ def _send_heartbeat():
         log(f"Heartbeat failed: {e}")
 
 # --- BUFFER FLUSH ------------------------------------------------------------
-# --- NTFY UI PUSH (real-time browser SSE) -----------------------------------
-_last_sse_publish_ts = 0.0          # global rate limiter
-SSE_MIN_GAP_S = 45                  # minimum seconds between ANY SSE publishes (~1920/day max)
+# --- NTFY UI PUSH (real-time browser SSE) — v1.70 bundled architecture ------
+# DESIGN NOTE: Option B bundler — multiple events within a debounce window
+# merge into a single ntfy message. Every outbound message carries full state
+# (rooms_playing, play_modes, now_playing_tracks). Track changes are urgent
+# (3s debounce), periodic snapshots provide keepalive (15 min).
+# Budget: ~50 track events/day + ~96 snapshots/day = ~146/day (within ntfy 250/day).
+_sse_bundle       = {}                # accumulated payload fields
+_sse_bundle_lock  = threading.Lock()
+_sse_flush_timer  = None              # threading.Timer for debounced flush
+_sse_last_send_ts = 0.0               # epoch of last actual ntfy POST
+SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collapse into one message
+SSE_MIN_GAP_S     = 10.0              # absolute floor between sends (burst protection)
+
+def _sse_enrich_state(payload):
+    """Inject full state snapshot into any outbound SSE payload.
+    This ensures every message the browser receives is a complete picture."""
+    rp = get_rooms_playing()
+    payload["rooms_playing"] = rp
+    payload["play_modes"] = dict(_current_play_modes)
+    payload["house"] = house
+    payload["client_id"] = client_id
+    payload["version"] = SERVICE_VERSION
+    # Include now_playing_tracks from room_state
+    np_tracks = []
+    for coord_name in list(_last_ui_track.keys()):
+        rs = room_state.get(coord_name)
+        if rs and rs.get("track_info"):
+            ti = rs["track_info"]
+            np_tracks.append({
+                "title": ti.get("title", ""),
+                "artist": ti.get("artist", ""),
+                "album": ti.get("album", ""),
+                "rooms": ti.get("rooms", [coord_name]),
+                "service": ti.get("service", ""),
+                "uri": ti.get("uri", ""),
+            })
+    if np_tracks:
+        payload["now_playing_tracks"] = np_tracks
 
 def publish_ui_event(event_type, data):
-    """Fire-and-forget: publish event to ntfy UI topic for browser SSE.
-    Rate-limited to avoid ntfy 429 (250 msgs/day free tier).
-    now_playing events bypass rate limiter; status_update subject to it."""
-    global _last_sse_publish_ts
-    log(f"SSE ENTER: {event_type} topic={ntfy_ui_topic!r}")
+    """Queue event data for bundled SSE publish (v1.70).
+    Multiple events within the debounce window merge into one ntfy message.
+    Every message includes full state snapshot for the browser."""
     if not ntfy_ui_topic:
-        log(f"SSE SKIP: ntfy_ui_topic is empty -- cannot publish {event_type}")
         return
-    now = time.time()
-    # Rate-limit non-critical events (status_update, stopped)
-    if event_type not in ("now_playing", "track_ended"):
-        elapsed = now - _last_sse_publish_ts
-        if elapsed < SSE_MIN_GAP_S:
-            return   # silently skip -- not worth logging every skip
-    _last_sse_publish_ts = now
-    log(f"SSE: publishing {event_type} -> {ntfy_ui_topic} (gap={int(now - (_last_sse_publish_ts - 1))}s)")
+    log(f"SSE queue: {event_type}")
+    with _sse_bundle_lock:
+        _sse_bundle.update(data)
+        evts = _sse_bundle.setdefault("_event_types", [])
+        if event_type not in evts:
+            evts.append(event_type)
+    _sse_schedule_flush()
+
+def _sse_schedule_flush():
+    """Schedule a debounced flush. Respects SSE_MIN_GAP_S between sends."""
+    global _sse_flush_timer
+    if _sse_flush_timer:
+        _sse_flush_timer.cancel()
+    elapsed = time.time() - _sse_last_send_ts
+    wait = max(SSE_DEBOUNCE_S, SSE_MIN_GAP_S - elapsed)
+    _sse_flush_timer = threading.Timer(wait, _sse_do_flush)
+    _sse_flush_timer.daemon = True
+    _sse_flush_timer.start()
+
+def _sse_do_flush():
+    """Flush the accumulated bundle as a single ntfy message with 429 retry."""
+    global _sse_last_send_ts
+    with _sse_bundle_lock:
+        if not _sse_bundle:
+            return
+        payload = dict(_sse_bundle)
+        _sse_bundle.clear()
+
+    event_types = payload.pop("_event_types", [])
+    payload["events"] = event_types
+    payload["ts"] = time.time()
+
+    # Enrich with full state snapshot
+    try:
+        _sse_enrich_state(payload)
+    except Exception as e:
+        log(f"SSE enrich failed: {e}")
+
     def _send():
+        global _sse_last_send_ts
         try:
-            payload = json.dumps({"event": event_type, "ts": time.time(), **data})
+            body = json.dumps(payload)
             r = requests.post(
                 f"https://ntfy.sh/{ntfy_ui_topic}",
-                data=payload.encode("utf-8"),
-                timeout=5
+                data=body.encode("utf-8"), timeout=5
             )
-            log(f"SSE POST -> {r.status_code} ({len(payload)}b)")
+            if r.status_code == 429:
+                log("SSE -> 429, retry in 5s...")
+                time.sleep(5)
+                r = requests.post(
+                    f"https://ntfy.sh/{ntfy_ui_topic}",
+                    data=body.encode("utf-8"), timeout=5
+                )
+            _sse_last_send_ts = time.time()
+            log(f"SSE -> {r.status_code} ({len(body)}b) events={event_types}")
         except Exception as e:
-            log(f"SSE POST FAILED: {e}")
+            log(f"SSE FAILED: {e}")
     threading.Thread(target=_send, daemon=True).start()
 
 def flush_buffer(reason=""):
@@ -1723,15 +1793,13 @@ def execute_command(cmd, source="unknown"):
                         artist = cmd.get("artist", "")
                         album = cmd.get("album", "")
                         service_name = "Spotify" if is_spotify else detect_service(track_uri, "")
+                        # Minimal payload — bundler's _sse_enrich_state() adds
+                        # play_modes, rooms_playing, client_id, version, etc.
                         np_data = {
                             "title": title, "artist": artist, "album": album,
                             "rooms": rooms, "service": service_name,
                             "uri": track_uri,
-                            "client_id": client_id, "version": SERVICE_VERSION,
                         }
-                        # DESIGN NOTE: Always include play_modes (even empty {}) so browser
-                        # can distinguish "repeat off" from "no data received yet"
-                        np_data["play_modes"] = dict(_current_play_modes)
                         publish_ui_event("now_playing", np_data)
                         coord_name = coordinator.player_name
                         coord_key = f"{title}|{artist}|{track_uri}"
@@ -2165,24 +2233,21 @@ def sonos_main_loop():
                     coord_key = f"{info['title']}|{info['artist']}|{info['uri']}"
                     if coord_key != _last_ui_track.get(coord_name):
                         _last_ui_track[coord_name] = coord_key
+                        # Minimal payload — bundler's _sse_enrich_state() adds
+                        # play_modes, rooms_playing, client_id, version, etc.
                         np_data = {
                             "title": info["title"], "artist": info["artist"],
                             "album": info["album"], "rooms": rooms_in_group,
                             "service": info.get("service", ""),
                             "uri": info.get("uri", ""),
-                            "client_id": client_id, "version": SERVICE_VERSION,
                         }
-                        # DESIGN NOTE: Always include play_modes (even empty {}) so browser
-                        # can distinguish "repeat off" from "no data received yet"
-                        np_data["play_modes"] = dict(_current_play_modes)
                         publish_ui_event("now_playing", np_data)
                 else:
                     if coord_name in _last_ui_track:
                         del _last_ui_track[coord_name]
                         # If no coordinators playing at all, send stopped
                         if not _last_ui_track:
-                            publish_ui_event("stopped", {"rooms": rooms_in_group,
-                                "client_id": client_id, "version": SERVICE_VERSION})
+                            publish_ui_event("stopped", {"rooms": rooms_in_group})
 
                 for room in rooms_in_group:
                     seen_rooms.add(room)
@@ -2221,9 +2286,13 @@ def sonos_main_loop():
                 poll_commands()
                 cmd_counter = 0
 
-            # -- Change-driven status_update SSE + 5-min keepalive -----
-            # ntfy free tier: 250 msg/day. Only send when rooms_playing
-            # changes OR every 5 min as keepalive (~288/day max).
+            # -- Change-driven status_update SSE + 15-min keepalive (v1.70) --
+            # DESIGN NOTE: With the bundled architecture, every outbound message
+            # carries full state via _sse_enrich_state(). Track changes provide
+            # natural state updates every 3-5 min. The status_update here only
+            # fires on room-state changes or as a 15-min keepalive (~96/day).
+            # state data (rooms_playing, play_modes, now_playing_tracks) is
+            # injected automatically by the bundler's _sse_enrich_state().
             global _sse_status_counter, _last_sse_rooms_playing
             _sse_status_counter += 1
             rp = get_rooms_playing()
@@ -2231,32 +2300,9 @@ def sonos_main_loop():
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or keepalive_due:
                 _sse_status_counter = 0
-                # Build now_playing_tracks from room_state for browser init
-                np_tracks = []
-                for coord_name, coord_key in _last_ui_track.items():
-                    rs = room_state.get(coord_name)
-                    if rs and rs.get("track_info"):
-                        ti = rs["track_info"]
-                        np_tracks.append({
-                            "title": ti.get("title", ""),
-                            "artist": ti.get("artist", ""),
-                            "album": ti.get("album", ""),
-                            "rooms": ti.get("rooms", [coord_name]),
-                            "service": ti.get("service", ""),
-                            "uri": ti.get("uri", ""),
-                        })
-                sse_data = {
-                    "client_id": client_id,
-                    "version": SERVICE_VERSION,
-                    "rooms_playing": rp,
-                    "house": house,
-                }
-                # DESIGN NOTE: Always include play_modes (even empty {}) so browser
-                # can distinguish "repeat off" from "no data received yet"
-                sse_data["play_modes"] = dict(_current_play_modes)
-                if np_tracks:
-                    sse_data["now_playing_tracks"] = np_tracks
-                publish_ui_event("status_update", sse_data)
+                # Minimal payload — _sse_enrich_state() in the bundler adds
+                # rooms_playing, play_modes, now_playing_tracks, etc.
+                publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
 
         except Exception as e:
