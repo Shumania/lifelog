@@ -58,7 +58,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.65"
+SERVICE_VERSION = "1.65.1"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1242,11 +1242,11 @@ def execute_command(cmd):
                             )
                             log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]}")
                             if pos is not None:
-                                coord.add_uri_to_queue(track_uri, meta, position=pos)
+                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             elif next_flag:
-                                coord.add_uri_to_queue(track_uri, meta, as_next=True)
+                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
                             else:
-                                coord.add_uri_to_queue(track_uri, meta)
+                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta)
 
                     if as_next:
                         try:
@@ -1355,9 +1355,10 @@ def execute_command(cmd):
                             )
                             log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]}")
                             if pos is not None:
-                                coord.add_uri_to_queue(track_uri, meta, position=pos)
+                                # Use all keyword args to avoid positional conflicts across soco versions
+                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             else:
-                                coord.add_uri_to_queue(track_uri, meta, as_next=True)
+                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
 
                     if is_stream:
                         # Stream active -- can't insert into queue; do a full play
