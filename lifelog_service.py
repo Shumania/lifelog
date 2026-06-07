@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.77"
+SERVICE_VERSION = "1.78"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1493,7 +1493,7 @@ def execute_command(cmd, source="unknown"):
         return
 
     # Track command for diagnostics
-    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count
+    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count, last_post_ts
     _last_command_at = time.time()
     _last_command_action = action
     _last_command_source = source
@@ -1544,7 +1544,6 @@ def execute_command(cmd, source="unknown"):
             try:
                 r = requests.post(WEBHOOK, json=result, timeout=15)
                 log(f"Flush result -> HTTP {r.status_code}: {result['message']}")
-                global last_post_ts
                 last_post_ts = time.time()
             except Exception as e:
                 log(f"Failed to post flush result: {e}")
@@ -2224,7 +2223,6 @@ def execute_command(cmd, source="unknown"):
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result -> HTTP {r.status_code}: {result['message']}")
-        global last_post_ts
         last_post_ts = time.time()
         if result.get("pending_history"):
             try: PENDING_PATH.unlink(missing_ok=True)
