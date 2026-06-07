@@ -342,9 +342,7 @@
 <div class="top-section">
   <div class="top-header">
     <h1>🎵 Listening Log</h1>
-    <div class="status-dots" id="status-bar">
-      <span class="spinner" id="load-spinner" style="display:none"></span>
-    </div>
+    <div class="status-dots" id="status-bar"></div>
   </div>
   <div class="house-tabs">
     <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill')">🏠 Cap Hill</div>
@@ -1106,15 +1104,13 @@ function renderStatusBar() {
   const bar = document.getElementById('status-bar');
   if (!data || !data.client_status) { bar.innerHTML = ''; return; }
   const now = Date.now();
-  const spinner = document.getElementById('load-spinner');
-  let html = spinner ? spinner.outerHTML : '';
-  html += data.client_status.map(c => {
+  const names = { lifelog_shumaframe: 'ShumaFrame', lifelog_mind: 'Mind', lifelog_shumangreypro: 'GreyPro' };
+  bar.innerHTML = data.client_status.map(c => {
     const age = c.last_seen ? Math.round((now - new Date(c.last_seen).getTime()) / 60000) : null;
-    const cls = age === null ? 'red' : age < 10 ? 'green' : age < 30 ? 'yellow' : 'red';
-    const label = c.client_id.replace('sonos_vashon','Vashon').replace('sonos_caphill','Cap Hill').replace('backup_','💾 ');
-    return `<span style="white-space:nowrap"><span class="status-dot ${cls}"></span> ${esc(label)}</span>`;
+    const color = age === null ? '#f87171' : age < 10 ? 'var(--accent)' : age < 30 ? '#eab308' : '#f87171';
+    const label = names[c.client_id] || c.client_id;
+    return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}</span>`;
   }).join('');
-  bar.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1127,8 +1123,6 @@ function mergeItems(head, archive) {
 }
 
 async function loadData(loadArchive) {
-  const spinner = document.getElementById('load-spinner');
-  if (spinner) spinner.style.display = 'inline-block';
   try {
     const r = await fetch(DATA_HEAD_URL + '?t=' + Date.now());
     data = await r.json();
@@ -1138,7 +1132,6 @@ async function loadData(loadArchive) {
   } catch(e) {
     document.getElementById('music-list').innerHTML = '<div class="empty-state">⚠️ Could not load data</div>';
   }
-  if (spinner) spinner.style.display = 'none';
 
   if (loadArchive || !archiveLoaded) {
     try {
