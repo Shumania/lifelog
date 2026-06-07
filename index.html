@@ -744,7 +744,7 @@ function inferActiveRooms(h) {
       const ts = new Date(item.timestamp).getTime();
       if (ts < cutoff) break;
       if (Array.isArray(item.rooms) && item.rooms.length > 0) return [...item.rooms];
-      if (item.room) return [item.room];
+      if (item.room) return item.room.split(', ').map(r => r.trim()).filter(Boolean);
     }
   }
   return [];
