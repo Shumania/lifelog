@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.75"
+SERVICE_VERSION = "1.76"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1484,7 +1484,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs", "flush"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -1525,6 +1525,30 @@ def execute_command(cmd, source="unknown"):
             result["message"] = f"Running update check (v{SERVICE_VERSION})"
             def _do(): time.sleep(2); self_update_check()
             threading.Thread(target=_do, daemon=True).start()
+
+        elif action == "flush":
+            # DESIGN NOTE: Flush is a silent action that drains pending_buffer and
+            # sends an SSE relay with current state. Even if buffer is empty, we POST
+            # the heartbeat + sse_relay so the browser gets fresh now-playing data.
+            # This is triggered by the Sync button in the web UI.
+            flush_count = len(pending_buffer)
+            flush_buffer("flush-cmd")
+            result["success"] = True
+            result["message"] = f"Flushed {flush_count} buffered track(s)"
+            # Override silent behavior -- always POST this result so Tasklet relays SSE
+            sse_relay = build_sse_relay_payload()
+            if sse_relay:
+                result["sse_relay"] = sse_relay
+            result["heartbeat"] = heartbeat_fields()
+            result["t_result_sent"] = now_iso()
+            try:
+                r = requests.post(WEBHOOK, json=result, timeout=15)
+                log(f"Flush result -> HTTP {r.status_code}: {result['message']}")
+                global last_post_ts
+                last_post_ts = time.time()
+            except Exception as e:
+                log(f"Failed to post flush result: {e}")
+            return  # early return -- skip normal silent/non-silent POST logic
 
         elif action == "get_state":
             state = []

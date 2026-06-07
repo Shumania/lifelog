@@ -422,6 +422,9 @@
       </div>
     </div>
     <div id="roaming-devices"></div>
+    <div style="margin-top:12px; text-align:center;">
+      <button class="sync-btn" id="sync-spotify-btn" onclick="syncSpotifyHistory()" style="font-size:13px;">↻ Sync Spotify Web History</button>
+    </div>
   </div>
 </div>
 
@@ -441,6 +444,7 @@
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
       <button class="sync-btn" id="sync-btn" onclick="syncNow()">↻ Sync</button>
+
     </div>
     <div class="content-panel" id="subtab-music">
       <div class="history-list" id="music-list">
@@ -1486,14 +1490,31 @@ async function syncNow() {
   const btn = document.getElementById('sync-btn');
   btn.textContent = '⏳ Syncing...'; btn.disabled = true; btn.style.opacity = '0.6';
   try {
+    // Send flush command to service via ntfy — fast, no LLM
+    await postNtfy({ action: 'flush' });
+    btn.textContent = '✓ Refreshing...'; btn.style.color = 'var(--accent)';
+    // Wait for flush -> webhook -> ingest -> head publish, then reload
+    setTimeout(async () => {
+      await loadData(true);
+      btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+    }, 15000);
+  } catch(e) {
+    btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+  }
+}
+
+async function syncSpotifyHistory() {
+  const btn = document.getElementById('sync-spotify-btn');
+  btn.textContent = '⏳ Syncing Spotify...'; btn.disabled = true; btn.style.opacity = '0.6';
+  try {
     await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
     btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
     setTimeout(async () => {
       await loadData(true);
-      btn.textContent = '↻ Sync Spotify'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+      btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
     }, 35000);
   } catch(e) {
-    btn.textContent = '↻ Sync Spotify'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
+    btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
   }
 }
 
