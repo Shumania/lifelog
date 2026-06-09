@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.82"
+SERVICE_VERSION = "1.83"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -120,7 +120,7 @@ OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
-BUFFER_MAX_AGE_SECS        = 30    # flush if oldest item in buffer exceeds this age (SSE relay)
+BUFFER_MAX_AGE_SECS        = 30    # (LEGACY — buffer_monitor_thread removed in v1.83; kept for reference)
 STATE_PUSH_DEBOUNCE_S      = 5     # debounce window for state.json push
 STATE_RING_MAX             = 30    # max items in state file ring buffer
 
@@ -1049,20 +1049,51 @@ def _sse_schedule_flush():
     _sse_flush_timer.start()
 
 def _sse_do_flush():
-    """DISABLED in v1.75: SSE relay mode -- events relayed via webhook -> Tasklet -> ntfy.
-    Service no longer POSTs directly to ntfy (IP rate-limited). Instead, SSE data
-    is included in every webhook POST via build_sse_relay_payload(), and the server
-    relays it to ntfy from a non-rate-limited IP."""
-    global _sse_send_attempts
+    """Direct ntfy push -- re-enabled in v1.83.
+    v1.75-v1.82: disabled due to IP rate-limiting. v1.80 fixed the root cause
+    (stopped rooms polling at ~240 pushes/hr). Organic rate is ~10-15/hr,
+    well within ntfy free tier (250/hr). Backoff logic retained as safety net."""
+    global _sse_send_attempts, _sse_last_send_ts, _sse_consecutive_429, _sse_backoff_until
     _sse_send_attempts += 1
-    # Drain the bundle so it doesn't accumulate stale data
+    # Drain the bundle
     with _sse_bundle_lock:
         if not _sse_bundle:
             return
         payload = dict(_sse_bundle)
         _sse_bundle.clear()
     event_types = payload.pop("_event_types", [])
-    log(f"SSE relay mode: queued events {event_types} will be relayed via next webhook POST")
+    if not ntfy_ui_topic:
+        log(f"SSE flush: no ntfy_ui_topic configured, dropping {event_types}")
+        return
+    # Backoff check
+    if _sse_backoff_until and time.time() < _sse_backoff_until:
+        log(f"SSE flush skipped: backoff ({int(_sse_backoff_until - time.time())}s remaining)")
+        return
+    # Enrich with full state snapshot
+    try:
+        _sse_enrich_state(payload)
+    except Exception as e:
+        log(f"SSE enrich failed: {e}")
+        return
+    payload["events"] = event_types
+    payload["ts"] = time.time()
+    # POST as plain text body (JSON string) -- browser does JSON.parse(event.data)
+    url = f"https://ntfy.sh/{ntfy_ui_topic}"
+    body = json.dumps(payload)
+    try:
+        r = requests.post(url, data=body.encode("utf-8"), timeout=10)
+        if r.status_code == 429:
+            _sse_consecutive_429 += 1
+            step = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
+            _sse_backoff_until = time.time() + SSE_BACKOFF_STEPS[step]
+            log(f"SSE 429 (#{_sse_consecutive_429}): backing off {SSE_BACKOFF_STEPS[step]}s")
+        else:
+            _sse_consecutive_429 = 0
+            _sse_backoff_until = 0.0
+            _sse_last_send_ts = time.time()
+            log(f"SSE push: {event_types} -> HTTP {r.status_code}")
+    except Exception as e:
+        log(f"SSE push failed: {e}")
 
 def build_sse_relay_payload():
     """Build SSE data for inclusion in webhook POSTs. Server relays this to ntfy.
@@ -2759,9 +2790,10 @@ def main():
             log(f"Warning: couldn't load crash buffer: {e}")
 
     # Start background threads
+    # v1.83: buffer_monitor_thread removed — direct SSE replaces real-time relay need.
+    # Heartbeat thread (60 min) handles hourly batch flush of pending history.
     threads_to_start = [
         threading.Thread(target=heartbeat_thread,     daemon=True, name="heartbeat"),
-        threading.Thread(target=buffer_monitor_thread, daemon=True, name="buffer-monitor"),
         threading.Thread(target=version_check_thread, daemon=True, name="version"),
         threading.Thread(target=ntfy_listener_thread, daemon=True, name="ntfy"),
     ]
