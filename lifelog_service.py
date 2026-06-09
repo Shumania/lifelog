@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.78"
+SERVICE_VERSION = "1.79"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -121,6 +121,8 @@ OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
 BUFFER_MAX_AGE_SECS        = 30    # flush if oldest item in buffer exceeds this age (SSE relay)
+STATE_PUSH_DEBOUNCE_S      = 5     # debounce window for state.json push
+STATE_RING_MAX             = 30    # max items in state file ring buffer
 
 # --- CONFIG -----------------------------------------------------------------
 # [ROLLBACK-UNSAFE] load_config() runs at module level. If it crashes (bad JSON,
@@ -212,6 +214,143 @@ last_post_ts             = 0.0  # updated whenever any POST succeeds
 pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
+STATE_RING_PATH          = INSTALL_DIR / "state_ring_buffer.json"
+
+# --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
+# DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
+# Browser loads this on cold start for instant cross-device now-playing and recent tracks.
+# Debounced: rapid skip/skip/skip collapses to one push. Non-fatal: music always plays.
+_state_ring_buffer       = []     # recent tracks ring buffer (in-memory + disk-persisted)
+_state_push_timer        = None   # threading.Timer for debounced push
+_state_push_sha          = None   # last known SHA of state-{house}.json (avoid extra GET)
+_state_push_count        = 0      # total pushes since startup (diagnostic)
+_state_push_lock         = threading.Lock()
+
+def _load_state_ring_buffer():
+    """Load ring buffer from disk (crash recovery)."""
+    global _state_ring_buffer
+    try:
+        if STATE_RING_PATH.exists():
+            _state_ring_buffer = json.loads(STATE_RING_PATH.read_text(encoding="utf-8"))
+            log(f"[state] Loaded {len(_state_ring_buffer)} items from ring buffer")
+    except Exception as e:
+        log(f"[state] Failed to load ring buffer: {e}")
+        _state_ring_buffer = []
+
+def _persist_state_ring_buffer():
+    """Save ring buffer to disk for crash safety."""
+    try:
+        STATE_RING_PATH.write_text(json.dumps(_state_ring_buffer, ensure_ascii=True), encoding="utf-8")
+    except Exception as e:
+        log(f"[state] Failed to persist ring buffer: {e}")
+
+def _retire_to_state_ring(track_info, rooms_list, started_at=None):
+    """Add a completed track to the state ring buffer."""
+    entry = {
+        "title": track_info.get("title", ""),
+        "artist": track_info.get("artist", ""),
+        "album": track_info.get("album", ""),
+        "rooms": ", ".join(rooms_list) if isinstance(rooms_list, list) else str(rooms_list),
+        "service": track_info.get("service", ""),
+        "uri": track_info.get("uri", ""),
+        "timestamp": (started_at or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    _state_ring_buffer.insert(0, entry)
+    while len(_state_ring_buffer) > STATE_RING_MAX:
+        _state_ring_buffer.pop()
+    _persist_state_ring_buffer()
+
+def _build_state_payload():
+    """Build the state-{house}.json payload from current live state."""
+    # Now playing: derive from room_state (same data source as SSE)
+    np = None
+    rp = get_rooms_playing()
+    for coord_name, rs in room_state.items():
+        if rs and rs.get("track_info"):
+            ti = rs["track_info"]
+            rooms = ti.get("rooms", [coord_name])
+            np = {
+                "title": ti.get("title", ""),
+                "artist": ti.get("artist", ""),
+                "album": ti.get("album", ""),
+                "rooms": rooms,
+                "service": ti.get("service", ""),
+                "uri": ti.get("uri", ""),
+                "play_modes": dict(_current_play_modes),
+                "timestamp": now_iso(),
+            }
+            break  # first active coordinator
+
+    return {
+        "house": house,
+        "last_updated": now_iso(),
+        "now_playing": np,
+        "rooms_playing": rp,
+        "recent_tracks": list(_state_ring_buffer),
+    }
+
+def _do_state_push():
+    """Push state-{house}.json to GitHub. Two API calls: GET SHA + PUT content."""
+    global _state_push_sha, _state_push_count
+    if not gh_token:
+        return  # skip without PAT (60 req/hr too tight for this)
+    try:
+        payload = _build_state_payload()
+        content_json = json.dumps(payload, ensure_ascii=True, separators=(',', ':'))
+        content_b64 = base64.b64encode(content_json.encode("utf-8")).decode("ascii")
+        filename = f"state-{house}.json"
+        url = f"{GITHUB_API_BASE}/{filename}"
+        headers = gh_headers()
+
+        # GET current SHA (needed for update; use cached SHA if available)
+        sha = _state_push_sha
+        if not sha:
+            try:
+                r = requests.get(url, headers=headers, timeout=10)
+                if r.status_code == 200:
+                    sha = r.json().get("sha")
+                elif r.status_code == 404:
+                    sha = None  # file doesn't exist yet, will create
+                else:
+                    log(f"[state] GET SHA failed: HTTP {r.status_code}")
+                    return
+            except Exception as e:
+                log(f"[state] GET SHA error: {e}")
+                return
+
+        # PUT updated content
+        body = {"message": "state", "content": content_b64}
+        if sha:
+            body["sha"] = sha
+        try:
+            r = requests.put(url, headers=headers, json=body, timeout=15)
+            if r.status_code in (200, 201):
+                _state_push_sha = r.json().get("content", {}).get("sha")
+                _state_push_count += 1
+                np_title = payload.get("now_playing", {}).get("title", "none") if payload.get("now_playing") else "none"
+                log(f"[state] Pushed state-{house}.json (#{_state_push_count}, np={np_title}, ring={len(_state_ring_buffer)})")
+            elif r.status_code == 409:
+                # SHA conflict -- clear cached SHA so next push re-fetches
+                _state_push_sha = None
+                log(f"[state] SHA conflict on push -- will retry next change")
+            else:
+                log(f"[state] PUT failed: HTTP {r.status_code}")
+                _state_push_sha = None  # force re-fetch
+        except Exception as e:
+            log(f"[state] PUT error: {e}")
+            _state_push_sha = None
+    except Exception as e:
+        log(f"[state] Push error: {e}")
+
+def schedule_state_push():
+    """Debounced state push. Resets timer on each call; fires after STATE_PUSH_DEBOUNCE_S."""
+    global _state_push_timer
+    with _state_push_lock:
+        if _state_push_timer:
+            _state_push_timer.cancel()
+        _state_push_timer = threading.Timer(STATE_PUSH_DEBOUNCE_S, _do_state_push)
+        _state_push_timer.daemon = True
+        _state_push_timer.start()
 
 # --- DIAGNOSTIC STATE -------------------------------------------------------
 _service_start_ts        = 0.0
@@ -1328,6 +1467,8 @@ def post_history(track, room, started_at, ended_at):
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
     last_sonos_activity_ts = time.time()
+    # Add to state ring buffer for cross-device state.json
+    _retire_to_state_ring(track, track.get("rooms", [room]), started_at)
     uri_or_title = track["uri"] or f"{track['title']}|{track['artist']}"
     fp           = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     bucket       = int(started_at.timestamp() // 60)
@@ -2383,10 +2524,12 @@ def sonos_main_loop():
                             })
                             if len(_track_changes) > 10:
                                 _track_changes.pop(0)
+                            schedule_state_push()  # push state-{house}.json on track change
                     else:
                         if prev and prev.get("track_key") and prev.get("started_at"):
                             post_history(prev["track_info"], room, prev["started_at"], now)
                         room_state[room] = None
+                        schedule_state_push()  # push on stop too
 
             # Rooms that disappeared from network
             for room in list(room_state.keys()):
@@ -2548,6 +2691,9 @@ def main():
 
     # Check for updates at startup
     self_update_check()
+
+    # Load state ring buffer (cross-device state.json)
+    _load_state_ring_buffer()
 
     # Drain any crash-persisted pending history
     if PENDING_PATH.exists():

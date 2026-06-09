@@ -476,6 +476,10 @@ const NTFY = {
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-b1f1ef,lifelog-ui-vashon-b84d1d/sse';
 const DATA_HEAD_URL = 'https://shumania.github.io/lifelog/data-head.json';
 const DATA_FULL_URL = 'https://shumania.github.io/lifelog/data.json';
+const STATE_URLS = {
+  caphill: 'https://shumania.github.io/lifelog/state-caphill.json',
+  vashon: 'https://shumania.github.io/lifelog/state-vashon.json'
+};
 const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e';
 const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
 const ROOMS_LIST = {
@@ -1122,12 +1126,98 @@ function mergeItems(head, archive) {
   return [...head, ...archive.filter(i => !keys.has((i.timestamp||'') + '|' + (i.title||'').toLowerCase()))];
 }
 
+// --- State file merge (cross-device freshness) ---
+// DESIGN NOTE: state-{house}.json is pushed by the service after each track change.
+// Contains now_playing + last 30 tracks. Browser merges these on top of data-head.json
+// so cold loads on any device show near-real-time state (within CDN cache lag ~5-10min).
+async function fetchStateFiles() {
+  const results = {};
+  await Promise.all(Object.entries(STATE_URLS).map(async ([h, url]) => {
+    try {
+      const r = await fetch(url + '?t=' + Date.now());
+      if (r.ok) results[h] = await r.json();
+    } catch(e) {}
+  }));
+  return results;
+}
+
+function mergeStateIntoItems(items, stateFiles) {
+  // Build dedup set from existing items (timestamp+title, case-insensitive)
+  const existingKeys = new Set(items.map(i => (i.timestamp||'') + '|' + (i.title||'').toLowerCase()));
+  const newItems = [];
+
+  for (const [h, state] of Object.entries(stateFiles)) {
+    if (!state || !state.recent_tracks) continue;
+    for (const t of state.recent_tracks) {
+      const key = (t.timestamp||'') + '|' + (t.title||'').toLowerCase();
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      newItems.push({
+        type: 'music',
+        title: t.title || '',
+        artist: t.artist || '',
+        album: t.album || '',
+        source: t.service || 'sonos',
+        timestamp: t.timestamp,
+        domain: t.rooms || '',
+        house: h,
+        uri: t.uri || '',
+        sonos_uri: t.uri || '',
+        _fromState: true
+      });
+    }
+  }
+
+  if (newItems.length === 0) return items;
+  // Merge and sort by timestamp descending
+  const merged = [...items, ...newItems];
+  merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  return merged;
+}
+
+function applyStateNowPlaying(stateFiles) {
+  // Use freshest state file now_playing to seed SSE now-playing (if SSE hasn't overridden)
+  for (const [h, state] of Object.entries(stateFiles)) {
+    if (!state || !state.now_playing) continue;
+    const stateTs = new Date(state.last_updated || 0).getTime();
+    const sseTs = _sseNowPlaying[h]?.ts || 0;
+    // Only apply if state is fresher than current SSE data and within 10 min
+    if (stateTs > sseTs && (Date.now() - stateTs) < 600000) {
+      const np = state.now_playing;
+      _sseNowPlaying[h] = {
+        title: np.title || '', artist: np.artist || '', album: np.album || '',
+        rooms: [...new Set(np.rooms || [])], service: np.service || '',
+        uri: np.uri || '', ts: stateTs, _fromState: true
+      };
+      if (!_sseNowPlayingGlobal || stateTs > (_sseNowPlayingGlobal.ts || 0)) {
+        _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
+      }
+    }
+    // Also seed rooms_playing if state is fresher
+    if (state.rooms_playing && state.rooms_playing.length > 0 && h === house) {
+      if (stateTs > sseTs && !_userManualRoomSelect[h]) {
+        _roomsPlaying = [...state.rooms_playing];
+        selectedRooms[h] = [...state.rooms_playing];
+        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+      }
+    }
+  }
+}
+
 async function loadData(loadArchive) {
   try {
-    const r = await fetch(DATA_HEAD_URL + '?t=' + Date.now());
-    data = await r.json();
-    const headItems = data.items || [];
+    // Fetch data-head.json and state files in parallel
+    const [headResp, stateFiles] = await Promise.all([
+      fetch(DATA_HEAD_URL + '?t=' + Date.now()).then(r => r.json()),
+      fetchStateFiles()
+    ]);
+    data = headResp;
+    let headItems = data.items || [];
+    // Merge state file tracks into head items
+    headItems = mergeStateIntoItems(headItems, stateFiles);
     allItems = mergeItems(headItems, archiveItems);
+    // Apply state now_playing (before renderAll so Now Playing bar is correct)
+    applyStateNowPlaying(stateFiles);
     renderAll();
   } catch(e) {
     document.getElementById('music-list').innerHTML = '<div class="empty-state">⚠️ Could not load data</div>';
