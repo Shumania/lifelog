@@ -1849,6 +1849,8 @@ function connectSSE() {
 
 // SSE watchdog + reconnect
 setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+// Status bar freshness re-render (colors drift as time passes)
+setInterval(() => { renderStatusBar(); }, 60000);
 
 // Stale Now Playing watchdog — clear if >10 min since last update (missed stopped event safety net)
 setInterval(() => {

@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.84"
+SERVICE_VERSION = "1.85"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -200,6 +200,7 @@ current_devices_by_name  = {}
 room_state               = {}
 _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
 _last_sse_rooms_playing  = []   # for change detection on status_update SSE
+_last_sse_mute_states    = {}   # for change detection on mute toggle
 _sse_status_counter      = 0    # emit status_update every N poll cycles
 _current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, etc.)
 _current_mute_states     = {}   # room -> bool (True=muted)
@@ -2545,6 +2546,9 @@ def sonos_main_loop():
                     rdy_payload.update(heartbeat_fields())
                     requests.post(WEBHOOK, json=rdy_payload, timeout=10)
                     log("Ready heartbeat sent")
+                    # Send SSE status_update so browser status bar goes green immediately
+                    publish_ui_event("status_update", {})
+                    log("Startup SSE status_update sent")
                 except Exception as e:
                     log(f"Ready heartbeat failed: {e}")
 
@@ -2651,17 +2655,19 @@ def sonos_main_loop():
             # fires on room-state changes or as a 15-min keepalive (~96/day).
             # state data (rooms_playing, play_modes, now_playing_tracks) is
             # injected automatically by the bundler's _sse_enrich_state().
-            global _sse_status_counter, _last_sse_rooms_playing
+            global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states
             _sse_status_counter += 1
             rp = get_rooms_playing()
             rooms_changed = (rp != _last_sse_rooms_playing)
+            mutes_changed = (dict(_current_mute_states) != _last_sse_mute_states)
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
-            if rooms_changed or keepalive_due:
+            if rooms_changed or mutes_changed or keepalive_due:
                 _sse_status_counter = 0
                 # Minimal payload — _sse_enrich_state() in the bundler adds
-                # rooms_playing, play_modes, now_playing_tracks, etc.
+                # rooms_playing, play_modes, mute_states, now_playing_tracks, etc.
                 publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
+                _last_sse_mute_states = dict(_current_mute_states)
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"
