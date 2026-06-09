@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.79"
+SERVICE_VERSION = "1.80"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2526,10 +2526,12 @@ def sonos_main_loop():
                                 _track_changes.pop(0)
                             schedule_state_push()  # push state-{house}.json on track change
                     else:
-                        if prev and prev.get("track_key") and prev.get("started_at"):
+                        was_playing = prev and prev.get("track_key")
+                        if was_playing and prev.get("started_at"):
                             post_history(prev["track_info"], room, prev["started_at"], now)
                         room_state[room] = None
-                        schedule_state_push()  # push on stop too
+                        if was_playing:
+                            schedule_state_push()  # push on playing->stopped transition only
 
             # Rooms that disappeared from network
             for room in list(room_state.keys()):
