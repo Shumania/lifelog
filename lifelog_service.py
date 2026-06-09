@@ -472,6 +472,7 @@ def post_error(message, context="", module="service"):
         "module":   module,
         "version":  SERVICE_VERSION,
         "timestamp": now_iso(),
+        "recent_logs": get_recent_logs(100),
     }
     try:
         requests.post(WEBHOOK, json=payload, timeout=10)
