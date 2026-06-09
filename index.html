@@ -1826,6 +1826,15 @@ function connectSSE() {
           _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
           if (house === 'roaming') renderNowPlayingRoaming();
         }
+      } else if ((!msg.now_playing_tracks || msg.now_playing_tracks.length === 0) && events.includes('status_update')) {
+        // Status update says nothing playing — clear _fromStatus entries (they were seeded from a previous snapshot)
+        const h = sseHouse || house;
+        if (_sseNowPlaying[h] && _sseNowPlaying[h]._fromStatus) {
+          delete _sseNowPlaying[h];
+          if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === h) _sseNowPlayingGlobal = null;
+          if (h === house) renderNowPlayingSonos(house);
+          if (house === 'roaming') renderNowPlayingRoaming();
+        }
       }
 
       // --- Update status dot ---
@@ -1840,6 +1849,20 @@ function connectSSE() {
 
 // SSE watchdog + reconnect
 setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 30000);
+
+// Stale Now Playing watchdog — clear if >10 min since last update (missed stopped event safety net)
+setInterval(() => {
+  const STALE_MS = 600000; // 10 min
+  for (const h of Object.keys(_sseNowPlaying)) {
+    if (Date.now() - (_sseNowPlaying[h].ts || 0) > STALE_MS) {
+      console.log(`[stale-watchdog] Clearing stale now_playing for ${h} (age: ${Math.round((Date.now() - _sseNowPlaying[h].ts) / 60000)}m)`);
+      delete _sseNowPlaying[h];
+      if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === h) _sseNowPlayingGlobal = null;
+      if (h === house) renderNowPlayingSonos(house);
+      if (house === 'roaming') renderNowPlayingRoaming();
+    }
+  }
+}, 60000);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     connectSSE();

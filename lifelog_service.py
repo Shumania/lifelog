@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.83"
+SERVICE_VERSION = "1.84"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2538,6 +2538,15 @@ def sonos_main_loop():
                 log(f"Found {len(names)} coordinator(s): {', '.join(names)}" if names
                     else "No speakers found -- retrying...")
                 first_run = False
+                # -- Startup "ready" heartbeat -- Sonos discovered, full state available
+                try:
+                    log("Sending startup ready heartbeat...")
+                    rdy_payload = {"type": "heartbeat", "startup_phase": "ready"}
+                    rdy_payload.update(heartbeat_fields())
+                    requests.post(WEBHOOK, json=rdy_payload, timeout=10)
+                    log("Ready heartbeat sent")
+                except Exception as e:
+                    log(f"Ready heartbeat failed: {e}")
 
             now = datetime.now(timezone.utc)
 
@@ -2619,6 +2628,16 @@ def sonos_main_loop():
                     if prev and prev.get("track_key") and prev.get("started_at"):
                         post_history(prev["track_info"], room, prev["started_at"], now)
                     room_state[room] = None
+
+            # Clean up _last_ui_track for coordinators that vanished from network
+            # Without this, stopped event never fires if coordinator disappears
+            seen_coords = {dev.player_name for dev in coordinators}
+            stale_coords = [c for c in _last_ui_track if c not in seen_coords]
+            for c in stale_coords:
+                del _last_ui_track[c]
+                log(f"[UI] Cleaned stale _last_ui_track for disappeared coordinator: {c}")
+            if stale_coords and not _last_ui_track:
+                publish_ui_event("stopped", {"rooms": []})
 
             cmd_counter += 1
             if cmd_counter >= CMD_POLL_EVERY:
@@ -2814,6 +2833,16 @@ def main():
         flag_started.unlink(missing_ok=True)
         flag_in_progress.unlink(missing_ok=True)
         bak_path.unlink(missing_ok=True)
+
+    # -- Startup "boot" heartbeat -- immediate visibility after upgrade --------
+    try:
+        log("Sending startup boot heartbeat...")
+        payload = {"type": "heartbeat", "startup_phase": "boot"}
+        payload.update(heartbeat_fields())
+        requests.post(WEBHOOK, json=payload, timeout=10)
+        log("Boot heartbeat sent")
+    except Exception as e:
+        log(f"Boot heartbeat failed: {e}")
 
     # Sonos runs on main thread (visible activity in console)
     if "sonos" in modules:
