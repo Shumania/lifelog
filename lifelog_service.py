@@ -59,7 +59,7 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.80"
+SERVICE_VERSION = "1.81"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -202,6 +202,7 @@ _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
 _last_sse_rooms_playing  = []   # for change detection on status_update SSE
 _sse_status_counter      = 0    # emit status_update every N poll cycles
 _current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, etc.)
+_current_mute_states     = {}   # room -> bool (True=muted)
 speaker_failures         = {}
 speaker_offline_since    = {}
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
@@ -617,12 +618,13 @@ def self_update_check():
 def get_rooms_playing():
     """Query each known Sonos device for transport state, return list of rooms currently PLAYING.
     Also updates _current_play_modes with play mode per coordinator (NORMAL, REPEAT_ALL, etc.)."""
-    global _current_play_modes
+    global _current_play_modes, _current_mute_states
     if "sonos" not in modules:
         return []
     playing = []
     states = {}
     modes = {}
+    mutes = {}
     for name, dev in current_devices_by_name.items():
         try:
             # Skip group members -- only query coordinators and solo speakers
@@ -633,6 +635,11 @@ def get_rooms_playing():
             info = dev.get_current_transport_info()
             state = info.get("current_transport_state", "STOPPED")
             states[name] = state
+            # Capture mute state for all coordinators (not just playing ones)
+            try:
+                mutes[name] = bool(dev.mute)
+            except Exception:
+                pass
             if state == "PLAYING":
                 # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
@@ -661,6 +668,7 @@ def get_rooms_playing():
     _last_transport_states.clear()
     _last_transport_states.update(states)
     _current_play_modes = modes
+    _current_mute_states = mutes
     return sorted(set(playing))
 
 
@@ -994,6 +1002,7 @@ def _sse_enrich_state(payload):
     rp = get_rooms_playing()
     payload["rooms_playing"] = rp
     payload["play_modes"] = dict(_current_play_modes)
+    payload["mute_states"] = dict(_current_mute_states)
     payload["house"] = house
     payload["client_id"] = client_id
     payload["version"] = SERVICE_VERSION
@@ -2215,10 +2224,12 @@ def execute_command(cmd, source="unknown"):
             step  = int(cmd.get("step", 10))
             dev   = devices.get(room)
             if dev:
+                if dev.mute:
+                    dev.mute = False  # auto-unmute on volume up
                 new_vol = min(100, dev.volume + step)
                 dev.volume = new_vol
                 result["success"] = True
-                result["message"] = f"Volume -> {new_vol} in {room}"
+                result["message"] = f"Volume -> {new_vol} in {room} (unmuted)" if not dev.mute else f"Volume -> {new_vol} in {room}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
@@ -2231,6 +2242,42 @@ def execute_command(cmd, source="unknown"):
                 dev.volume = new_vol
                 result["success"] = True
                 result["message"] = f"Volume -> {new_vol} in {room}"
+            else:
+                result["message"] = f"Room '{room}' not found"
+
+        elif action == "toggle_mute":
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if dev:
+                new_mute = not dev.mute
+                dev.mute = new_mute
+                result["success"] = True
+                result["message"] = f"{'Muted' if new_mute else 'Unmuted'} {room}"
+            else:
+                result["message"] = f"Room '{room}' not found"
+
+        elif action == "cycle_repeat":
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if dev:
+                try:
+                    cur = dev.play_mode
+                    # Cycle: NORMAL -> REPEAT_ALL -> REPEAT_ONE -> NORMAL
+                    # Preserve shuffle state if active
+                    cycle = {
+                        "NORMAL": "REPEAT_ALL",
+                        "REPEAT_ALL": "REPEAT_ONE",
+                        "REPEAT_ONE": "NORMAL",
+                        "SHUFFLE": "SHUFFLE",           # shuffle stays as-is
+                        "SHUFFLE_NOREPEAT": "SHUFFLE",  # add repeat
+                        "SHUFFLE_REPEAT_ONE": "SHUFFLE_NOREPEAT",  # remove repeat
+                    }
+                    new_mode = cycle.get(cur, "NORMAL")
+                    dev.play_mode = new_mode
+                    result["success"] = True
+                    result["message"] = f"Repeat: {cur} -> {new_mode} in {room}"
+                except Exception as e:
+                    result["message"] = f"cycle_repeat error: {e}"
             else:
                 result["message"] = f"Room '{room}' not found"
 

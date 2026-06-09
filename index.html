@@ -89,6 +89,10 @@
   .ctrl-btn:hover { background: var(--surface2); border-color: var(--text-dim); }
   .ctrl-btn:active { transform: scale(0.95); }
   .volume-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .mute-btn { width: 36px; height: 36px; font-size: 16px; }
+  .mute-btn.muted { color: #ef4444; }
+  .repeat-btn { width: 36px; height: 36px; font-size: 16px; opacity: 0.4; }
+  .repeat-btn.active { opacity: 1; color: var(--accent); }
   .vol-label { font-size: 11px; color: var(--text-dim); min-width: 28px; text-align: center; }
 
   .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -365,9 +369,10 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="repeat-btn-caphill" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
-        <span class="vol-label" id="vol-label-caphill">Vol</span>
+        <button class="ctrl-btn mute-btn" id="mute-btn-caphill" onclick="sendCmd('toggle_mute')" title="Toggle mute">🔊</button>
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
@@ -389,9 +394,10 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="repeat-btn-vashon" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
-        <span class="vol-label" id="vol-label-vashon">Vol</span>
+        <button class="ctrl-btn mute-btn" id="mute-btn-vashon" onclick="sendCmd('toggle_mute')" title="Toggle mute">🔊</button>
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
@@ -413,9 +419,10 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="repeat-btn-roaming" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
-        <span class="vol-label" id="vol-label-roaming">Vol</span>
+        <button class="ctrl-btn mute-btn" id="mute-btn-roaming" onclick="sendCmd('toggle_mute')" title="Toggle mute">🔊</button>
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
     </div>
@@ -507,6 +514,7 @@ let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
 let _roomsPlaying = [];  // rooms currently playing (from SSE status_update)
 let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
+let _muteStates = {};    // coordinator -> bool (from SSE)
 
 // Spotify state
 const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
@@ -851,7 +859,32 @@ async function spotifyCmd(action) {
         const cur = spotifyDevices.find(d => d.is_active)?.volume_percent || 50;
         const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 10 : -10)));
         await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
-        document.getElementById('vol-label-roaming').textContent = vol + '%';
+        break;
+      }
+      case 'toggle_mute': {
+        // Spotify doesn't have native mute — toggle between current vol and 0
+        const active = spotifyDevices.find(d => d.is_active);
+        const curVol = active?.volume_percent ?? 50;
+        if (curVol > 0) {
+          window._spotifyPreMuteVol = curVol;
+          await spotifyApi('PUT', '/me/player/volume?volume_percent=0' + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        } else {
+          const restore = window._spotifyPreMuteVol || 50;
+          await spotifyApi('PUT', '/me/player/volume?volume_percent=' + restore + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        }
+        break;
+      }
+      case 'cycle_repeat': {
+        // Fetch current state, cycle: off -> context -> track -> off
+        const state = await spotifyApi('GET', '/me/player');
+        const cur = state?.repeat_state || 'off';
+        const next = cur === 'off' ? 'context' : cur === 'context' ? 'track' : 'off';
+        await spotifyApi('PUT', '/me/player/repeat?state=' + next + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        const btn = document.getElementById('repeat-btn-roaming');
+        if (btn) {
+          btn.textContent = next === 'track' ? '🔂' : next === 'context' ? '🔁' : '➖';
+          btn.classList.toggle('active', next !== 'off');
+        }
         break;
       }
     }
@@ -989,6 +1022,31 @@ function getRepeatBadge() {
     if (mode === 'REPEAT_ALL' || mode === 'SHUFFLE') return '🔁';
   }
   return '';
+}
+
+function updateMuteRepeatButtons() {
+  // Update mute buttons for each house panel
+  for (const h of ['caphill', 'vashon', 'roaming']) {
+    const muteBtn = document.getElementById('mute-btn-' + h);
+    if (muteBtn && h !== 'roaming') {
+      // Find first active room's mute state
+      const activeRoom = (_roomsPlaying && _roomsPlaying.length > 0) ? _roomsPlaying[0] : null;
+      const isMuted = activeRoom ? !!_muteStates[activeRoom] : false;
+      muteBtn.textContent = isMuted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('muted', isMuted);
+    }
+    const repeatBtn = document.getElementById('repeat-btn-' + h);
+    if (repeatBtn && h !== 'roaming') {
+      // Find first active room's repeat mode
+      const activeRoom = (_roomsPlaying && _roomsPlaying.length > 0) ? _roomsPlaying[0] : null;
+      const mode = activeRoom ? (_playModes[activeRoom] || 'NORMAL') : 'NORMAL';
+      const isRepeatOne = mode === 'REPEAT_ONE' || mode === 'SHUFFLE_REPEAT_ONE';
+      const isRepeatAll = mode === 'REPEAT_ALL' || mode === 'SHUFFLE';
+      const isActive = isRepeatOne || isRepeatAll;
+      repeatBtn.textContent = isRepeatOne ? '🔂' : (isRepeatAll ? '🔁' : '➖');
+      repeatBtn.classList.toggle('active', isActive);
+    }
+  }
 }
 
 function renderNowPlayingSonos(h) {
@@ -1694,7 +1752,8 @@ function connectSSE() {
       }
 
       // --- Always process state fields (every bundled message is a full snapshot) ---
-      if (msg.play_modes !== undefined) _playModes = msg.play_modes;
+      if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
+      if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
       if (sseHouse && msg.rooms_playing) {
         if (sseHouse === house) {
           _roomsPlaying = [...msg.rooms_playing];
