@@ -59,7 +59,9 @@ import requests
 # [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
 # process. The old version's SERVICE_VERSION is compared against versions.json to decide
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-SERVICE_VERSION = "1.85"
+# IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
+# Mismatch = silent update failure. See v1.83 postmortem.
+SERVICE_VERSION = "1.86"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -496,7 +498,13 @@ def self_update_check():
             log("Version check: GitHub unavailable (will retry next cycle)")
             return
         versions = json.loads(gh_decode(r))
-        latest = versions.get("service_version", SERVICE_VERSION)
+        # KEY MUST BE "service_version" — not "service", not "version".
+        # If the key is missing, versions.json is malformed. Log a loud warning
+        # so silent fallback never hides a broken update again (v1.83 root cause).
+        if "service_version" not in versions:
+            log(f"[!] versions.json MISSING 'service_version' key! Keys found: {list(versions.keys())}. Update check SKIPPED.")
+            return
+        latest = versions["service_version"]
         log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
             # Clear any skip_version file if we are now running the target version
