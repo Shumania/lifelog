@@ -1046,20 +1046,33 @@ function setMuteIcon(btn, isMuted) {
   btn.classList.toggle('muted', isMuted);
 }
 
+function _getActiveRoom(h) {
+  // 1. Currently playing room
+  if (_roomsPlaying && _roomsPlaying.length > 0) return _roomsPlaying[0];
+  // 2. Selected rooms (room tiles user tapped — persisted in localStorage)
+  const sel = selectedRooms[h];
+  if (sel && sel.length > 0) return sel[0];
+  // 3. Now-playing SSE data (last track's room)
+  const sse = _sseNowPlaying[h];
+  if (sse && sse.rooms && sse.rooms.length > 0) return sse.rooms[0];
+  // 4. First room with any mute state reported
+  const rooms = Object.keys(_muteStates);
+  if (rooms.length > 0) return rooms[0];
+  return null;
+}
+
 function updateMuteRepeatButtons() {
   // Update mute buttons for each house panel
   for (const h of ['caphill', 'vashon', 'roaming']) {
     const muteBtn = document.getElementById('mute-btn-' + h);
     if (muteBtn && h !== 'roaming') {
-      // Find first active room's mute state
-      const activeRoom = (_roomsPlaying && _roomsPlaying.length > 0) ? _roomsPlaying[0] : null;
+      const activeRoom = _getActiveRoom(h);
       const isMuted = activeRoom ? !!_muteStates[activeRoom] : false;
       setMuteIcon(muteBtn, isMuted);
     }
     const repeatBtn = document.getElementById('repeat-btn-' + h);
     if (repeatBtn && h !== 'roaming') {
-      // Find first active room's repeat mode
-      const activeRoom = (_roomsPlaying && _roomsPlaying.length > 0) ? _roomsPlaying[0] : null;
+      const activeRoom = _getActiveRoom(h);
       const mode = activeRoom ? (_playModes[activeRoom] || 'NORMAL') : 'NORMAL';
       const isRepeatOne = mode === 'REPEAT_ONE' || mode === 'SHUFFLE_REPEAT_ONE';
       const isRepeatAll = mode === 'REPEAT_ALL' || mode === 'SHUFFLE';

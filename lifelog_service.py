@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.87"
+SERVICE_VERSION = "1.88"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2564,6 +2564,21 @@ def sonos_main_loop():
     while True:
         try:
             coordinators = get_coordinators()
+            # Build flat device map for commands (before ready heartbeat so SSE has mute data)
+            all_devices = {}
+            try:
+                now_t = time.time()
+                for dev in soco.discover(timeout=5) or []:
+                    ip = dev.ip_address
+                    if ip in _offline_ips and now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
+                        continue
+                    try:
+                        all_devices[dev.player_name] = dev
+                    except Exception:
+                        _offline_ips[ip] = now_t
+            except: pass
+            current_devices_by_name = all_devices
+
             if first_run:
                 names = [d.player_name for d in coordinators]
                 log(f"Found {len(names)} coordinator(s): {', '.join(names)}" if names
@@ -2583,21 +2598,6 @@ def sonos_main_loop():
                     log(f"Ready heartbeat failed: {e}")
 
             now = datetime.now(timezone.utc)
-
-            # Build flat device map for commands
-            all_devices = {}
-            try:
-                now_t = time.time()
-                for dev in soco.discover(timeout=5) or []:
-                    ip = dev.ip_address
-                    if ip in _offline_ips and now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
-                        continue
-                    try:
-                        all_devices[dev.player_name] = dev
-                    except Exception:
-                        _offline_ips[ip] = now_t
-            except: pass
-            current_devices_by_name = all_devices
 
             seen_rooms = set()
             for dev in coordinators:
