@@ -1565,8 +1565,12 @@ async function directPlay(action, encodedData) {
   const info = JSON.parse(decodeURIComponent(encodedData));
   let uri = info.uri;
 
+  // Determine play target: use the track's own service/house, not the active tab.
+  // Roaming (Spotify-sourced) tracks should use Spotify Connect even when viewed from Cap Hill/Vashon tabs.
+  const trackIsRoaming = (info.service || '').toLowerCase() === 'spotify' && !info.sonos_uri;
+
   // --- SONOS PATH (Cap Hill / Vashon) ---
-  if (house !== 'roaming') {
+  if (house !== 'roaming' && !trackIsRoaming) {
     const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
     if (!rooms.length) { showToast('No rooms selected', true); return; }
 
