@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.88"
+SERVICE_VERSION = "1.89"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1980,6 +1980,7 @@ def execute_command(cmd, source="unknown"):
             # If a stream (TuneIn, radio, line-in, TV) is playing, there's no queue to insert into,
             # so fall back to full play (clear queue, add, play from 0).
             from soco.plugins.sharelink import ShareLinkPlugin
+            from xml.sax.saxutils import escape as xml_escape
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
             dev, rooms, was_grouped = _setup_rooms(cmd, devices)
@@ -1999,6 +2000,22 @@ def execute_command(cmd, source="unknown"):
                     share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
                 else:
                     share_url = None  # Raw Sonos URI -- no share link needed
+
+                def _build_didl_meta(t, u):
+                    """Build DIDL-Lite XML metadata for non-Spotify URIs.
+                    Uses proper item IDs (R:0/0/0) so Sonos displays title correctly."""
+                    return (
+                        '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                        'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+                        'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                        'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+                        '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
+                        '<dc:title>' + xml_escape(t or "Unknown Track") + '</dc:title>'
+                        '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
+                        '<res protocolInfo="*:*:*:*">' + xml_escape(u) + '</res>'
+                        '</item></DIDL-Lite>'
+                    )
+
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
                     # Check if current source is a stream (no queue to insert into)
@@ -2015,9 +2032,7 @@ def execute_command(cmd, source="unknown"):
                         log(f"play_next: GetMediaInfo failed ({mi_err}), assuming queue-based")
 
                     def _add_to_queue(coord, pos=None):
-                        """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue.
-                        For non-Spotify URIs, we use add_uri_to_queue with hand-crafted DIDL-Lite
-                        XML metadata so Sonos displays the track title correctly."""
+                        """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue."""
                         if is_spotify:
                             plugin = ShareLinkPlugin(coord)
                             if pos is not None:
@@ -2025,28 +2040,9 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 plugin.add_share_link_to_queue(share_url)
                         else:
-                            # [DESIGN NOTE] Raw Sonos URI (Qobuz, Apple Music, etc.)
-                            # v1.64: DidlMusicTrack with empty item_id="" -> Sonos ignores metadata
-                            #   -> shows "No Content" in Sonos app. Album art resolves but title does not.
-                            # v1.65 fix: Use add_uri_to_queue() with hand-crafted DIDL-Lite XML
-                            #   that includes proper item IDs (R:0/0/0) and dc:title.
-                            from xml.sax.saxutils import escape as xml_escape
-                            safe_title = xml_escape(title or "Unknown Track")
-                            safe_uri = xml_escape(track_uri)
-                            meta = (
-                                '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
-                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
-                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
-                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
-                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
-                                '<dc:title>' + safe_title + '</dc:title>'
-                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
-                                '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
-                                '</item></DIDL-Lite>'
-                            )
+                            meta = _build_didl_meta(title, track_uri)
                             log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]}")
                             if pos is not None:
-                                # Use all keyword args to avoid positional conflicts across soco versions
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             else:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
@@ -2062,20 +2058,7 @@ def execute_command(cmd, source="unknown"):
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
                             # (v1.87 fix: DIDL queue approach showed "Song [1/1]" with no audio)
-                            from xml.sax.saxutils import escape as xml_escape
-                            safe_title = xml_escape(title or "Unknown Track")
-                            safe_uri = xml_escape(track_uri)
-                            meta = (
-                                '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
-                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
-                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
-                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
-                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
-                                '<dc:title>' + safe_title + '</dc:title>'
-                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
-                                '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
-                                '</item></DIDL-Lite>'
-                            )
+                            meta = _build_didl_meta(title, track_uri)
                             log(f"play_next: using play_uri() for non-Spotify stream replacement")
                             coordinator.play_uri(track_uri, meta, title=title or '')
                     else:
