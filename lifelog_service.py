@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.92"
+SERVICE_VERSION = "1.93"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -386,6 +386,31 @@ _log_lock        = threading.Lock()
 _LOG_RING_MAX    = 200
 _log_ring        = deque(maxlen=_LOG_RING_MAX)
 _log_ring_lock   = threading.Lock()
+
+# Command results ring buffer — structured outcomes for agent-side correlation
+_CMD_RESULTS_MAX = 20
+_command_results = deque(maxlen=_CMD_RESULTS_MAX)
+_command_results_lock = threading.Lock()
+
+def record_command_result(action, success, message, cmd_ts=None, detail=None):
+    """Append a structured command outcome to the ring buffer."""
+    entry = {
+        "action": action,
+        "status": "ok" if success else "error",
+        "message": message,
+        "at": now_iso(),
+    }
+    if cmd_ts:
+        entry["cmd_ts"] = cmd_ts
+    if detail:
+        entry["detail"] = detail
+    with _command_results_lock:
+        _command_results.append(entry)
+
+def get_command_results():
+    """Return recent command results for embedding in heartbeats."""
+    with _command_results_lock:
+        return list(_command_results)
 
 def _rotate_log_if_needed():
     """Trim log file to last 800 lines if it exceeds 500 KB."""
@@ -976,6 +1001,8 @@ def heartbeat_fields():
     }
     # Recent log lines — ride along on every POST for visibility
     fields["recent_logs"] = get_recent_logs(50)
+    # Structured command outcomes — for agent-side confirmation/debugging
+    fields["command_results"] = get_command_results()
     return fields
 
 def _send_heartbeat():
@@ -2461,6 +2488,15 @@ def execute_command(cmd, source="unknown"):
         try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
         except: pass
     result["t_result_sent"] = now_iso()
+
+    # Record structured command outcome (ALL commands, silent or not)
+    record_command_result(
+        action=action,
+        success=result.get("success", False),
+        message=result.get("message", ""),
+        cmd_ts=cmd.get("cmd_ts"),
+        detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
+    )
 
     # Silent actions (volume, etc.) -- log locally, skip webhook POST entirely
     if is_silent:
