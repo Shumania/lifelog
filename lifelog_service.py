@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.90"
+SERVICE_VERSION = "1.91"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -951,11 +951,13 @@ _just_commanded_room = None
 
 def heartbeat_fields():
     """Return standard heartbeat dict to embed in any outbound payload."""
+    boot_iso = datetime.fromtimestamp(_service_start_ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fields = {
         "client_id":       client_id,
         "client_type":     "lifelog_service",
         "house":           house,
         "version":         SERVICE_VERSION,
+        "boot_time":       boot_iso,
         "modules":         modules,
         "computer":        computer,
         "sonos_capable":   "sonos" in modules,
