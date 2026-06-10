@@ -1352,7 +1352,7 @@ function getLocation(item) {
   const src = item.source || '';
   if (item.house === 'vashon') return { cls: 'vashon', label: '🏝 Vashon' };
   if (item.house === 'caphill') return { cls: 'caphill', label: '🏠 Cap Hill' };
-  if (src === 'spotify' || src === 'spotify_teenbloods') return { cls: 'roaming', label: '📱 Roaming' };
+  if (item.house === 'roaming') return { cls: 'roaming', label: '📱 Roaming' };
   if (src.startsWith('sonos_')) return { cls: 'caphill', label: '🏠 Cap Hill' };
   return { cls: 'roaming', label: '📱 Roaming' };
 }
