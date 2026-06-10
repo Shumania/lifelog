@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.86"
+SERVICE_VERSION = "1.87"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2052,10 +2052,32 @@ def execute_command(cmd, source="unknown"):
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
 
                     if is_stream:
-                        # Stream active -- can't insert into queue; do a full play
-                        coordinator.clear_queue()
-                        _add_to_queue(coordinator)
-                        coordinator.play_from_queue(0)
+                        # Stream active -- can't insert into queue; replace the stream
+                        if is_spotify:
+                            # Spotify: clear queue + add via ShareLinkPlugin + play from queue
+                            coordinator.clear_queue()
+                            _add_to_queue(coordinator)
+                            coordinator.play_from_queue(0)
+                        else:
+                            # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
+                            # than clear_queue + DIDL + play_from_queue which can silently fail
+                            # (v1.87 fix: DIDL queue approach showed "Song [1/1]" with no audio)
+                            from xml.sax.saxutils import escape as xml_escape
+                            safe_title = xml_escape(title or "Unknown Track")
+                            safe_uri = xml_escape(track_uri)
+                            meta = (
+                                '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
+                                '<dc:title>' + safe_title + '</dc:title>'
+                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
+                                '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
+                                '</item></DIDL-Lite>'
+                            )
+                            log(f"play_next: using play_uri() for non-Spotify stream replacement")
+                            coordinator.play_uri(track_uri, meta, title=title or '')
                     else:
                         # Queue-based source -- insert at next position and skip
                         info = coordinator.get_current_track_info()
