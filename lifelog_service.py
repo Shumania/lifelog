@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.91"
+SERVICE_VERSION = "1.92"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1677,7 +1677,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
