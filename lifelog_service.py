@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.89"
+SERVICE_VERSION = "1.90"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2087,6 +2087,25 @@ def execute_command(cmd, source="unknown"):
                     result["success"] = True
                     mode_note = "full play (was stream)" if is_stream else "queue insert"
                     svc_note = "spotify" if is_spotify else "native"
+
+                    # DESIGN NOTE: If title is still a raw URI (e.g. "spotify:track:xxx"),
+                    # Sonos hasn't resolved metadata yet. Wait briefly and re-poll.
+                    artist = cmd.get("artist", "")
+                    album = cmd.get("album", "")
+                    if title.startswith("spotify:") or (not artist and title == track_uri):
+                        time.sleep(2)
+                        try:
+                            resolved = get_track_info(coordinator)
+                            if resolved and resolved.get("title") and not resolved["title"].startswith("spotify:"):
+                                title = resolved["title"]
+                                artist = artist or resolved.get("artist", "")
+                                album = album or resolved.get("album", "")
+                                log(f"play_next: resolved metadata after delay: '{title}' - {artist}")
+                            else:
+                                log(f"play_next: metadata still unresolved after 2s delay")
+                        except Exception as resolve_err:
+                            log(f"play_next: metadata resolve failed ({resolve_err})")
+
                     result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}"
                     result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri,
                                       "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
@@ -2096,8 +2115,6 @@ def execute_command(cmd, source="unknown"):
                     # Fix: publish SSE immediately from command payload so browser updates.
                     # Also inject into _last_ui_track to prevent duplicate SSE from polling loop.
                     try:
-                        artist = cmd.get("artist", "")
-                        album = cmd.get("album", "")
                         service_name = "Spotify" if is_spotify else detect_service(track_uri, "")
                         # Minimal payload — bundler's _sse_enrich_state() adds
                         # play_modes, rooms_playing, client_id, version, etc.

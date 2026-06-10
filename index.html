@@ -1911,7 +1911,7 @@ function handleDeepLink() {
       const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
       if (!rooms.length) { showToast('No rooms', true); return; }
       const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-      await postNtfy({ action: ntfyAction, uri, rooms, target_client_id: commanderId });
+      await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
       showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
     }
   }, 500);
