@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.93"
+SERVICE_VERSION = "1.94"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1000,7 +1000,7 @@ def heartbeat_fields():
         "topic": ntfy_ui_topic,
     }
     # Recent log lines — ride along on every POST for visibility
-    fields["recent_logs"] = get_recent_logs(50)
+    fields["recent_logs"] = get_recent_logs(100)
     # Structured command outcomes — for agent-side confirmation/debugging
     fields["command_results"] = get_command_results()
     return fields
