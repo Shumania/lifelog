@@ -294,6 +294,14 @@
     padding: 8px 0 4px; border-top: 1px solid var(--border); margin-top: 4px;
   }
   .suggestion-section-label:first-of-type { margin-top: 0; border-top: none; }
+  .disc-overflow-toggle {
+    text-align: center; padding: 8px; color: var(--text-dim); cursor: pointer;
+    font-size: 16px; letter-spacing: 4px; user-select: none;
+    border-top: 1px solid var(--border); margin-top: 8px;
+  }
+  .disc-overflow-toggle:hover { color: var(--text); }
+  .disc-overflow-body { display: none; }
+  .disc-overflow-body.show { display: block; }
 
   .suggestion-item {
     display: flex; align-items: center; gap: 6px;
@@ -1480,11 +1488,14 @@ function renderDiscovery() {
     const d = new Date(cmd.timestamp);
     const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
-    // Separate source_track from regular suggestions
-    const allSuggs = cmd.suggestions || [];
+    // Normalize suggestions: may be array or {items: [...], genre, context, ...}
+    const rawSuggs = cmd.suggestions || [];
+    const allSuggs = Array.isArray(rawSuggs) ? rawSuggs : (rawSuggs.items || []);
+    const isClassical = !Array.isArray(rawSuggs) && rawSuggs.context === 'classical';
     const sourceTrack = allSuggs.find(s => s.type === 'source_track');
     const regularSuggs = allSuggs.filter(s => s.type !== 'source_track');
-    const suggCount = regularSuggs.length;
+    const playableSuggs = regularSuggs.filter(s => s.type !== 'section_header' && s.type !== 'narrative');
+    const suggCount = playableSuggs.length;
 
     // Use source track label for "from" text instead of "Exploring: Artist"
     const fromText = sourceTrack ? sourceTrack.label : cmd.title;
@@ -1521,34 +1532,75 @@ function renderDiscovery() {
     }
 
     if (regularSuggs.length > 0) {
-      let currentSection = '';
-      for (const s of regularSuggs) {
-        // Detect section from label prefix
-        const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
-                        s.label && s.label.startsWith('🤝') ? 'Related Artists' :
-                        s.label && s.label.startsWith('📻') ? 'Related Artists' :
-                        'By ' + esc(cmd.artist || cmd.title);
-        if (section !== currentSection) {
-          currentSection = section;
-          html += `<div class="suggestion-section-label">${section}</div>`;
+      // Classical cards: use section_header/narrative types for structured axes
+      // Standard cards: infer section from label emoji prefix
+      if (isClassical) {
+        // Split into core (visible) and overflow (behind •••)
+        const coreSuggs = regularSuggs.filter(s => !s.overflow);
+        const overflowSuggs = regularSuggs.filter(s => s.overflow);
+        html += renderClassicalSuggestions(coreSuggs, cmd);
+        if (overflowSuggs.length > 0) {
+          html += `<div class="disc-overflow-toggle" onclick="this.nextElementSibling.classList.toggle('show');this.textContent=this.textContent==='•••'?'▲':'•••'">•••</div>`;
+          html += `<div class="disc-overflow-body">`;
+          html += renderClassicalSuggestions(overflowSuggs, cmd);
+          html += `</div>`;
         }
-        const uri = (s.uri || '').replace(/'/g, "\\'");
-        const lbl = (s.label || '').replace(/'/g, "\\'");
-        html += `<div class="suggestion-item">
-          <div class="suggestion-info">
-            <div class="suggestion-title">${esc(s.label)}</div>
-            ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
-          </div>
-          <div class="sugg-actions">
-            <button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
-            <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>
-          </div>
-        </div>`;
+      } else {
+        let currentSection = '';
+        for (const s of regularSuggs) {
+          // Detect section from label prefix
+          const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
+                          s.label && s.label.startsWith('🤝') ? 'Related Artists' :
+                          s.label && s.label.startsWith('📻') ? 'Related Artists' :
+                          'By ' + esc(cmd.artist || cmd.title);
+          if (section !== currentSection) {
+            currentSection = section;
+            html += `<div class="suggestion-section-label">${section}</div>`;
+          }
+          const uri = (s.uri || '').replace(/'/g, "\\'");
+          const lbl = (s.label || '').replace(/'/g, "\\'");
+          html += `<div class="suggestion-item">
+            <div class="suggestion-info">
+              <div class="suggestion-title">${esc(s.label)}</div>
+              ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+            </div>
+            <div class="sugg-actions">
+              ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
+              <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
+            </div>
+          </div>`;
+        }
       }
     }
     html += '</div></div>';
   }
   el.innerHTML = html;
+}
+
+function renderClassicalSuggestions(suggs, cmd) {
+  let html = '';
+  for (const s of suggs) {
+    if (s.type === 'section_header') {
+      html += `<div class="suggestion-section-label">${esc(s.label)}</div>`;
+    } else if (s.type === 'narrative') {
+      html += `<div class="disc-narrative">${formatNarrative(s.text || '')}</div>`;
+    } else {
+      // track, album, or any playable type
+      const uri = (s.uri || '').replace(/'/g, "\\'");
+      const lbl = (s.label || '').replace(/'/g, "\\'");
+      html += `<div class="suggestion-item">
+        <div class="suggestion-info">
+          <div class="suggestion-title">${esc(s.label)}</div>
+          ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+        </div>
+        <div class="sugg-actions">
+          ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
+          <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
+        </div>
+      </div>`;
+    }
+  }
+  return html;
 }
 
 function formatNarrative(text) {
