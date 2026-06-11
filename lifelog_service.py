@@ -1184,6 +1184,7 @@ def flush_buffer(reason=""):
     sse_relay = build_sse_relay_payload()
     payload = {
         "type":      "sonos_history_batch",
+        "flush_reason": reason or "unknown",
         "house":     house,
         "items":     items,
         "heartbeat": heartbeat_fields(),
