@@ -104,7 +104,8 @@
     -webkit-tap-highlight-color: transparent;
   }
   .room-chip.active { background: rgba(74,222,128,0.12); color: var(--accent); border-color: var(--accent); }
-  .room-chip.playing::after { content: ' 🔊'; font-size: 10px; }
+  .room-chip.playing::after { content: ' ▶'; font-size: 10px; }
+  .room-chip.paused::after { content: ' ⏸'; font-size: 10px; opacity: 0.6; }
   .room-chip:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
 
   .device-list { display: flex; flex-direction: column; gap: 6px; }
@@ -522,6 +523,7 @@ let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromS
 let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
 let _roomsPlaying = [];  // rooms currently playing (from SSE status_update)
+let _roomsPaused = [];   // rooms currently paused (from SSE status_update)
 let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 let _muteStates = {};    // coordinator -> bool (from SSE)
 
@@ -785,7 +787,8 @@ function renderRooms(h) {
   container.innerHTML = all.map(room => {
     const isActive = curSel.includes(room);
     const isPlaying = liveRooms.includes(room);
-    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
+    const isPaused = !isPlaying && _roomsPaused.includes(room);
+    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
   }).join('');
 }
 
@@ -1302,16 +1305,18 @@ function applyStateNowPlaying(stateFiles) {
         }
       }
     }
-    // Also seed rooms_playing if state is fresher
+    // Also seed rooms_playing + rooms_paused if state is fresher
     if (state.rooms_playing && state.rooms_playing.length > 0 && h === house) {
       if (stateTs > sseTs && !_userManualRoomSelect[h]) {
         _roomsPlaying = [...state.rooms_playing];
+        _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : [];
         selectedRooms[h] = [...state.rooms_playing];
         localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
       }
     } else if (state.rooms_playing && state.rooms_playing.length === 0 && h === house && stateTs > sseTs) {
       // State says no rooms playing — clear
       _roomsPlaying = [];
+      _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : [];
     }
   }
 }
@@ -1859,11 +1864,12 @@ function connectSSE() {
       if (sseHouse && msg.rooms_playing) {
         if (sseHouse === house) {
           _roomsPlaying = [...msg.rooms_playing];
+          _roomsPaused = msg.rooms_paused ? [...msg.rooms_paused] : [];
           if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
-            renderRooms(house);
           }
+          renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
           // (mute_states processed above may have run before _roomsPlaying was updated)
           updateMuteRepeatButtons();
