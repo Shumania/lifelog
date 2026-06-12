@@ -717,7 +717,7 @@ async function spotifyApi(method, path, body) {
   if (r.status === 204 || r.status === 202) return {};
   if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error?.message || 'HTTP ' + r.status); }
   const text = await r.text();
-  return text ? JSON.parse(text) : {};
+  try { return text ? JSON.parse(text) : {}; } catch(e) { return {}; }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
