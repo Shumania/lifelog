@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.97"
+SERVICE_VERSION = "1.98"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1891,12 +1891,25 @@ def execute_command(cmd, source="unknown"):
                 plugin    = ShareLinkPlugin(dev)
                 plugin.add_share_link_to_queue(share_url)
                 dev.play_from_queue(0)
-                if cmd.get("shuffle"):
-                    dev.play_mode = "SHUFFLE"
+                # Set play mode: shuffle + repeat controlled independently
+                shuffle = cmd.get("shuffle", False)
+                repeat = cmd.get("repeat", True)  # default True for backward compat
+                if shuffle and repeat:
+                    dev.play_mode = "SHUFFLE"           # shuffle + repeat all
+                elif shuffle and not repeat:
+                    dev.play_mode = "SHUFFLE_NOREPEAT"  # shuffle, no repeat
+                elif not shuffle and repeat:
+                    dev.play_mode = "REPEAT_ALL"        # no shuffle, repeat all
+                else:
+                    dev.play_mode = "NORMAL"            # no shuffle, no repeat
+                mode_note = []
+                if shuffle: mode_note.append("shuffled")
+                if not repeat: mode_note.append("no repeat")
+                mode_str = f", {' + '.join(mode_note)}" if mode_note else ""
                 result["success"] = True
                 room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                 grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
-                result["message"] = f"Playing '{title}' (Spotify{', shuffled' if cmd.get('shuffle') else ''}) in {room_label}{grp_note}"
+                result["message"] = f"Playing '{title}' (Spotify{mode_str}) in {room_label}{grp_note}"
                 result["data"]    = {"title":title,"uri":spotify_uri,"share_url":share_url,"was_grouped_with":was_grouped,"room":rooms[0],"rooms":rooms}
 
         elif action in ("queue_next", "queue", "add_to_queue"):
