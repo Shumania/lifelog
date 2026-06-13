@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.01"
+SERVICE_VERSION = "2.02"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1655,6 +1655,19 @@ def _decode_sonos_spotify_uri(uri):
     return uri
 
 
+def _find_coordinator(cmd, devices):
+    """Find the coordinator for the first room in cmd without regrouping.
+    Used by play_next/play_uri -- rooms are already grouped via tile taps."""
+    rooms = cmd.get("rooms", [])
+    if isinstance(rooms, str): rooms = [rooms]
+    room = cmd.get("room")
+    if room and not rooms: rooms = [room]
+    if not rooms: return None, rooms
+    dev = devices.get(rooms[0])
+    if not dev: return None, rooms
+    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+    return coordinator, rooms
+
 def _setup_rooms(cmd, devices):
     """Resolve room(s) from command. Returns (device, rooms_list, was_grouped_with).
     Multiple rooms: groups them (first = coordinator). Single room: makes it solo."""
@@ -2033,7 +2046,9 @@ def execute_command(cmd, source="unknown"):
             from xml.sax.saxutils import escape as xml_escape
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
-            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            # DESIGN: No regrouping -- rooms already set up via tile taps.
+            # Just find coordinator for the first room and insert into its queue.
+            dev, rooms = _find_coordinator(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not track_uri:
@@ -2235,7 +2250,8 @@ def execute_command(cmd, source="unknown"):
             uri   = cmd.get("uri", "")
             title = cmd.get("title", uri)
             meta  = cmd.get("meta", "")
-            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            # DESIGN: No regrouping -- rooms already set up via tile taps.
+            dev, rooms = _find_coordinator(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not uri:
@@ -2244,9 +2260,8 @@ def execute_command(cmd, source="unknown"):
                 dev.play_uri(uri, meta=meta, title=title)
                 result["success"] = True
                 room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
-                grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
-                result["message"] = f"Playing '{title}' in {room_label}{grp_note}"
-                result["data"] = {"title": title, "uri": uri, "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
+                result["message"] = f"Playing '{title}' in {room_label}"
+                result["data"] = {"title": title, "uri": uri, "room": rooms[0], "rooms": rooms}
 
         elif action == "stop":
             rooms = cmd.get("rooms", list(devices.keys()))
