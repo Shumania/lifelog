@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.02"
+SERVICE_VERSION = "2.03"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2049,6 +2049,7 @@ def execute_command(cmd, source="unknown"):
             # DESIGN: No regrouping -- rooms already set up via tile taps.
             # Just find coordinator for the first room and insert into its queue.
             dev, rooms = _find_coordinator(cmd, devices)
+            was_grouped = []  # No regrouping -- tile taps own grouping
             if not dev:
                 result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not track_uri:
