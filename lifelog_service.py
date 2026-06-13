@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.03"
+SERVICE_VERSION = "2.04"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1669,8 +1669,9 @@ def _find_coordinator(cmd, devices):
     return coordinator, rooms
 
 def _setup_rooms(cmd, devices):
-    """Resolve room(s) from command. Returns (device, rooms_list, was_grouped_with).
-    Multiple rooms: groups them (first = coordinator). Single room: makes it solo."""
+    """Incremental room grouping. Returns (coordinator, rooms_list, was_grouped_with).
+    Compares current group state vs desired rooms — only unjoins/joins deltas.
+    No-op fast path when group already matches desired state."""
     rooms = cmd.get("rooms", [])
     if isinstance(rooms, str): rooms = [rooms]
     room = cmd.get("room")
@@ -1682,16 +1683,53 @@ def _setup_rooms(cmd, devices):
     if not dev: return None, rooms, []
 
     was_grouped = []
+
+    # Get current group state
+    try:
+        current_members = set(m.player_name for m in dev.group.members) if dev.group else {primary}
+        current_coordinator = dev.group.coordinator.player_name if dev.group and dev.group.coordinator else primary
+    except Exception:
+        current_members = {primary}
+        current_coordinator = primary
+
+    desired_members = set(rooms)
+
     if len(rooms) > 1:
-        # Multi-room: unjoin all targets first (clean slate), then group under primary
-        for r in rooms:
+        # Multi-room requested
+        if current_coordinator == primary and current_members == desired_members:
+            # Already correct — no-op
+            log(f"_setup_rooms: group already correct ({primary} + {list(desired_members - {primary})}), no-op")
+            coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+            return coordinator, rooms, []
+
+        # Need to change coordinator? Full teardown only in that case.
+        if current_coordinator != primary and primary in current_members:
+            # Primary is a member but not coordinator — unjoin it first so it becomes independent
+            try:
+                dev.unjoin()
+                time.sleep(0.5)
+            except Exception as e:
+                log(f"_setup_rooms: unjoin {primary} from old coordinator: {e}")
+
+        # Unjoin members that shouldn't be in the group
+        to_remove = current_members - desired_members - {primary}
+        for r in to_remove:
             d = devices.get(r)
             if d:
-                try: d.unjoin()
-                except: pass
-        time.sleep(1)
+                try:
+                    d.unjoin()
+                    was_grouped.append(r)
+                except Exception as e:
+                    log(f"_setup_rooms: failed to unjoin {r}: {e}")
+
+        # Join members that need to be added
+        to_add = desired_members - current_members - {primary}
+        # Also re-join members that were already there but need primary as coordinator
+        if current_coordinator != primary:
+            to_add = desired_members - {primary}  # rejoin everyone under new coordinator
+
         joined = []
-        for r in rooms[1:]:
+        for r in to_add:
             d = devices.get(r)
             if d:
                 try:
@@ -1699,25 +1737,38 @@ def _setup_rooms(cmd, devices):
                     joined.append(r)
                 except Exception as e:
                     log(f"_setup_rooms: failed to join {r} to {primary}: {e}")
-        if joined:
+        if joined or to_remove:
             time.sleep(1)
-        log(f"_setup_rooms: grouped {primary} + {joined}")
+        if joined:
+            log(f"_setup_rooms: incremental group update — {primary} + {joined} (removed: {list(to_remove)})")
+        else:
+            log(f"_setup_rooms: group adjusted — removed {list(to_remove)}")
     else:
-        # Single room: make solo (unjoin from any existing group)
-        try:
-            if dev.group and len(dev.group.members) > 1:
-                was_grouped = [m.player_name for m in dev.group.members if m != dev]
-                if dev.group.coordinator != dev:
+        # Single room: should be solo
+        if len(current_members) == 1:
+            # Already solo — no-op
+            log(f"_setup_rooms: {primary} already solo, no-op")
+        else:
+            # In a group — need to isolate
+            was_grouped = [m for m in current_members if m != primary]
+            try:
+                if current_coordinator != primary:
                     dev.unjoin()
                 else:
                     for member in list(dev.group.members):
                         if member != dev:
                             member.unjoin()
                 time.sleep(1)
-        except Exception:
-            pass
+            except Exception:
+                pass
+            log(f"_setup_rooms: isolated {primary} from {was_grouped}")
 
-    return dev, rooms, was_grouped
+    # Return the coordinator device
+    try:
+        coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+    except Exception:
+        coordinator = dev
+    return coordinator, rooms, was_grouped
 
 
 # Actions that execute locally without any webhook POST (ack or result).
