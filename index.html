@@ -1216,7 +1216,8 @@ function renderStatusBar() {
     const age = c.last_seen ? Math.round((now - new Date(c.last_seen).getTime()) / 60000) : null;
     const color = age === null ? '#f87171' : age < 10 ? 'var(--accent)' : age < 30 ? '#eab308' : '#f87171';
     const label = names[c.client_id] || c.client_id;
-    return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}</span>`;
+    const ver = c.version ? ` v${c.version}` : '';
+    return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}<span style="font-weight:400;opacity:0.7">${esc(ver)}</span></span>`;
   }).join('');
 }
 
