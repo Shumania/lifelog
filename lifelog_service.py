@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.04"
+SERVICE_VERSION = "2.05"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2639,6 +2639,13 @@ def poll_commands():
     last_cmd_sha = sha
     action = cmd.get("action", "")
     if action in ("none", "", "idle"): return
+    # Age guard: skip commands older than 5 minutes to prevent replay on restart
+    cmd_ts = cmd.get("cmd_ts")
+    if cmd_ts:
+        age = time.time() - cmd_ts
+        if age > 300:
+            log(f"GitHub fallback: stale command (age={int(age)}s): {action}")
+            return
     if _already_executed(cmd):
         log(f"GitHub fallback: duplicate (ntfy ran it): {action}")
         return
