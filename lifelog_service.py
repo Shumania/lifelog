@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "1.99"
+SERVICE_VERSION = "2.00"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2260,24 +2260,38 @@ def execute_command(cmd, source="unknown"):
         elif action == "pause":
             rooms = cmd.get("rooms", [])
             if isinstance(rooms, str): rooms = [rooms]
+            # Deduplicate by coordinator — one call per group, not per room
+            seen_coords = set()
             paused = []
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
-                    try: dev.pause(); paused.append(r)
-                    except: pass
+                    coord = dev.group.coordinator if dev.group else dev
+                    if coord.player_name not in seen_coords:
+                        seen_coords.add(coord.player_name)
+                        try: coord.pause(); paused.append(r)
+                        except: pass
+                    else:
+                        paused.append(r)
             result["success"] = True
             result["message"] = f"Paused: {', '.join(paused)}"
 
         elif action in ("resume", "play_resume"):
             rooms = cmd.get("rooms", [])
             if isinstance(rooms, str): rooms = [rooms]
+            # Deduplicate by coordinator — one call per group, not per room
+            seen_coords = set()
             resumed = []
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
-                    try: dev.play(); resumed.append(r)
-                    except: pass
+                    coord = dev.group.coordinator if dev.group else dev
+                    if coord.player_name not in seen_coords:
+                        seen_coords.add(coord.player_name)
+                        try: coord.play(); resumed.append(r)
+                        except: pass
+                    else:
+                        resumed.append(r)
             result["success"] = True
             result["message"] = f"Resumed: {', '.join(resumed)}"
 
