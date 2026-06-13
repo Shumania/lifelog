@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.00"
+SERVICE_VERSION = "2.01"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1756,10 +1756,13 @@ def execute_command(cmd, source="unknown"):
             # sends an SSE relay with current state. Even if buffer is empty, we POST
             # the heartbeat + sse_relay so the browser gets fresh now-playing data.
             # This is triggered by the Sync button in the web UI.
+            # flush_reason is passed through from the command (e.g. "super_sync")
+            cmd_flush_reason = cmd.get("flush_reason", "flush-cmd")
             flush_count = len(pending_buffer)
-            flush_buffer("flush-cmd")
+            flush_buffer(cmd_flush_reason)
             result["success"] = True
             result["message"] = f"Flushed {flush_count} buffered track(s)"
+            result["flush_reason"] = cmd_flush_reason
             # Override silent behavior -- always POST this result so Tasklet relays SSE
             sse_relay = build_sse_relay_payload()
             if sse_relay:
