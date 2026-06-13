@@ -498,6 +498,7 @@ const STATE_URLS = {
   vashon: 'https://shumania.github.io/lifelog/state-vashon.json'
 };
 const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e';
+const SUPER_SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=61e754f5ec1abf1f75b4e28f96b618c3';
 const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
 const ROOMS_LIST = {
   caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Parents Bedroom','Media Room','Study Computer Playbar'],
@@ -1737,16 +1738,16 @@ async function exploreArtist(btn, encodedData) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function syncNow() {
   const btn = document.getElementById('sync-btn');
-  btn.textContent = '⏳ Syncing...'; btn.disabled = true; btn.style.opacity = '0.6';
+  btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
   try {
-    // Send flush command to service via ntfy — fast, no LLM
-    await postNtfy({ action: 'flush' });
-    btn.textContent = '✓ Refreshing...'; btn.style.color = 'var(--accent)';
-    // Wait for flush -> webhook -> ingest -> head publish, then reload
+    // Super Sync: POST to Tasklet webhook — orchestrates flush to both houses + Spotify poll
+    await fetch(SUPER_SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
+    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
+    // Collect runs ~5s, flush responses + wellness take ~25s, then reload
     setTimeout(async () => {
       await loadData(true);
       btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-    }, 15000);
+    }, 30000);
   } catch(e) {
     btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
   }
