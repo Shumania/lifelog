@@ -78,6 +78,15 @@
   .np-stale { background: rgba(255,255,255,0.03); border-color: var(--border); }
   .np-stale .np-indicator { background: #6b7280; animation: none; }
   .np-stale .np-label { color: var(--text-dim); }
+  .np-explore {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(96,165,250,0.3);
+    background: rgba(96,165,250,0.08); color: var(--accent2); font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
+  }
+  .np-explore:hover { background: rgba(96,165,250,0.15); }
+  .np-explore:active { transform: scale(0.92); }
+  .np-explore.exploring { animation: pulse 1s infinite; }
 
   .controls-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .ctrl-btn {
@@ -1149,13 +1158,20 @@ function renderNowPlayingSonos(h) {
 
   const repeatBadge = isPlaying ? getRepeatBadge() : '';
   el.className = 'now-playing' + (isPlaying ? '' : ' np-stale');
+  // Build explore button data from whatever source gave us the track
+  const exploreData = (title && title !== '—') ? encodeURIComponent(JSON.stringify({
+    title, artist: (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : ''))),
+    album: (sse && isLive ? sse.album : (dataNp ? dataNp.album : (latestItem ? latestItem.album : ''))),
+    source: svc || '', uri: ''
+  })).replace(/'/g,'%27') : '';
+  const exploreBtn = exploreData ? `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>` : '';
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
       <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
-    </div>`;
+    </div>${exploreBtn}`;
 }
 
 function renderNowPlayingRoaming() {
@@ -1165,6 +1181,7 @@ function renderNowPlayingRoaming() {
   if (spotifyNowPlaying && spotifyNowPlaying.is_playing) {
     const np = spotifyNowPlaying;
     const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
+    const rExplore = encodeURIComponent(JSON.stringify({title:np.title,artist:np.artist,album:np.album||'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     el.className = 'now-playing';
     el.innerHTML = `
       <div class="np-indicator" style="background:var(--spotify);"></div>
@@ -1174,8 +1191,10 @@ function renderNowPlayingRoaming() {
         <div class="np-artist">${esc(np.artist)}${np.album ? ' · ' + esc(np.album) : ''}</div>
         <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;background:var(--spotify);border-radius:2px;width:${pct}%"></div></div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${fmtMs(np.progress_ms)} / ${fmtMs(np.duration_ms)}</div>
-      </div>`;
+      </div>
+      <button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`;
   } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
+    const pExplore = encodeURIComponent(JSON.stringify({title:spotifyNowPlaying.title,artist:spotifyNowPlaying.artist,album:'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     el.className = 'now-playing np-stale';
     el.innerHTML = `
       <div class="np-indicator" style="background:var(--spotify);animation:none;"></div>
@@ -1183,7 +1202,8 @@ function renderNowPlayingRoaming() {
         <div class="np-label" style="color:#eab308;">⏸ Paused · ${esc(spotifyNowPlaying.device)}</div>
         <div class="np-track">${esc(spotifyNowPlaying.title)}</div>
         <div class="np-artist">${esc(spotifyNowPlaying.artist)}</div>
-      </div>`;
+      </div>
+      <button class="np-explore" onclick="exploreArtist(this,'${pExplore}')" title="Explore artist">🔍</button>`;
   } else {
     el.className = 'now-playing np-stale';
     let hint = '';
