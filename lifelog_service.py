@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.05"
+SERVICE_VERSION = "2.06"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2652,6 +2652,27 @@ def poll_commands():
     _mark_executed(cmd)
     log(f"New command (GitHub fallback): {cmd}")
     execute_command(cmd, source="github")
+    # Clear the command file after execution to prevent replay on restart
+    _clear_github_cmd(sha)
+
+def _clear_github_cmd(sha):
+    """Replace the GitHub command file with idle after successful execution."""
+    path = f"sonos_cmd_{house}.json"
+    idle = json.dumps({"action": "idle", "cleared_at": time.time()})
+    body = {
+        "message": "clear command after execution",
+        "content": base64.b64encode(idle.encode()).decode(),
+        "sha": sha,
+    }
+    try:
+        url = f"{GITHUB_API_BASE}/{path}"
+        r = requests.put(url, headers=gh_headers(), json=body, timeout=15)
+        if r.status_code in (200, 201):
+            log(f"GitHub fallback: cleared command file (was used! ntfy missed this one)")
+        else:
+            log(f"GitHub fallback: failed to clear command file: HTTP {r.status_code}")
+    except Exception as e:
+        log(f"GitHub fallback: error clearing command file: {e}")
 
 # --- NTFY LISTENER THREAD ---------------------------------------------------
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
