@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.06"
+SERVICE_VERSION = "2.07"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1511,11 +1511,26 @@ def get_track_info(device):
             return None
         info  = device.get_current_track_info()
         title = info.get("title", "").strip()
-        if not title or title == "NOT_IMPLEMENTED":
-            speaker_failures[name] = 0
-            return None
         uri      = info.get("uri", "")
         metadata = info.get("metadata", "")
+        # Radio/TuneIn streams often have empty or garbage titles.
+        # Detect stream URIs and provide a synthetic title instead of discarding.
+        _STREAM_PREFIXES = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
+                            "x-rincon-stream:", "aac://", "x-sonosapi-hls:")
+        _is_radio_stream = any(uri.lower().startswith(p) for p in _STREAM_PREFIXES)
+        if not title or title == "NOT_IMPLEMENTED":
+            if _is_radio_stream:
+                # Derive a synthetic title from the URI
+                uri_lower = uri.lower()
+                if "kcrw" in uri_lower:
+                    title = "KCRW Eclectic 24"
+                elif "kexp" in uri_lower:
+                    title = "KEXP"
+                else:
+                    title = "Radio Stream"
+            else:
+                speaker_failures[name] = 0
+                return None
         dur_str  = info.get("duration", "0:00:00")
         dur_secs = 0
         try:
