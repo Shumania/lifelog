@@ -1127,25 +1127,51 @@ function renderNowPlayingSonos(h) {
   function svcLabel(svc) {
     if (!svc) return '';
     const m = { 'sonos_spotify':'Spotify', 'sonos_apple_music':'Apple Music', 'sonos_qobuz':'Qobuz',
-      'sonos_kcrw':'KCRW', 'sonos_kexp':'KEXP', 'spotify':'Spotify' };
+      'sonos_kcrw':'KCRW', 'sonos_kexp':'KEXP', 'sonos_tunein':'Radio', 'spotify':'Spotify' };
     return m[svc] || svc.replace('sonos_','');
   }
+  // Detect KCRW from URI or service field
+  function isKCRW(obj) {
+    if (!obj) return false;
+    const uri = (obj.uri || '').toLowerCase();
+    const svc = (obj.service || obj.source || '').toLowerCase();
+    return uri.includes('kcrw') || svc.includes('kcrw');
+  }
+  function isKEXP(obj) {
+    if (!obj) return false;
+    const uri = (obj.uri || '').toLowerCase();
+    const svc = (obj.service || obj.source || '').toLowerCase();
+    return uri.includes('kexp') || svc.includes('kexp');
+  }
   let svc = '';
+  let isRadioPlaceholder = false;
 
   if (isLive) {
-    title = sse.title || '—';
-    artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
+    if (isKCRW(sse)) {
+      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
+    } else if (isKEXP(sse)) {
+      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    } else {
+      title = sse.title || '—';
+      artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
+      svc = svcLabel(sse.service);
+    }
     label = 'Now Playing';
     isPlaying = true;
     rooms = [...new Set(sse.rooms || [])].join(', ');
-    svc = svcLabel(sse.service);
   } else if (dataNp && dataNpAge < 30 * 60000) {
-    title = dataNp.title || '—';
-    artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
+    if (isKCRW(dataNp)) {
+      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
+    } else if (isKEXP(dataNp)) {
+      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    } else {
+      title = dataNp.title || '—';
+      artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
+    }
     if (dataNpAge < 5 * 60000) { label = 'Now Playing'; isPlaying = true; }
     else { label = 'Played ' + fmtAge(dataNpAge); }
     rooms = [...new Set(Array.isArray(dataNp.rooms) ? dataNp.rooms : (dataNp.room ? [dataNp.room] : []))].join(', ');
-    svc = svcLabel(dataNp.service || dataNp.source);
+    if (!isRadioPlaceholder) svc = svcLabel(dataNp.service || dataNp.source);
   } else if (latestItem) {
     title = latestItem.title || '—';
     artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
@@ -1158,6 +1184,26 @@ function renderNowPlayingSonos(h) {
 
   const repeatBadge = isPlaying ? getRepeatBadge() : '';
   el.className = 'now-playing' + (isPlaying ? '' : ' np-stale');
+
+  // Radio placeholder rendering with station logo
+  if (isRadioPlaceholder) {
+    const logoUrl = svc === 'KCRW'
+      ? 'https://www.kcrw.com/favicon.ico'
+      : 'https://www.kexp.org/favicon.ico';
+    el.innerHTML = `
+      <div class="np-indicator"></div>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+        <img src="${logoUrl}" alt="${esc(svc)}" style="width:36px;height:36px;border-radius:6px;object-fit:contain;background:#1a1a2e;flex-shrink:0;"
+             onerror="this.style.display='none'">
+        <div class="np-info" style="flex:1;min-width:0;">
+          <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
+          <div class="np-track" style="color:var(--accent2);">📻 ${esc(title)}</div>
+          <div class="np-artist">${esc(artist)}</div>
+        </div>
+      </div>`;
+    return;
+  }
+
   // Build explore button data from whatever source gave us the track
   const exploreData = (title && title !== '—') ? encodeURIComponent(JSON.stringify({
     title, artist: (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : ''))),
@@ -1826,6 +1872,10 @@ function connectSSE() {
       // Helper: retire a track from Now Playing into history list
       function retireTrackToHistory(track, h) {
         if (!track || !track.title || allItems.length === 0) return;
+        // Don't retire radio tracks with garbled metadata — enriched data comes via ingest
+        const tUri = (track.uri || '').toLowerCase();
+        const tSvc = (track.service || '').toLowerCase();
+        if (tUri.includes('kcrw') || tUri.includes('kexp') || tSvc.includes('tunein') || tSvc.includes('radio')) return;
         const endedItem = {
           type: 'music', title: track.title, artist: track.artist||'', album: track.album||'',
           source: track.service ? 'sonos_' + track.service.replace('sonos_','') : 'sonos',
