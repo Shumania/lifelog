@@ -1462,9 +1462,45 @@ function getSourceBadge(item) {
   return '';
 }
 
+function fmtTimeRange(startTs, endTs) {
+  const s = fmtTime(startTs);
+  if (!endTs) return s;
+  const e = fmtTime(endTs);
+  return s === e ? s : `${s} – ${e}`;
+}
+
+function renderRadioSession(item) {
+  const loc = getLocation(item);
+  const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
+  const stationLogos = {
+    'sonos_kcrw': 'https://www.kcrw.com/favicon.ico',
+    'sonos_kexp': 'https://www.kexp.org/favicon.ico',
+  };
+  const logo = stationLogos[item.source] || stationLogos[item.station] || '';
+  const timeRange = fmtTimeRange(item.timestamp, item.end_time);
+
+  return `<div class="history-item radio-session" style="background:rgba(245,158,11,0.06);border-left:3px solid var(--radio);">
+    <div class="hi-time-col"><div class="hi-time">${esc(timeRange)}</div></div>
+    <div class="hi-info" style="display:flex;align-items:center;gap:10px;">
+      ${logo ? `<img src="${logo}" alt="" style="width:24px;height:24px;border-radius:4px;object-fit:contain;background:#1a1a2e;flex-shrink:0;" onerror="this.style.display='none'">` : ''}
+      <div>
+        <div class="hi-line1">
+          <span class="hi-track" style="color:var(--radio);">📻 ${esc(item.title)}</span>
+        </div>
+        <div class="hi-line2">
+          <span class="hi-location ${loc.cls}">${loc.label}</span>
+          ${rooms ? '<span class="hi-rooms">' + esc(rooms) + '</span>' : ''}
+          <span class="hi-source-badge" style="color:var(--radio);">Radio</span>
+          <span style="color:var(--text-dim);font-size:11px;margin-left:4px;">↻ Sync to see tracks</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderHistory() {
   const el = document.getElementById('music-list');
-  const music = allItems.filter(i => i.type === 'music');
+  const music = allItems.filter(i => i.type === 'music' || i.type === 'radio_session');
   if (music.length === 0) { el.innerHTML = '<div class="empty-state">🎧 No music history yet</div>'; return; }
 
   let html = '', lastDay = '';
@@ -1474,6 +1510,13 @@ function renderHistory() {
       lastDay = dk;
       html += `<div class="day-header">${esc(dayLabel(item.timestamp))}</div>`;
     }
+
+    // Radio session — special rendering
+    if (item.type === 'radio_session') {
+      html += renderRadioSession(item);
+      continue;
+    }
+
     const loc = getLocation(item);
     const badge = getSourceBadge(item);
     const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
