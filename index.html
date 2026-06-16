@@ -1147,8 +1147,11 @@ function renderNowPlayingSonos(h) {
   let svc = '';
   let isRadioPlaceholder = false;
 
+  // Detect garbage Sonos transport state strings
+  function isGarbageTitle(t) { return !t || /^ZPSTR_/i.test(t); }
+
   if (isLive) {
-    if (isKCRW(sse)) {
+    if (isGarbageTitle(sse.title) || isKCRW(sse)) {
       title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
     } else if (isKEXP(sse)) {
       title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
@@ -1161,7 +1164,7 @@ function renderNowPlayingSonos(h) {
     isPlaying = true;
     rooms = [...new Set(sse.rooms || [])].join(', ');
   } else if (dataNp && dataNpAge < 30 * 60000) {
-    if (isKCRW(dataNp)) {
+    if (isGarbageTitle(dataNp.title) || isKCRW(dataNp)) {
       title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
     } else if (isKEXP(dataNp)) {
       title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
@@ -1174,13 +1177,22 @@ function renderNowPlayingSonos(h) {
     rooms = [...new Set(Array.isArray(dataNp.rooms) ? dataNp.rooms : (dataNp.room ? [dataNp.room] : []))].join(', ');
     if (!isRadioPlaceholder) svc = svcLabel(dataNp.service || dataNp.source);
   } else if (latestItem) {
-    title = latestItem.title || '—';
-    artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
+    // Detect garbage Sonos transport state strings (ZPSTR_CONNECTING, ZPSTR_BUFFERING, etc.)
+    const rawTitle = latestItem.title || '—';
+    const isGarbage = /^ZPSTR_/i.test(rawTitle);
+    if (isGarbage || isKCRW(latestItem)) {
+      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
+    } else if (isKEXP(latestItem)) {
+      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    } else {
+      title = rawTitle;
+      artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
+    }
     const age = Date.now() - new Date(latestItem.timestamp).getTime();
     if (age < 30 * 60000) { label = 'Played ' + fmtAge(age); isPlaying = false; }
     else { label = 'Last played · ' + fmtAge(age); isPlaying = false; }
     rooms = [...new Set(Array.isArray(latestItem.rooms) ? latestItem.rooms : (latestItem.room ? [latestItem.room] : []))].join(', ');
-    svc = svcLabel(latestItem.source);
+    if (!isRadioPlaceholder) svc = svcLabel(latestItem.source);
   }
 
   const repeatBadge = isPlaying ? getRepeatBadge() : '';
@@ -1473,11 +1485,7 @@ function fmtTimeRange(startTs, endTs) {
 function renderRadioSession(item) {
   const loc = getLocation(item);
   const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
-  const stationLogos = {
-    'sonos_kcrw': 'https://www.kcrw.com/favicon.ico',
-    'sonos_kexp': 'https://www.kexp.org/favicon.ico',
-  };
-  const logo = stationLogos[item.source] || stationLogos[item.station] || '';
+  // Station logos removed — clutters visual scanning of history list
   const timeRange = fmtTimeRange(item.timestamp, item.end_time);
   const sid = item.session_id || '';
   const isExpanded = item.expanded && item.tracks && item.tracks.length > 0;
@@ -1513,7 +1521,6 @@ function renderRadioSession(item) {
   return `<div class="history-item radio-session" style="background:rgba(245,158,11,0.06);border-left:3px solid var(--radio);">
     <div class="hi-time-col"><div class="hi-time">${esc(timeRange)}</div></div>
     <div class="hi-info" style="display:flex;align-items:center;gap:10px;flex:1;">
-      ${logo ? `<img src="${logo}" alt="" style="width:24px;height:24px;border-radius:4px;object-fit:contain;background:#1a1a2e;flex-shrink:0;" onerror="this.style.display='none'">` : ''}
       <div style="min-width:0;flex:1;">
         <div class="hi-line1">
           <span class="hi-track" style="color:var(--radio);">📻 ${esc(item.title)}</span>
