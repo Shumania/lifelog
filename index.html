@@ -368,9 +368,9 @@
     <div class="status-dots" id="status-bar"></div>
   </div>
   <div class="house-tabs">
-    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill')">🏠 Cap Hill</div>
-    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon')">🏝 Vashon</div>
-    <div class="house-tab" data-house="roaming" onclick="setHouse('roaming')">📱 Roaming</div>
+    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill</div>
+    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon</div>
+    <div class="house-tab" data-house="roaming" onclick="setHouse('roaming',true)">📱 Roaming</div>
   </div>
 
   <!-- Cap Hill panel -->
@@ -521,6 +521,7 @@ const ROOMS_LIST = {
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = {};  // per-house
 let _userManualRoomSelect = {};
+let _tabManualOverride = false;  // true once user taps a tab — suppresses auto-select
 let data = null;  // data-head.json
 let archiveItems = [];
 let archiveLoaded = false;
@@ -736,8 +737,9 @@ async function spotifyApi(method, path, body) {
 // ══════════════════════════════════════════════════════════════════════════════
 // HOUSE SWITCHING
 // ══════════════════════════════════════════════════════════════════════════════
-function setHouse(h) {
+function setHouse(h, isUserClick) {
   house = h;
+  if (isUserClick) _tabManualOverride = true;
   localStorage.setItem('ll_house', h);
   document.querySelectorAll('.house-tab').forEach(t => t.classList.toggle('active', t.dataset.house === h));
   document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
@@ -1414,6 +1416,20 @@ function applyStateNowPlaying(stateFiles) {
   }
 }
 
+// Auto-select tab based on which house has active speakers
+function autoSelectTab(stateFiles) {
+  if (_tabManualOverride) return;  // user tapped a tab — don't fight them
+  const active = [];
+  for (const [h, state] of Object.entries(stateFiles)) {
+    if (state && state.rooms_playing && state.rooms_playing.length > 0) active.push(h);
+  }
+  if (active.length === 1 && active[0] !== house) {
+    console.log('[auto-tab] Switching to', active[0], '(active speakers detected)');
+    setHouse(active[0]);
+  }
+  // If both active or both idle — keep current tab (localStorage preference)
+}
+
 async function loadData(loadArchive) {
   try {
     // Fetch data-head.json and state files in parallel
@@ -1426,6 +1442,8 @@ async function loadData(loadArchive) {
     // Merge state file tracks into head items
     headItems = mergeStateIntoItems(headItems, stateFiles);
     allItems = mergeItems(headItems, archiveItems);
+    // Auto-select tab based on active speakers
+    autoSelectTab(stateFiles);
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
     applyStateNowPlaying(stateFiles);
     renderAll();
@@ -2085,6 +2103,11 @@ function connectSSE() {
       if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
       if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
       if (sseHouse && msg.rooms_playing) {
+        // Auto-switch tab if music starts in another house
+        if (!_tabManualOverride && msg.rooms_playing.length > 0 && sseHouse !== house) {
+          console.log('[auto-tab] SSE: switching to', sseHouse, '(speakers started)');
+          setHouse(sseHouse);
+        }
         if (sseHouse === house) {
           _roomsPlaying = [...msg.rooms_playing];
           _roomsPaused = msg.rooms_paused ? [...msg.rooms_paused] : [];
