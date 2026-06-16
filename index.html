@@ -1150,11 +1150,19 @@ function renderNowPlayingSonos(h) {
   // Detect garbage Sonos transport state strings
   function isGarbageTitle(t) { return !t || /^ZPSTR_/i.test(t); }
 
+  // Helper: detect radio station from any source object (SSE, dataNp, latestItem)
+  function detectRadioStation(obj) {
+    if (!obj) return null;
+    if (isKEXP(obj)) return { title: 'KEXP', artist: 'Live from Seattle', svc: 'KEXP' };
+    if (isKCRW(obj)) return { title: 'KCRW Eclectic 24', artist: 'Live from Santa Monica', svc: 'KCRW' };
+    return null;
+  }
+
   if (isLive) {
-    if (isGarbageTitle(sse.title) || isKCRW(sse)) {
-      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
-    } else if (isKEXP(sse)) {
-      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    const radio = detectRadioStation(sse);
+    if (radio || isGarbageTitle(sse.title)) {
+      if (radio) { title = radio.title; artist = radio.artist; svc = radio.svc; isRadioPlaceholder = true; }
+      else { title = '—'; artist = ''; svc = ''; } // garbage but not radio — blank
     } else {
       title = sse.title || '—';
       artist = [sse.artist, sse.album].filter(Boolean).join(' · ');
@@ -1164,10 +1172,10 @@ function renderNowPlayingSonos(h) {
     isPlaying = true;
     rooms = [...new Set(sse.rooms || [])].join(', ');
   } else if (dataNp && dataNpAge < 30 * 60000) {
-    if (isGarbageTitle(dataNp.title) || isKCRW(dataNp)) {
-      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
-    } else if (isKEXP(dataNp)) {
-      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    const radio = detectRadioStation(dataNp);
+    if (radio || isGarbageTitle(dataNp.title)) {
+      if (radio) { title = radio.title; artist = radio.artist; svc = radio.svc; isRadioPlaceholder = true; }
+      else { title = '—'; artist = ''; svc = ''; }
     } else {
       title = dataNp.title || '—';
       artist = [dataNp.artist, dataNp.album].filter(Boolean).join(' · ');
@@ -1177,13 +1185,11 @@ function renderNowPlayingSonos(h) {
     rooms = [...new Set(Array.isArray(dataNp.rooms) ? dataNp.rooms : (dataNp.room ? [dataNp.room] : []))].join(', ');
     if (!isRadioPlaceholder) svc = svcLabel(dataNp.service || dataNp.source);
   } else if (latestItem) {
-    // Detect garbage Sonos transport state strings (ZPSTR_CONNECTING, ZPSTR_BUFFERING, etc.)
     const rawTitle = latestItem.title || '—';
-    const isGarbage = /^ZPSTR_/i.test(rawTitle);
-    if (isGarbage || isKCRW(latestItem)) {
-      title = 'KCRW Eclectic 24'; artist = 'Live from Santa Monica'; svc = 'KCRW'; isRadioPlaceholder = true;
-    } else if (isKEXP(latestItem)) {
-      title = 'KEXP'; artist = 'Live from Seattle'; svc = 'KEXP'; isRadioPlaceholder = true;
+    const radio = detectRadioStation(latestItem);
+    if (radio || isGarbageTitle(rawTitle)) {
+      if (radio) { title = radio.title; artist = radio.artist; svc = radio.svc; isRadioPlaceholder = true; }
+      else { title = '—'; artist = ''; svc = ''; }
     } else {
       title = rawTitle;
       artist = [latestItem.artist, latestItem.album].filter(Boolean).join(' · ');
