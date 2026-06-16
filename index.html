@@ -1149,8 +1149,8 @@ function renderNowPlayingSonos(h) {
   let svc = '';
   let isRadioPlaceholder = false;
 
-  // Detect garbage Sonos transport state strings
-  function isGarbageTitle(t) { return !t || /^ZPSTR_/i.test(t); }
+  // Detect garbage Sonos transport state strings (use global version)
+  // isGarbageTitle is defined at global scope
 
   // Helper: detect radio station from any source object (SSE, dataNp, latestItem)
   function detectRadioStation(obj) {
@@ -1332,6 +1332,9 @@ async function fetchStateFiles() {
   }));
   return results;
 }
+
+// Global garbage-title filter (ZPSTR_* transport states, empty titles)
+function isGarbageTitle(t) { return !t || /^ZPSTR_/i.test(t); }
 
 function mergeStateIntoItems(items, stateFiles) {
   // Build dedup set from existing items (timestamp+title, case-insensitive)
