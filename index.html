@@ -1343,8 +1343,8 @@ function mergeStateIntoItems(items, stateFiles) {
       const title = (t.title || '').trim();
       if (!title || title.startsWith('ZPSTR_') || isGarbageTitle(title)) continue;
       // Skip raw TuneIn radio tracks — they're handled by radio_session items in data-head
-      if ((t.service || '').includes('tunein') && (t.uri || '').includes('streams.kcrw.com')) continue;
-      if ((t.service || '').includes('tunein') && (t.uri || '').includes('kexp.org')) continue;
+      const tUri = (t.uri || '').toLowerCase();
+      if ((t.service || '').includes('tunein') && (tUri.includes('kcrw.com') || tUri.includes('kexp') || tUri.includes('streamguys'))) continue;
       const key = (t.timestamp||'') + '|' + title.toLowerCase();
       if (existingKeys.has(key)) continue;
       existingKeys.add(key);
