@@ -1333,7 +1333,13 @@ function mergeStateIntoItems(items, stateFiles) {
   for (const [h, state] of Object.entries(stateFiles)) {
     if (!state || !state.recent_tracks) continue;
     for (const t of state.recent_tracks) {
-      const key = (t.timestamp||'') + '|' + (t.title||'').toLowerCase();
+      // Filter junk: ZPSTR_* transport states, empty titles, TuneIn radio raw tracks
+      const title = (t.title || '').trim();
+      if (!title || title.startsWith('ZPSTR_') || isGarbageTitle(title)) continue;
+      // Skip raw TuneIn radio tracks — they're handled by radio_session items in data-head
+      if ((t.service || '').includes('tunein') && (t.uri || '').includes('streams.kcrw.com')) continue;
+      if ((t.service || '').includes('tunein') && (t.uri || '').includes('kexp.org')) continue;
+      const key = (t.timestamp||'') + '|' + title.toLowerCase();
       if (existingKeys.has(key)) continue;
       existingKeys.add(key);
       newItems.push({
