@@ -1418,7 +1418,7 @@ async function loadData(loadArchive) {
   try {
     // Fetch data-head.json and state files in parallel
     const [headResp, stateFiles] = await Promise.all([
-      fetch(DATA_HEAD_URL + '?t=' + Date.now()).then(r => r.json()),
+      fetch(DATA_HEAD_URL + '?t=' + Date.now()).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
       fetchStateFiles()
     ]);
     data = headResp;
@@ -1430,7 +1430,11 @@ async function loadData(loadArchive) {
     applyStateNowPlaying(stateFiles);
     renderAll();
   } catch(e) {
-    document.getElementById('music-list').innerHTML = '<div class="empty-state">⚠️ Could not load data</div>';
+    console.warn('[loadData] head fetch failed, keeping previous data:', e.message);
+    // Only show error if we have NO previous data at all
+    if (!data && !allItems.length) {
+      document.getElementById('music-list').innerHTML = '<div class="empty-state">⚠️ Could not load data</div>';
+    }
   }
 
   if (loadArchive || !archiveLoaded) {
@@ -1505,9 +1509,9 @@ function renderRadioSession(item) {
   // Action button: unexpanded → ↻ enrich; expanded → ▼ expand/collapse
   let actionBtn = '';
   if (isExpanded) {
-    actionBtn = `<button class="radio-expand-btn" onclick="toggleRadioTracks('rs-${sid}')" title="Show tracks" style="background:none;border:1px solid rgba(245,158,11,0.3);border-radius:6px;color:var(--radio);cursor:pointer;padding:2px 8px;font-size:12px;margin-left:auto;flex-shrink:0;-webkit-tap-highlight-color:transparent;">▼ ${item.tracks.length} tracks</button>`;
+    actionBtn = `<button class="radio-expand-btn" onclick="toggleRadioTracks('rs-${sid}')" title="Show tracks" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);cursor:pointer;padding:2px 8px;font-size:12px;margin-left:auto;flex-shrink:0;-webkit-tap-highlight-color:transparent;">▼ ${item.tracks.length} tracks</button>`;
   } else {
-    actionBtn = `<button class="radio-enrich-btn" id="enrich-${sid}" onclick="enrichRadioSession('${sid}')" title="Fetch tracks from station" style="background:none;border:1px solid rgba(245,158,11,0.3);border-radius:6px;color:var(--radio);cursor:pointer;padding:2px 8px;font-size:12px;margin-left:auto;flex-shrink:0;-webkit-tap-highlight-color:transparent;">↻ Get tracks</button>`;
+    actionBtn = `<button class="radio-enrich-btn" id="enrich-${sid}" onclick="enrichRadioSession('${sid}')" title="Fetch tracks from station" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);cursor:pointer;padding:2px 8px;font-size:12px;margin-left:auto;flex-shrink:0;-webkit-tap-highlight-color:transparent;">↻ Get tracks</button>`;
   }
 
   // Child tracks container (expanded sessions only, hidden by default)
@@ -1534,17 +1538,17 @@ function renderRadioSession(item) {
     tracksHtml += '</div>';
   }
 
-  return `<div class="history-item radio-session" style="background:rgba(245,158,11,0.06);border-left:3px solid var(--radio);">
+  return `<div class="history-item radio-session">
     <div class="hi-time-col"><div class="hi-time">${esc(timeRange)}</div></div>
     <div class="hi-info" style="display:flex;align-items:center;gap:10px;flex:1;">
       <div style="min-width:0;flex:1;">
         <div class="hi-line1">
-          <span class="hi-track" style="color:var(--radio);">📻 ${esc(item.title)}</span>
+          <span class="hi-track">📻 ${esc(item.title)}</span>
         </div>
         <div class="hi-line2">
           <span class="hi-location ${loc.cls}">${loc.label}</span>
           ${rooms ? '<span class="hi-rooms">' + esc(rooms) + '</span>' : ''}
-          <span class="hi-source-badge" style="color:var(--radio);">Radio</span>
+          <span class="hi-source-badge" style="color:var(--text-dim);">Radio</span>
         </div>
       </div>
       ${actionBtn}
@@ -1572,8 +1576,18 @@ async function enrichRadioSession(sessionId) {
   try {
     await fetch(ENRICH_RADIO_WEBHOOK, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_id: sessionId})});
     if (btn) { btn.textContent = '✓ Enriching…'; }
-    // Auto-reload after 30s to pick up enriched data
-    setTimeout(() => location.reload(), 30000);
+    // Poll for enriched data — CDN cache may lag
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      await loadData(false);
+      // Check if session is now expanded in rendered data
+      const expanded = allItems.find(i => i.type === 'radio_session' && String(i.session_id) === String(sessionId) && i.expanded);
+      if (expanded || attempts >= 6) {
+        clearInterval(poll);
+        if (!expanded && btn) { btn.textContent = '↻ Get tracks'; btn.disabled = false; btn.style.opacity = '1'; }
+      }
+    }, 10000);
   } catch(e) {
     if (btn) { btn.textContent = '✗ Failed'; btn.disabled = false; btn.style.opacity = '1'; }
   }
