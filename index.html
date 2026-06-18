@@ -1977,8 +1977,10 @@ async function directPlay(action, encodedData) {
     // [DESIGN NOTE] play_next handles ALL services (Spotify, Qobuz, Apple Music).
     // Service-side: Spotify URIs use ShareLinkPlugin, raw Sonos URIs use add_uri_to_queue.
     // Queue is preserved in all cases — play_uri (destructive) is no longer used from UI.
-    // Priority: sonos_uri > spotify URI > Spotify search fallback.
-    const playUri = info.sonos_uri || uri;
+    // Priority: spotify URI > playable sonos URI > Spotify search fallback.
+    // x-sonos-vli: URIs are virtual library items — NOT directly playable (UPnP 804).
+    const sonosUri = (info.sonos_uri && !info.sonos_uri.startsWith('x-sonos-vli:')) ? info.sonos_uri : '';
+    const playUri = uri || sonosUri;
     if (!playUri) {
       // No URI at all — try Spotify search as last resort
       const token = await getSpotifyToken();
