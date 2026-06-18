@@ -881,13 +881,21 @@ async function sendCmd(action) {
 
 async function postNtfy(payload) {
   const topic = NTFY[house];
-  if (!topic) { showToast('No ntfy topic for ' + house, true); return; }
+  if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
+  const body = JSON.stringify(payload);
+  console.log('[postNtfy] → ' + topic + ' body=' + body.substring(0, 200));
   try {
-    const r = await fetch(topic, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    // Send as text/plain to avoid CORS preflight (OPTIONS) which iOS Safari can block
+    const r = await fetch(topic, { method: 'POST', body });
+    console.log('[postNtfy] status=' + r.status);
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    showToast('✓ Command sent');
-  } catch(e) { showToast('✗ Failed: ' + e.message, true); }
+    return true;
+  } catch(e) {
+    console.error('[postNtfy] FAILED:', e);
+    showToast('✗ Send failed: ' + e.message, true);
+    return false;
+  }
 }
 
 // Spotify transport
@@ -1985,8 +1993,8 @@ async function directPlay(action, encodedData) {
     }
     const finalUri = playUri || uri;
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-    await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', rooms, target_client_id: commanderId });
-    showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
+    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', rooms, target_client_id: commanderId });
+    if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
     return;
   }
 
