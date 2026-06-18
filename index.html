@@ -1431,6 +1431,16 @@ function applyStateNowPlaying(stateFiles) {
       // State says no rooms playing — clear
       _roomsPlaying = [];
       _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : [];
+      // Seed selectedRooms from rooms_paused (= last grouping) if user hasn't manually selected
+      // and we have no existing selection (fresh browser session)
+      if (!_userManualRoomSelect[h] && state.rooms_paused && state.rooms_paused.length > 0) {
+        const curSel = selectedRooms[h] || [];
+        if (curSel.length === 0) {
+          console.log('[rooms] Seeding', h, 'rooms from paused state:', state.rooms_paused);
+          selectedRooms[h] = [...state.rooms_paused];
+          localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+        }
+      }
     }
   }
 }
@@ -1445,8 +1455,33 @@ function autoSelectTab(stateFiles) {
   if (active.length === 1 && active[0] !== house) {
     console.log('[auto-tab] Switching to', active[0], '(active speakers detected)');
     setHouse(active[0]);
+    return;
   }
-  // If both active or both idle — keep current tab (localStorage preference)
+  if (active.length > 0) return;  // both active or current house active — keep it
+
+  // Both idle — check rooms_paused as tiebreaker (house with paused speakers = recently active)
+  const pausedCounts = {};
+  for (const [h, state] of Object.entries(stateFiles)) {
+    pausedCounts[h] = (state && state.rooms_paused) ? state.rooms_paused.length : 0;
+  }
+  const houses = ['caphill', 'vashon'].filter(h => pausedCounts[h] !== undefined);
+  if (houses.length === 2 && pausedCounts[houses[0]] !== pausedCounts[houses[1]]) {
+    const winner = pausedCounts[houses[0]] > pausedCounts[houses[1]] ? houses[0] : houses[1];
+    if (winner !== house) {
+      console.log('[auto-tab] Switching to', winner, '(more paused rooms:', pausedCounts[winner], 'vs', pausedCounts[winner === houses[0] ? houses[1] : houses[0]], ')');
+      setHouse(winner);
+      return;
+    }
+  }
+
+  // Fallback: check most recent listening history
+  if (allItems.length > 0) {
+    const recent = allItems[0];
+    if (recent.house && recent.house !== 'roaming' && recent.house !== house) {
+      console.log('[auto-tab] Switching to', recent.house, '(most recent listening)');
+      setHouse(recent.house);
+    }
+  }
 }
 
 async function loadData(loadArchive) {
