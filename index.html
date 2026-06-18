@@ -220,6 +220,22 @@
   .action-btn:hover { background: var(--surface2); }
   .action-btn.explore { color: var(--accent2); }
   .action-btn.exploring { animation: pulse 1s infinite; }
+  .action-btn.ctx-toggle { color: var(--text-dim); font-size: 9px; }
+  .action-btn.ctx-toggle.open { color: var(--accent); }
+  .ctx-panel {
+    display: none; padding: 4px 0 4px 40px;
+    border-top: 1px solid var(--border);
+  }
+  .ctx-panel.open { display: block; }
+  .ctx-row {
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+    font-size: 12px; color: var(--text);
+  }
+  .ctx-row .ctx-icon { font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
+  .ctx-row .ctx-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ctx-row .ctx-label .ctx-type { color: var(--text-dim); margin-right: 4px; }
+  .ctx-row .ctx-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .ctx-loading { font-size: 11px; color: var(--text-dim); padding: 4px 0; }
 
   .day-header {
     padding: 10px 16px 6px; font-size: 12px; font-weight: 700;
@@ -1653,6 +1669,9 @@ function renderHistory() {
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
     const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''})).replace(/'/g,'%27');
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
+    const ctxId = 'ctx-' + i;
+    // Has album or context → show expand button
+    const hasCtx = item.album || item.context_uri;
 
     html += `<div class="history-item">
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
@@ -1672,8 +1691,10 @@ function renderHistory() {
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         <button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore">🔍</button>
+        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||'',sonos_uri:item.sonos_uri||''}))})" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
-    </div>`;
+    </div>
+    ${hasCtx ? `<div class="ctx-panel" id="${ctxId}"></div>` : ''}`;
   }
   el.innerHTML = html;
 }
@@ -1919,6 +1940,233 @@ async function directPlay(action, encodedData) {
       await new Promise(r => setTimeout(r, 300));
       await spotifyApi('POST', '/me/player/next');
       showToast('✓ Playing: ' + (info.title || ''));
+    }
+    setTimeout(fetchSpotifyNowPlaying, 1000);
+  } catch(e) { showToast('✗ ' + e.message, true); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONTEXT PANEL — Album & Playlist expand (Option C)
+// ══════════════════════════════════════════════════════════════════════════════
+let _playlistIndex = null; // lazy-loaded: { uri: [{name, playlist_uri}] }
+let _playlistIndexLoading = false;
+
+async function loadPlaylistIndex() {
+  if (_playlistIndex) return _playlistIndex;
+  if (_playlistIndexLoading) {
+    // Wait for in-flight load
+    while (_playlistIndexLoading) await new Promise(r => setTimeout(r, 100));
+    return _playlistIndex;
+  }
+  _playlistIndexLoading = true;
+  try {
+    const r = await fetch('https://shumania.github.io/lifelog/playlist_track_index.json');
+    if (r.ok) _playlistIndex = await r.json();
+  } catch(e) { console.error('Failed to load playlist index', e); }
+  _playlistIndexLoading = false;
+  return _playlistIndex;
+}
+
+function toggleCtxPanel(panelId, btn, encodedInfo) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const isOpen = panel.classList.contains('open');
+  // Close all other panels first
+  document.querySelectorAll('.ctx-panel.open').forEach(p => {
+    if (p.id !== panelId) {
+      p.classList.remove('open');
+      // Reset the toggle button
+      const prevBtn = p.previousElementSibling?.querySelector('.ctx-toggle');
+      if (prevBtn) { prevBtn.classList.remove('open'); prevBtn.textContent = '▾'; }
+    }
+  });
+  if (isOpen) {
+    panel.classList.remove('open');
+    btn.classList.remove('open');
+    btn.textContent = '▾';
+  } else {
+    panel.classList.add('open');
+    btn.classList.add('open');
+    btn.textContent = '▴';
+    populateCtxPanel(panelId, JSON.parse(decodeURIComponent(encodedInfo)));
+  }
+}
+
+async function populateCtxPanel(panelId, info) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  // Build rows: album first, then playlists
+  let rows = '';
+
+  // --- Album row ---
+  if (info.album) {
+    let albumUri = '';
+    // Use context_uri if it's an album
+    if (info.context_type === 'album' && info.context_uri) {
+      albumUri = info.context_uri;
+    }
+    const albumData = encodeURIComponent(JSON.stringify({
+      context_uri: albumUri,
+      title: info.title,
+      artist: info.artist,
+      album: info.album,
+      service: info.service,
+      sonos_uri: info.sonos_uri || ''
+    })).replace(/'/g, '%27');
+
+    rows += `<div class="ctx-row">
+      <span class="ctx-icon">💿</span>
+      <span class="ctx-label"><span class="ctx-type">Album</span>${esc(info.album)}</span>
+      <span class="ctx-actions">
+        <button class="action-btn" onclick="playContext('play','${albumData}')" title="Play Album">▶</button>
+        <button class="action-btn" onclick="playContext('queue','${albumData}')" title="Queue Album">+</button>
+      </span>
+    </div>`;
+  }
+
+  // --- Context playlist row (from tagged data) ---
+  if (info.context_type === 'playlist' && info.context_uri) {
+    const plName = await lookupPlaylistName(info.context_uri) || 'Playlist';
+    const plData = encodeURIComponent(JSON.stringify({
+      context_uri: info.context_uri,
+      title: info.title,
+      artist: info.artist,
+      album: info.album || '',
+      service: info.service,
+      playlist_name: plName,
+      sonos_uri: ''
+    })).replace(/'/g, '%27');
+    rows += `<div class="ctx-row">
+      <span class="ctx-icon">📋</span>
+      <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(plName)}</span>
+      <span class="ctx-actions">
+        <button class="action-btn" onclick="playContext('play','${plData}')" title="Play Playlist">▶</button>
+        <button class="action-btn" onclick="playContext('queue','${plData}')" title="Queue Playlist">+</button>
+      </span>
+    </div>`;
+  }
+
+  // --- Additional playlists from track index ---
+  if (info.uri) {
+    const loadingId = panelId + '-pl-loading';
+    if (!_playlistIndex) {
+      rows += `<div class="ctx-loading" id="${loadingId}">Loading playlists…</div>`;
+    }
+    panel.innerHTML = rows;
+
+    // Lazy-load playlist index
+    const idx = await loadPlaylistIndex();
+    const loadingEl = document.getElementById(loadingId);
+    if (loadingEl) loadingEl.remove();
+
+    if (idx && idx[info.uri]) {
+      const playlists = idx[info.uri];
+      let plRows = '';
+      for (const pl of playlists) {
+        // Skip if already shown as context playlist
+        if (info.context_type === 'playlist' && info.context_uri === pl.playlist_uri) continue;
+        const plData = encodeURIComponent(JSON.stringify({
+          context_uri: pl.playlist_uri,
+          title: info.title,
+          artist: info.artist,
+          album: info.album || '',
+          service: info.service,
+          playlist_name: pl.name,
+          sonos_uri: ''
+        })).replace(/'/g, '%27');
+        plRows += `<div class="ctx-row">
+          <span class="ctx-icon">📋</span>
+          <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
+          <span class="ctx-actions">
+            <button class="action-btn" onclick="playContext('play','${plData}')" title="Play Playlist">▶</button>
+            <button class="action-btn" onclick="playContext('queue','${plData}')" title="Queue Playlist">+</button>
+          </span>
+        </div>`;
+      }
+      panel.innerHTML += plRows;
+    }
+  } else {
+    panel.innerHTML = rows;
+  }
+
+  // If no rows at all, show a hint
+  if (!panel.innerHTML.trim()) {
+    panel.innerHTML = '<div class="ctx-loading">No album or playlist info available</div>';
+  }
+}
+
+let _playlistNameCache = {}; // playlist_uri → name
+
+async function lookupPlaylistName(playlistUri) {
+  if (_playlistNameCache[playlistUri]) return _playlistNameCache[playlistUri];
+  // Build name cache from index if loaded
+  const idx = _playlistIndex || await loadPlaylistIndex();
+  if (idx) {
+    for (const trackUri in idx) {
+      for (const pl of idx[trackUri]) {
+        _playlistNameCache[pl.playlist_uri] = pl.name;
+      }
+    }
+    if (_playlistNameCache[playlistUri]) return _playlistNameCache[playlistUri];
+  }
+  // Fallback: Spotify API
+  const match = playlistUri.match(/spotify:playlist:(\w+)/);
+  if (match && hasSpotifyAuth()) {
+    try {
+      const r = await spotifyApi('GET', '/playlists/' + match[1] + '?fields=name');
+      if (r?.name) { _playlistNameCache[playlistUri] = r.name; return r.name; }
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function playContext(action, encodedData) {
+  const info = JSON.parse(decodeURIComponent(encodedData));
+  let contextUri = info.context_uri;
+
+  // If no context_uri, search for album on Spotify
+  if (!contextUri && info.album) {
+    if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    showToast('Searching album…');
+    try {
+      const q = 'album:' + info.album + (info.artist ? ' artist:' + info.artist : '');
+      const r = await spotifyApi('GET', '/search?type=album&limit=1&q=' + encodeURIComponent(q));
+      contextUri = r?.albums?.items?.[0]?.uri;
+      if (!contextUri) { showToast('Album not found on Spotify', true); return; }
+    } catch(e) { showToast('Search failed', true); return; }
+  }
+
+  if (!contextUri) { showToast('No URI available', true); return; }
+
+  const label = info.playlist_name || info.album || 'context';
+
+  // --- SONOS PATH ---
+  if (house !== 'roaming') {
+    const rooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+    if (!rooms.length) { showToast('No rooms selected', true); return; }
+    const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
+    await postNtfy({ action: ntfyAction, uri: contextUri, title: label, rooms, target_client_id: commanderId });
+    showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + rooms.join(', '));
+    return;
+  }
+
+  // --- ROAMING PATH (Spotify Connect) ---
+  if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+  const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
+  try {
+    if (action === 'queue') {
+      // Queue context = start playing from context
+      await spotifyApi('PUT', '/me/player/play' + dpQ, { context_uri: contextUri });
+      showToast('✓ Playing: ' + label);
+    } else {
+      // Play from context, offset to the current track if possible
+      const body = { context_uri: contextUri };
+      if (info.title) {
+        // Try to find track offset within the context — just start from top for now
+      }
+      await spotifyApi('PUT', '/me/player/play' + dpQ, body);
+      showToast('✓ Playing: ' + label);
     }
     setTimeout(fetchSpotifyNowPlaying, 1000);
   } catch(e) { showToast('✗ ' + e.message, true); }
