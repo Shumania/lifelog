@@ -1669,7 +1669,7 @@ function renderHistory() {
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
     const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''})).replace(/'/g,'%27');
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
-    const ctxId = 'ctx-' + i;
+    const ctxId = 'ctx-' + (item.timestamp||'').replace(/\W/g,'');
     // Has album or context → show expand button
     const hasCtx = item.album || item.context_uri;
 
