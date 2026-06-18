@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.10"
+SERVICE_VERSION = "2.11"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1050,7 +1050,7 @@ _sse_consecutive_429 = 0              # count consecutive 429 failures for expon
 _sse_send_attempts = 0                # total flush attempts since startup (diagnostic)
 SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collapse into one message
 SSE_MIN_GAP_S     = 10.0              # absolute floor between sends (burst protection)
-SSE_BACKOFF_STEPS = [30, 120, 300]    # backoff durations: 30s, 2m, 5m (then stays at 5m)
+SSE_BACKOFF_STEPS = [30, 120, 300, 600, 900, 1800]  # 30s, 2m, 5m, 10m, 15m, 30m (caps at 30m)
 
 def _sse_enrich_state(payload):
     """Inject full state snapshot into any outbound SSE payload.
