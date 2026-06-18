@@ -1431,14 +1431,26 @@ function applyStateNowPlaying(stateFiles) {
       // State says no rooms playing — clear
       _roomsPlaying = [];
       _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : [];
-      // Seed selectedRooms from rooms_paused (= last grouping) if user hasn't manually selected
-      // and we have no existing selection (fresh browser session)
-      if (!_userManualRoomSelect[h] && state.rooms_paused && state.rooms_paused.length > 0) {
+      // Seed selectedRooms if user hasn't manually selected and we have no existing selection (fresh browser)
+      if (!_userManualRoomSelect[h]) {
         const curSel = selectedRooms[h] || [];
         if (curSel.length === 0) {
-          console.log('[rooms] Seeding', h, 'rooms from paused state:', state.rooms_paused);
-          selectedRooms[h] = [...state.rooms_paused];
-          localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+          // Priority 1: rooms_paused from state file (v2.10+ service)
+          if (state.rooms_paused && state.rooms_paused.length > 0) {
+            console.log('[rooms] Seeding', h, 'rooms from paused state:', state.rooms_paused);
+            selectedRooms[h] = [...state.rooms_paused];
+            localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+          }
+          // Priority 2: parse rooms from most recent track in state file (captures last grouping)
+          else if (state.recent_tracks && state.recent_tracks.length > 0 && state.recent_tracks[0].rooms) {
+            const roomStr = state.recent_tracks[0].rooms;
+            const roomList = [...new Set(roomStr.split(',').map(r => r.trim()).filter(Boolean))];
+            if (roomList.length > 0) {
+              console.log('[rooms] Seeding', h, 'rooms from recent_tracks:', roomList);
+              selectedRooms[h] = roomList;
+              localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+            }
+          }
         }
       }
     }
@@ -1474,10 +1486,26 @@ function autoSelectTab(stateFiles) {
     }
   }
 
-  // Fallback: check most recent listening history
+  // Fallback: most recently updated state file = active machine location
+  const timestamps = {};
+  for (const [h, state] of Object.entries(stateFiles)) {
+    timestamps[h] = state?.last_updated ? new Date(state.last_updated).getTime() : 0;
+  }
+  if (timestamps.caphill && timestamps.vashon && timestamps.caphill !== timestamps.vashon) {
+    const winner = timestamps.vashon > timestamps.caphill ? 'vashon' : 'caphill';
+    // Only use this signal if the difference is significant (>30 min = one is clearly more recently active)
+    const diff = Math.abs(timestamps.vashon - timestamps.caphill);
+    if (diff > 30 * 60000 && winner !== house) {
+      console.log('[auto-tab] Switching to', winner, '(more recently updated state file, diff:', Math.round(diff/60000), 'min)');
+      setHouse(winner);
+      return;
+    }
+  }
+
+  // Final fallback: most recent non-roaming listening history
   if (allItems.length > 0) {
-    const recent = allItems[0];
-    if (recent.house && recent.house !== 'roaming' && recent.house !== house) {
+    const recent = allItems.find(i => i.house && i.house !== 'roaming');
+    if (recent && recent.house !== house) {
       console.log('[auto-tab] Switching to', recent.house, '(most recent listening)');
       setHouse(recent.house);
     }
