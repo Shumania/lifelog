@@ -1982,16 +1982,14 @@ async function directPlay(action, encodedData) {
     const sonosUri = (info.sonos_uri && !info.sonos_uri.startsWith('x-sonos-vli:')) ? info.sonos_uri : '';
     const playUri = uri || sonosUri;
     if (!playUri) {
-      // No URI at all — try Spotify search as last resort
-      const token = await getSpotifyToken();
-      if (!token) { showToast('Open Controller to connect Spotify', true); return; }
-      showToast('Searching...');
-      try {
-        const q = [info.artist, info.title].filter(Boolean).join(' ');
-        const r = await spotifyApi('GET', '/search?type=track&limit=1&q=' + encodeURIComponent(q));
-        uri = r?.tracks?.items?.[0]?.uri;
-        if (!uri) { showToast('Not found on Spotify', true); return; }
-      } catch(e) { showToast('Search failed', true); return; }
+      // No Spotify URI or playable Sonos URI — use service-side search via search_and_play.
+      // This lets the Sonos service search Spotify natively without requiring browser PKCE auth.
+      console.log('[directPlay] No playable URI — falling back to search_and_play on service');
+      const q = [info.artist, info.title].filter(Boolean).join(' ');
+      if (!q) { showToast('No track info to search', true); return; }
+      const ok = await postNtfy({ action: 'search_and_play', query: q, service: 'Spotify', search_type: 'tracks', rooms, target_client_id: commanderId });
+      if (ok) showToast('✓ Searching & playing: ' + (info.title || '') + ' → ' + rooms.join(', '));
+      return;
     }
     const finalUri = playUri || uri;
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
