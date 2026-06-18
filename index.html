@@ -1691,7 +1691,7 @@ function renderHistory() {
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         <button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore">🔍</button>
-        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||'',sonos_uri:item.sonos_uri||''}))})" title="Album &amp; Playlists">▾</button>` : ''}
+        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||'',sonos_uri:item.sonos_uri||''}))}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
     </div>
     ${hasCtx ? `<div class="ctx-panel" id="${ctxId}"></div>` : ''}`;
