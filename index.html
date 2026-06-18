@@ -1484,6 +1484,21 @@ function autoSelectTab(stateFiles) {
     }
   }
 
+  // Fallback: most recently seen sonos_commander client (from data-head.json client_status)
+  if (data && data.client_status) {
+    const commanders = data.client_status.filter(c => c.sonos_commander);
+    if (commanders.length >= 2) {
+      commanders.sort((a, b) => (b.last_seen || '').localeCompare(a.last_seen || ''));
+      const newest = commanders[0];
+      const diff = new Date(newest.last_seen).getTime() - new Date(commanders[1].last_seen).getTime();
+      if (diff > 30 * 60000 && newest.house !== house) {
+        console.log('[auto-tab] Switching to', newest.house, '(most recently seen commander:', newest.client_id, ', diff:', Math.round(diff/60000), 'min)');
+        setHouse(newest.house);
+        return;
+      }
+    }
+  }
+
   // Fallback: most recently updated state file = active machine location
   const timestamps = {};
   for (const [h, state] of Object.entries(stateFiles)) {
@@ -1491,7 +1506,6 @@ function autoSelectTab(stateFiles) {
   }
   if (timestamps.caphill && timestamps.vashon && timestamps.caphill !== timestamps.vashon) {
     const winner = timestamps.vashon > timestamps.caphill ? 'vashon' : 'caphill';
-    // Only use this signal if the difference is significant (>30 min = one is clearly more recently active)
     const diff = Math.abs(timestamps.vashon - timestamps.caphill);
     if (diff > 30 * 60000 && winner !== house) {
       console.log('[auto-tab] Switching to', winner, '(more recently updated state file, diff:', Math.round(diff/60000), 'min)');
