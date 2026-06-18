@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.08"
+SERVICE_VERSION = "2.09"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -691,11 +691,16 @@ def get_rooms_playing():
                     modes[name] = mode
                 except Exception:
                     pass
-                # Coordinator is playing -- add all visible members of this group
+                # Coordinator is playing -- add ALL members of this group.
+                # Trust the coordinator's group topology (authoritative) rather
+                # than filtering against soco.discover() results, which can miss
+                # speakers on busy WiFi networks (SSDP multicast timeout).
                 if dev.group:
                     for member in dev.group.members:
-                        if member.player_name in current_devices_by_name:
-                            playing.append(member.player_name)
+                        playing.append(member.player_name)
+                        # Backfill devices map so commands can reach undiscovered members
+                        if member.player_name not in current_devices_by_name:
+                            current_devices_by_name[member.player_name] = member
                 else:
                     playing.append(name)
         except Exception as e:
