@@ -824,6 +824,7 @@ function renderRooms(h) {
 
 function toggleRoom(h, room) {
   _userManualRoomSelect[h] = true;
+  _tabManualOverride = true;  // v2.06: selecting a room implies tab commitment
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
   const adding = idx < 0;
@@ -1954,6 +1955,7 @@ function formatNarrative(text) {
 async function directPlay(action, encodedData) {
   const info = JSON.parse(decodeURIComponent(encodedData));
   let uri = info.uri;
+  console.log('[directPlay]', action, 'house=' + house, 'rooms=' + JSON.stringify(selectedRooms[house]), 'uri=' + (uri||'none'), 'title=' + (info.title||'?'), 'cmdId=' + (commanderId||'null'));
 
   // Determine play target: if the user is on a Sonos tab (caphill/vashon) with rooms selected,
   // ALWAYS use the Sonos path. The service handles Spotify URIs via ShareLinkPlugin.
