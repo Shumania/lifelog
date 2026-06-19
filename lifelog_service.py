@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.11"
+SERVICE_VERSION = "2.12"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1016,6 +1016,22 @@ def heartbeat_fields():
         "send_attempts": _sse_send_attempts,
         "topic": ntfy_ui_topic,
     }
+    # Now-playing tracks — same data as SSE, for webhook consumers (wellness check, etc.)
+    np_tracks = []
+    for coord_name in list(_last_ui_track.keys()):
+        rs = room_state.get(coord_name)
+        if rs and rs.get("track_info"):
+            ti = rs["track_info"]
+            np_tracks.append({
+                "title": ti.get("title", ""),
+                "artist": ti.get("artist", ""),
+                "album": ti.get("album", ""),
+                "rooms": ti.get("rooms", [coord_name]),
+                "service": ti.get("service", ""),
+                "uri": ti.get("uri", ""),
+            })
+    if np_tracks:
+        fields["now_playing_tracks"] = np_tracks
     # Recent log lines — ride along on every POST for visibility
     fields["recent_logs"] = get_recent_logs(100)
     # Structured command outcomes — for agent-side confirmation/debugging
