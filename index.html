@@ -885,8 +885,9 @@ async function postNtfy(payload) {
   const topic = NTFY[house];
   if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
+  payload.source_house = house; // diagnostic: which house the UI thinks it's targeting
   const body = JSON.stringify(payload);
-  console.log('[postNtfy] → ' + topic + ' body=' + body.substring(0, 200));
+  console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
   try {
     // Send as text/plain to avoid CORS preflight (OPTIONS) which iOS Safari can block
     const r = await fetch(topic, { method: 'POST', body });
@@ -2305,7 +2306,7 @@ async function playDiscovery(action, uri, label) {
   // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
   const ok = await postNtfy({ action: ntfyAction, uri, title: label, rooms, target_client_id: commanderId });
-  if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + rooms.join(', '));
+  if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + house + ':' + rooms.join(', '));
 }
 
 async function exploreArtist(btn, encodedData) {
