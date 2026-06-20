@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.16"
+SERVICE_VERSION = "2.17"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -390,9 +390,17 @@ _log_lock        = threading.Lock()
 # Last 50 lines included in every heartbeat; full 200-line buffer available via
 # 'get_logs' ntfy command. Zero file I/O overhead (appends to deque only).
 # ensure_ascii=True used when serializing to avoid cp1252 encoding issues on Windows.
-_LOG_RING_MAX    = 200
+_LOG_RING_MAX    = 500
 _log_ring        = deque(maxlen=_LOG_RING_MAX)
 _log_ring_lock   = threading.Lock()
+
+# Error-only ring buffer — persists much longer than general logs since errors
+# are infrequent. Captures lines containing ERROR, FAIL, Traceback, Exception,
+# or similar keywords. Sent alongside recent_logs in every heartbeat.
+_ERROR_RING_MAX  = 100
+_error_ring      = deque(maxlen=_ERROR_RING_MAX)
+_error_ring_lock = threading.Lock()
+_ERROR_KEYWORDS  = ("ERROR", "FAIL", "Traceback", "Exception", "CRITICAL", "crash", "UPnP", "HTTP 4", "HTTP 5", "timed out", "refused")
 
 # Command results ring buffer — structured outcomes for agent-side correlation
 _CMD_RESULTS_MAX = 20
@@ -436,6 +444,10 @@ def log(msg):
     # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
     with _log_ring_lock:
         _log_ring.append(line)
+    # Also capture to error ring if line matches any error keyword
+    if any(kw in msg for kw in _ERROR_KEYWORDS):
+        with _error_ring_lock:
+            _error_ring.append(line)
     try:
         with _log_lock:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -458,6 +470,12 @@ def get_full_logs():
     """Return all log lines in ring buffer (for on-demand get_logs command)."""
     with _log_ring_lock:
         return list(_log_ring)
+
+def get_recent_errors(n=50):
+    """Return last n error lines from dedicated error ring buffer."""
+    with _error_ring_lock:
+        lines = list(_error_ring)
+    return lines[-n:]
 
 def gh_headers():
     h = {"Accept": "application/vnd.github.v3+json", "User-Agent": "LifeLog-Service"}
@@ -508,6 +526,7 @@ def post_error(message, context="", module="service"):
         "version":  SERVICE_VERSION,
         "timestamp": now_iso(),
         "recent_logs": get_recent_logs(100),
+        "recent_errors": get_recent_errors(50),
     }
     try:
         requests.post(WEBHOOK, json=payload, timeout=10)
@@ -1034,6 +1053,8 @@ def heartbeat_fields():
         fields["now_playing_tracks"] = np_tracks
     # Recent log lines — ride along on every POST for visibility
     fields["recent_logs"] = get_recent_logs(100)
+    # Dedicated error buffer — persists longer than general logs
+    fields["recent_errors"] = get_recent_errors(50)
     # Structured command outcomes — for agent-side confirmation/debugging
     fields["command_results"] = get_command_results()
     return fields
@@ -1913,7 +1934,7 @@ def execute_command(cmd, source="unknown"):
             full_logs = get_full_logs()
             result["success"] = True
             result["message"] = f"Returning {len(full_logs)} log lines"
-            result["data"]    = {"log_lines": full_logs, "buffer_capacity": _LOG_RING_MAX, "command_results": get_command_results()}
+            result["data"]    = {"log_lines": full_logs, "buffer_capacity": _LOG_RING_MAX, "error_lines": get_recent_errors(), "command_results": get_command_results()}
             # POST to DEV_WEBHOOK directly (bypasses silent skip below)
             try:
                 r = requests.post(DEV_WEBHOOK, json=result, timeout=15)
