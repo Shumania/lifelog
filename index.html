@@ -738,17 +738,26 @@ async function spotifyApi(method, path, body) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const r = await fetch('https://api.spotify.com/v1' + path, opts);
-  if (r.status === 401) {
-    localStorage.removeItem('spotify_token_expiry');
-    const retry = await getSpotifyToken();
-    if (retry) return spotifyApi(method, path, body);
-    return null;
-  }
-  if (r.status === 204 || r.status === 202) return {};
-  if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error?.message || 'HTTP ' + r.status); }
-  const text = await r.text();
-  try { return text ? JSON.parse(text) : {}; } catch(e) { return {}; }
+  const _doFetch = async (attempt) => {
+    const r = await fetch('https://api.spotify.com/v1' + path, opts);
+    if (r.status === 401) {
+      localStorage.removeItem('spotify_token_expiry');
+      const retry = await getSpotifyToken();
+      if (retry) return spotifyApi(method, path, body);
+      return null;
+    }
+    // Retry transient server errors (502/503) once after a short delay
+    if ((r.status === 502 || r.status === 503) && attempt < 2) {
+      console.log('[spotifyApi] ' + r.status + ' on attempt ' + attempt + ', retrying...');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return _doFetch(attempt + 1);
+    }
+    if (r.status === 204 || r.status === 202) return {};
+    if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.error?.message || 'HTTP ' + r.status); }
+    const text = await r.text();
+    try { return text ? JSON.parse(text) : {}; } catch(e) { return {}; }
+  };
+  return _doFetch(1);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
