@@ -838,10 +838,12 @@ function toggleRoom(h, room) {
   // Find a room that's currently playing to use as coordinator
   const coordinator = _roomsPlaying[0];
   if (adding) {
-    postNtfy({ action: 'group', source: coordinator, add: [room], target_client_id: commanderId, t_requested: new Date().toISOString() });
+    postNtfy({ action: 'group', source: coordinator, add: [room], target_client_id: commanderId, t_requested: new Date().toISOString() })
+      .then(ok => { if (!ok) showToast(`✗ Failed to add ${room}`, true); });
     showToast(`Adding ${room} to group`);
   } else {
-    postNtfy({ action: 'ungroup', room: room, target_client_id: commanderId, t_requested: new Date().toISOString() });
+    postNtfy({ action: 'ungroup', room: room, target_client_id: commanderId, t_requested: new Date().toISOString() })
+      .then(ok => { if (!ok) showToast(`✗ Failed to remove ${room}`, true); });
     showToast(`Removing ${room} from group`);
   }
 }
@@ -2302,8 +2304,8 @@ async function playDiscovery(action, uri, label) {
   if (!rooms.length) { showToast('No rooms selected', true); return; }
   // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-  await postNtfy({ action: ntfyAction, uri, title: label, rooms, target_client_id: commanderId });
-  showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + rooms.join(', '));
+  const ok = await postNtfy({ action: ntfyAction, uri, title: label, rooms, target_client_id: commanderId });
+  if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + rooms.join(', '));
 }
 
 async function exploreArtist(btn, encodedData) {
@@ -2574,8 +2576,8 @@ function handleDeepLink() {
       const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
       if (!rooms.length) { showToast('No rooms', true); return; }
       const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-      await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
-      showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
+      const ok = await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
+      if (ok) showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
     }
   }, 500);
 }
