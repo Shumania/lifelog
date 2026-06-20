@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.14"
+SERVICE_VERSION = "2.15"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1930,14 +1930,27 @@ def execute_command(cmd, source="unknown"):
             if not master:
                 result["message"] = f"Room '{source}' not found"
             else:
+                # Resolve to actual group coordinator (source may be a member)
+                try:
+                    coord = master.group.coordinator if master.group and master.group.coordinator else master
+                    log(f"group: source={source}, coordinator={coord.player_name}")
+                except Exception:
+                    coord = master
                 joined = []
+                failed = []
                 for r in add_rooms:
                     dev = devices.get(r)
                     if dev:
-                        dev.join(master)
-                        joined.append(r)
-                result["success"] = True
-                result["message"] = f"Added {', '.join(joined)} to {source}"
+                        try:
+                            dev.join(coord)
+                            joined.append(r)
+                        except Exception as e:
+                            log(f"group: failed to join {r} to {coord.player_name}: {e}")
+                            failed.append(r)
+                result["success"] = len(joined) > 0
+                msg = f"Added {', '.join(joined)} to {coord.player_name}" if joined else "No rooms joined"
+                if failed: msg += f" (failed: {', '.join(failed)})"
+                result["message"] = msg
 
         elif action == "ungroup":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
