@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.15"
+SERVICE_VERSION = "2.16"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1942,6 +1942,12 @@ def execute_command(cmd, source="unknown"):
                     dev = devices.get(r)
                     if dev:
                         try:
+                            # Stop the joining speaker first so its active session
+                            # doesn't hijack the coordinator's queue
+                            try:
+                                dev.stop()
+                            except Exception:
+                                pass
                             dev.join(coord)
                             joined.append(r)
                         except Exception as e:
