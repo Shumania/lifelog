@@ -2149,10 +2149,9 @@ def execute_command(cmd, source="unknown"):
             from xml.sax.saxutils import escape as xml_escape
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
-            # DESIGN: No regrouping -- rooms already set up via tile taps.
-            # Just find coordinator for the first room and insert into its queue.
-            dev, rooms = _find_coordinator(cmd, devices)
-            was_grouped = []  # No regrouping -- tile taps own grouping
+            # Group rooms before playing — ensures all selected rooms play together.
+            # _setup_rooms is incremental: no-op if already correct.
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{rooms[0] if rooms else '?'}' not found. Available: {list(devices.keys())}"
             elif not track_uri:
