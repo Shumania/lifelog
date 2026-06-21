@@ -1280,7 +1280,11 @@ function renderNowPlayingSonos(h) {
     album: (sse && isLive ? sse.album : (dataNp ? dataNp.album : (latestItem ? latestItem.album : ''))),
     source: svc || '', uri: ''
   })).replace(/'/g,'%27') : '';
-  const exploreBtn = exploreData ? `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>` : '';
+  const npArtist = (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : '')));
+  const npCardIdx = findExploredCard(npArtist);
+  const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0
+    ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
+    : `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>`) : '';
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
@@ -1308,7 +1312,9 @@ function renderNowPlayingRoaming() {
         <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;background:var(--spotify);border-radius:2px;width:${pct}%"></div></div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${fmtMs(np.progress_ms)} / ${fmtMs(np.duration_ms)}</div>
       </div>
-      <button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`;
+      ${findExploredCard(np.artist) >= 0
+        ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(np.artist)})" title="View exploration">📖</button>`
+        : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}`;
   } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
     const pExplore = encodeURIComponent(JSON.stringify({title:spotifyNowPlaying.title,artist:spotifyNowPlaying.artist,album:'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     el.className = 'now-playing np-stale';
@@ -1319,7 +1325,9 @@ function renderNowPlayingRoaming() {
         <div class="np-track">${esc(spotifyNowPlaying.title)}</div>
         <div class="np-artist">${esc(spotifyNowPlaying.artist)}</div>
       </div>
-      <button class="np-explore" onclick="exploreArtist(this,'${pExplore}')" title="Explore artist">🔍</button>`;
+      ${findExploredCard(spotifyNowPlaying.artist) >= 0
+        ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(spotifyNowPlaying.artist)})" title="View exploration">📖</button>`
+        : `<button class="np-explore" onclick="exploreArtist(this,'${pExplore}')" title="Explore artist">🔍</button>`}`;
   } else {
     el.className = 'now-playing np-stale';
     let hint = '';
@@ -1682,7 +1690,7 @@ function renderRadioSession(item) {
         <div style="display:flex;gap:4px;flex-shrink:0;">
           ${playData ? `<button class="action-btn" onclick="directPlay('play','${playData}')" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;" title="Play">▶</button>` : ''}
           ${playData ? `<button class="action-btn" onclick="directPlay('queue','${playData}')" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;" title="Queue">+</button>` : ''}
-          <button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;" title="Explore">🔍</button>
+          ${exploreButton(t.artist, exploreData)}
         </div>
       </div>`;
     }
@@ -1801,7 +1809,7 @@ function renderHistory() {
       <div class="hi-actions">
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
-        <button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore">🔍</button>
+        ${exploreButton(item.artist, exploreData)}
         ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||'',sonos_uri:item.sonos_uri||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
     </div>
@@ -2352,6 +2360,49 @@ async function playDiscovery(action, uri, label) {
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
   const ok = await postNtfy({ action: ntfyAction, uri, title: label, rooms, target_client_id: commanderId });
   if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + house + ':' + rooms.join(', '));
+}
+
+// Find existing exploration card for an artist. Returns card index or -1.
+// Uses includes() matching: "Bill Evans Trio" matches explored "Bill Evans"
+function findExploredCard(artist) {
+  if (!artist || !data || !data.explored_artists) return -1;
+  const a = artist.toLowerCase().trim();
+  // Exact match first
+  if (data.explored_artists[a] !== undefined) return data.explored_artists[a];
+  // Partial: track artist includes explored name, or vice versa
+  for (const [name, idx] of Object.entries(data.explored_artists)) {
+    if (a.includes(name) || name.includes(a)) return idx;
+  }
+  return -1;
+}
+
+function navigateToExploration(cardIndex) {
+  // Switch to Discovery tab
+  document.querySelectorAll('.tab-btn').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'discovery');
+  });
+  document.querySelectorAll('.tab-content').forEach(t => {
+    t.classList.toggle('active', t.id === 'discovery');
+  });
+  tabManualOverride = true;
+  // Open and scroll to the card
+  const card = document.getElementById('disc-' + cardIndex);
+  if (card) {
+    card.classList.add('open');
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Brief highlight flash
+    card.style.outline = '2px solid var(--accent)';
+    setTimeout(() => { card.style.outline = ''; }, 2000);
+  }
+}
+
+// Returns HTML for explore button — 📖 if already explored, 🔍 if not
+function exploreButton(artist, exploreData) {
+  const cardIdx = findExploredCard(artist);
+  if (cardIdx >= 0) {
+    return `<button class="action-btn explore" onclick="navigateToExploration(${cardIdx})" title="View exploration" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">📖</button>`;
+  }
+  return `<button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">🔍</button>`;
 }
 
 async function exploreArtist(btn, encodedData) {
