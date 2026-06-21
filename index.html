@@ -886,6 +886,9 @@ async function sendCmd(action) {
     _playModes[room] = cycle[cur] || 'NORMAL';
     updateMuteRepeatButtons();
   }
+  // Optimistic toast for volume
+  if (action === 'volume_up') showToast('🔊 Volume up · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
+  if (action === 'volume_down') showToast('🔉 Volume down · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
   const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
   await postNtfy(payload);
 }
@@ -935,6 +938,7 @@ async function spotifyCmd(action) {
         const cur = spotifyDevices.find(d => d.is_active)?.volume_percent || 50;
         const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 10 : -10)));
         await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+        showToast((action === 'volume_up' ? '🔊' : '🔉') + ' Volume ' + vol + '%');
         break;
       }
       case 'toggle_mute': {

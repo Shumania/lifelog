@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.17"
+SERVICE_VERSION = "2.18"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2505,30 +2505,36 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = f"Room '{room}' not found"
 
         elif action == "volume_up":
-            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            vol_rooms = cmd.get("rooms") or ([cmd["room"]] if cmd.get("room") else [])
             step  = int(cmd.get("step", 10))
-            dev   = devices.get(room)
-            if dev:
-                if dev.mute:
-                    dev.mute = False  # auto-unmute on volume up
-                new_vol = min(100, dev.volume + step)
-                dev.volume = new_vol
-                result["success"] = True
-                result["message"] = f"Volume -> {new_vol} in {room} (unmuted)" if not dev.mute else f"Volume -> {new_vol} in {room}"
-            else:
-                result["message"] = f"Room '{room}' not found"
+            msgs = []
+            for room in vol_rooms:
+                dev = devices.get(room)
+                if dev:
+                    if dev.mute:
+                        dev.mute = False  # auto-unmute on volume up
+                    new_vol = min(100, dev.volume + step)
+                    dev.volume = new_vol
+                    msgs.append(f"{room} -> {new_vol}")
+                else:
+                    msgs.append(f"'{room}' not found")
+            result["success"] = bool(msgs)
+            result["message"] = "Volume up: " + ", ".join(msgs) if msgs else "No rooms specified"
 
         elif action == "volume_down":
-            room  = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            vol_rooms = cmd.get("rooms") or ([cmd["room"]] if cmd.get("room") else [])
             step  = int(cmd.get("step", 10))
-            dev   = devices.get(room)
-            if dev:
-                new_vol = max(0, dev.volume - step)
-                dev.volume = new_vol
-                result["success"] = True
-                result["message"] = f"Volume -> {new_vol} in {room}"
-            else:
-                result["message"] = f"Room '{room}' not found"
+            msgs = []
+            for room in vol_rooms:
+                dev = devices.get(room)
+                if dev:
+                    new_vol = max(0, dev.volume - step)
+                    dev.volume = new_vol
+                    msgs.append(f"{room} -> {new_vol}")
+                else:
+                    msgs.append(f"'{room}' not found")
+            result["success"] = bool(msgs)
+            result["message"] = "Volume down: " + ", ".join(msgs) if msgs else "No rooms specified"
 
         elif action == "toggle_mute":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
