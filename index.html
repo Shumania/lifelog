@@ -2293,6 +2293,7 @@ async function playDiscovery(action, uri, label) {
 
   if (house === 'roaming') {
     if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    await _ensureDeviceAwake();
     try {
       if (action === 'queue' && uri.includes(':track:')) {
         const dp = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
@@ -2305,7 +2306,24 @@ async function playDiscovery(action, uri, label) {
         showToast('✓ Playing: ' + label);
       }
       setTimeout(fetchSpotifyNowPlaying, 1000);
-    } catch(e) { showToast('✗ ' + e.message, true); }
+    } catch(e) {
+      // Device might have gone fully offline — retry once without device_id (plays on any active device)
+      if (e.message && e.message.toLowerCase().includes('device not found') && spotifySelectedDeviceId) {
+        console.log('[playDiscovery] Device not found — retrying without device_id');
+        try {
+          if (action === 'queue' && uri.includes(':track:')) {
+            await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri));
+          } else {
+            const body = uri.includes(':track:') ? { uris: [uri] } : { context_uri: uri };
+            await spotifyApi('PUT', '/me/player/play', body);
+          }
+          showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label);
+          setTimeout(fetchSpotifyNowPlaying, 1000);
+          return;
+        } catch(e2) { showToast('✗ ' + e2.message, true); return; }
+      }
+      showToast('✗ ' + e.message, true);
+    }
     return;
   }
 
