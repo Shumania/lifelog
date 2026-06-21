@@ -2377,22 +2377,18 @@ function findExploredCard(artist) {
 }
 
 function navigateToExploration(cardIndex) {
-  // Switch to Discovery tab
-  document.querySelectorAll('.tab-btn').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === 'discovery');
-  });
-  document.querySelectorAll('.tab-content').forEach(t => {
-    t.classList.toggle('active', t.id === 'discovery');
-  });
-  tabManualOverride = true;
+  // Switch to Discovery tab using existing setContentTab
+  setContentTab('discovery');
   // Open and scroll to the card
   const card = document.getElementById('disc-' + cardIndex);
   if (card) {
     card.classList.add('open');
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Brief highlight flash
-    card.style.outline = '2px solid var(--accent)';
-    setTimeout(() => { card.style.outline = ''; }, 2000);
+    setTimeout(() => {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Brief highlight flash
+      card.style.outline = '2px solid var(--accent)';
+      setTimeout(() => { card.style.outline = ''; }, 2000);
+    }, 100);
   }
 }
 
