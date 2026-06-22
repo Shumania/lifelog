@@ -1953,7 +1953,7 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     tracks = _albumTracksCache[explorationId][albumUri];
   } else {
     try {
-      const resp = await fetch('album_tracks/' + explorationId + '.json');
+      const resp = await fetch('album_tracks/' + explorationId + '.json?v=' + (Date.now()>>10));
       if (resp.ok) {
         _albumTracksCache[explorationId] = await resp.json();
         tracks = _albumTracksCache[explorationId][albumUri];
