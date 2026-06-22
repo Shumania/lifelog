@@ -1970,14 +1970,16 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
 
   let html = '';
   for (const t of tracks) {
-    const tUri = (t.uri || '').replace(/'/g, "\\'");
-    const tLbl = (t.name || '').replace(/'/g, "\\'");
+    const tName = t.name || t.t || '';
+    const tUriVal = t.uri || t.u || '';
+    const tUri = tUriVal.replace(/'/g, "\\'");
+    const tLbl = tName.replace(/'/g, "\\'");
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(t.name)}</span>
+      <span class="at-name">${esc(tName)}</span>
       <div class="sugg-actions">
-        ${t.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${tUri}','${tLbl}')">▶</button>
+        ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${tUri}','${tLbl}')">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${tUri}','${tLbl}')">+</button>` : ''}
       </div>
     </div>`;
