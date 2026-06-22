@@ -935,9 +935,14 @@ async function sendCmd(action) {
   await postNtfy(payload);
 }
 
+let _lastNtfyTime = 0;
 async function postNtfy(payload) {
   const topic = NTFY[house];
   if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
+  // Global ntfy throttle: prevent any two POSTs within 300ms (ntfy.sh burst limit)
+  const now = Date.now();
+  if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); return true; }
+  _lastNtfyTime = now;
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
   payload.source_house = house; // diagnostic: which house the UI thinks it's targeting
   const body = JSON.stringify(payload);
@@ -2115,7 +2120,11 @@ function formatNarrative(text) {
 // ══════════════════════════════════════════════════════════════════════════════
 // DIRECT PLAY / QUEUE / EXPLORE
 // ══════════════════════════════════════════════════════════════════════════════
+let _lastDirectPlayTime = 0;
 async function directPlay(action, encodedData) {
+  const now = Date.now();
+  if (now - _lastDirectPlayTime < 600) { console.log('[directPlay] throttled'); return; }
+  _lastDirectPlayTime = now;
   const info = JSON.parse(decodeURIComponent(encodedData));
   let uri = info.uri;
   console.log('[directPlay]', action, 'house=' + house, 'rooms=' + JSON.stringify(selectedRooms[house]), 'uri=' + (uri||'none'), 'title=' + (info.title||'?'), 'cmdId=' + (commanderId||'null'));
