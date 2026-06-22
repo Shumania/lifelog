@@ -936,35 +936,38 @@ async function sendCmd(action) {
 }
 
 let _lastNtfyTime = 0;
+// Tasklet webhook proxy — bypasses ntfy.sh rate limits (different server IP)
+const PROXY_URL = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmhjxbqmr6e?token=84a212c109956b237d6182a2c8b1956e';
+
 async function postNtfy(payload) {
   const topic = NTFY[house];
   if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
-  // Global ntfy throttle: prevent any two POSTs within 300ms (ntfy.sh burst limit)
+  // Global ntfy throttle: prevent any two POSTs within 300ms
   const now = Date.now();
   if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); return true; }
   _lastNtfyTime = now;
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
-  payload.source_house = house; // diagnostic: which house the UI thinks it's targeting
+  payload.source_house = house;
+  payload.house = house; // proxy needs this to pick ntfy topic
   const body = JSON.stringify(payload);
   console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
   try {
-    // Send as text/plain to avoid CORS preflight (OPTIONS) which iOS Safari can block
-    // Retry loop: ntfy.sh public instance rate-limits per IP; phone+PC on same WiFi share quota
-    const delays = [0, 2000, 3000, 5000]; // initial + 3 retries with increasing backoff
-    for (let attempt = 0; attempt < delays.length; attempt++) {
-      if (attempt > 0) {
-        console.log('[postNtfy] 429 — retry ' + attempt + ' after ' + delays[attempt] + 'ms');
-        await new Promise(ok => setTimeout(ok, delays[attempt]));
-      }
-      const r = await fetch(topic, { method: 'POST', body });
-      console.log('[postNtfy] attempt=' + attempt + ' status=' + r.status);
-      if (r.status === 429) continue;
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return true;
-    }
-    // All retries exhausted
-    showToast('ntfy busy — try again in a moment', true);
-    return false;
+    // Try ntfy.sh direct first (fast path, ~500ms)
+    const r = await fetch(topic, { method: 'POST', body });
+    console.log('[postNtfy] ntfy status=' + r.status);
+    if (r.ok) return true;
+    if (r.status !== 429) throw new Error('HTTP ' + r.status);
+    // 429 = rate-limited → fall back to Tasklet webhook proxy (~3-5s but reliable)
+    console.log('[postNtfy] 429 → falling back to Tasklet proxy');
+    showToast('Sending via proxy…');
+    const p = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    });
+    console.log('[postNtfy] proxy status=' + p.status);
+    if (!p.ok) throw new Error('Proxy HTTP ' + p.status);
+    return true;
   } catch(e) {
     console.error('[postNtfy] FAILED:', e);
     showToast('✗ Send failed: ' + e.message, true);
