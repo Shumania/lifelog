@@ -348,6 +348,18 @@
   .sugg-btn:active { opacity: 0.7; }
   .sugg-btn-play { background: #2563eb; color: #fff; }
   .sugg-btn-queue { background: #374151; color: #93c5fd; border: 1px solid #4b5563; }
+  .sugg-btn-expand { background: var(--surface); color: var(--text-dim); border: 1px solid var(--border); font-size: 9px; }
+  .sugg-btn-expand.open { color: var(--accent2); border-color: var(--accent2); }
+  .sugg-with-tracks { border-bottom: 1px solid rgba(35,41,64,0.3); }
+  .album-tracks-panel { display: none; padding: 0 0 4px 16px; }
+  .album-tracks-panel.show { display: block; }
+  .album-track-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 0; font-size: 12px;
+  }
+  .at-num { width: 20px; text-align: right; font-size: 11px; color: var(--text-dim); opacity: 0.6; flex-shrink: 0; }
+  .at-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .album-tracks-loading { padding: 8px 0; font-size: 12px; color: var(--text-dim); }
 
   /* Empty/loading states */
   .empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); }
@@ -1883,6 +1895,96 @@ function updateCounts() {
 // ══════════════════════════════════════════════════════════════════════════════
 // DISCOVERY LOG RENDERING
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// ALBUM TRACK EXPANSION (Phase 2)
+// ══════════════════════════════════════════════════════════════════════════════
+const _albumTracksCache = {};
+
+function renderSuggRow(s, explorationId) {
+  const uri = (s.uri || '').replace(/'/g, "\\'");
+  const lbl = (s.label || '').replace(/'/g, "\\'");
+  const isAlbum = !!(s.uri && s.uri.startsWith('spotify:album:') && explorationId);
+  const albumId = isAlbum ? s.uri.split(':').pop() : '';
+  let h = '';
+  if (isAlbum) h += '<div class="sugg-with-tracks">';
+  h += `<div class="suggestion-item">
+    <div class="suggestion-info">
+      <div class="suggestion-title">${esc(s.label)}</div>
+      ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+    </div>
+    <div class="sugg-actions">
+      ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
+      <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
+      ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},'${uri}',this)">▾</button>` : ''}
+    </div>
+  </div>`;
+  if (isAlbum) h += `<div class="album-tracks-panel" id="at-${explorationId}-${albumId}"></div></div>`;
+  return h;
+}
+
+async function toggleAlbumTracks(explorationId, albumUri, btn) {
+  const albumId = albumUri.split(':').pop();
+  const panelId = 'at-' + explorationId + '-' + albumId;
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+
+  if (panel.classList.contains('show')) {
+    panel.classList.remove('show');
+    btn.classList.remove('open');
+    btn.textContent = '▾';
+    return;
+  }
+
+  btn.classList.add('open');
+  btn.textContent = '▴';
+
+  // Already loaded content?
+  if (panel.children.length > 0 && !panel.querySelector('.album-tracks-loading')) {
+    panel.classList.add('show');
+    return;
+  }
+
+  // Show loading state
+  panel.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracks…</div>';
+  panel.classList.add('show');
+
+  let tracks;
+  if (_albumTracksCache[explorationId]) {
+    tracks = _albumTracksCache[explorationId][albumUri];
+  } else {
+    try {
+      const resp = await fetch('album_tracks/' + explorationId + '.json');
+      if (resp.ok) {
+        _albumTracksCache[explorationId] = await resp.json();
+        tracks = _albumTracksCache[explorationId][albumUri];
+      }
+    } catch(e) {
+      console.log('[albumTracks] fetch error:', e);
+    }
+  }
+
+  if (!tracks || tracks.length === 0) {
+    panel.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.5">No track data yet</div>';
+    return;
+  }
+
+  let html = '';
+  for (const t of tracks) {
+    const tUri = (t.uri || '').replace(/'/g, "\\'");
+    const tLbl = (t.name || '').replace(/'/g, "\\'");
+    const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
+    html += `<div class="album-track-item">
+      <span class="at-num">${num}</span>
+      <span class="at-name">${esc(t.name)}</span>
+      <div class="sugg-actions">
+        ${t.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${tUri}','${tLbl}')">▶</button>
+        <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${tUri}','${tLbl}')">+</button>` : ''}
+      </div>
+    </div>`;
+  }
+  panel.innerHTML = html;
+}
+
 function renderDiscovery() {
   const el = document.getElementById('discovery-list');
   if (!data || !data.play_commands || data.play_commands.length === 0) {
@@ -1961,27 +2063,24 @@ function renderDiscovery() {
       } else {
         let currentSection = '';
         for (const s of regularSuggs) {
-          // Detect section from label prefix
-          const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
-                          s.label && s.label.startsWith('🤝') ? 'Related Artists' :
-                          s.label && s.label.startsWith('📻') ? 'Related Artists' :
-                          'By ' + esc(cmd.artist || cmd.title);
-          if (section !== currentSection) {
-            currentSection = section;
-            html += `<div class="suggestion-section-label">${section}</div>`;
+          // Section headers
+          if (s.type === 'section_header') {
+            html += `<div class="suggestion-section-label">${esc(s.label)}</div>`;
+            currentSection = s.label;
+            continue;
           }
-          const uri = (s.uri || '').replace(/'/g, "\\'");
-          const lbl = (s.label || '').replace(/'/g, "\\'");
-          html += `<div class="suggestion-item">
-            <div class="suggestion-info">
-              <div class="suggestion-title">${esc(s.label)}</div>
-              ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
-            </div>
-            <div class="sugg-actions">
-              ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
-              <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
-            </div>
-          </div>`;
+          // Auto-detect section from label prefix if no explicit headers
+          if (!currentSection || s.type === 'source_album') {
+            const section = s.label && s.label.startsWith('🎛') ? 'Related Artists' :
+                            s.label && s.label.startsWith('🤝') ? 'Related Artists' :
+                            s.label && s.label.startsWith('📻') ? 'Related Artists' :
+                            'By ' + esc(cmd.artist || cmd.title);
+            if (section !== currentSection) {
+              currentSection = section;
+              html += `<div class="suggestion-section-label">${section}</div>`;
+            }
+          }
+          html += renderSuggRow(s, cmd.exploration_id);
         }
       }
     }
@@ -1998,19 +2097,7 @@ function renderClassicalSuggestions(suggs, cmd) {
     } else if (s.type === 'narrative') {
       html += `<div class="disc-narrative">${formatNarrative(s.text || '')}</div>`;
     } else {
-      // track, album, or any playable type
-      const uri = (s.uri || '').replace(/'/g, "\\'");
-      const lbl = (s.label || '').replace(/'/g, "\\'");
-      html += `<div class="suggestion-item">
-        <div class="suggestion-info">
-          <div class="suggestion-title">${esc(s.label)}</div>
-          ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
-        </div>
-        <div class="sugg-actions">
-          ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
-          <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
-        </div>
-      </div>`;
+      html += renderSuggRow(s, cmd.exploration_id);
     }
   }
   return html;
