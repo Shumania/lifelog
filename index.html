@@ -951,7 +951,15 @@ async function postNtfy(payload) {
     // Send as text/plain to avoid CORS preflight (OPTIONS) which iOS Safari can block
     const r = await fetch(topic, { method: 'POST', body });
     console.log('[postNtfy] status=' + r.status);
-    if (r.status === 429) { showToast('Slow down! Try again', true); return false; }
+    if (r.status === 429) {
+      console.log('[postNtfy] 429 — retrying after 1s');
+      await new Promise(ok => setTimeout(ok, 1000));
+      const r2 = await fetch(topic, { method: 'POST', body });
+      console.log('[postNtfy] retry status=' + r2.status);
+      if (r2.status === 429) { showToast('Slow down! Try again', true); return false; }
+      if (!r2.ok) throw new Error('HTTP ' + r2.status);
+      return true;
+    }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return true;
   } catch(e) {
@@ -2441,8 +2449,13 @@ async function playContext(action, encodedData) {
   } catch(e) { showToast('✗ ' + e.message, true); }
 }
 
+let _lastDiscoveryPlay = 0;
 async function playDiscovery(action, uri, label) {
   if (!uri) { showToast('No URI', true); return; }
+  // Throttle: prevent rapid taps (600ms)
+  const now = Date.now();
+  if (now - _lastDiscoveryPlay < 600) { console.log('[playDiscovery] throttled'); return; }
+  _lastDiscoveryPlay = now;
 
   if (house === 'roaming') {
     if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
