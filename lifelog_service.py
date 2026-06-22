@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.18"
+SERVICE_VERSION = "2.19"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -297,6 +297,7 @@ def _build_state_payload():
         "now_playing": np,
         "rooms_playing": rp,
         "rooms_paused": rp_paused,
+        "rooms_all": sorted(current_devices_by_name.keys()),
         "recent_tracks": list(_state_ring_buffer),
     }
 
@@ -1027,6 +1028,8 @@ def heartbeat_fields():
             name for name, st in _last_transport_states.items()
             if st == "PAUSED_PLAYBACK" and name not in rp
         )
+        # All rooms the service can currently see (for offline detection in frontend)
+        fields["rooms_all"] = sorted(current_devices_by_name.keys())
     # SSE diagnostic state — visible in webhook heartbeats
     fields["sse_state"] = {
         "consecutive_429": _sse_consecutive_429,
@@ -1098,6 +1101,7 @@ def _sse_enrich_state(payload):
         name for name, st in _last_transport_states.items()
         if st == "PAUSED_PLAYBACK" and name not in rp
     )
+    payload["rooms_all"] = sorted(current_devices_by_name.keys())
     payload["play_modes"] = dict(_current_play_modes)
     payload["mute_states"] = dict(_current_mute_states)
     payload["house"] = house
