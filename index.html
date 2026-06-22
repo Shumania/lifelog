@@ -949,19 +949,22 @@ async function postNtfy(payload) {
   console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
   try {
     // Send as text/plain to avoid CORS preflight (OPTIONS) which iOS Safari can block
-    const r = await fetch(topic, { method: 'POST', body });
-    console.log('[postNtfy] status=' + r.status);
-    if (r.status === 429) {
-      console.log('[postNtfy] 429 — retrying after 1s');
-      await new Promise(ok => setTimeout(ok, 1000));
-      const r2 = await fetch(topic, { method: 'POST', body });
-      console.log('[postNtfy] retry status=' + r2.status);
-      if (r2.status === 429) { showToast('Slow down! Try again', true); return false; }
-      if (!r2.ok) throw new Error('HTTP ' + r2.status);
+    // Retry loop: ntfy.sh public instance rate-limits per IP; phone+PC on same WiFi share quota
+    const delays = [0, 2000, 3000, 5000]; // initial + 3 retries with increasing backoff
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      if (attempt > 0) {
+        console.log('[postNtfy] 429 — retry ' + attempt + ' after ' + delays[attempt] + 'ms');
+        await new Promise(ok => setTimeout(ok, delays[attempt]));
+      }
+      const r = await fetch(topic, { method: 'POST', body });
+      console.log('[postNtfy] attempt=' + attempt + ' status=' + r.status);
+      if (r.status === 429) continue;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       return true;
     }
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return true;
+    // All retries exhausted
+    showToast('ntfy busy — try again in a moment', true);
+    return false;
   } catch(e) {
     console.error('[postNtfy] FAILED:', e);
     showToast('✗ Send failed: ' + e.message, true);
