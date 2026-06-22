@@ -937,7 +937,7 @@ async function sendCmd(action) {
 
 let _lastNtfyTime = 0;
 // Tasklet webhook proxy — bypasses ntfy.sh rate limits (different server IP)
-const PROXY_URL = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmhjxbqmr6e?token=84a212c109956b237d6182a2c8b1956e';
+const PROXY_URL = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=84a212c109956b237d6182a2c8b1956e';
 
 async function postNtfy(payload) {
   const topic = NTFY[house];
@@ -962,7 +962,6 @@ async function postNtfy(payload) {
     showToast('Sending via proxy…');
     const p = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body
     });
     console.log('[postNtfy] proxy status=' + p.status);
