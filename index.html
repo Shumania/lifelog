@@ -2363,15 +2363,18 @@ async function playDiscovery(action, uri, label) {
 }
 
 // Find existing exploration card for an artist. Returns card index or -1.
-// Uses includes() matching: "Bill Evans Trio" matches explored "Bill Evans"
+// Word-boundary matching: "Bill Evans Trio" matches explored "Bill Evans" but "Milton Nascimento" does NOT match "Nas"
 function findExploredCard(artist) {
   if (!artist || !data || !data.explored_artists) return -1;
   const a = artist.toLowerCase().trim();
   // Exact match first
   if (data.explored_artists[a] !== undefined) return data.explored_artists[a];
-  // Partial: track artist includes explored name, or vice versa
+  // Partial: word-boundary match — explored name must appear as complete word(s) in artist, or vice versa
   for (const [name, idx] of Object.entries(data.explored_artists)) {
-    if (a.includes(name) || name.includes(a)) return idx;
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp('\\b' + escaped + '\\b').test(a)) return idx;
+    const escapedA = a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp('\\b' + escapedA + '\\b').test(name)) return idx;
   }
   return -1;
 }
