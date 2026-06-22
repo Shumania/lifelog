@@ -1917,6 +1917,12 @@ function updateCounts() {
 // ALBUM TRACK EXPANSION (Phase 2)
 // ══════════════════════════════════════════════════════════════════════════════
 const _albumTracksCache = {};
+function getExpandedAlbums() {
+  try { return new Set(JSON.parse(localStorage.getItem('albumExpanded') || '[]')); } catch { return new Set(); }
+}
+function saveExpandedAlbums(set) {
+  try { localStorage.setItem('albumExpanded', JSON.stringify([...set])); } catch {}
+}
 
 function renderSuggRow(s, explorationId) {
   const uri = (s.uri || '').replace(/'/g, "\\'");
@@ -1946,15 +1952,20 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
   const panel = document.getElementById(panelId);
   if (!panel) return;
 
+  const savedAlbums = getExpandedAlbums();
   if (panel.classList.contains('show')) {
     panel.classList.remove('show');
     btn.classList.remove('open');
     btn.textContent = '▾';
+    savedAlbums.delete(panelId);
+    saveExpandedAlbums(savedAlbums);
     return;
   }
 
   btn.classList.add('open');
   btn.textContent = '▴';
+  savedAlbums.add(panelId);
+  saveExpandedAlbums(savedAlbums);
 
   // Already loaded content?
   if (panel.children.length > 0 && !panel.querySelector('.album-tracks-loading')) {
@@ -2107,6 +2118,23 @@ function renderDiscovery() {
     html += '</div></div>';
   }
   el.innerHTML = html;
+  // Restore previously expanded album track panels
+  const savedAlbums = getExpandedAlbums();
+  for (const panelId of savedAlbums) {
+    const panel = document.getElementById(panelId);
+    if (!panel) { savedAlbums.delete(panelId); continue; }
+    const btn = panel.previousElementSibling?.querySelector('.sugg-btn-expand')
+             || panel.closest('.sugg-with-tracks')?.querySelector('.sugg-btn-expand');
+    if (btn) {
+      // Extract explorationId and albumUri from panelId: at-{explorationId}-{albumId}
+      const parts = panelId.replace(/^at-/, '').split('-');
+      const explorationId = parseInt(parts[0], 10);
+      const albumId = parts.slice(1).join('-');
+      // Fire the toggle to load and expand
+      toggleAlbumTracks(explorationId, 'spotify:album:' + albumId, btn);
+    }
+  }
+  saveExpandedAlbums(savedAlbums);
 }
 
 function renderClassicalSuggestions(suggs, cmd) {
