@@ -976,6 +976,17 @@ async function postNtfy(payload) {
 
 // Spotify transport
 async function _ensureDeviceAwake() {
+  // If no device selected, refresh device list and auto-pick the phone (or first available)
+  if (!spotifySelectedDeviceId) {
+    await fetchSpotifyDevices();
+    if (!spotifySelectedDeviceId && spotifyDevices.length > 0) {
+      const phone = spotifyDevices.find(d => PHONE_TYPES.has(d.type));
+      const pick = phone || spotifyDevices.find(d => d.is_active) || spotifyDevices[0];
+      spotifySelectedDeviceId = pick.id;
+      localStorage.setItem('ll_spotify_device', pick.id);
+      console.log('[_ensureDeviceAwake] auto-selected device:', pick.name);
+    }
+  }
   if (!spotifySelectedDeviceId) return;
   const cached = _deviceCache[spotifySelectedDeviceId];
   if (cached && cached.stale) {
@@ -2463,23 +2474,26 @@ async function playContext(action, encodedData) {
 
   // --- ROAMING PATH (Spotify Connect) ---
   if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+  await _ensureDeviceAwake();
   const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
   try {
-    if (action === 'queue') {
-      // Queue context = start playing from context
-      await spotifyApi('PUT', '/me/player/play' + dpQ, { context_uri: contextUri });
-      showToast('✓ Playing: ' + label);
-    } else {
-      // Play from context, offset to the current track if possible
-      const body = { context_uri: contextUri };
-      if (info.title) {
-        // Try to find track offset within the context — just start from top for now
-      }
-      await spotifyApi('PUT', '/me/player/play' + dpQ, body);
-      showToast('✓ Playing: ' + label);
-    }
+    const body = { context_uri: contextUri };
+    await spotifyApi('PUT', '/me/player/play' + dpQ, body);
+    showToast('✓ Playing: ' + label);
     setTimeout(fetchSpotifyNowPlaying, 1000);
-  } catch(e) { showToast('✗ ' + e.message, true); }
+  } catch(e) {
+    // Device might have gone offline — retry once without device_id
+    if (e.message && e.message.toLowerCase().includes('no active device') && spotifySelectedDeviceId) {
+      console.log('[playContext] No active device — retrying without device_id');
+      try {
+        await spotifyApi('PUT', '/me/player/play', { context_uri: contextUri });
+        showToast('✓ Playing: ' + label);
+        setTimeout(fetchSpotifyNowPlaying, 1000);
+        return;
+      } catch(e2) { showToast('✗ Player command failed: ' + e2.message, true); return; }
+    }
+    showToast('✗ Player command failed: ' + e.message, true);
+  }
 }
 
 let _lastDiscoveryPlay = 0;
