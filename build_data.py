@@ -132,10 +132,14 @@ def process_spotify(music):
             'album': t.get('album_name', ''),
             'timestamp': t.get('played_at', ''),
             'source': t.get('source', ''),
-            'house': 'vashon' if t.get('source') == 'spotify_teenbloods' else 'roaming',
+            'house': 'roaming',
         }
         if t.get('spotify_uri'):
             entry['uri'] = t['spotify_uri']
+        if t.get('context_type'):
+            entry['context_type'] = t['context_type']
+        if t.get('context_uri'):
+            entry['context_uri'] = t['context_uri']
         items.append(entry)
     return items
 
@@ -169,6 +173,113 @@ def process_podcasts(podcasts):
     return items
 
 
+JUNK_TITLES = {'-[break]-', '[break]', 'zpstr_connecting', 'zpstr_buffering', 'zpstr_enqueued', ''}
+
+
+def process_radio_sessions(sonos_raw):
+    """Process radio_session rows into display items.
+
+    - Unexpanded sessions: emit a 'radio_session' item with expanded=false
+    - Expanded sessions: emit a 'radio_session' item with expanded=true and embedded child tracks
+
+    Child tracks are matched from sonos_raw by radio_session_id in raw_metadata.
+
+    Handles two input shapes:
+      - Publisher queries: fields come from json_extract aliases (end_time, session_rooms, station, expanded, etc.)
+      - Direct queries: raw_metadata JSON string with nested fields
+    """
+    sessions = [t for t in sonos_raw if t.get('type') == 'radio_session']
+
+    # Build lookup of child tracks by radio_session_id
+    child_tracks_by_session = defaultdict(list)
+    for t in sonos_raw:
+        if t.get('type') == 'radio_session':
+            continue
+        meta = {}
+        rm = t.get('raw_metadata')
+        if rm:
+            try:
+                meta = json.loads(rm) if isinstance(rm, str) else rm
+            except Exception:
+                pass
+        rsid = t.get('radio_session_id') or meta.get('radio_session_id')
+        if rsid:
+            # spotify_id / album_image may come from json_extract aliases (top-level)
+            # OR from raw_metadata JSON — check both
+            spotify_id = t.get('spotify_id') or meta.get('spotify_id') or ''
+            album_img = t.get('album_image') or meta.get('album_image') or ''
+            album = t.get('meta_album') or t.get('show_name') or meta.get('album', '') or ''
+            child_tracks_by_session[rsid].append({
+                'title': t.get('title', ''),
+                'artist': t.get('author', ''),
+                'album': album,
+                'timestamp': t.get('timestamp', ''),
+                'uri': f"spotify:track:{spotify_id}" if spotify_id else '',
+                'album_image': album_img,
+            })
+
+    items = []
+    for s in sessions:
+        meta = {}
+        rm = s.get('raw_metadata')
+        if rm:
+            try:
+                meta = json.loads(rm) if isinstance(rm, str) else rm
+            except Exception:
+                pass
+
+        expanded = s.get('expanded') or meta.get('expanded')
+        is_expanded = (expanded == 'true' or expanded is True)
+
+        # Resolve house: prefer json_extract alias, then raw_metadata, then domain, then source_device_id if it's a known house
+        house = s.get('house') or meta.get('house', '') or s.get('domain', '')
+        if not house:
+            sid = s.get('source_device_id', '')
+            if sid in ('caphill', 'vashon'):
+                house = sid
+
+        rooms = []
+        sr = s.get('session_rooms')
+        if sr:
+            try:
+                rooms = json.loads(sr) if isinstance(sr, str) else sr
+            except Exception:
+                rooms = []
+        if not rooms:
+            rooms = meta.get('rooms', [])
+
+        end_time = s.get('end_time') or meta.get('end_time', '')
+        station = s.get('station') or meta.get('station', s.get('source', ''))
+        enriched_count = s.get('enriched_count') or meta.get('enriched_count', 0)
+        session_id = s.get('id')
+
+        entry = {
+            'type': 'radio_session',
+            'title': s.get('title') or s.get('show_name') or 'Radio',
+            'artist': '',
+            'album': '',
+            'timestamp': s.get('timestamp', ''),
+            'end_time': end_time,
+            'source': s.get('source', ''),
+            'station': station,
+            'house': house,
+            'room': ', '.join(rooms) if rooms else '',
+            'rooms': rooms if len(rooms) > 1 else None,
+            'enriched_count': enriched_count,
+            'session_id': session_id,
+            'expanded': is_expanded,
+        }
+
+        if is_expanded and session_id:
+            # Embed child tracks, sorted by timestamp
+            children = child_tracks_by_session.get(session_id, [])
+            children.sort(key=lambda x: x.get('timestamp', ''))
+            entry['tracks'] = children
+
+        items.append(entry)
+    return items
+
+
 def process_sonos(sonos_raw):
     """Consolidate Sonos tracks: same title+artist within 2-min window → merge rooms.
 
@@ -178,6 +289,25 @@ def process_sonos(sonos_raw):
       - full publisher: fields come from raw consumption_history columns
         (album from show_name, url as sonos_uri, raw_metadata JSON)
     """
+    # Filter out radio_session rows (handled by process_radio_sessions),
+    # child tracks of radio sessions (embedded in parent session), and junk
+    def _is_radio_child(t):
+        if t.get('radio_session_id'):
+            return True
+        rm = t.get('raw_metadata')
+        if rm:
+            try:
+                meta = json.loads(rm) if isinstance(rm, str) else rm
+                if meta.get('radio_session_id'):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    sonos_raw = [t for t in sonos_raw if t.get('type') != 'radio_session' and not _is_radio_child(t)]
+    sonos_raw = [t for t in sonos_raw if (t.get('title') or '').lower().strip() not in JUNK_TITLES
+                 and not (t.get('title') or '').startswith('ZPSTR_')]
+
     sonos_groups = defaultdict(list)
     for t in sonos_raw:
         bucket = int(ts_key(t.get('timestamp', '')) // 120)
@@ -207,8 +337,33 @@ def process_sonos(sonos_raw):
                 except Exception:
                     pass
 
-        # Extract album — try meta_album (json_extract), then album, then show_name
-        album = best.get('meta_album') or best.get('album') or ''
+        # Extract enriched metadata — try json_extract fields first, then raw_metadata
+        enriched = {}
+        for t in group:
+            # Check json_extract fields (from publisher queries)
+            if t.get('enriched'):
+                enriched = {
+                    'enriched': True,
+                    'spotify_id': t.get('spotify_id'),
+                    'album_image': t.get('album_image'),
+                    'label': t.get('meta_label'),
+                    'year': t.get('meta_year'),
+                    'album': t.get('meta_album') or '',
+                }
+                break
+            # Fall back to raw_metadata parsing
+            rm = t.get('raw_metadata')
+            if rm:
+                try:
+                    meta = json.loads(rm) if isinstance(rm, str) else rm
+                    if meta.get('enriched'):
+                        enriched = meta
+                        break
+                except Exception:
+                    pass
+
+        # Extract album — prefer enriched, then meta_album, then show_name
+        album = enriched.get('album') or best.get('meta_album') or best.get('album') or ''
         if not album:
             # Full publisher puts album in show_name column
             album = best.get('show_name') or ''
@@ -231,13 +386,25 @@ def process_sonos(sonos_raw):
         if container_name:
             entry['context'] = container_name
 
-        # Extract Spotify URI from Sonos transport URI
-        sonos_uri = best.get('sonos_uri') or best.get('url') or ''
-        transport_uri = best.get('sonos_transport_uri') or ''
-        spotify_uri = extract_spotify_uri(sonos_uri, transport_uri)
-        if spotify_uri:
-            entry['uri'] = spotify_uri
+        # Enriched metadata: Spotify ID, album art, label, year
+        if enriched.get('spotify_id'):
+            entry['uri'] = f"spotify:track:{enriched['spotify_id']}"
+        if enriched.get('album_image'):
+            entry['album_image'] = enriched['album_image']
+        if enriched.get('label'):
+            entry['label'] = enriched['label']
+        if enriched.get('year'):
+            entry['year'] = enriched['year']
+
+        # Extract Spotify URI from Sonos transport URI (non-radio tracks)
+        if not entry.get('uri'):
+            sonos_uri = best.get('sonos_uri') or best.get('url') or ''
+            transport_uri = best.get('sonos_transport_uri') or ''
+            spotify_uri = extract_spotify_uri(sonos_uri, transport_uri)
+            if spotify_uri:
+                entry['uri'] = spotify_uri
         # Include raw Sonos URI for native replay (Qobuz, Apple Music, etc.)
+        sonos_uri = best.get('sonos_uri') or best.get('url') or ''
         if sonos_uri and not sonos_uri.startswith('spotify:'):
             entry['sonos_uri'] = sonos_uri
         # Include service type
@@ -309,8 +476,20 @@ def cross_source_dedup(items):
     return deduped + sonos_items + other_items
 
 
-def parse_play_commands(play_cmds_raw):
-    """Parse play_commands rows into clean dicts with parsed suggestions JSON."""
+def parse_play_commands(play_cmds_raw, exploration_suggestions=None):
+    """Parse play_commands rows into clean dicts with suggestions.
+
+    If exploration_suggestions is provided, reconstruct suggestions from normalized
+    DB rows instead of parsing JSON blobs. This is the Phase 1 migration path.
+    """
+    # Build lookup: exploration_id → sorted list of suggestion rows
+    sugg_by_id = defaultdict(list)
+    if exploration_suggestions:
+        for s in exploration_suggestions:
+            sugg_by_id[s['exploration_id']].append(s)
+        for k in sugg_by_id:
+            sugg_by_id[k].sort(key=lambda x: x['suggestion_index'])
+
     play_commands = []
     for pc in play_cmds_raw:
         entry = {k: pc.get(k) for k in [
@@ -318,12 +497,77 @@ def parse_play_commands(play_cmds_raw):
             'context', 'narrative', 'source',
             't_requested', 't_command_sent', 't_playing', 't_published'
         ]}
-        try:
-            entry['suggestions'] = json.loads(pc['suggestions']) if pc.get('suggestions') else []
-        except Exception:
-            entry['suggestions'] = []
+
+        pc_id = pc.get('id')
+        if exploration_suggestions is not None and pc_id in sugg_by_id:
+            # Reconstruct from normalized DB rows
+            genre = pc.get('genre')
+            genre_source = pc.get('genre_source')
+            entry['suggestions'] = _reconstruct_suggestions(
+                genre, genre_source, sugg_by_id[pc_id])
+            entry['exploration_id'] = pc_id
+        else:
+            # Legacy: parse JSON blob
+            try:
+                entry['suggestions'] = json.loads(pc['suggestions']) if pc.get('suggestions') else []
+            except Exception:
+                entry['suggestions'] = []
+            # Always set exploration_id so album-expand buttons render
+            if pc_id is not None:
+                entry['exploration_id'] = pc_id
+
         play_commands.append(entry)
     return play_commands
+
+
+def _reconstruct_suggestions(genre, genre_source, rows):
+    """Reconstruct the original suggestions structure from normalized DB rows."""
+    items = []
+    exploration_meta = {}
+
+    for row in rows:
+        rtype = row.get('type', 'suggestion')
+        meta = {}
+        if row.get('metadata'):
+            try:
+                meta = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
+            except Exception:
+                pass
+
+        # Extract exploration-level metadata from source_track (index 0)
+        if row.get('suggestion_index') == 0:
+            for k in ('context', 'work_title'):
+                if meta.get(k):
+                    exploration_meta[k] = meta.pop(k)
+            if meta.get('composer'):
+                exploration_meta['composer'] = meta['composer']  # copy, don't pop
+
+        item = {}
+        if rtype == 'section_header':
+            item['type'] = 'section_header'
+            item.update(meta)
+            item['label'] = row['label']
+        elif rtype == 'narrative':
+            item['type'] = 'narrative'
+            item.update(meta)
+        else:
+            if rtype != 'suggestion':
+                item['type'] = rtype
+            item['label'] = row['label']
+            item['uri'] = row.get('uri') or ''
+            item['action'] = row.get('action') or 'play'
+            item['note'] = row.get('note') or ''
+            item.update(meta)
+
+        items.append(item)
+
+    if genre is not None:
+        result = {'genre': genre, 'genre_source': genre_source or ''}
+        result.update(exploration_meta)
+        result['items'] = items
+        return result
+    else:
+        return items
 
 
 def parse_now_playing(now_playing_rows):
@@ -379,20 +623,22 @@ def process_all(data, limit=None):
     clients = data.get('clients', [])
     now_playing_rows = data.get('now_playing', [])
     play_cmds_raw = data.get('play_commands', [])
+    exploration_suggestions = data.get('exploration_suggestions')
 
     # Parse metadata
     now_playing = parse_now_playing(now_playing_rows)
-    play_commands = parse_play_commands(play_cmds_raw)
+    play_commands = parse_play_commands(play_cmds_raw, exploration_suggestions)
     rooms_playing = extract_rooms_playing(clients)
     commander_house = get_commander_house(clients)
 
     # Process each source
     spotify_items = process_spotify(music)
     podcast_items = process_podcasts(podcasts)
+    radio_session_items = process_radio_sessions(sonos_raw)
     sonos_items = process_sonos(sonos_raw)
 
     # Combine and cross-source dedup
-    all_items = spotify_items + podcast_items + sonos_items
+    all_items = spotify_items + podcast_items + sonos_items + radio_session_items
     all_items = cross_source_dedup(all_items)
 
     # Sort by timestamp (newest first)
@@ -415,6 +661,14 @@ def process_all(data, limit=None):
         else:
             now_playing['played_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
+    # Build explored_artists map: normalized artist name → card index
+    # Used by frontend to swap 🔍→📖 at render time (no runtime computation)
+    explored_artists = {}
+    for i, pc in enumerate(play_commands):
+        artist = (pc.get('artist') or '').lower().strip()
+        if artist and artist not in explored_artists:
+            explored_artists[artist] = i  # first exploration wins
+
     return {
         'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'now_playing': now_playing,
@@ -422,4 +676,47 @@ def process_all(data, limit=None):
         'items': all_items,
         'client_status': clients,
         'play_commands': play_commands,
+        'explored_artists': explored_artists,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ALBUM TRACK FILES (Phase 2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def build_album_track_files(album_tracks_rows):
+    """Build per-exploration album track JSON data from DB rows.
+
+    Args:
+        album_tracks_rows: list of dicts with keys:
+            exploration_id, album_uri, track_number, track_name, track_uri,
+            duration_ms, disc_number
+
+    Returns:
+        dict: {exploration_id: {album_uri: [track_dicts]}}
+        Each track_dict: {"n": track_number, "name": track_name,
+                          "uri": track_uri, "ms": duration_ms}
+        disc_number ("d") included only when > 1.
+    """
+    result = defaultdict(lambda: defaultdict(list))
+    for row in album_tracks_rows:
+        eid = row['exploration_id']
+        auri = row['album_uri']
+        track = {
+            'n': row['track_number'],
+            'name': row['track_name'],
+            'uri': row['track_uri'],
+            'ms': row.get('duration_ms') or 0,
+        }
+        disc = row.get('disc_number') or 1
+        if disc > 1:
+            track['d'] = disc
+        result[eid][auri].append(track)
+
+    # Sort tracks by disc then track number within each album
+    for eid in result:
+        for auri in result[eid]:
+            result[eid][auri].sort(key=lambda t: (t.get('d', 1), t['n']))
+
+    # Convert defaultdicts to regular dicts for JSON serialization
+    return {eid: dict(albums) for eid, albums in result.items()}
