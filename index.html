@@ -2387,23 +2387,32 @@ async function populateCtxPanel(panelId, info) {
       for (const pl of playlists) {
         // Skip if already shown as context playlist
         if (info.context_type === 'playlist' && info.context_uri === pl.playlist_uri) continue;
-        const plData = encodeURIComponent(JSON.stringify({
-          context_uri: pl.playlist_uri,
-          title: info.title,
-          artist: info.artist,
-          album: info.album || '',
-          service: info.service,
-          playlist_name: pl.name,
-          sonos_uri: ''
-        })).replace(/'/g, '%27');
-        plRows += `<div class="ctx-row">
-          <span class="ctx-icon">📋</span>
-          <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
-          <span class="ctx-actions">
-            <button class="action-btn" onclick="playContext('play','${plData}')" title="Play Playlist">▶</button>
-            <button class="action-btn" onclick="playContext('queue','${plData}')" title="Queue Playlist">+</button>
-          </span>
-        </div>`;
+        const hasRealUri = pl.playlist_uri && !pl.playlist_uri.startsWith('archive:');
+        if (hasRealUri) {
+          const plData = encodeURIComponent(JSON.stringify({
+            context_uri: pl.playlist_uri,
+            title: info.title,
+            artist: info.artist,
+            album: info.album || '',
+            service: info.service,
+            playlist_name: pl.name,
+            sonos_uri: ''
+          })).replace(/'/g, '%27');
+          plRows += `<div class="ctx-row">
+            <span class="ctx-icon">📋</span>
+            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
+            <span class="ctx-actions">
+              <button class="action-btn" onclick="playContext('play','${plData}')" title="Play Playlist">▶</button>
+              <button class="action-btn" onclick="playContext('queue','${plData}')" title="Queue Playlist">+</button>
+            </span>
+          </div>`;
+        } else {
+          // Archive playlist — no real URI yet, display only
+          plRows += `<div class="ctx-row">
+            <span class="ctx-icon">📋</span>
+            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
+          </div>`;
+        }
       }
       panel.innerHTML += plRows;
     }
