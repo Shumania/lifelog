@@ -2281,7 +2281,7 @@ async function loadPlaylistIndex() {
   }
   _playlistIndexLoading = true;
   try {
-    const r = await fetch('https://shumania.github.io/lifelog/playlist_track_index.json');
+    const r = await fetch('https://shumania.github.io/lifelog/playlist_track_index.json?v=' + (Date.now()>>16));
     if (r.ok) _playlistIndex = await r.json();
   } catch(e) { console.error('Failed to load playlist index', e); }
   _playlistIndexLoading = false;
