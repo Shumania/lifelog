@@ -525,7 +525,8 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.26';
+const PAGE_VERSION = 'p2.27';
+const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
   vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
@@ -961,7 +962,8 @@ async function postNtfy(payload) {
   const body = JSON.stringify(payload);
   console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
   try {
-    const r = await fetch(topic, { method: 'POST', body });
+    const hdrs = NTFY_TOKEN ? { 'Authorization': 'Bearer ' + NTFY_TOKEN } : {};
+    const r = await fetch(topic, { method: 'POST', body, headers: hdrs });
     console.log('[postNtfy] ntfy status=' + r.status);
     showToast('→ ' + house + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2681,7 +2683,8 @@ function setSubTab(sub) {
 // ══════════════════════════════════════════════════════════════════════════════
 function connectSSE() {
   if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
-  _sseSource = new EventSource(NTFY_UI_SSE + '?since=16m');
+  const sseAuth = NTFY_TOKEN ? '&auth=Bearer%20' + NTFY_TOKEN : '';
+  _sseSource = new EventSource(NTFY_UI_SSE + '?since=16m' + sseAuth);
   _sseLastMsg = Date.now();
   _sseSource.addEventListener('message', (e) => {
     _sseLastMsg = Date.now();

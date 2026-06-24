@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.30"
+SERVICE_VERSION = "2.31"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -74,6 +74,9 @@ NTFY_TOPICS = {
     "caphill": "lifelog-cmd-caphill-4x8m",
     "vashon":  "lifelog-cmd-vashon-9k3p",
 }
+
+# ntfy auth token (Pro plan — higher rate limits, reserved topics)
+NTFY_TOKEN = "tk_lo3wjmt4yxkznzt4m3wxhfhspb93t"
 
 # ntfy topics for real-time UI push (browser SSE)
 NTFY_UI_TOPICS = {
@@ -1247,8 +1250,9 @@ def _sse_do_flush():
     # POST as plain text body (JSON string) -- browser does JSON.parse(event.data)
     url = f"https://ntfy.sh/{ntfy_ui_topic}"
     body = json.dumps(payload)
+    ntfy_headers = {"Authorization": f"Bearer {NTFY_TOKEN}"} if NTFY_TOKEN else {}
     try:
-        r = requests.post(url, data=body.encode("utf-8"), timeout=10)
+        r = requests.post(url, data=body.encode("utf-8"), headers=ntfy_headers, timeout=10)
         if r.status_code == 429:
             _sse_consecutive_429 += 1
             step = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
@@ -2945,9 +2949,10 @@ def ntfy_listener_thread():
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
         # In-memory dedup (_already_executed) prevents double-execution within same process.
         url   = f"https://ntfy.sh/{ntfy_topic}/json?since=5m"
+        ntfy_headers = {"Authorization": f"Bearer {NTFY_TOKEN}"} if NTFY_TOKEN else {}
         log(f"ntfy connecting: {url}")
         try:
-            with requests.get(url, stream=True, timeout=90) as r:
+            with requests.get(url, stream=True, headers=ntfy_headers, timeout=90) as r:
                 _ntfy_connected = True
                 for line in r.iter_lines():
                     if not line: continue
