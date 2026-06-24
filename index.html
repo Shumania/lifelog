@@ -551,7 +551,16 @@ const ROOMS_LIST = {
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = {};  // per-house
 let _userManualRoomSelect = {};
-let _tabManualOverride = false;  // true once user taps a tab — suppresses auto-select
+// If we're returning from a hard refresh, lock to the tab the user was on
+let _tabManualOverride = false;
+const _refreshTab = localStorage.getItem('ll_refresh_tab');
+if (_refreshTab) {
+  house = _refreshTab;
+  localStorage.setItem('ll_house', _refreshTab);
+  localStorage.removeItem('ll_refresh_tab');
+  _tabManualOverride = true;
+  console.log('[init] Restored tab from hard refresh:', _refreshTab);
+}
 let _initialRoomSeedDone = {};  // per-house: true after first state-file seed (prevents repeated overrides)
 let data = null;  // data-head.json
 let archiveItems = [];
@@ -1424,9 +1433,14 @@ function hardRefresh() {
   showToast('Refreshing speakers…');
   // Force Sonos re-discovery so rooms_playing reflects current topology
   postNtfy({ action: 'refresh' }).catch(() => {});
-  // Re-fetch data after service re-discovers — stay on current tab
-  _tabManualOverride = true;  // don't let auto-tab switch us away
-  setTimeout(() => loadData(false), 3000);
+  // Preserve current tab across reload
+  localStorage.setItem('ll_refresh_tab', house);
+  // Give the service a moment to re-discover, then reload
+  setTimeout(() => {
+    const url = new URL(location.href);
+    url.searchParams.set('_cb', Date.now());
+    location.replace(url.toString());
+  }, 2000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
