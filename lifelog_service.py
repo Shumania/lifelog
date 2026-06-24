@@ -1869,7 +1869,7 @@ def execute_command(cmd, source="unknown"):
         return
 
     # Track command for diagnostics
-    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count, last_post_ts
+    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count, last_post_ts, current_devices_by_name
     _last_command_at = time.time()
     _last_command_action = action
     _last_command_source = source
@@ -2624,7 +2624,6 @@ def execute_command(cmd, source="unknown"):
         elif action == "refresh":
             # Force Sonos re-discovery to get fresh topology (group state, rooms playing).
             # Typically sent by the UI on page load.
-            global current_devices_by_name
             try:
                 import soco as _soco
                 fresh = {}
