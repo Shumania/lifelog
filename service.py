@@ -718,18 +718,28 @@ def get_rooms_playing():
                     modes[name] = mode
                 except Exception:
                     pass
-                # Coordinator is playing -- add ALL members of this group.
-                # Trust the coordinator's group topology (authoritative) rather
-                # than filtering against soco.discover() results, which can miss
-                # speakers on busy WiFi networks (SSDP multicast timeout).
+                # Coordinator is playing -- add it and any genuinely grouped members.
+                # Only include members whose coordinator IP matches this device,
+                # to avoid stale group topology reporting ungrouped speakers.
+                playing.append(name)
                 if dev.group:
-                    for member in dev.group.members:
-                        playing.append(member.player_name)
-                        # Backfill devices map so commands can reach undiscovered members
-                        if member.player_name not in current_devices_by_name:
-                            current_devices_by_name[member.player_name] = member
-                else:
-                    playing.append(name)
+                    try:
+                        coord_ip = dev.ip_address
+                        for member in dev.group.members:
+                            mname = member.player_name
+                            if mname == name:
+                                continue  # already added
+                            # Verify this member still considers our device its coordinator
+                            try:
+                                mc = member.group.coordinator if member.group else None
+                                if mc and mc.ip_address == coord_ip:
+                                    playing.append(mname)
+                                    if mname not in current_devices_by_name:
+                                        current_devices_by_name[mname] = member
+                            except Exception:
+                                pass  # skip members we can't verify
+                    except Exception as e:
+                        log(f"[rooms_playing] group check error for {name}: {e}")
         except Exception as e:
             states[name] = f"ERROR:{e}"
     _last_transport_states.clear()
