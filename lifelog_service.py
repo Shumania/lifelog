@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.29"
+SERVICE_VERSION = "2.30"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -605,6 +605,9 @@ def self_update_check():
             return
         new_code = gh_decode(r2)
         # Sanity checks before overwriting
+        import hashlib as _hl
+        new_hash = _hl.sha256(new_code.encode("utf-8")).hexdigest()[:12]
+        log(f"Downloaded: {len(new_code)} bytes, sha256={new_hash}")
         if len(new_code) < 10_000:
             log(f"Update aborted: downloaded file too small ({len(new_code)} bytes) -- likely partial")
             post_error(f"Update v{latest} aborted: file too small ({len(new_code)} bytes)", module="update")
@@ -615,6 +618,25 @@ def self_update_check():
             log(f"Update aborted: syntax error in downloaded v{latest}: {se}")
             post_error(f"Update v{latest} aborted: syntax error: {se}", module="update")
             return
+        # Extract the VERSION from downloaded code to verify it matches what we expect
+        import re as _re
+        _ver_match = _re.search(r'SERVICE_VERSION\s*=\s*["\']([^"\']+)["\']', new_code)
+        _dl_ver = _ver_match.group(1) if _ver_match else "UNKNOWN"
+        log(f"Downloaded code version: {_dl_ver} (expected: {latest})")
+        if _dl_ver != latest:
+            log(f"[!] VERSION MISMATCH: downloaded code says v{_dl_ver} but versions.json says v{latest}! This likely means the wrong file was pushed to the repo.")
+            post_error(f"Update v{latest} aborted: downloaded code contains v{_dl_ver} -- wrong file in repo?", module="update")
+            return
+        # Compare with current file to detect no-op updates
+        try:
+            _cur_code = Path(sys.argv[0]).resolve().read_text(encoding="utf-8")
+            _cur_hash = _hl.sha256(_cur_code.encode("utf-8")).hexdigest()[:12]
+            if _cur_hash == new_hash:
+                log(f"[!] Downloaded code is IDENTICAL to running code (both {new_hash}). Possible wrong-file push or stale cache.")
+            else:
+                log(f"Code diff confirmed: running={_cur_hash} -> new={new_hash}")
+        except Exception:
+            pass  # non-fatal
         this_path = Path(sys.argv[0]).resolve()
         bak_path = this_path.with_suffix(".py.bak")
         tmp_path = this_path.with_suffix(".py.tmp")
@@ -1711,6 +1733,7 @@ def get_track_info(device):
             state = cached_state
         else:
             state = device.get_current_transport_info().get("current_transport_state", "STOPPED")
+            log(f"[diag] get_track_info: cache miss for '{name}', live query returned '{state}'")
         if state not in ("PLAYING", "TRANSITIONING"):
             speaker_failures[name] = 0
             return None
@@ -3303,10 +3326,34 @@ if __name__ == "__main__":
         print("[LifeLog] Stopped by Ctrl+C.")
     except Exception as e:
         msg = f"[FATAL] main() crashed: {e}"
+        tb = traceback.format_exc()
         print(msg)
-        print(traceback.format_exc())
-        try: log(msg); log(traceback.format_exc())
+        print(tb)
+        try: log(msg); log(tb)
         except: pass
-        try: post_error(msg, context=traceback.format_exc()[:500], module="main")
+        try: post_error(msg, context=tb[:500], module="main")
         except: pass
+        # --- Crash heartbeat: send traceback so Tasklet can see what happened ---
+        try:
+            import requests as _rq
+            _crash_payload = {
+                "type": "heartbeat",
+                "startup_phase": "crash",
+                "client_id": globals().get("client_id", "unknown"),
+                "client_type": "lifelog_service",
+                "house": globals().get("house", "unknown"),
+                "version": SERVICE_VERSION,
+                "computer": globals().get("COMPUTER_NAME", "unknown"),
+                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "crash_error": str(e),
+                "crash_traceback": tb[-2000:],  # last 2000 chars of traceback
+                "recent_logs": list(globals().get("_recent_logs", []))[-30:],
+                "recent_errors": list(globals().get("_recent_errors", []))[-10:],
+            }
+            _wh = globals().get("WEBHOOK")
+            if _wh:
+                _rq.post(_wh, json=_crash_payload, timeout=10)
+                print("[LifeLog] Crash heartbeat sent to webhook")
+        except Exception as _ce:
+            print(f"[LifeLog] Could not send crash heartbeat: {_ce}")
         input("Press Enter to exit...")
