@@ -1424,12 +1424,9 @@ function hardRefresh() {
   showToast('Refreshing speakers…');
   // Force Sonos re-discovery so rooms_playing reflects current topology
   postNtfy({ action: 'refresh' }).catch(() => {});
-  // Give the service a moment to re-discover, then reload
-  setTimeout(() => {
-    const url = new URL(location.href);
-    url.searchParams.set('_cb', Date.now());
-    location.replace(url.toString());
-  }, 2000);
+  // Re-fetch data after service re-discovers — stay on current tab
+  _tabManualOverride = true;  // don't let auto-tab switch us away
+  setTimeout(() => loadData(false), 3000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
