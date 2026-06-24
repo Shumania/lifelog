@@ -525,7 +525,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.24';
+const PAGE_VERSION = 'p2.25';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
   vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
@@ -2775,19 +2775,26 @@ function connectSSE() {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
           } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
-            // Clear stale room selection when nothing is playing (auto-selected rooms only)
-            selectedRooms[house] = [];
-            localStorage.setItem('ll_rooms_' + house, JSON.stringify([]));
+            // Nothing playing — keep paused rooms selected so user can resume
+            const pausedFallback = (msg.rooms_paused && msg.rooms_paused.length > 0) ? [...msg.rooms_paused] : [];
+            selectedRooms[house] = pausedFallback;
+            localStorage.setItem('ll_rooms_' + house, JSON.stringify(pausedFallback));
+            if (pausedFallback.length > 0) console.log('[rooms] SSE: keeping paused rooms selected:', pausedFallback);
           }
           renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
           // (mute_states processed above may have run before _roomsPlaying was updated)
           updateMuteRepeatButtons();
         }
-        // Defensive: if all rooms stopped and no explicit stopped event, clear now-playing
+        // Defensive: if all rooms stopped (not just paused) and no explicit stopped event, clear now-playing
+        const hasPausedRooms = msg.rooms_paused && msg.rooms_paused.length > 0;
         if (msg.rooms_playing.length === 0 && _sseNowPlaying[sseHouse] && !events.includes('now_playing')) {
-          if (!events.includes('stopped') && !events.includes('track_ended')) {
-            // Retire current track to history before clearing
+          if (hasPausedRooms) {
+            // Rooms are paused, not stopped — keep now-playing visible for resume
+            console.log('[now-playing] Keeping paused track visible:', _sseNowPlaying[sseHouse].title);
+            if (sseHouse === house) renderNowPlayingSonos(house);
+          } else if (!events.includes('stopped') && !events.includes('track_ended')) {
+            // Truly stopped — retire and clear
             if (!_sseNowPlaying[sseHouse]._fromStatus) {
               retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
             }
