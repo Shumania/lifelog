@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.31"
+SERVICE_VERSION = "2.32"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -385,6 +385,7 @@ _commands_received_count = 0
 _track_changes           = []   # ring buffer of last 10 track changes [{room, at, track, commanded}]
 _ntfy_connected          = False
 _ntfy_reconnects         = 0
+_ntfy_last_event_ts      = 0.0    # monotonic ts of last ntfy stream event (keepalive or message)
 _last_transport_states   = {}   # room -> state string (updated by get_rooms_playing)
 _prev_diag_fingerprint   = ""   # for change detection
 
@@ -1019,9 +1020,16 @@ def format_status_log(snapshot):
     if offline:
         lines.append(f"  [WARN] Speakers offline: {', '.join(offline)}")
 
-    # ntfy health (only if disconnected)
+    # ntfy health — always show
     ntfy = snapshot.get("ntfy", {})
-    if not ntfy.get("connected"):
+    if ntfy.get("connected"):
+        age = ntfy.get("last_event_age_s")
+        age_str = _format_age(age) if age is not None else "?"
+        ntfy_str = f"  ntfy: connected | last event {age_str}"
+        if age is not None and age > 120:
+            ntfy_str += " [STALE]"
+        lines.append(ntfy_str)
+    else:
         lines.append(f"  [WARN] ntfy disconnected (reconnects: {ntfy.get('reconnects', 0)})")
 
     # skip_version warning
@@ -2943,7 +2951,7 @@ def execute_command(cmd, source="unknown"):
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
 # execute_command() -> self_update_check(). The old version's parsing + dispatch runs here.
 def ntfy_listener_thread():
-    global _ntfy_connected, _ntfy_reconnects
+    global _ntfy_connected, _ntfy_reconnects, _ntfy_last_event_ts
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
@@ -2954,7 +2962,10 @@ def ntfy_listener_thread():
         try:
             with requests.get(url, stream=True, headers=ntfy_headers, timeout=90) as r:
                 _ntfy_connected = True
+                _ntfy_last_event_ts = time.time()
                 for line in r.iter_lines():
+                    # Track every stream event (keepalive or message) for health monitoring
+                    _ntfy_last_event_ts = time.time()
                     if not line: continue
                     try:    msg = json.loads(line)
                     except: continue
