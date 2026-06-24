@@ -951,6 +951,7 @@ async function postNtfy(payload) {
   try {
     const r = await fetch(topic, { method: 'POST', body });
     console.log('[postNtfy] ntfy status=' + r.status);
+    showToast('→ ' + house + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return true;
   } catch(e) {
