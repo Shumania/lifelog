@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.21"
+SERVICE_VERSION = "2.22"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1279,6 +1279,15 @@ def heartbeat_thread():
     """60-min keepalive: fires only if no other POST has gone out in 60 min.
     During active sessions, every flush/command result carries heartbeat fields inline,
     so this thread mostly sleeps. Exists for staleness monitor to detect 'service alive'."""
+    try:
+        _heartbeat_thread_inner()
+    except Exception as e:
+        log(f"[FATAL] heartbeat_thread crashed: {e}")
+        log(traceback.format_exc())
+        try: post_error(f"heartbeat_thread crashed: {e}", context=traceback.format_exc()[:500], module="heartbeat")
+        except: pass
+
+def _heartbeat_thread_inner():
     global last_post_ts
 
     # Always send on startup so status shows online immediately
@@ -1332,14 +1341,29 @@ def buffer_monitor_thread():
 # [ROLLBACK-UNSAFE] Calls self_update_check() every 60 min. This is the periodic
 # trigger path for self-update (vs. ntfy instant trigger below).
 def version_check_thread():
-    time.sleep(120)  # wait 2 min after start
-    while True:
-        self_update_check()
-        time.sleep(VERSION_CHECK_INTERVAL)
+    try:
+        time.sleep(120)  # wait 2 min after start
+        while True:
+            self_update_check()
+            time.sleep(VERSION_CHECK_INTERVAL)
+    except Exception as e:
+        log(f"[FATAL] version_check_thread crashed: {e}")
+        log(traceback.format_exc())
+        try: post_error(f"version_check_thread crashed: {e}", context=traceback.format_exc()[:500], module="version")
+        except: pass
 
 # --- BACKUP MODULE THREAD ---------------------------------------------------
 def backup_thread():
     """Run lifelog_extract.py every hour; it handles cursor/hash dedup internally."""
+    try:
+        _backup_thread_inner()
+    except Exception as e:
+        log(f"[FATAL] backup_thread crashed: {e}")
+        log(traceback.format_exc())
+        try: post_error(f"backup_thread crashed: {e}", context=traceback.format_exc()[:500], module="backup")
+        except: pass
+
+def _backup_thread_inner():
     extract = INSTALL_DIR / "lifelog_extract.py"
 
     def run_extract():
@@ -1377,6 +1401,15 @@ def backup_thread():
 # --- DEV LOOP THREAD --------------------------------------------------------
 def dev_loop_thread():
     """Poll GitHub for dev_next.ps1; run if SHA changed; post output to webhook."""
+    try:
+        _dev_loop_thread_inner()
+    except Exception as e:
+        log(f"[FATAL] dev_loop_thread crashed: {e}")
+        log(traceback.format_exc())
+        try: post_error(f"dev_loop_thread crashed: {e}", context=traceback.format_exc()[:500], module="dev")
+        except: pass
+
+def _dev_loop_thread_inner():
     last_sha = ""
     while True:
         try:
@@ -3182,9 +3215,15 @@ def main():
         try:
             sonos_main_loop()
         except Exception as e:
-            post_error(f"Sonos module fatal crash: {e}",
-                       context=traceback.format_exc(), module="sonos")
-            log(f"Sonos crashed: {e}")
+            crash_msg = f"Sonos crashed: {e}"
+            crash_tb = traceback.format_exc()
+            print(f"[FATAL] {crash_msg}")
+            print(crash_tb)
+            try: log(f"[FATAL] {crash_msg}"); log(crash_tb)
+            except: pass
+            try: post_error(f"Sonos module fatal crash: {e}",
+                           context=crash_tb[:500], module="sonos")
+            except: pass
 
     # No Sonos -- keep alive
     log("Service running (no Sonos). Press Ctrl+C to stop.")
@@ -3195,4 +3234,16 @@ def main():
         log("Stopping.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("[LifeLog] Stopped by Ctrl+C.")
+    except Exception as e:
+        msg = f"[FATAL] main() crashed: {e}"
+        print(msg)
+        print(traceback.format_exc())
+        try: log(msg); log(traceback.format_exc())
+        except: pass
+        try: post_error(msg, context=traceback.format_exc()[:500], module="main")
+        except: pass
+        input("Press Enter to exit...")
