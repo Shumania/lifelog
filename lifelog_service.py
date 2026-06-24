@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.25"
+SERVICE_VERSION = "2.29"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -1124,7 +1124,7 @@ _sse_backoff_until = 0.0              # epoch — skip all sends until this time
 _sse_consecutive_429 = 0              # count consecutive 429 failures for exponential backoff
 _sse_send_attempts = 0                # total flush attempts since startup (diagnostic)
 SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collapse into one message
-SSE_MIN_GAP_S     = 10.0              # absolute floor between sends (burst protection)
+SSE_MIN_GAP_S     = 15.0              # absolute floor between sends — 240/hr max, under ntfy 250/hr limit
 SSE_BACKOFF_STEPS = [30, 120, 300, 600, 900, 1800]  # 30s, 2m, 5m, 10m, 15m, 30m (caps at 30m)
 
 def _sse_enrich_state(payload):
@@ -1180,6 +1180,16 @@ def _sse_schedule_flush():
     _sse_flush_timer.daemon = True
     _sse_flush_timer.start()
 
+def _sse_schedule_recovery(delay_s):
+    """Schedule a flush after backoff expires so queued data eventually sends."""
+    global _sse_flush_timer
+    if _sse_flush_timer:
+        _sse_flush_timer.cancel()
+    _sse_flush_timer = threading.Timer(delay_s, _sse_do_flush)
+    _sse_flush_timer.daemon = True
+    _sse_flush_timer.start()
+    log(f"SSE recovery scheduled in {delay_s}s")
+
 def _sse_do_flush():
     """Direct ntfy push -- re-enabled in v1.83.
     v1.75-v1.82: disabled due to IP rate-limiting. v1.80 fixed the root cause
@@ -1187,6 +1197,16 @@ def _sse_do_flush():
     well within ntfy free tier (250/hr). Backoff logic retained as safety net."""
     global _sse_send_attempts, _sse_last_send_ts, _sse_consecutive_429, _sse_backoff_until
     _sse_send_attempts += 1
+    if not ntfy_ui_topic:
+        log(f"SSE flush: no ntfy_ui_topic configured, dropping")
+        return
+    # Backoff check — BEFORE draining so data stays in bundle
+    if _sse_backoff_until and time.time() < _sse_backoff_until:
+        remaining = int(_sse_backoff_until - time.time())
+        # Only log every ~5 minutes to reduce noise
+        if remaining % 300 < 20 or remaining < 30:
+            log(f"SSE flush skipped: backoff ({remaining}s remaining)")
+        return
     # Drain the bundle
     with _sse_bundle_lock:
         if not _sse_bundle:
@@ -1194,13 +1214,6 @@ def _sse_do_flush():
         payload = dict(_sse_bundle)
         _sse_bundle.clear()
     event_types = payload.pop("_event_types", [])
-    if not ntfy_ui_topic:
-        log(f"SSE flush: no ntfy_ui_topic configured, dropping {event_types}")
-        return
-    # Backoff check
-    if _sse_backoff_until and time.time() < _sse_backoff_until:
-        log(f"SSE flush skipped: backoff ({int(_sse_backoff_until - time.time())}s remaining)")
-        return
     # Enrich with full state snapshot
     try:
         _sse_enrich_state(payload)
@@ -1217,8 +1230,22 @@ def _sse_do_flush():
         if r.status_code == 429:
             _sse_consecutive_429 += 1
             step = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
-            _sse_backoff_until = time.time() + SSE_BACKOFF_STEPS[step]
-            log(f"SSE 429 (#{_sse_consecutive_429}): backing off {SSE_BACKOFF_STEPS[step]}s")
+            backoff_s = SSE_BACKOFF_STEPS[step]
+            _sse_backoff_until = time.time() + backoff_s
+            log(f"SSE 429 (#{_sse_consecutive_429}): backing off {backoff_s}s")
+            # Re-queue the payload so data isn't lost
+            with _sse_bundle_lock:
+                # Merge back — current bundle may have newer data, so
+                # only restore keys not already present
+                for k, v in payload.items():
+                    if k not in _sse_bundle:
+                        _sse_bundle[k] = v
+                evts = _sse_bundle.setdefault("_event_types", [])
+                for et in event_types:
+                    if et not in evts:
+                        evts.append(et)
+            # Schedule a retry after backoff expires
+            _sse_schedule_recovery(backoff_s + 2)
         else:
             _sse_consecutive_429 = 0
             _sse_backoff_until = 0.0
@@ -3243,6 +3270,8 @@ def main():
         log("Boot heartbeat sent")
     except Exception as e:
         log(f"Boot heartbeat failed: {e}")
+
+    log(f"=== v{SERVICE_VERSION} init complete — entering main loop ===")
 
     # Sonos runs on main thread (visible activity in console)
     if "sonos" in modules:
