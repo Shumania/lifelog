@@ -620,7 +620,22 @@ def process_all(data, limit=None):
     music = data.get('music', [])
     sonos_raw = data.get('sonos', [])
     podcasts = data.get('podcasts', [])
-    clients = data.get('clients', [])
+    clients_raw = data.get('clients', [])
+    # Dedup clients by normalized client_id (prefer lifelog_ prefix over bare name)
+    seen_ids = {}
+    clients = []
+    for c in clients_raw:
+        cid = c.get('client_id', '')
+        norm = cid if cid.startswith('lifelog_') else f'lifelog_{cid.lower()}'
+        if norm in seen_ids:
+            # Keep the one with more recent last_seen
+            existing = seen_ids[norm]
+            if (c.get('last_seen') or '') > (existing.get('last_seen') or ''):
+                clients[clients.index(existing)] = c
+                seen_ids[norm] = c
+        else:
+            seen_ids[norm] = c
+            clients.append(c)
     now_playing_rows = data.get('now_playing', [])
     play_cmds_raw = data.get('play_commands', [])
     exploration_suggestions = data.get('exploration_suggestions')

@@ -525,6 +525,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
+const PAGE_VERSION = 'p2.24';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
   vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
@@ -810,6 +811,8 @@ function setHouse(h, isUserClick) {
 // ══════════════════════════════════════════════════════════════════════════════
 function inferActiveRooms(h) {
   h = h || house;
+  // If live state already confirmed nothing is playing, don't re-infer stale rooms
+  if (_initialRoomSeedDone[h] && (!_roomsPlaying || _roomsPlaying.length === 0)) return [];
   // From data rooms_playing (per-client metadata)
   if (data && data.client_status) {
     for (const c of data.client_status) {
@@ -1420,7 +1423,13 @@ function renderStatusBar() {
   if (!data || !data.client_status) { bar.innerHTML = ''; return; }
   const now = Date.now();
   const names = { lifelog_shumaframe: 'ShumaFrame', lifelog_mind: 'Mind', lifelog_shumangreypro: 'GreyPro' };
-  bar.innerHTML = data.client_status.map(c => {
+  // Dedup: skip bare-name entries if a lifelog_ prefixed version exists
+  const cids = new Set(data.client_status.map(c => c.client_id));
+  const filtered = data.client_status.filter(c => {
+    if (!c.client_id.startsWith('lifelog_') && cids.has('lifelog_' + c.client_id.toLowerCase())) return false;
+    return true;
+  });
+  bar.innerHTML = filtered.map(c => {
     const age = c.last_seen ? Math.round((now - new Date(c.last_seen).getTime()) / 60000) : null;
     const color = age === null ? '#f87171' : age < 10 ? 'var(--accent)' : age < 30 ? '#eab308' : '#f87171';
     const label = names[c.client_id] || c.client_id;
