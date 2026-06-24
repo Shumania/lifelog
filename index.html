@@ -1549,23 +1549,19 @@ function applyStateNowPlaying(stateFiles) {
     } else if (state.rooms_playing && state.rooms_playing.length === 0 && stateTs > sseTs) {
       // State says no rooms playing — clear (only update globals for current house)
       if (h === house) { _roomsPlaying = []; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
-      // Seed selectedRooms on initial load from state file (overrides stale localStorage)
-      // Only runs once per house per page session; skipped after user manually taps a room tile
+      // Clear stale auto-selected rooms on page load when nothing is playing
       if (!_userManualRoomSelect[h] && !_initialRoomSeedDone[h]) {
         _initialRoomSeedDone[h] = true;
-        // Gather candidates from both sources, use whichever has more rooms
+        // Only keep paused rooms as selected (they're recent); clear everything else
         const pausedRooms = (state.rooms_paused && state.rooms_paused.length > 0) ? [...state.rooms_paused] : [];
-        let recentRooms = [];
-        if (state.recent_tracks && state.recent_tracks.length > 0 && state.recent_tracks[0].rooms) {
-          recentRooms = [...new Set(state.recent_tracks[0].rooms.split(',').map(r => r.trim()).filter(Boolean))];
+        if (pausedRooms.length > 0) {
+          console.log('[rooms] Seeding', h, 'rooms from paused state:', pausedRooms);
+          selectedRooms[h] = pausedRooms;
+        } else {
+          console.log('[rooms] Nothing playing/paused for', h, '— clearing stale room selection');
+          selectedRooms[h] = [];
         }
-        const bestRooms = (pausedRooms.length >= recentRooms.length) ? pausedRooms : recentRooms;
-        if (bestRooms.length > 0) {
-          const src = (bestRooms === pausedRooms) ? 'paused state' : 'recent_tracks';
-          console.log('[rooms] Seeding', h, 'rooms from', src + ':', bestRooms);
-          selectedRooms[h] = bestRooms;
-          localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-        }
+        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
       }
     }
   }
@@ -2769,6 +2765,10 @@ function connectSSE() {
           if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
+          } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
+            // Clear stale room selection when nothing is playing (auto-selected rooms only)
+            selectedRooms[house] = [];
+            localStorage.setItem('ll_rooms_' + house, JSON.stringify([]));
           }
           renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
