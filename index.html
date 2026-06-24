@@ -1421,10 +1421,15 @@ function renderStatusBar() {
 }
 
 function hardRefresh() {
-  showToast('Reloading…');
-  const url = new URL(location.href);
-  url.searchParams.set('_cb', Date.now());
-  location.replace(url.toString());
+  showToast('Refreshing speakers…');
+  // Force Sonos re-discovery so rooms_playing reflects current topology
+  postNtfy({ action: 'refresh' }).catch(() => {});
+  // Give the service a moment to re-discover, then reload
+  setTimeout(() => {
+    const url = new URL(location.href);
+    url.searchParams.set('_cb', Date.now());
+    location.replace(url.toString());
+  }, 2000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2611,7 +2616,8 @@ async function syncNow() {
   const btn = document.getElementById('sync-btn');
   btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
   try {
-    // Super Sync: POST to Tasklet webhook — orchestrates flush to both houses + Spotify poll
+    // Refresh Sonos topology + Super Sync
+    postNtfy({ action: 'refresh' }).catch(() => {});
     await fetch(SUPER_SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
     btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
     // Collect runs ~5s, flush responses + wellness take ~25s, then reload

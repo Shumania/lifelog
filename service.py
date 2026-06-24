@@ -2621,6 +2621,25 @@ def execute_command(cmd, source="unknown"):
             except Exception as e:
                 result["message"] = f"get_services error: {e}"
 
+        elif action == "refresh":
+            # Force Sonos re-discovery to get fresh topology (group state, rooms playing).
+            # Typically sent by the UI on page load.
+            global current_devices_by_name
+            try:
+                import soco as _soco
+                fresh = {}
+                for dev in _soco.discover(timeout=5) or []:
+                    try:
+                        fresh[dev.player_name] = dev
+                    except Exception:
+                        pass
+                current_devices_by_name = fresh
+                log(f"[refresh] Re-discovered {len(fresh)} speakers: {sorted(fresh.keys())}")
+                result["success"] = True
+                result["message"] = f"Refreshed: {len(fresh)} speakers"
+            except Exception as e:
+                result["message"] = f"refresh error: {e}"
+
         elif action == "get_queue":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
