@@ -1677,7 +1677,13 @@ def get_track_info(device):
         del speaker_offline_since[name]
         speaker_failures[name] = 0
     try:
-        state = device.get_current_transport_info().get("current_transport_state", "STOPPED")
+        # v2.24: Use snapshot transport state (already queried by _build_poll_snapshot)
+        # to avoid race condition where snapshot and get_track_info disagree on state.
+        cached_state = _last_transport_states.get(name)
+        if cached_state:
+            state = cached_state
+        else:
+            state = device.get_current_transport_info().get("current_transport_state", "STOPPED")
         if state not in ("PLAYING", "TRANSITIONING"):
             speaker_failures[name] = 0
             return None

@@ -525,7 +525,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.25';
+const PAGE_VERSION = 'p2.26';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
   vashon:  'https://ntfy.sh/lifelog-cmd-vashon-9k3p'
@@ -2775,11 +2775,16 @@ function connectSSE() {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
           } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
-            // Nothing playing — keep paused rooms selected so user can resume
-            const pausedFallback = (msg.rooms_paused && msg.rooms_paused.length > 0) ? [...msg.rooms_paused] : [];
-            selectedRooms[house] = pausedFallback;
-            localStorage.setItem('ll_rooms_' + house, JSON.stringify(pausedFallback));
-            if (pausedFallback.length > 0) console.log('[rooms] SSE: keeping paused rooms selected:', pausedFallback);
+            // Don't clear rooms if now_playing just set them in this same message (snapshot race)
+            if (events.includes('now_playing') && msg.rooms && msg.rooms.length > 0) {
+              console.log('[rooms] SSE: skipping rooms_playing=[] clear — now_playing has rooms:', msg.rooms);
+            } else {
+              // Nothing playing — keep paused rooms selected so user can resume
+              const pausedFallback = (msg.rooms_paused && msg.rooms_paused.length > 0) ? [...msg.rooms_paused] : [];
+              selectedRooms[house] = pausedFallback;
+              localStorage.setItem('ll_rooms_' + house, JSON.stringify(pausedFallback));
+              if (pausedFallback.length > 0) console.log('[rooms] SSE: keeping paused rooms selected:', pausedFallback);
+            }
           }
           renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
