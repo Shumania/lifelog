@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.23"
+SERVICE_VERSION = "2.24"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -111,7 +111,7 @@ def detect_house_from_wifi():
     return None, None
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
-CMD_POLL_EVERY             = 20    # GitHub cmd fallback every N Sonos cycles (~5 min)
+# CMD_POLL_EVERY removed in v2.24 — GitHub command polling retired (ntfy is sole transport)
 HEARTBEAT_FALLBACK_SECS    = 3600  # keepalive heartbeat every 60 min (only if no real POST)
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
@@ -208,8 +208,22 @@ _current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_
 _current_mute_states     = {}   # room -> bool (True=muted)
 speaker_failures         = {}
 speaker_offline_since    = {}
+
+# --- POLL SNAPSHOT (v2.24) ---------------------------------------------------
+# Single-pass snapshot computed once per poll cycle. All downstream consumers
+# (SSE enrichment, state push, heartbeat, diagnostics) read from this instead
+# of independently querying every speaker.
+_poll_snapshot = {
+    "rooms_playing": [],
+    "rooms_paused": [],
+    "rooms_all": [],
+    "play_modes": {},
+    "mute_states": {},
+    "transport_states": {},   # room -> state string
+    "timestamp": None,
+}
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
-last_cmd_sha             = None
+# last_cmd_sha removed in v2.24 (GitHub command polling retired)
 executed_cmd_hashes      = {}   # hash -> timestamp (TTL-based dedup)
 CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s -- covers ntfy replay window
 last_sonos_activity_ts   = 0.0  # updated when a track is buffered
@@ -265,10 +279,11 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
     _persist_state_ring_buffer()
 
 def _build_state_payload():
-    """Build the state-{house}.json payload from current live state."""
+    """Build the state-{house}.json payload from current live state.
+    v2.24: Reads from _poll_snapshot instead of calling get_rooms_playing()."""
     # Now playing: derive from room_state (same data source as SSE)
     np = None
-    rp = get_rooms_playing()
+    rp = list(_poll_snapshot.get("rooms_playing", []))
     for coord_name, rs in room_state.items():
         if rs and rs.get("track_info"):
             ti = rs["track_info"]
@@ -280,24 +295,18 @@ def _build_state_payload():
                 "rooms": rooms,
                 "service": ti.get("service", ""),
                 "uri": ti.get("uri", ""),
-                "play_modes": dict(_current_play_modes),
+                "play_modes": dict(_poll_snapshot.get("play_modes", {})),
                 "timestamp": now_iso(),
             }
             break  # first active coordinator
-
-    # rooms_paused = speakers in PAUSED_PLAYBACK that aren't actively playing
-    rp_paused = sorted(
-        name for name, st in _last_transport_states.items()
-        if st == "PAUSED_PLAYBACK" and name not in rp
-    )
 
     return {
         "house": house,
         "last_updated": now_iso(),
         "now_playing": np,
         "rooms_playing": rp,
-        "rooms_paused": rp_paused,
-        "rooms_all": sorted(current_devices_by_name.keys()),
+        "rooms_paused": list(_poll_snapshot.get("rooms_paused", [])),
+        "rooms_all": list(_poll_snapshot.get("rooms_all", [])),
         "recent_tracks": list(_state_ring_buffer),
     }
 
@@ -677,23 +686,22 @@ def self_update_check():
         post_error(f"Self-update error: {e}", module="update")
 
 # --- HEARTBEAT HELPERS ------------------------------------------------------
-def get_rooms_playing():
-    """Query each known Sonos device for transport state, return list of rooms currently PLAYING.
-    Also updates _current_play_modes with play mode per coordinator (NORMAL, REPEAT_ALL, etc.)."""
-    global _current_play_modes, _current_mute_states
+def _build_poll_snapshot(coordinators):
+    """Build a single poll snapshot from the coordinator list. Called once per cycle.
+    Replaces the old get_rooms_playing() which was called 3x per cycle (~99 HTTP calls).
+    Now: one pass over coordinators only (~5-25 calls total)."""
+    global _current_play_modes, _current_mute_states, _poll_snapshot
     if "sonos" not in modules:
-        return []
+        _poll_snapshot = {"rooms_playing": [], "rooms_paused": [], "rooms_all": sorted(current_devices_by_name.keys()),
+                          "play_modes": {}, "mute_states": {}, "transport_states": {}, "timestamp": now_iso()}
+        return
     playing = []
     states = {}
     modes = {}
     mutes = {}
-    for name, dev in current_devices_by_name.items():
+    for dev in coordinators:
+        name = dev.player_name
         try:
-            # Skip group members -- only query coordinators and solo speakers
-            # Group members mirror coordinator state and can report stale PLAYING
-            if dev.group and dev.group.coordinator and dev.group.coordinator != dev:
-                states[name] = "GROUPED_MEMBER_SKIP"
-                continue
             info = dev.get_current_transport_info()
             state = info.get("current_transport_state", "STOPPED")
             states[name] = state
@@ -706,7 +714,6 @@ def get_rooms_playing():
                 # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
                     track_uri = dev.get_current_track_info().get("uri", "")
-                    pass  # URI checked for TV passthrough (diagnostic block shows details)
                     if track_uri.startswith(("x-sonos-htastream:", "x-rincon-stream:")):
                         states[name] = "PLAYING_TV"
                         continue
@@ -714,13 +721,11 @@ def get_rooms_playing():
                     pass  # If we can't check, include it
                 # Capture play mode for this coordinator (repeat/shuffle status)
                 try:
-                    mode = dev.play_mode  # NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, SHUFFLE_NOREPEAT, SHUFFLE_REPEAT_ONE
+                    mode = dev.play_mode
                     modes[name] = mode
                 except Exception:
                     pass
                 # Coordinator is playing -- add it and any genuinely grouped members.
-                # Only include members whose coordinator IP matches this device,
-                # to avoid stale group topology reporting ungrouped speakers.
                 playing.append(name)
                 if dev.group:
                     try:
@@ -728,8 +733,7 @@ def get_rooms_playing():
                         for member in dev.group.members:
                             mname = member.player_name
                             if mname == name:
-                                continue  # already added
-                            # Verify this member still considers our device its coordinator
+                                continue
                             try:
                                 mc = member.group.coordinator if member.group else None
                                 if mc and mc.ip_address == coord_ip:
@@ -737,16 +741,41 @@ def get_rooms_playing():
                                     if mname not in current_devices_by_name:
                                         current_devices_by_name[mname] = member
                             except Exception:
-                                pass  # skip members we can't verify
+                                pass
                     except Exception as e:
-                        log(f"[rooms_playing] group check error for {name}: {e}")
+                        log(f"[snapshot] group check error for {name}: {e}")
+            elif state == "PAUSED_PLAYBACK":
+                pass  # captured in states dict, used for rooms_paused below
         except Exception as e:
             states[name] = f"ERROR:{e}"
+
     _last_transport_states.clear()
     _last_transport_states.update(states)
     _current_play_modes = modes
     _current_mute_states = mutes
-    return sorted(set(playing))
+
+    rooms_playing = sorted(set(playing))
+    rooms_paused = sorted(
+        name for name, st in states.items()
+        if st == "PAUSED_PLAYBACK" and name not in rooms_playing
+    )
+
+    _poll_snapshot = {
+        "rooms_playing": rooms_playing,
+        "rooms_paused": rooms_paused,
+        "rooms_all": sorted(current_devices_by_name.keys()),
+        "play_modes": dict(modes),
+        "mute_states": dict(mutes),
+        "transport_states": dict(states),
+        "timestamp": now_iso(),
+    }
+
+
+def get_rooms_playing():
+    """Returns rooms_playing from the cached poll snapshot.
+    v2.24: No longer queries speakers directly — reads from _poll_snapshot
+    built once per cycle by _build_poll_snapshot()."""
+    return list(_poll_snapshot.get("rooms_playing", []))
 
 
 # --- DIAGNOSTIC STATUS BLOCK ------------------------------------------------
@@ -1032,14 +1061,10 @@ def heartbeat_fields():
         "timestamp":       now_iso(),
     }
     if "sonos" in modules:
-        rp = get_rooms_playing()
-        fields["rooms_playing"] = rp
-        fields["rooms_paused"] = sorted(
-            name for name, st in _last_transport_states.items()
-            if st == "PAUSED_PLAYBACK" and name not in rp
-        )
-        # All rooms the service can currently see (for offline detection in frontend)
-        fields["rooms_all"] = sorted(current_devices_by_name.keys())
+        # v2.24: Read from poll snapshot instead of querying speakers
+        fields["rooms_playing"] = list(_poll_snapshot.get("rooms_playing", []))
+        fields["rooms_paused"] = list(_poll_snapshot.get("rooms_paused", []))
+        fields["rooms_all"] = list(_poll_snapshot.get("rooms_all", []))
     # SSE diagnostic state — visible in webhook heartbeats
     fields["sse_state"] = {
         "consecutive_429": _sse_consecutive_429,
@@ -1104,16 +1129,12 @@ SSE_BACKOFF_STEPS = [30, 120, 300, 600, 900, 1800]  # 30s, 2m, 5m, 10m, 15m, 30m
 
 def _sse_enrich_state(payload):
     """Inject full state snapshot into any outbound SSE payload.
-    This ensures every message the browser receives is a complete picture."""
-    rp = get_rooms_playing()
-    payload["rooms_playing"] = rp
-    payload["rooms_paused"] = sorted(
-        name for name, st in _last_transport_states.items()
-        if st == "PAUSED_PLAYBACK" and name not in rp
-    )
-    payload["rooms_all"] = sorted(current_devices_by_name.keys())
-    payload["play_modes"] = dict(_current_play_modes)
-    payload["mute_states"] = dict(_current_mute_states)
+    v2.24: Reads from _poll_snapshot instead of querying speakers."""
+    payload["rooms_playing"] = list(_poll_snapshot.get("rooms_playing", []))
+    payload["rooms_paused"] = list(_poll_snapshot.get("rooms_paused", []))
+    payload["rooms_all"] = list(_poll_snapshot.get("rooms_all", []))
+    payload["play_modes"] = dict(_poll_snapshot.get("play_modes", {}))
+    payload["mute_states"] = dict(_poll_snapshot.get("mute_states", {}))
     payload["house"] = house
     payload["client_id"] = client_id
     payload["version"] = SERVICE_VERSION
@@ -1470,15 +1491,22 @@ def detect_service(uri, metadata=""):
 
 # --- SONOS: DISCOVERY -------------------------------------------------------
 def get_coordinators():
+    """Single discovery + device map build (v2.24).
+    One soco.discover(timeout=3) per cycle. Builds both:
+    - coordinators list (returned)
+    - current_devices_by_name (updated as side effect)
+    Replaces the old pattern of discover(8) + separate discover(5) for device map."""
+    global current_devices_by_name
     try:
         import soco
-        devices = soco.discover(timeout=8)
+        devices = soco.discover(timeout=3)
         if not devices: return []
         coordinators = {}
+        all_devices = {}
         now_t = time.time()
         for dev in devices:
             ip = dev.ip_address
-            # Skip IPs that timed out recently (avoid 20s hang per offline speaker)
+            # Skip IPs that timed out recently (avoid hang per offline speaker)
             if ip in _offline_ips:
                 if now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
                     continue
@@ -1486,6 +1514,8 @@ def get_coordinators():
                     del _offline_ips[ip]
                     log(f"Retrying previously offline speaker at {ip}")
             try:
+                # Build device map (replaces second soco.discover)
+                all_devices[dev.player_name] = dev
                 g = dev.group
                 if g and dev == g.coordinator:
                     coordinators[dev.player_name] = dev
@@ -1496,13 +1526,54 @@ def get_coordinators():
                     log(f"Speaker at {ip} unreachable -- skipping for {OFFLINE_RECHECK_SECS}s")
                 else:
                     try:
+                        all_devices[dev.player_name] = dev
                         coordinators[dev.player_name] = dev
                     except Exception:
                         pass
+        # Atomic swap of device map
+        current_devices_by_name = all_devices
         return list(coordinators.values())
     except Exception as e:
         log(f"Discovery error: {e}")
         return []
+
+
+def _jit_discover(room_name):
+    """JIT discovery fallback for commands targeting unknown rooms (v2.24).
+    If a command targets a room not in current_devices_by_name, do a quick
+    one-shot discover to find it. Returns the device or None."""
+    global current_devices_by_name
+    try:
+        import soco
+        log(f"[JIT] Room '{room_name}' not in cache — running one-shot discovery")
+        devices = soco.discover(timeout=3)
+        if not devices:
+            log(f"[JIT] Discovery found no devices")
+            return None
+        found = None
+        for dev in devices:
+            try:
+                name = dev.player_name
+                current_devices_by_name[name] = dev
+                if name == room_name:
+                    found = dev
+                    # Clear offline status if it was quarantined
+                    ip = dev.ip_address
+                    if ip in _offline_ips:
+                        del _offline_ips[ip]
+                    if name in speaker_offline_since:
+                        del speaker_offline_since[name]
+                        speaker_failures[name] = 0
+            except Exception:
+                pass
+        if found:
+            log(f"[JIT] Found '{room_name}' via one-shot discovery")
+        else:
+            log(f"[JIT] Room '{room_name}' not found even after discovery")
+        return found
+    except Exception as e:
+        log(f"[JIT] Discovery error: {e}")
+        return None
 
 # --- SONOS: TRACK INFO ------------------------------------------------------
 
@@ -1926,6 +1997,17 @@ def execute_command(cmd, source="unknown"):
 
     try:
         devices = current_devices_by_name
+
+        # v2.24: JIT discovery — if command targets rooms not in cache, try to find them
+        cmd_rooms = cmd.get("rooms", [])
+        if isinstance(cmd_rooms, str): cmd_rooms = [cmd_rooms]
+        if cmd.get("room") and not cmd_rooms: cmd_rooms = [cmd.get("room")]
+        if cmd_rooms and action not in ("update_check", "flush", "get_logs"):
+            missing = [r for r in cmd_rooms if r not in devices]
+            if missing:
+                for r in missing:
+                    _jit_discover(r)
+                devices = current_devices_by_name  # re-read after JIT update
 
         if action == "update_check":
             # [ROLLBACK-UNSAFE] This code path triggers self_update_check() from the
@@ -2793,54 +2875,9 @@ def execute_command(cmd, source="unknown"):
             with pending_buffer_lock:
                 pending_buffer[:0] = result["pending_history"]
 
-# --- SONOS: GITHUB CMD FALLBACK ---------------------------------------------
-def poll_commands():
-    global last_cmd_sha
-    r = gh_get(f"sonos_cmd_{house}.json")
-    if not r: return
-    data = r.json()
-    sha  = data.get("sha")
-    if sha == last_cmd_sha: return
-    try:
-        cmd = json.loads(gh_decode(r))
-    except: return
-    last_cmd_sha = sha
-    action = cmd.get("action", "")
-    if action in ("none", "", "idle"): return
-    # Age guard: skip commands older than 5 minutes to prevent replay on restart
-    cmd_ts = cmd.get("cmd_ts")
-    if cmd_ts:
-        age = time.time() - cmd_ts
-        if age > 300:
-            log(f"GitHub fallback: stale command (age={int(age)}s): {action}")
-            return
-    if _already_executed(cmd):
-        log(f"GitHub fallback: duplicate (ntfy ran it): {action}")
-        return
-    _mark_executed(cmd)
-    log(f"New command (GitHub fallback): {cmd}")
-    execute_command(cmd, source="github")
-    # Clear the command file after execution to prevent replay on restart
-    _clear_github_cmd(sha)
-
-def _clear_github_cmd(sha):
-    """Replace the GitHub command file with idle after successful execution."""
-    path = f"sonos_cmd_{house}.json"
-    idle = json.dumps({"action": "idle", "cleared_at": time.time()})
-    body = {
-        "message": "clear command after execution",
-        "content": base64.b64encode(idle.encode()).decode(),
-        "sha": sha,
-    }
-    try:
-        url = f"{GITHUB_API_BASE}/{path}"
-        r = requests.put(url, headers=gh_headers(), json=body, timeout=15)
-        if r.status_code in (200, 201):
-            log(f"GitHub fallback: cleared command file (was used! ntfy missed this one)")
-        else:
-            log(f"GitHub fallback: failed to clear command file: HTTP {r.status_code}")
-    except Exception as e:
-        log(f"GitHub fallback: error clearing command file: {e}")
+# --- SONOS: GITHUB CMD FALLBACK (removed in v2.24) --------------------------
+# poll_commands() and _clear_github_cmd() removed. ntfy is sole command transport.
+# ntfy's since=5m replay on reconnect covers brief outages.
 
 # --- NTFY LISTENER THREAD ---------------------------------------------------
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
@@ -2890,30 +2927,25 @@ def sonos_main_loop():
 
     _ensure("soco")
     import soco
+    # v2.24: Set 5-second socket timeout (was 20s default — offline speakers blocked for 20s)
+    try:
+        soco.config.REQUEST_TIMEOUT = 5
+        log(f"SoCo socket timeout set to 5s")
+    except Exception as e:
+        log(f"Warning: could not set SoCo timeout: {e}")
 
-    log(f"Sonos polling every {POLL_INTERVAL}s | GitHub fallback every ~{POLL_INTERVAL*CMD_POLL_EVERY}s")
+    log(f"Sonos polling every {POLL_INTERVAL}s (v2.24: single-discovery, snapshot-based)")
     log("Scanning for Sonos speakers...")
 
-    cmd_counter = 0
     first_run   = True
 
     while True:
         try:
+            # v2.24: Single discovery per cycle — get_coordinators() also builds current_devices_by_name
             coordinators = get_coordinators()
-            # Build flat device map for commands (before ready heartbeat so SSE has mute data)
-            all_devices = {}
-            try:
-                now_t = time.time()
-                for dev in soco.discover(timeout=5) or []:
-                    ip = dev.ip_address
-                    if ip in _offline_ips and now_t - _offline_ips[ip] < OFFLINE_RECHECK_SECS:
-                        continue
-                    try:
-                        all_devices[dev.player_name] = dev
-                    except Exception:
-                        _offline_ips[ip] = now_t
-            except: pass
-            current_devices_by_name = all_devices
+
+            # v2.24: Build poll snapshot once per cycle (replaces 3x get_rooms_playing)
+            _build_poll_snapshot(coordinators)
 
             if first_run:
                 names = [d.player_name for d in coordinators]
@@ -3009,31 +3041,21 @@ def sonos_main_loop():
             if stale_coords and not _last_ui_track:
                 publish_ui_event("stopped", {"rooms": []})
 
-            cmd_counter += 1
-            if cmd_counter >= CMD_POLL_EVERY:
-                poll_commands()
-                cmd_counter = 0
+            # v2.24: GitHub command polling removed — ntfy is sole command transport
 
             # -- Change-driven status_update SSE + 15-min keepalive (v1.70) --
-            # DESIGN NOTE: With the bundled architecture, every outbound message
-            # carries full state via _sse_enrich_state(). Track changes provide
-            # natural state updates every 3-5 min. The status_update here only
-            # fires on room-state changes or as a 15-min keepalive (~96/day).
-            # state data (rooms_playing, play_modes, now_playing_tracks) is
-            # injected automatically by the bundler's _sse_enrich_state().
+            # v2.24: Reads from _poll_snapshot (already computed) instead of querying speakers
             global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states
             _sse_status_counter += 1
-            rp = get_rooms_playing()
+            rp = list(_poll_snapshot.get("rooms_playing", []))
             rooms_changed = (rp != _last_sse_rooms_playing)
-            mutes_changed = (dict(_current_mute_states) != _last_sse_mute_states)
+            mutes_changed = (dict(_poll_snapshot.get("mute_states", {})) != _last_sse_mute_states)
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or mutes_changed or keepalive_due:
                 _sse_status_counter = 0
-                # Minimal payload — _sse_enrich_state() in the bundler adds
-                # rooms_playing, play_modes, mute_states, now_playing_tracks, etc.
                 publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
-                _last_sse_mute_states = dict(_current_mute_states)
+                _last_sse_mute_states = dict(_poll_snapshot.get("mute_states", {}))
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"
