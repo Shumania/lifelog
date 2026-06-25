@@ -538,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.31';
+const PAGE_VERSION = 'p2.32';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -920,11 +920,14 @@ async function syncRooms(h) {
   // Filter offline rooms
   const rooms = filterOfflineRooms([...sel], h);
   if (rooms.length === 0) { showToast('All selected rooms are offline', true); return; }
-  if (!commanderId) { showToast('No commander online for ' + h, true); console.error('[syncRooms] No commanderId'); return; }
+  // Resolve commander for this specific house (not the global tab-dependent one)
+  const cmdrForH = (data && data.client_status) ? data.client_status.find(c => c.house === h && c.sonos_commander) : null;
+  const cmdrId = cmdrForH ? cmdrForH.client_id : commanderId;
+  if (!cmdrId) { showToast('No commander online for ' + h, true); console.error('[syncRooms] No commanderId for house=' + h); return; }
   if (btn) { btn.classList.add('syncing'); btn.textContent = 'Syncing…'; }
   showToast(`🔊 Syncing ${rooms.length} speaker${rooms.length > 1 ? 's' : ''}…`);
-  console.log('[syncRooms] Sending sync_rooms:', rooms, 'commander:', commanderId);
-  const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: commanderId, t_requested: new Date().toISOString() });
+  console.log('[syncRooms] Sending sync_rooms:', rooms, 'commander:', cmdrId);
+  const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: cmdrId, t_requested: new Date().toISOString() });
   if (btn) { btn.classList.remove('syncing'); }
   if (ok) {
     // Optimistically update _roomsPlaying so the button reflects new state
@@ -2898,7 +2901,15 @@ function connectSSE() {
       // --- Update status dot ---
       if (msg.client_id && data && data.client_status) {
         const c = data.client_status.find(s => s.client_id === msg.client_id);
-        if (c) { c.last_seen = new Date().toISOString(); if (msg.version) c.version = msg.version; }
+        if (c) {
+          c.last_seen = new Date().toISOString();
+          if (msg.version) c.version = msg.version;
+          // Patch sonos_commander from live SSE — data-head.json may be stale
+          if (msg.sonos_commander !== undefined) c.sonos_commander = msg.sonos_commander ? 1 : 0;
+          // If this client has sonos modules, mark it as commander (it's sending status_updates)
+          if (events.includes('status_update') && !c.sonos_commander) { c.sonos_commander = 1; }
+          updateCommander();
+        }
         renderStatusBar();
       }
     } catch(err) {}
