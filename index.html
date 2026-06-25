@@ -126,6 +126,8 @@
   }
   .sync-rooms-btn:hover { background: rgba(74,222,128,0.22); }
   .sync-rooms-btn:active { transform: scale(0.97); }
+  .sync-rooms-btn.disabled { opacity: 0.45; cursor: default; border-color: var(--text-muted); color: var(--text-muted); background: transparent; }
+  .sync-rooms-btn.disabled:hover { background: transparent; }
   .sync-rooms-btn.syncing { opacity: 0.6; pointer-events: none; }
 
   .device-list { display: flex; flex-direction: column; gap: 6px; }
@@ -536,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.29';
+const PAGE_VERSION = 'p2.30';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -906,21 +908,31 @@ function updateSyncButton(h) {
 
 async function syncRooms(h) {
   if (h === 'roaming') return;
+  const btn = document.getElementById('sync-btn-' + h);
   const sel = selectedRooms[h] || [];
+  console.log('[syncRooms] h=' + h, 'sel=' + JSON.stringify(sel), '_roomsPlaying=' + JSON.stringify(_roomsPlaying), 'commanderId=' + commanderId);
+  if (btn && btn.classList.contains('disabled')) {
+    console.log('[syncRooms] Button disabled — selection matches live state');
+    showToast('Selection matches current speakers');
+    return;
+  }
   if (sel.length === 0) { showToast('No speakers selected', true); return; }
   // Filter offline rooms
   const rooms = filterOfflineRooms([...sel], h);
   if (rooms.length === 0) { showToast('All selected rooms are offline', true); return; }
-  const btn = document.getElementById('sync-btn-' + h);
+  if (!commanderId) { showToast('No commander online for ' + h, true); console.error('[syncRooms] No commanderId'); return; }
   if (btn) { btn.classList.add('syncing'); btn.textContent = 'Syncing…'; }
   showToast(`🔊 Syncing ${rooms.length} speaker${rooms.length > 1 ? 's' : ''}…`);
-  console.log('[syncRooms] Sending sync_rooms:', rooms);
+  console.log('[syncRooms] Sending sync_rooms:', rooms, 'commander:', commanderId);
   const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: commanderId, t_requested: new Date().toISOString() });
-  if (btn) { btn.classList.remove('syncing'); btn.textContent = 'Sync Speakers'; }
+  if (btn) { btn.classList.remove('syncing'); }
   if (ok) {
+    // Optimistically update _roomsPlaying so the button reflects new state
+    _roomsPlaying = [...rooms];
     showToast(`✓ Speakers synced`);
     updateSyncButton(h);
   } else {
+    if (btn) btn.textContent = 'Sync Speakers';
     showToast('✗ Sync failed', true);
   }
 }
@@ -986,7 +998,7 @@ async function postNtfy(payload) {
   if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
   // Global ntfy throttle: prevent any two POSTs within 300ms
   const now = Date.now();
-  if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); return true; }
+  if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); showToast('⚡ Too fast — try again', true); return false; }
   _lastNtfyTime = now;
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
   payload.source_house = house;
@@ -1583,11 +1595,15 @@ function applyStateNowPlaying(stateFiles) {
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
     // Also seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
     if (state.rooms_playing && state.rooms_playing.length > 0) {
+      // Always update _roomsPlaying (reality) regardless of manual selection
+      if (h === house && stateTs > sseTs) { _roomsPlaying = [...state.rooms_playing]; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
+      // Only auto-set selectedRooms if user hasn't manually chosen
       if (stateTs > sseTs && !_userManualRoomSelect[h]) {
-        if (h === house) { _roomsPlaying = [...state.rooms_playing]; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
         selectedRooms[h] = [...state.rooms_playing];
         localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
       }
+      // Re-evaluate sync button since live state may have changed
+      updateSyncButton(h);
     } else if (state.rooms_playing && state.rooms_playing.length === 0 && stateTs > sseTs) {
       // State says no rooms playing — clear (only update globals for current house)
       if (h === house) { _roomsPlaying = []; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
