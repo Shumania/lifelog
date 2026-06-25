@@ -538,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.33';
+const PAGE_VERSION = 'p2.34';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1718,12 +1718,24 @@ async function loadData(loadArchive) {
       fetch('https://shumania.github.io/lifelog/versions.json?t=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
     data = headResp;
-    // Patch client_status versions from versions.json (always fresher than data-head.json)
-    if (versionsResp && versionsResp.service_version && data.client_status) {
-      for (const c of data.client_status) {
-        if (c.version) c.version = versionsResp.service_version;
+    // Patch client_status from versions.json (always fresher than data-head.json)
+    if (versionsResp && data.client_status) {
+      if (versionsResp.service_version) {
+        for (const c of data.client_status) {
+          if (c.version) c.version = versionsResp.service_version;
+        }
       }
-      console.log('[loadData] Patched client versions to', versionsResp.service_version, 'from versions.json');
+      // Patch sonos_commander and house from versions.json clients map
+      if (versionsResp.clients) {
+        for (const c of data.client_status) {
+          const vc = versionsResp.clients[c.client_id];
+          if (vc) {
+            if (vc.sonos_commander !== undefined) c.sonos_commander = vc.sonos_commander ? 1 : 0;
+            if (vc.house) c.house = vc.house;
+          }
+        }
+      }
+      console.log('[loadData] Patched client_status from versions.json:', JSON.stringify(versionsResp));
     }
     let headItems = data.items || [];
     // Merge state file tracks into head items
