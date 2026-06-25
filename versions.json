@@ -1,3 +1,7 @@
 {
-  "service_version": "2.33"
+  "service_version": "2.33",
+  "clients": {
+    "lifelog_mind": {"house": "vashon", "sonos_commander": true},
+    "lifelog_shumaframe": {"house": "caphill", "sonos_commander": true}
+  }
 }

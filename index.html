@@ -538,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.32';
+const PAGE_VERSION = 'p2.33';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -921,8 +921,13 @@ async function syncRooms(h) {
   const rooms = filterOfflineRooms([...sel], h);
   if (rooms.length === 0) { showToast('All selected rooms are offline', true); return; }
   // Resolve commander for this specific house (not the global tab-dependent one)
-  const cmdrForH = (data && data.client_status) ? data.client_status.find(c => c.house === h && c.sonos_commander) : null;
-  const cmdrId = cmdrForH ? cmdrForH.client_id : commanderId;
+  let cmdrForH = (data && data.client_status) ? data.client_status.find(c => c.house === h && c.sonos_commander) : null;
+  // Fallback: recent client for this house (data-head.json may have stale sonos_commander=0)
+  if (!cmdrForH && data && data.client_status) {
+    cmdrForH = data.client_status.find(c => c.house === h && c.last_seen &&
+      (Date.now() - new Date(c.last_seen).getTime()) < 600000);
+  }
+  const cmdrId = cmdrForH ? cmdrForH.client_id : null;
   if (!cmdrId) { showToast('No commander online for ' + h, true); console.error('[syncRooms] No commanderId for house=' + h); return; }
   if (btn) { btn.classList.add('syncing'); btn.textContent = 'Syncing…'; }
   showToast(`🔊 Syncing ${rooms.length} speaker${rooms.length > 1 ? 's' : ''}…`);
@@ -943,7 +948,14 @@ async function syncRooms(h) {
 function updateCommander() {
   if (house === 'roaming' || !data || !data.client_status) { commanderId = null; return; }
   const cmdr = data.client_status.find(c => c.house === house && c.sonos_commander);
-  commanderId = cmdr ? cmdr.client_id : null;
+  if (cmdr) { commanderId = cmdr.client_id; return; }
+  // Fallback: if no sonos_commander flag set but a client exists for this house
+  // with a recent last_seen (within 10 min), assume it's the commander.
+  // data-head.json may have stale sonos_commander=0.
+  const fallback = data.client_status.find(c => c.house === house && c.last_seen &&
+    (Date.now() - new Date(c.last_seen).getTime()) < 600000);
+  commanderId = fallback ? fallback.client_id : null;
+  if (fallback) console.log('[updateCommander] fallback commander for ' + house + ': ' + fallback.client_id);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
