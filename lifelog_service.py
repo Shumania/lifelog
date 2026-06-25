@@ -2186,6 +2186,31 @@ def execute_command(cmd, source="unknown"):
             else:
                 result["message"] = f"Room '{room}' not found"
 
+        elif action == "sync_rooms":
+            rooms = cmd.get("rooms", [])
+            if isinstance(rooms, str): rooms = [rooms]
+            if not rooms:
+                result["message"] = "No rooms specified"
+            else:
+                log(f"sync_rooms: requested rooms={rooms}")
+                # Re-discover devices for a fresh view of the topology
+                try:
+                    import soco as _soco_mod
+                    fresh = {d.player_name: d for d in _soco_mod.discover(timeout=3) or []}
+                    if fresh:
+                        devices.update(fresh)
+                        log(f"sync_rooms: refreshed topology, {len(fresh)} devices")
+                except Exception as e:
+                    log(f"sync_rooms: topology refresh failed (using cached): {e}")
+                dev, final_rooms, was_grouped = _setup_rooms(cmd, devices)
+                if dev:
+                    result["success"] = True
+                    result["message"] = f"Synced: {', '.join(final_rooms)}"
+                    if was_grouped:
+                        result["message"] += f" (removed: {', '.join(was_grouped)})"
+                else:
+                    result["message"] = f"Room '{rooms[0]}' not found"
+
         elif action == "search":
             from soco.music_services import MusicService
             svc_name    = cmd.get("service", "Qobuz")

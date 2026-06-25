@@ -118,6 +118,15 @@
   .room-chip.offline { opacity: 0.35; text-decoration: line-through; }
   .room-chip.offline.active { opacity: 0.5; }
   .room-chip:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
+  .sync-rooms-btn {
+    margin-top: 8px; padding: 6px 16px; border-radius: 16px;
+    border: 1px solid var(--accent); background: rgba(74,222,128,0.10);
+    color: var(--accent); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  .sync-rooms-btn:hover { background: rgba(74,222,128,0.22); }
+  .sync-rooms-btn:active { transform: scale(0.97); }
+  .sync-rooms-btn.syncing { opacity: 0.6; pointer-events: none; }
 
   .device-list { display: flex; flex-direction: column; gap: 6px; }
   .device-item {
@@ -426,6 +435,7 @@
       </div>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
+    <button class="sync-rooms-btn" id="sync-btn-caphill" onclick="syncRooms('caphill')" style="display:none;">Sync Speakers</button>
   </div>
 
   <!-- Vashon panel -->
@@ -451,6 +461,7 @@
       </div>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
+    <button class="sync-rooms-btn" id="sync-btn-vashon" onclick="syncRooms('vashon')" style="display:none;">Sync Speakers</button>
   </div>
 
   <!-- Roaming panel -->
@@ -525,7 +536,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.27';
+const PAGE_VERSION = 'p2.28';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -860,6 +871,7 @@ function renderRooms(h) {
     const isOffline = hasVisibility && !visibleRooms.includes(room);
     return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
   }).join('');
+  updateSyncButton(h);
 }
 
 function toggleRoom(h, room) {
@@ -867,30 +879,43 @@ function toggleRoom(h, room) {
   _tabManualOverride = true;  // v2.06: selecting a room implies tab commitment
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
-  const adding = idx < 0;
-  if (adding) sel.push(room); else sel.splice(idx, 1);
+  if (idx < 0) sel.push(room); else sel.splice(idx, 1);
   selectedRooms[h] = sel;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(sel));
   renderRooms(h);
+  // Show/hide sync button based on whether selection differs from live group
+  updateSyncButton(h);
+}
 
-  // Live group/ungroup: if Sonos is actively playing, send command immediately
-  if (h === 'roaming' || !_roomsPlaying || _roomsPlaying.length === 0) return;
-  // Warn if adding an offline room to a live group
-  const visible = _roomsAll[h] || [];
-  if (adding && visible.length > 0 && !visible.includes(room)) {
-    showToast(`⚠️ ${room} is offline`, true);
-    return;
-  }
-  // Find a room that's currently playing to use as coordinator
-  const coordinator = _roomsPlaying[0];
-  if (adding) {
-    postNtfy({ action: 'group', source: coordinator, add: [room], target_client_id: commanderId, t_requested: new Date().toISOString() })
-      .then(ok => { if (!ok) showToast(`✗ Failed to add ${room}`, true); });
-    showToast(`Adding ${room} to group`);
+function updateSyncButton(h) {
+  if (h === 'roaming') return;
+  const btn = document.getElementById('sync-btn-' + h);
+  if (!btn) return;
+  const sel = new Set(selectedRooms[h] || []);
+  const live = new Set(_roomsPlaying || []);
+  // Show button if selection differs from what's actually playing
+  const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
+  btn.style.display = differs ? '' : 'none';
+}
+
+async function syncRooms(h) {
+  if (h === 'roaming') return;
+  const sel = selectedRooms[h] || [];
+  if (sel.length === 0) { showToast('No speakers selected', true); return; }
+  // Filter offline rooms
+  const rooms = filterOfflineRooms([...sel], h);
+  if (rooms.length === 0) { showToast('All selected rooms are offline', true); return; }
+  const btn = document.getElementById('sync-btn-' + h);
+  if (btn) { btn.classList.add('syncing'); btn.textContent = 'Syncing…'; }
+  showToast(`🔊 Syncing ${rooms.length} speaker${rooms.length > 1 ? 's' : ''}…`);
+  console.log('[syncRooms] Sending sync_rooms:', rooms);
+  const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: commanderId, t_requested: new Date().toISOString() });
+  if (btn) { btn.classList.remove('syncing'); btn.textContent = 'Sync Speakers'; }
+  if (ok) {
+    showToast(`✓ Speakers synced`);
+    if (btn) btn.style.display = 'none';
   } else {
-    postNtfy({ action: 'ungroup', room: room, target_client_id: commanderId, t_requested: new Date().toISOString() })
-      .then(ok => { if (!ok) showToast(`✗ Failed to remove ${room}`, true); });
-    showToast(`Removing ${room} from group`);
+    showToast('✗ Sync failed', true);
   }
 }
 
