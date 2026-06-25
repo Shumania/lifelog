@@ -538,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.34';
+const PAGE_VERSION = 'p2.35';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1288,10 +1288,23 @@ function renderNowPlayingSonos(h) {
   const sse = _sseNowPlaying[h];
   const isLive = sse && (Date.now() - sse.ts) < 600000;
 
-  // Find latest history item for this house
+  // Find latest history item for this house; fall back to any house if house-specific is stale
   let latestItem = null;
+  let latestItemCrossHouse = false;
   if (allItems.length > 0) {
     latestItem = allItems.find(i => i.house === h && i.type === 'music');
+    // If no house-specific item, or it's very old (>24h), fall back to most recent across all houses
+    const houseAge = latestItem ? Date.now() - new Date(latestItem.timestamp).getTime() : Infinity;
+    if (houseAge > 24 * 3600000) {
+      const anyRecent = allItems.find(i => i.type === 'music');
+      if (anyRecent) {
+        const anyAge = Date.now() - new Date(anyRecent.timestamp).getTime();
+        if (anyAge < houseAge) {
+          latestItem = anyRecent;
+          latestItemCrossHouse = true;
+        }
+      }
+    }
   }
 
   let title = '—', artist = '—', label = 'No recent activity', isPlaying = false;
@@ -1374,8 +1387,12 @@ function renderNowPlayingSonos(h) {
     const age = Date.now() - new Date(latestItem.timestamp).getTime();
     if (age < 30 * 60000) { label = 'Played ' + fmtAge(age); isPlaying = false; }
     else { label = 'Last played · ' + fmtAge(age); isPlaying = false; }
+    // Show origin house badge when falling back to cross-house play
+    if (latestItemCrossHouse && latestItem.house) {
+      const houseLabel = latestItem.house === 'roaming' ? '📱 Roaming' : latestItem.house === 'vashon' ? '🏖️ Vashon' : '🏠 Cap Hill';
+      svc = houseLabel + (svcLabel(latestItem.source) ? ' · ' + svcLabel(latestItem.source) : '');
+    } else if (!isRadioPlaceholder) { svc = svcLabel(latestItem.source); }
     rooms = [...new Set(Array.isArray(latestItem.rooms) ? latestItem.rooms : (latestItem.room ? [latestItem.room] : []))].join(', ');
-    if (!isRadioPlaceholder) svc = svcLabel(latestItem.source);
   }
 
   const repeatBadge = isPlaying ? getRepeatBadge() : '';
