@@ -437,7 +437,7 @@
       </div>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
-    <button class="sync-rooms-btn" id="sync-btn-caphill" onclick="syncRooms('caphill')" style="display:none;">Sync Speakers</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Speakers synced</button>
   </div>
 
   <!-- Vashon panel -->
@@ -538,7 +538,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.30';
+const PAGE_VERSION = 'p2.31';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1696,12 +1696,20 @@ function autoSelectTab(stateFiles) {
 
 async function loadData(loadArchive) {
   try {
-    // Fetch data-head.json and state files in parallel
-    const [headResp, stateFiles] = await Promise.all([
+    // Fetch data-head.json, state files, and versions.json in parallel
+    const [headResp, stateFiles, versionsResp] = await Promise.all([
       fetch(DATA_HEAD_URL + '?t=' + Date.now()).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }),
-      fetchStateFiles()
+      fetchStateFiles(),
+      fetch('https://shumania.github.io/lifelog/versions.json?t=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
     data = headResp;
+    // Patch client_status versions from versions.json (always fresher than data-head.json)
+    if (versionsResp && versionsResp.service_version && data.client_status) {
+      for (const c of data.client_status) {
+        if (c.version) c.version = versionsResp.service_version;
+      }
+      console.log('[loadData] Patched client versions to', versionsResp.service_version, 'from versions.json');
+    }
     let headItems = data.items || [];
     // Merge state file tracks into head items
     headItems = mergeStateIntoItems(headItems, stateFiles);
