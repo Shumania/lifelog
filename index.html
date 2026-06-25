@@ -461,7 +461,7 @@
       </div>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
-    <button class="sync-rooms-btn" id="sync-btn-vashon" onclick="syncRooms('vashon')" style="display:none;">Sync Speakers</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Speakers synced</button>
   </div>
 
   <!-- Roaming panel -->
@@ -536,7 +536,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.28';
+const PAGE_VERSION = 'p2.29';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -893,9 +893,15 @@ function updateSyncButton(h) {
   if (!btn) return;
   const sel = new Set(selectedRooms[h] || []);
   const live = new Set(_roomsPlaying || []);
-  // Show button if selection differs from what's actually playing
+  // Enable button if selection differs from what's actually playing
   const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
-  btn.style.display = differs ? '' : 'none';
+  if (differs) {
+    btn.classList.remove('disabled');
+    btn.textContent = 'Sync Speakers';
+  } else {
+    btn.classList.add('disabled');
+    btn.textContent = '✓ Speakers synced';
+  }
 }
 
 async function syncRooms(h) {
@@ -913,7 +919,7 @@ async function syncRooms(h) {
   if (btn) { btn.classList.remove('syncing'); btn.textContent = 'Sync Speakers'; }
   if (ok) {
     showToast(`✓ Speakers synced`);
-    if (btn) btn.style.display = 'none';
+    updateSyncButton(h);
   } else {
     showToast('✗ Sync failed', true);
   }
