@@ -56,12 +56,28 @@ _ensure("requests")
 import requests
 
 # --- CONSTANTS --------------------------------------------------------------
-# [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
-# process. The old version's SERVICE_VERSION is compared against versions.json to decide
-# whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-# IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
-# Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.34"
+# SERVICE_VERSION is read from the VERSION file in the same directory as this script.
+# The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
+# The same file on GitHub is fetched during update checks — no versions.json needed.
+# On update, both lifelog_service.py AND VERSION are downloaded together.
+_FALLBACK_VERSION = "2.34"  # Only used if VERSION file is missing (bootstrap)
+
+def _read_version():
+    """Read version from VERSION file next to this script."""
+    for base in (Path(sys.argv[0]).resolve().parent, Path(__file__).resolve().parent):
+        vf = base / "VERSION"
+        try:
+            if vf.exists():
+                ver = vf.read_text(encoding="utf-8").strip()
+                if ver:
+                    return ver
+        except Exception as exc:
+            print(f"[VERSION] Warning: could not read {vf}: {exc}")
+    # No VERSION file found — first install or file deleted
+    print(f"[VERSION] WARNING: VERSION file not found! Using fallback {_FALLBACK_VERSION}")
+    print(f"[VERSION] Searched: {Path(sys.argv[0]).resolve().parent} and {Path(__file__).resolve().parent}")
+    return _FALLBACK_VERSION
+SERVICE_VERSION = _read_version()
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -555,21 +571,14 @@ def post_error(message, context="", module="service"):
 # new version. The v1.44 crash was caused by a non-ASCII arrow in a log() call here.
 # Rules: (1) 100% ASCII, (2) wrap in try/except, (3) test with OLD version in mind.
 def self_update_check():
-    """Check versions.json; download + restart if service_version changed."""
+    """Check VERSION file on GitHub; download + restart if version changed."""
     import ast as _ast
     try:
-        r = gh_get("versions.json", retries=1)
+        r = gh_get("VERSION", retries=1)
         if not r:
             log("Version check: GitHub unavailable (will retry next cycle)")
             return
-        versions = json.loads(gh_decode(r))
-        # KEY MUST BE "service_version" — not "service", not "version".
-        # If the key is missing, versions.json is malformed. Log a loud warning
-        # so silent fallback never hides a broken update again (v1.83 root cause).
-        if "service_version" not in versions:
-            log(f"[!] versions.json MISSING 'service_version' key! Keys found: {list(versions.keys())}. Update check SKIPPED.")
-            return
-        latest = versions["service_version"]
+        latest = gh_decode(r).strip()
         log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
             # Clear any skip_version file if we are now running the target version
@@ -622,15 +631,8 @@ def self_update_check():
             log(f"Update aborted: syntax error in downloaded v{latest}: {se}")
             post_error(f"Update v{latest} aborted: syntax error: {se}", module="update")
             return
-        # Extract the VERSION from downloaded code to verify it matches what we expect
-        import re as _re
-        _ver_match = _re.search(r'SERVICE_VERSION\s*=\s*["\']([^"\']+)["\']', new_code)
-        _dl_ver = _ver_match.group(1) if _ver_match else "UNKNOWN"
-        log(f"Downloaded code version: {_dl_ver} (expected: {latest})")
-        if _dl_ver != latest:
-            log(f"[!] VERSION MISMATCH: downloaded code says v{_dl_ver} but versions.json says v{latest}! This likely means the wrong file was pushed to the repo.")
-            post_error(f"Update v{latest} aborted: downloaded code contains v{_dl_ver} -- wrong file in repo?", module="update")
-            return
+        # No version-mismatch check needed: VERSION file IS the source of truth.
+        # The .py no longer contains a hardcoded version — it reads VERSION at startup.
         # Compare with current file to detect no-op updates
         try:
             _cur_code = Path(sys.argv[0]).resolve().read_text(encoding="utf-8")
@@ -658,6 +660,10 @@ def self_update_check():
         # Atomic write: write to .tmp then os.replace() -- no partial files
         tmp_path.write_text(new_code, encoding="utf-8")
         os.replace(str(tmp_path), str(this_path))
+        # Write VERSION file alongside the .py so the new process reads it at startup
+        ver_path = flag_dir / "VERSION"
+        ver_path.write_text(latest + "\n", encoding="utf-8")
+        log(f"Wrote VERSION file: {ver_path} = {latest}")
         log(f"Updated to v{latest} -- restarting in new window...")
         # Release the single-instance mutex BEFORE spawning so the new process
         # can acquire it immediately (avoids race where new process starts fast,
