@@ -77,7 +77,8 @@ def _read_version():
     print(f"[VERSION] WARNING: VERSION file not found! Using fallback {_FALLBACK_VERSION}")
     print(f"[VERSION] Searched: {Path(sys.argv[0]).resolve().parent} and {Path(__file__).resolve().parent}")
     return _FALLBACK_VERSION
-SERVICE_VERSION = _read_version()
+SERVICE_VERSION = "2.34"  # Legacy anchor — v2.33 updater regex parses this line. Remove after all machines are on v2.34+.
+SERVICE_VERSION = _read_version()  # Real version from VERSION file (overwrites anchor above)
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
