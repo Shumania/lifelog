@@ -61,7 +61,7 @@ import requests
 # whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
 # IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
 # Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.33"
+SERVICE_VERSION = "2.34"
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -2304,6 +2304,7 @@ def execute_command(cmd, source="unknown"):
             room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
+            q_artist    = cmd.get("artist", "")
             dev = devices.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
@@ -2345,6 +2346,8 @@ def execute_command(cmd, source="unknown"):
                             from xml.sax.saxutils import escape as xml_escape
                             safe_title = xml_escape(title or "Unknown Track")
                             safe_uri = xml_escape(track_uri)
+                            safe_artist = xml_escape(q_artist) if q_artist else ""
+                            creator_tag = ('<dc:creator>' + safe_artist + '</dc:creator>') if safe_artist else ''
                             meta = (
                                 '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
                                 'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
@@ -2352,11 +2355,12 @@ def execute_command(cmd, source="unknown"):
                                 'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
                                 '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
                                 '<dc:title>' + safe_title + '</dc:title>'
+                                + creator_tag +
                                 '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
                                 '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
                                 '</item></DIDL-Lite>'
                             )
-                            log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={q_artist}")
                             if pos is not None:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             elif next_flag:
@@ -2411,6 +2415,7 @@ def execute_command(cmd, source="unknown"):
             from xml.sax.saxutils import escape as xml_escape
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
+            cmd_artist  = cmd.get("artist", "")
             # Group rooms before playing — ensures all selected rooms play together.
             # _setup_rooms is incremental: no-op if already correct.
             dev, rooms, was_grouped = _setup_rooms(cmd, devices)
@@ -2431,9 +2436,10 @@ def execute_command(cmd, source="unknown"):
                 else:
                     share_url = None  # Raw Sonos URI -- no share link needed
 
-                def _build_didl_meta(t, u):
+                def _build_didl_meta(t, u, a=""):
                     """Build DIDL-Lite XML metadata for non-Spotify URIs.
-                    Uses proper item IDs (R:0/0/0) so Sonos displays title correctly."""
+                    Uses proper item IDs (R:0/0/0) so Sonos displays title/artist correctly."""
+                    creator = ('<dc:creator>' + xml_escape(a) + '</dc:creator>') if a else ''
                     return (
                         '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
                         'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
@@ -2441,6 +2447,7 @@ def execute_command(cmd, source="unknown"):
                         'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
                         '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
                         '<dc:title>' + xml_escape(t or "Unknown Track") + '</dc:title>'
+                        + creator +
                         '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
                         '<res protocolInfo="*:*:*:*">' + xml_escape(u) + '</res>'
                         '</item></DIDL-Lite>'
@@ -2470,8 +2477,8 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 plugin.add_share_link_to_queue(share_url)
                         else:
-                            meta = _build_didl_meta(title, track_uri)
-                            log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            meta = _build_didl_meta(title, track_uri, cmd_artist)
+                            log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={cmd_artist}")
                             if pos is not None:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             else:
@@ -2488,8 +2495,8 @@ def execute_command(cmd, source="unknown"):
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
                             # (v1.87 fix: DIDL queue approach showed "Song [1/1]" with no audio)
-                            meta = _build_didl_meta(title, track_uri)
-                            log(f"play_next: using play_uri() for non-Spotify stream replacement")
+                            meta = _build_didl_meta(title, track_uri, cmd_artist)
+                            log(f"play_next: using play_uri() for non-Spotify stream replacement artist={cmd_artist}")
                             coordinator.play_uri(track_uri, meta, title=title or '')
                     else:
                         # Queue-based source -- insert at next position and skip

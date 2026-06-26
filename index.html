@@ -653,7 +653,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.36';
+const PAGE_VERSION = 'p2.37';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2457,7 +2457,7 @@ async function directPlay(action, encodedData) {
     }
     const finalUri = playUri || uri;
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', rooms, target_client_id: commanderId });
+    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', artist: info.artist || '', rooms, target_client_id: commanderId });
     if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
     return;
   }
