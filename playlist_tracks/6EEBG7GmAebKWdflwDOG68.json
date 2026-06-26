@@ -1,0 +1,797 @@
+[
+  {
+    "position": 0,
+    "track_id": "5tVA6TkbaAH9QMITTQRrNv",
+    "track_name": "Free Fallin'",
+    "track_uri": "spotify:track:5tVA6TkbaAH9QMITTQRrNv",
+    "duration_ms": 256000,
+    "artists": [
+      {
+        "name": "Tom Petty",
+        "id": "2UZMlIwnkgAEDBsw1Rejkn"
+      }
+    ],
+    "album_name": "Full Moon Fever",
+    "album_id": "5d71Imt5CIb7LpQwDMQ093",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27336572e6726714544f5bed456",
+    "added_at": "2026-01-09T14:51:23Z"
+  },
+  {
+    "position": 1,
+    "track_id": "5gUVdjfPWoaKoRiEMHBX6P",
+    "track_name": "Back in the Day - Remix",
+    "track_uri": "spotify:track:5gUVdjfPWoaKoRiEMHBX6P",
+    "duration_ms": 303373,
+    "artists": [
+      {
+        "name": "Ahmad Lewis",
+        "id": "4X3nIh5dynzfAQmy1Z5hXI"
+      }
+    ],
+    "album_name": "Ahmad",
+    "album_id": "1oRFXTDboyfWXB0c1z6QiT",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273267f18966fa512b732f23353",
+    "added_at": "2024-08-25T21:52:55Z"
+  },
+  {
+    "position": 2,
+    "track_id": "36yUCSB9OaMz0RMUQDOSpT",
+    "track_name": "Let Me Ride",
+    "track_uri": "spotify:track:36yUCSB9OaMz0RMUQDOSpT",
+    "duration_ms": 260333,
+    "artists": [
+      {
+        "name": "Dr. Dre",
+        "id": "6DPYiyq5kWVQS4RGwxzPC7"
+      },
+      {
+        "name": "Snoop Dogg",
+        "id": "7hJcb9fa4alzcOq3EaNPoG"
+      },
+      {
+        "name": "RBX",
+        "id": "3drEaBmm4UexsiDfz5AzXV"
+      },
+      {
+        "name": "Jewell",
+        "id": "05cqfWVtssCo3KVcqEAYG3"
+      }
+    ],
+    "album_name": "The Chronic",
+    "album_id": "2V5rhszUpCudPcb01zevOt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739710731c9d7baec635f1bab1",
+    "added_at": "2024-08-28T01:41:18Z"
+  },
+  {
+    "position": 3,
+    "track_id": "6igsoAR6Co9u7Rq3U7mlOD",
+    "track_name": "Hollywood Swinging",
+    "track_uri": "spotify:track:6igsoAR6Co9u7Rq3U7mlOD",
+    "duration_ms": 279933,
+    "artists": [
+      {
+        "name": "Kool & The Gang",
+        "id": "3VNITwohbvU5Wuy5PC6dsI"
+      }
+    ],
+    "album_name": "Wild And Peaceful",
+    "album_id": "3MRgojA0LfPka4RG7aRjsI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734b3787e954c118353100783c",
+    "added_at": "2026-01-11T16:32:36Z"
+  },
+  {
+    "position": 4,
+    "track_id": "6MdqqkQ8sSC0WB4i8PyRuQ",
+    "track_name": "No Diggity",
+    "track_uri": "spotify:track:6MdqqkQ8sSC0WB4i8PyRuQ",
+    "duration_ms": 304600,
+    "artists": [
+      {
+        "name": "Blackstreet",
+        "id": "2P3cjUru4H3fhSXXNxE9kA"
+      },
+      {
+        "name": "Dr. Dre",
+        "id": "6DPYiyq5kWVQS4RGwxzPC7"
+      },
+      {
+        "name": "Queen Pen",
+        "id": "0VbIlorLz3I5SEtIsc5vAr"
+      }
+    ],
+    "album_name": "Another Level",
+    "album_id": "2zGZLQiFl9UubtrVmtIkbi",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27303ca37157b9ceefbe8fe225b",
+    "added_at": "2024-08-25T01:13:19Z"
+  },
+  {
+    "position": 5,
+    "track_id": "7nYvUtkQMx1v80S2FH2s9J",
+    "track_name": "Regulate",
+    "track_uri": "spotify:track:7nYvUtkQMx1v80S2FH2s9J",
+    "duration_ms": 248866,
+    "artists": [
+      {
+        "name": "Warren G",
+        "id": "2B4ZHz4QDWJTXPFPgO5peE"
+      },
+      {
+        "name": "Nate Dogg",
+        "id": "1Oa0bMld0A3u5OTYfMzp5h"
+      }
+    ],
+    "album_name": "Regulate\u2026 G Funk Era",
+    "album_id": "2VMGv3inRLPM4GOMXf37qu",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f6b9b62ea130943d371b69ef",
+    "added_at": "2026-01-09T14:52:49Z"
+  },
+  {
+    "position": 6,
+    "track_id": "2OCr6iAGslZkjuk8VTpAbe",
+    "track_name": "Behind The Sun",
+    "track_uri": "spotify:track:2OCr6iAGslZkjuk8VTpAbe",
+    "duration_ms": 280933,
+    "artists": [
+      {
+        "name": "Red Hot Chili Peppers",
+        "id": "0L8ExT028jH3ddEcZwqJJ5"
+      }
+    ],
+    "album_name": "The Uplift Mofo Party Plan",
+    "album_id": "3rHJQrfEcBeSaLPuLwKR6F",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ef0aaa5b8cd65ec81d22b3d9",
+    "added_at": "2024-08-25T01:15:50Z"
+  },
+  {
+    "position": 7,
+    "track_id": "0XgpiStoxq1IJncYlPrvZ5",
+    "track_name": "Runnin'",
+    "track_uri": "spotify:track:0XgpiStoxq1IJncYlPrvZ5",
+    "duration_ms": 296266,
+    "artists": [
+      {
+        "name": "The Pharcyde",
+        "id": "7yk35uHNQclPXFGFoTU44w"
+      }
+    ],
+    "album_name": "Labcabincalifornia (Deluxe Edition)",
+    "album_id": "05Qg48LlYGKYdeXrNGg00g",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738248914bbbcdcba2d154c8de",
+    "added_at": "2024-08-25T21:53:25Z"
+  },
+  {
+    "position": 8,
+    "track_id": "7wDLwBQph71ea0ul7ByznX",
+    "track_name": "Heat Mizer",
+    "track_uri": "spotify:track:7wDLwBQph71ea0ul7ByznX",
+    "duration_ms": 68493,
+    "artists": [
+      {
+        "name": "Freestyle Fellowship",
+        "id": "0IXabnQgJf7eO1hIF71YS9"
+      }
+    ],
+    "album_name": "Innercity Griots",
+    "album_id": "2LUv0RreD5HGpQZv7A5pRf",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27392f5816e0211e79459316c14",
+    "added_at": "2026-01-11T17:03:17Z"
+  },
+  {
+    "position": 9,
+    "track_id": "23rG6vRx13oa64hH8todpa",
+    "track_name": "Insane in the Brain",
+    "track_uri": "spotify:track:23rG6vRx13oa64hH8todpa",
+    "duration_ms": 208266,
+    "artists": [
+      {
+        "name": "Cypress Hill",
+        "id": "4P0dddbxPil35MNN9G2MEX"
+      }
+    ],
+    "album_name": "Playlist: The Very Best Of Cypress Hill",
+    "album_id": "3p4PWDPo62rl2FfpvsrEdB",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b41cd3ca97c922c14be9d34f",
+    "added_at": "2024-08-25T21:56:26Z"
+  },
+  {
+    "position": 10,
+    "track_id": "4sxEYZ3eMLOeETkbcVIrcP",
+    "track_name": "Hussle in the House",
+    "track_uri": "spotify:track:4sxEYZ3eMLOeETkbcVIrcP",
+    "duration_ms": 200200,
+    "artists": [
+      {
+        "name": "Nipsey Hussle",
+        "id": "0EeQBlQJFiAfJeVN2vT9s0"
+      }
+    ],
+    "album_name": "Hussle in the House",
+    "album_id": "2e5eUY4vVAJ94Do2YenVjk",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c0b29e1163867337cb9aab8c",
+    "added_at": "2026-01-11T17:13:18Z"
+  },
+  {
+    "position": 11,
+    "track_id": "1yKu2MhpwzDXXH2tzG6xoa",
+    "track_name": "Beverly Hills",
+    "track_uri": "spotify:track:1yKu2MhpwzDXXH2tzG6xoa",
+    "duration_ms": 196093,
+    "artists": [
+      {
+        "name": "Weezer",
+        "id": "3jOstUTkEu2JkjvRdBA5Gu"
+      }
+    ],
+    "album_name": "Make Believe",
+    "album_id": "4D8A8M0NJjEdQhusawyeDz",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a9def696688b8353ad8511ad",
+    "added_at": "2026-01-11T16:43:34Z"
+  },
+  {
+    "position": 12,
+    "track_id": "6eN1f9KNmiWEhpE2RhQqB5",
+    "track_name": "Paradise City",
+    "track_uri": "spotify:track:6eN1f9KNmiWEhpE2RhQqB5",
+    "duration_ms": 405600,
+    "artists": [
+      {
+        "name": "Guns N' Roses",
+        "id": "3qm84nBOXUEQ2vnTfUTTFC"
+      }
+    ],
+    "album_name": "Appetite For Destruction",
+    "album_id": "28yHV3Gdg30AiB8h8em1eW",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27321ebf49b3292c3f0f575f0f5",
+    "added_at": "2026-01-09T14:58:02Z"
+  },
+  {
+    "position": 13,
+    "track_id": "51Gkc1TxvyQ9K8y0pQRmQM",
+    "track_name": "Been Caught Stealing",
+    "track_uri": "spotify:track:51Gkc1TxvyQ9K8y0pQRmQM",
+    "duration_ms": 213293,
+    "artists": [
+      {
+        "name": "Jane's Addiction",
+        "id": "02NfyD6AlLA12crYzw5YcR"
+      }
+    ],
+    "album_name": "Ritual De Lo Habitual",
+    "album_id": "7acrrQejzV4ybWWTM8TmPf",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273da80002f2d1a8d827c6aea54",
+    "added_at": "2026-01-09T15:00:28Z"
+  },
+  {
+    "position": 14,
+    "track_id": "4NTn0Yo8hTGW5tbBANBzfh",
+    "track_name": "You Can Do It",
+    "track_uri": "spotify:track:4NTn0Yo8hTGW5tbBANBzfh",
+    "duration_ms": 259088,
+    "artists": [
+      {
+        "name": "Ice Cube",
+        "id": "3Mcii5XWf6E0lrY3Uky4cA"
+      },
+      {
+        "name": "Mack 10",
+        "id": "3USpNaxpX1iNqNnQWqg9ob"
+      },
+      {
+        "name": "Ms. Toi",
+        "id": "5h6zIU8cm6UzAaHsjXmNKl"
+      }
+    ],
+    "album_name": "War & Peace Vol. 2 (The Peace Disc)",
+    "album_id": "5rZuC67lXA5SI6f4n61gEw",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27317bf7f81b1a61b828c786857",
+    "added_at": "2024-08-28T01:40:57Z"
+  },
+  {
+    "position": 15,
+    "track_id": "7Bz8yww6UMbTgTVLG6zbI4",
+    "track_name": "Low Rider",
+    "track_uri": "spotify:track:7Bz8yww6UMbTgTVLG6zbI4",
+    "duration_ms": 190826,
+    "artists": [
+      {
+        "name": "War",
+        "id": "3ICyfoySNDZqtBVmaBT84I"
+      }
+    ],
+    "album_name": "Why Can't We Be Friends?",
+    "album_id": "59euB5Ns7yGbS06OYHwxRN",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a07cc88003498f7559787673",
+    "added_at": "2026-01-11T17:23:02Z"
+  },
+  {
+    "position": 16,
+    "track_id": "1ZB2zIoc8AjSuyqKRcJgbO",
+    "track_name": "How Do U Want It",
+    "track_uri": "spotify:track:1ZB2zIoc8AjSuyqKRcJgbO",
+    "duration_ms": 287760,
+    "artists": [
+      {
+        "name": "2Pac",
+        "id": "1ZwdS5xdxEREPySFridCfh"
+      },
+      {
+        "name": "K-Ci & JoJo",
+        "id": "05RZIdfz59ZW2FvFuwnmNK"
+      }
+    ],
+    "album_name": "Greatest Hits",
+    "album_id": "1WBZyULtlANBKed7Zf9cDP",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d81a092eb373ded457d94eec",
+    "added_at": "2026-01-11T17:12:03Z"
+  },
+  {
+    "position": 17,
+    "track_id": "5Tbpp3OLLClPJF8t1DmrFD",
+    "track_name": "Nuthin' But A \"G\" Thang",
+    "track_uri": "spotify:track:5Tbpp3OLLClPJF8t1DmrFD",
+    "duration_ms": 237573,
+    "artists": [
+      {
+        "name": "Dr. Dre",
+        "id": "6DPYiyq5kWVQS4RGwxzPC7"
+      },
+      {
+        "name": "Snoop Dogg",
+        "id": "7hJcb9fa4alzcOq3EaNPoG"
+      }
+    ],
+    "album_name": "The Chronic",
+    "album_id": "2V5rhszUpCudPcb01zevOt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739710731c9d7baec635f1bab1",
+    "added_at": "2024-08-28T01:39:44Z"
+  },
+  {
+    "position": 18,
+    "track_id": "2qOm7ukLyHUXWyR4ZWLwxA",
+    "track_name": "It Was A Good Day",
+    "track_uri": "spotify:track:2qOm7ukLyHUXWyR4ZWLwxA",
+    "duration_ms": 260000,
+    "artists": [
+      {
+        "name": "Ice Cube",
+        "id": "3Mcii5XWf6E0lrY3Uky4cA"
+      }
+    ],
+    "album_name": "The Predator",
+    "album_id": "71HM1CMYWeZzws8pyiEn46",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273994c319841a923465d62e271",
+    "added_at": "2024-08-28T01:40:00Z"
+  },
+  {
+    "position": 19,
+    "track_id": "0eO8MW9YSTK3CjdaTYKlhF",
+    "track_name": "Who Am I (What\u2019s My Name)?",
+    "track_uri": "spotify:track:0eO8MW9YSTK3CjdaTYKlhF",
+    "duration_ms": 246200,
+    "artists": [
+      {
+        "name": "Snoop Dogg",
+        "id": "7hJcb9fa4alzcOq3EaNPoG"
+      }
+    ],
+    "album_name": "Doggystyle",
+    "album_id": "5IFOummNcGXY3qCBWRchqP",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273733af86f8dea9692a3f59d29",
+    "added_at": "2024-08-28T01:40:17Z"
+  },
+  {
+    "position": 20,
+    "track_id": "2HTdEUoRqVibhiovEh8DBw",
+    "track_name": "Organic Anti-Beat Box Band",
+    "track_uri": "spotify:track:2HTdEUoRqVibhiovEh8DBw",
+    "duration_ms": 250733,
+    "artists": [
+      {
+        "name": "Red Hot Chili Peppers",
+        "id": "0L8ExT028jH3ddEcZwqJJ5"
+      }
+    ],
+    "album_name": "The Uplift Mofo Party Plan",
+    "album_id": "3rHJQrfEcBeSaLPuLwKR6F",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ef0aaa5b8cd65ec81d22b3d9",
+    "added_at": "2026-01-09T15:48:34Z"
+  },
+  {
+    "position": 21,
+    "track_id": "0JjgNoZJ2l49O2ztVRnSNt",
+    "track_name": "L.A.",
+    "track_uri": "spotify:track:0JjgNoZJ2l49O2ztVRnSNt",
+    "duration_ms": 169106,
+    "artists": [
+      {
+        "name": "Murs",
+        "id": "2dWF6m2ksP9GN75fufFp16"
+      }
+    ],
+    "album_name": "Murray's Revenge",
+    "album_id": "3KemAqTdgRAp1ZKInbgxyq",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273bc81cb35f00bc730be1405e6",
+    "added_at": "2026-01-11T21:46:49Z"
+  },
+  {
+    "position": 22,
+    "track_id": "5gOfC9UzZQzTyShqPMrpjT",
+    "track_name": "wacced out murals",
+    "track_uri": "spotify:track:5gOfC9UzZQzTyShqPMrpjT",
+    "duration_ms": 317092,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      }
+    ],
+    "album_name": "GNX",
+    "album_id": "0hvT3yIEysuuvkK73vgdcW",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e2a0a166493a2bde5480a420",
+    "added_at": "2026-01-11T21:15:00Z"
+  },
+  {
+    "position": 23,
+    "track_id": "276zciJ7Fg7Jk6Ta6QuLkp",
+    "track_name": "Come Down",
+    "track_uri": "spotify:track:276zciJ7Fg7Jk6Ta6QuLkp",
+    "duration_ms": 169726,
+    "artists": [
+      {
+        "name": "Anderson .Paak",
+        "id": "3jK9MiCrA42lLAdMGUZpwa"
+      }
+    ],
+    "album_name": "Malibu",
+    "album_id": "4VFG1DOuTeDMBjBLZT7hCK",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f8e77075414234fd77fce32b",
+    "added_at": "2026-01-11T17:13:59Z"
+  },
+  {
+    "position": 24,
+    "track_id": "1hnqJdyUCTrqFghAUPcF4M",
+    "track_name": "LUKA TO THE LAKERS",
+    "track_uri": "spotify:track:1hnqJdyUCTrqFghAUPcF4M",
+    "duration_ms": 94109,
+    "artists": [
+      {
+        "name": "DigBar",
+        "id": "3Kb7e8b1tSd7TLa3cy7HUV"
+      }
+    ],
+    "album_name": "Yall asked for these...",
+    "album_id": "0JcNLEGurrut9y9hqsxNHq",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730e23a28c644c12a4c8ac4833",
+    "added_at": "2026-01-11T21:52:46Z"
+  },
+  {
+    "position": 25,
+    "track_id": "4MbV8zrWudQflnbiIzp29t",
+    "track_name": "Acid Raindrops",
+    "track_uri": "spotify:track:4MbV8zrWudQflnbiIzp29t",
+    "duration_ms": 264152,
+    "artists": [
+      {
+        "name": "People Under The Stairs",
+        "id": "0av074qUwLn5eyzwqoq3xh"
+      }
+    ],
+    "album_name": "Acid Raindrops",
+    "album_id": "6wRasCHEWubnqxdDlUf7mo",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f5afca350abef8cb830750b1",
+    "added_at": "2026-01-11T17:28:11Z"
+  },
+  {
+    "position": 26,
+    "track_id": "63N457VulowgtmMNSCvdVR",
+    "track_name": "High Rollers",
+    "track_uri": "spotify:track:63N457VulowgtmMNSCvdVR",
+    "duration_ms": 276826,
+    "artists": [
+      {
+        "name": "ICE-T",
+        "id": "0eGh2jSWPBX5GuqIHoZJZG"
+      }
+    ],
+    "album_name": "Power",
+    "album_id": "2KaB2rHtdBvocspgjm1bnN",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e2cf6398efbe9b1deac05e3f",
+    "added_at": "2026-01-11T16:59:16Z"
+  },
+  {
+    "position": 27,
+    "track_id": "7JbpEmbrluqoWfLTR55qiF",
+    "track_name": "Change",
+    "track_uri": "spotify:track:7JbpEmbrluqoWfLTR55qiF",
+    "duration_ms": 176599,
+    "artists": [
+      {
+        "name": "Fishbone",
+        "id": "2X3pNc13eRGofTO9Yt3sMi"
+      }
+    ],
+    "album_name": "Truth And Soul",
+    "album_id": "3fFLTUfssjzN4vipRRfGxZ",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27330dd94b48b93a83fb99c6c06",
+    "added_at": "2026-01-11T17:26:19Z"
+  },
+  {
+    "position": 28,
+    "track_id": "6XfwGXSf180uhTlUn7cczH",
+    "track_name": "Hollywood Dreaming",
+    "track_uri": "spotify:track:6XfwGXSf180uhTlUn7cczH",
+    "duration_ms": 125133,
+    "artists": [
+      {
+        "name": "Lil Peep",
+        "id": "2kCcBybjl3SAtIcwdWpUe3"
+      },
+      {
+        "name": "Gab3",
+        "id": "0Yt7UjpW2AJojjZrgGysUl"
+      }
+    ],
+    "album_name": "Hollywood Dreaming",
+    "album_id": "6fULyBvbyfvtMTfQqJFuaO",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ca375026f9aadbbf3ef94b16",
+    "added_at": "2026-01-11T16:33:29Z"
+  },
+  {
+    "position": 29,
+    "track_id": "6OG05bPAwUuV3OMvy2Vy1P",
+    "track_name": "Mariners Apartment Complex",
+    "track_uri": "spotify:track:6OG05bPAwUuV3OMvy2Vy1P",
+    "duration_ms": 247150,
+    "artists": [
+      {
+        "name": "Lana Del Rey",
+        "id": "00FQb4jTyendYWaN8pK0wa"
+      }
+    ],
+    "album_name": "Norman Fucking Rockwell!",
+    "album_id": "5XpEKORZ4y6OrCZSKsi46A",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273879e9318cb9f4e05ee552ac9",
+    "added_at": "2026-01-11T16:53:30Z"
+  },
+  {
+    "position": 30,
+    "track_id": "1ZEOIhSn6BKErV59bIgn76",
+    "track_name": "California Dreamin'",
+    "track_uri": "spotify:track:1ZEOIhSn6BKErV59bIgn76",
+    "duration_ms": 160373,
+    "artists": [
+      {
+        "name": "The Mamas & The Papas",
+        "id": "1bs7HoMkSyQwcobCpE9KpN"
+      }
+    ],
+    "album_name": "All The Leaves Are Brown The Golden Era Collection",
+    "album_id": "6d9b6qTmzQ2WOOGB2cDCDq",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cbd56c3a8faf8cf8c8bea0df",
+    "added_at": "2026-01-11T16:30:26Z"
+  },
+  {
+    "position": 31,
+    "track_id": "6tunhVGD8C05MZNjSVIsjw",
+    "track_name": "It Never Rains in Southern California",
+    "track_uri": "spotify:track:6tunhVGD8C05MZNjSVIsjw",
+    "duration_ms": 233506,
+    "artists": [
+      {
+        "name": "Albert Hammond",
+        "id": "34E3csCxpXunPGEkOVVX2g"
+      }
+    ],
+    "album_name": "It Never Rains In Southern California",
+    "album_id": "0gdQF4mVBPjv5hhjtoe3hM",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737a26b62978e61d5068164a63",
+    "added_at": "2026-01-11T21:59:59Z"
+  },
+  {
+    "position": 32,
+    "track_id": "59Fhvzw9T3dcxTbGzbNvg2",
+    "track_name": "This Town",
+    "track_uri": "spotify:track:59Fhvzw9T3dcxTbGzbNvg2",
+    "duration_ms": 200000,
+    "artists": [
+      {
+        "name": "The Go-Go's",
+        "id": "2mG8HHQ9S9kcbjcrb5N1FE"
+      }
+    ],
+    "album_name": "Beauty And The Beat",
+    "album_id": "1L4HE00En7eNK74voVZums",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738a25755534e84d8a604e6b38",
+    "added_at": "2026-01-11T21:37:36Z"
+  },
+  {
+    "position": 33,
+    "track_id": "5VbePtZp1at8gH990zVyTI",
+    "track_name": "Hollywood Nights",
+    "track_uri": "spotify:track:5VbePtZp1at8gH990zVyTI",
+    "duration_ms": 302626,
+    "artists": [
+      {
+        "name": "Bob Seger",
+        "id": "485uL27bPomh29R4JmQehQ"
+      }
+    ],
+    "album_name": "Stranger In Town",
+    "album_id": "1vhib5WLHRVdOpRjiTHk15",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ef063cb80508c55eb443a671",
+    "added_at": "2026-01-11T16:42:35Z"
+  },
+  {
+    "position": 34,
+    "track_id": "4IHc6SzGPnzSPuHVEPzpJc",
+    "track_name": "Wouldn't It Be Nice",
+    "track_uri": "spotify:track:4IHc6SzGPnzSPuHVEPzpJc",
+    "duration_ms": 153240,
+    "artists": [
+      {
+        "name": "The Beach Boys",
+        "id": "3oDbviiivRWhXwIE8hxkVV"
+      }
+    ],
+    "album_name": "Pet Sounds",
+    "album_id": "2CNEkSE8TADXRT2AzcEt1b",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27350eb0c521d2d3b2f599bff04",
+    "added_at": "2026-01-09T14:54:01Z"
+  },
+  {
+    "position": 35,
+    "track_id": "3zCg6CUmhxHukbUs0nd7ar",
+    "track_name": "La Raza",
+    "track_uri": "spotify:track:3zCg6CUmhxHukbUs0nd7ar",
+    "duration_ms": 209066,
+    "artists": [
+      {
+        "name": "Kid Frost",
+        "id": "6OxjXk1y4QXXRUJyldFIIG"
+      }
+    ],
+    "album_name": "Hispanic Causing Panic",
+    "album_id": "54du51RSgc4enNk2K2E2JX",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273981d49061b84a2aaadce13e3",
+    "added_at": "2026-01-11T16:55:40Z"
+  },
+  {
+    "position": 36,
+    "track_id": "04O4SyRoXgt0xRJBlQMVCN",
+    "track_name": "L.A., L.A. - Kuwait Mix",
+    "track_uri": "spotify:track:04O4SyRoXgt0xRJBlQMVCN",
+    "duration_ms": 289666,
+    "artists": [
+      {
+        "name": "Capone-N-Noreaga",
+        "id": "6KVPfr3ujUkKOrJf4QeRWD"
+      }
+    ],
+    "album_name": "The War Report",
+    "album_id": "1jE4zzHpg9YquKojJi5fx4",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737fa885429df5a3e4b043a713",
+    "added_at": "2026-01-11T21:44:29Z"
+  },
+  {
+    "position": 37,
+    "track_id": "4R2PVv3iNVL1tDKu0tnesr",
+    "track_name": "Lausd",
+    "track_uri": "spotify:track:4R2PVv3iNVL1tDKu0tnesr",
+    "duration_ms": 247906,
+    "artists": [
+      {
+        "name": "Jurassic 5",
+        "id": "6wFId9Jhuf9AKVzWboOj2B"
+      }
+    ],
+    "album_name": "Quality Control",
+    "album_id": "296P8sper6AM6uUW7uJD4B",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273498ab3813bf458fb836c8822",
+    "added_at": "2026-01-11T21:25:29Z"
+  },
+  {
+    "position": 38,
+    "track_id": "3v2rwXYBkUVS7qVmzGeSAD",
+    "track_name": "Lakers (Alex Goose Remix)",
+    "track_uri": "spotify:track:3v2rwXYBkUVS7qVmzGeSAD",
+    "duration_ms": 244261,
+    "artists": [
+      {
+        "name": "Freddie Gibbs",
+        "id": "0Y4inQK6OespitzD6ijMwb"
+      },
+      {
+        "name": "Madlib",
+        "id": "5LhTec3c7dcqBvpLRWbMcf"
+      },
+      {
+        "name": "Ab-Soul",
+        "id": "0g9vAlRPK9Gt3FKCekk4TW"
+      },
+      {
+        "name": "Polyester the Saint",
+        "id": "2i59qMkZ79k8WTLV6gMJXY"
+      },
+      {
+        "name": "Alex Goose",
+        "id": "3L1wON2FtoVuF2tCaAqw7O"
+      }
+    ],
+    "album_name": "Pi\u00f1ata (Alex Goose Remix)",
+    "album_id": "3MmQYoMTS3hGiBLKDuId4b",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b5a25146fd9b336d69f59f03",
+    "added_at": "2026-01-11T21:48:26Z"
+  },
+  {
+    "position": 39,
+    "track_id": "6uQKuonTU8VKBz5SHZuQXD",
+    "track_name": "This Is How We Do It",
+    "track_uri": "spotify:track:6uQKuonTU8VKBz5SHZuQXD",
+    "duration_ms": 238800,
+    "artists": [
+      {
+        "name": "Montell Jordan",
+        "id": "0iVrCROxeyon7MZUW3MfzT"
+      },
+      {
+        "name": "Wino",
+        "id": "2UEm3mXEPGyxeWQJYc8WSx"
+      }
+    ],
+    "album_name": "This Is How We Do It",
+    "album_id": "4GZFWGyRE8SfRw8wEu3WoL",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730aba996870017b7e8cb5d8f1",
+    "added_at": "2026-01-11T21:33:26Z"
+  },
+  {
+    "position": 40,
+    "track_id": "0OwvrdjaJOypNsNQHyBWE5",
+    "track_name": "California Soul",
+    "track_uri": "spotify:track:0OwvrdjaJOypNsNQHyBWE5",
+    "duration_ms": 177226,
+    "artists": [
+      {
+        "name": "Marlena Shaw",
+        "id": "0hirZ8kPPdM9pzXpoagB4w"
+      }
+    ],
+    "album_name": "The Spice Of Life",
+    "album_id": "6TRHI63AVabVkLPou2biv8",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c925139455d0480681315f02",
+    "added_at": "2026-01-11T21:32:04Z"
+  },
+  {
+    "position": 41,
+    "track_id": "4j9vKSmW4JrF2Dwt22yLJr",
+    "track_name": "To Live And Die In L.A.",
+    "track_uri": "spotify:track:4j9vKSmW4JrF2Dwt22yLJr",
+    "duration_ms": 293693,
+    "artists": [
+      {
+        "name": "Wang Chung",
+        "id": "6Zh3xrWlA0SA9Fsfj9AVwm"
+      }
+    ],
+    "album_name": "To Live & Die In L.A.",
+    "album_id": "4zd7lek50Jzv0YDOBtrOBH",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ffd86e7c82a5fffd1e31127d",
+    "added_at": "2026-01-11T21:34:42Z"
+  },
+  {
+    "position": 42,
+    "track_id": "1kvq7ksGQWSyRysYYNd6lu",
+    "track_name": "Home Sweet Home",
+    "track_uri": "spotify:track:1kvq7ksGQWSyRysYYNd6lu",
+    "duration_ms": 239666,
+    "artists": [
+      {
+        "name": "M\u00f6tley Cr\u00fce",
+        "id": "0cc6vw3VN8YlIcvr1v7tBL"
+      }
+    ],
+    "album_name": "Theatre of Pain (Deluxe Version)",
+    "album_id": "3QyCjcfNt3S5wiWGEH0h7D",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c9dcca18dd8a9e562490baa8",
+    "added_at": "2026-01-11T21:43:59Z"
+  }
+]

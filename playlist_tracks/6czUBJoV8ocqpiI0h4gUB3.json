@@ -1,0 +1,482 @@
+[
+  {
+    "position": 0,
+    "track_id": "0hfmpQdKoSy8wDXj3YYcWY",
+    "track_name": "'Round About Midnight",
+    "track_uri": "spotify:track:0hfmpQdKoSy8wDXj3YYcWY",
+    "duration_ms": 314333,
+    "artists": [
+      {
+        "name": "Thelonious Monk",
+        "id": "4PDpGtF16XpqvXxsrFwQnN"
+      }
+    ],
+    "album_name": "Piano Solo",
+    "album_id": "6S9YHarnp7XRWKAu7CNVpo",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739ca8f14f8e54866208e4e2c6",
+    "added_at": "2025-11-06T16:17:04Z"
+  },
+  {
+    "position": 1,
+    "track_id": "5RWzKLxXVzkJQ702yWfp1w",
+    "track_name": "Fables of Faubus",
+    "track_uri": "spotify:track:5RWzKLxXVzkJQ702yWfp1w",
+    "duration_ms": 493866,
+    "artists": [
+      {
+        "name": "Charles Mingus",
+        "id": "1W8TbFzNS15VwsempfY12H"
+      }
+    ],
+    "album_name": "Mingus Ah Um",
+    "album_id": "7pojWP7x9uEFSJgw765khA",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27346ae4364de12380a77ebfd20",
+    "added_at": "2025-11-06T16:17:07Z"
+  },
+  {
+    "position": 2,
+    "track_id": "12QpEAKAH8Zj9pEAWtyCst",
+    "track_name": "Brazil - Live",
+    "track_uri": "spotify:track:12QpEAKAH8Zj9pEAWtyCst",
+    "duration_ms": 183906,
+    "artists": [
+      {
+        "name": "Chick Corea",
+        "id": "5olDKSsFhhmwh8UCWwKtpq"
+      }
+    ],
+    "album_name": "Solo Piano: Standards",
+    "album_id": "3jWlO5GV49ULZ3dRIjK4l6",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736a1fcecb6779fbef159befe2",
+    "added_at": "2025-11-06T16:17:33Z"
+  },
+  {
+    "position": 3,
+    "track_id": "0uALpHsRA8sG1yo3JXtVRr",
+    "track_name": "A Foggy Day",
+    "track_uri": "spotify:track:0uALpHsRA8sG1yo3JXtVRr",
+    "duration_ms": 292226,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-11-06T16:17:37Z"
+  },
+  {
+    "position": 4,
+    "track_id": "6VjSeTSMiMq2YJPGlAuWvt",
+    "track_name": "Like Someone In Love",
+    "track_uri": "spotify:track:6VjSeTSMiMq2YJPGlAuWvt",
+    "duration_ms": 387893,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "The Complete Riverside Recordings (Remastered 1987)",
+    "album_id": "4il7hbjOvJ62n0MsZyl3vs",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735e953db10f85872dfe957ac5",
+    "added_at": "2025-11-06T16:18:03Z"
+  },
+  {
+    "position": 5,
+    "track_id": "6saWIudnR49QPMGlSpt1g9",
+    "track_name": "Reflections In D",
+    "track_uri": "spotify:track:6saWIudnR49QPMGlSpt1g9",
+    "duration_ms": 214608,
+    "artists": [
+      {
+        "name": "Duke Ellington",
+        "id": "4F7Q5NV6h5TSwCainz8S5A"
+      }
+    ],
+    "album_name": "The Duke Plays Ellington",
+    "album_id": "16DFutmQC0e4V8etsg5ZGG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736e3dc7a0cd84651f04c4d7e7",
+    "added_at": "2025-11-06T16:18:16Z"
+  },
+  {
+    "position": 6,
+    "track_id": "2mqocVhl0OzSveMjUyiLPu",
+    "track_name": "The Londonderry Air",
+    "track_uri": "spotify:track:2mqocVhl0OzSveMjUyiLPu",
+    "duration_ms": 251160,
+    "artists": [
+      {
+        "name": "Barry Harris",
+        "id": "5IgSjABjN0VorY1Vo41ivX"
+      }
+    ],
+    "album_name": "Listen To Barry Harris...Solo Piano (Reissue)",
+    "album_id": "1o9v1Biiigo8lzwLJtfY9i",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d80e101602d566e2c649b662",
+    "added_at": "2025-11-06T16:18:34Z"
+  },
+  {
+    "position": 7,
+    "track_id": "3u2Y2K3dlBY5QRIwdTnCHu",
+    "track_name": "Body And Soul",
+    "track_uri": "spotify:track:3u2Y2K3dlBY5QRIwdTnCHu",
+    "duration_ms": 226026,
+    "artists": [
+      {
+        "name": "Jason Moran",
+        "id": "7g3iwvP459BN53F7CDxemI"
+      }
+    ],
+    "album_name": "Modernistic",
+    "album_id": "7rPdZr6OPrShZWy3aob80V",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273bac2ea981cff6c3f34001f39",
+    "added_at": "2025-11-06T16:18:58Z"
+  },
+  {
+    "position": 8,
+    "track_id": "2gOjc3ETrYNE8r4d1xg8yQ",
+    "track_name": "Celia",
+    "track_uri": "spotify:track:2gOjc3ETrYNE8r4d1xg8yQ",
+    "duration_ms": 177666,
+    "artists": [
+      {
+        "name": "Bud Powell",
+        "id": "570vCzcespB48HIQyTbDO6"
+      }
+    ],
+    "album_name": "The Complete Bud Powell On Verve",
+    "album_id": "0CsbKl9qxdE5bcc7qYMgKt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273242dd111c714204bf91e8add",
+    "added_at": "2025-11-06T16:19:07Z"
+  },
+  {
+    "position": 9,
+    "track_id": "4sA7F6wOKndI7PQUzLR7FL",
+    "track_name": "I Want To Be Happy",
+    "track_uri": "spotify:track:4sA7F6wOKndI7PQUzLR7FL",
+    "duration_ms": 454573,
+    "artists": [
+      {
+        "name": "Stan Getz",
+        "id": "0FMucZsEnCxs5pqBjHjIc8"
+      },
+      {
+        "name": "Oscar Peterson Trio",
+        "id": "0ldU0QJm31y0d6f57R1G2A"
+      }
+    ],
+    "album_name": "Stan Getz And The Oscar Peterson Trio",
+    "album_id": "4RDtTAyYRJAKACSEGMgrqD",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e8bdec8f743b1961cd459b33",
+    "added_at": "2025-11-06T16:19:11Z"
+  },
+  {
+    "position": 10,
+    "track_id": "6b3C8Q2G11PXSA8LU5CGf6",
+    "track_name": "Solitude",
+    "track_uri": "spotify:track:6b3C8Q2G11PXSA8LU5CGf6",
+    "duration_ms": 225893,
+    "artists": [
+      {
+        "name": "Thelonious Monk",
+        "id": "4PDpGtF16XpqvXxsrFwQnN"
+      }
+    ],
+    "album_name": "Plays Duke Ellington (Keepnews Collection)",
+    "album_id": "2WpT885yJAIWvglqFcmN8u",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273076941a374c48bcdd6d13484",
+    "added_at": "2025-11-06T16:19:14Z"
+  },
+  {
+    "position": 11,
+    "track_id": "3z3Hdm7XddLzAbLyotNpBw",
+    "track_name": "Lush Life",
+    "track_uri": "spotify:track:3z3Hdm7XddLzAbLyotNpBw",
+    "duration_ms": 207266,
+    "artists": [
+      {
+        "name": "Billy Strayhorn",
+        "id": "6RbBDzGJqAROG0LP9TrXfW"
+      }
+    ],
+    "album_name": "The Peaceful Side Of Jazz",
+    "album_id": "6sVhxrGsOI1snNrkTeaHz0",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273905c1b8ef1069bc5f88efa7d",
+    "added_at": "2025-11-06T16:19:19Z"
+  },
+  {
+    "position": 12,
+    "track_id": "4Y9WU4Za9QVX7IIk7bjJCS",
+    "track_name": "Tenderly",
+    "track_uri": "spotify:track:4Y9WU4Za9QVX7IIk7bjJCS",
+    "duration_ms": 214440,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-11-06T16:19:25Z"
+  },
+  {
+    "position": 13,
+    "track_id": "1Ku5vu9Crncz8ixeT4Ijxc",
+    "track_name": "Dolphin Dance - Remastered 1999/Rudy Van Gelder Edition",
+    "track_uri": "spotify:track:1Ku5vu9Crncz8ixeT4Ijxc",
+    "duration_ms": 556133,
+    "artists": [
+      {
+        "name": "Herbie Hancock",
+        "id": "2ZvrvbQNrHKwjT7qfGFFUW"
+      }
+    ],
+    "album_name": "Maiden Voyage (Remastered 1999/Rudy Van Gelder Edition)",
+    "album_id": "7huPJTTsWVt854oZkr88mf",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27344e77f19a8f35955870d4907",
+    "added_at": "2025-11-06T16:19:40Z"
+  },
+  {
+    "position": 14,
+    "track_id": "5XThWom9GPyAzKdZMN0Bxh",
+    "track_name": "Wave",
+    "track_uri": "spotify:track:5XThWom9GPyAzKdZMN0Bxh",
+    "duration_ms": 265866,
+    "artists": [
+      {
+        "name": "Ahmad Jamal Trio",
+        "id": "0BqALs1lInR9TTOulUADH7"
+      }
+    ],
+    "album_name": "The Awakening",
+    "album_id": "5oSVYKZLKGCmwYqmJ7AZnO",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732eceabbc54b316b88e0bd8e7",
+    "added_at": "2025-11-06T16:19:49Z"
+  },
+  {
+    "position": 15,
+    "track_id": "5XjjmKaKGBgPuwOgm1Ux1j",
+    "track_name": "Peace",
+    "track_uri": "spotify:track:5XjjmKaKGBgPuwOgm1Ux1j",
+    "duration_ms": 362280,
+    "artists": [
+      {
+        "name": "Horace Silver",
+        "id": "5ZATfKurLqflrBhv2FLht5"
+      }
+    ],
+    "album_name": "Blowin' The Blues Away",
+    "album_id": "2yjs1MxTiDffQ1VGY9ilJc",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273632f3a7d2f5f8b178718b4b4",
+    "added_at": "2025-11-06T16:20:04Z"
+  },
+  {
+    "position": 16,
+    "track_id": "13VdXFe27FOq9CW2CJaxID",
+    "track_name": "Matrix",
+    "track_uri": "spotify:track:13VdXFe27FOq9CW2CJaxID",
+    "duration_ms": 388160,
+    "artists": [
+      {
+        "name": "Chick Corea",
+        "id": "5olDKSsFhhmwh8UCWwKtpq"
+      }
+    ],
+    "album_name": "Now He Sings, Now He Sobs (Expanded Edition)",
+    "album_id": "7wKVcBB5SgqVX3Cj3LPllE",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273164e2d6f045dbf3118174a2f",
+    "added_at": "2025-11-06T16:20:10Z"
+  },
+  {
+    "position": 17,
+    "track_id": "4Cq9NtjeUASIkunQeXajCX",
+    "track_name": "Empty Pockets - Remastered 2007",
+    "track_uri": "spotify:track:4Cq9NtjeUASIkunQeXajCX",
+    "duration_ms": 372266,
+    "artists": [
+      {
+        "name": "Herbie Hancock",
+        "id": "2ZvrvbQNrHKwjT7qfGFFUW"
+      }
+    ],
+    "album_name": "Takin' Off (Expanded Edition)",
+    "album_id": "61bXefFZqGbVkmb7qzIIOl",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d1bac93adf4492db2e6ff9f8",
+    "added_at": "2025-11-06T16:20:35Z"
+  },
+  {
+    "position": 18,
+    "track_id": "7CYu93j5AsYDEhY7apdKvw",
+    "track_name": "I Didn't Know What Time It Was",
+    "track_uri": "spotify:track:7CYu93j5AsYDEhY7apdKvw",
+    "duration_ms": 391426,
+    "artists": [
+      {
+        "name": "Brad Mehldau",
+        "id": "2vI9KFm0fwSfPrpEgOeIbq"
+      }
+    ],
+    "album_name": "The Art of the Trio, Vol. 1",
+    "album_id": "3MIOYuA2uqGXFiwDbBK9Fc",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cb70a810d68ae3b71635b4a5",
+    "added_at": "2025-11-06T16:20:38Z"
+  },
+  {
+    "position": 19,
+    "track_id": "1CDBaGlisZlOJzvx88lL8A",
+    "track_name": "Song For My Father",
+    "track_uri": "spotify:track:1CDBaGlisZlOJzvx88lL8A",
+    "duration_ms": 438280,
+    "artists": [
+      {
+        "name": "Horace Silver",
+        "id": "5ZATfKurLqflrBhv2FLht5"
+      }
+    ],
+    "album_name": "Song For My Father",
+    "album_id": "4LEnATSqKeANOJ0mLUAuCE",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739453839d1e3569bdebc9ffab",
+    "added_at": "2025-11-06T16:20:42Z"
+  },
+  {
+    "position": 20,
+    "track_id": "0sCeNwt8xRCMR4NhKpMyBe",
+    "track_name": "Cantaloupe Island - Remastered 1999/Rudy Van Gelder Edition",
+    "track_uri": "spotify:track:0sCeNwt8xRCMR4NhKpMyBe",
+    "duration_ms": 333946,
+    "artists": [
+      {
+        "name": "Herbie Hancock",
+        "id": "2ZvrvbQNrHKwjT7qfGFFUW"
+      }
+    ],
+    "album_name": "Empyrean Isles (Expanded Edition)",
+    "album_id": "5HCi1WVOT9SGks2deeceFu",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e9eb91ae8241234cb7aaaa4c",
+    "added_at": "2025-11-06T16:20:46Z"
+  },
+  {
+    "position": 21,
+    "track_id": "4fGgxzrQRyBTMcxtXzXQZj",
+    "track_name": "Night Train",
+    "track_uri": "spotify:track:4fGgxzrQRyBTMcxtXzXQZj",
+    "duration_ms": 290160,
+    "artists": [
+      {
+        "name": "Oscar Peterson Trio",
+        "id": "0ldU0QJm31y0d6f57R1G2A"
+      }
+    ],
+    "album_name": "Night Train (Expanded Edition)",
+    "album_id": "3gPOWmWT0q7Ygp95Xiuw1v",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273947b5cc535d76394a2d98e37",
+    "added_at": "2025-11-06T16:21:02Z"
+  },
+  {
+    "position": 22,
+    "track_id": "1HYGAQ2W4JFCVBRyx9yuB2",
+    "track_name": "Freddie Freeloader - Remastered",
+    "track_uri": "spotify:track:1HYGAQ2W4JFCVBRyx9yuB2",
+    "duration_ms": 454266,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-11-06T16:21:15Z"
+  },
+  {
+    "position": 23,
+    "track_id": "1JdhySd9iCOK4hAldHiW6v",
+    "track_name": "All Blues",
+    "track_uri": "spotify:track:1JdhySd9iCOK4hAldHiW6v",
+    "duration_ms": 571840,
+    "artists": [
+      {
+        "name": "Ron Carter",
+        "id": "4wnzivx3OQ3vjrySAdTdJP"
+      }
+    ],
+    "album_name": "All Blues (CTI Records 40th Anniversary Edition)",
+    "album_id": "5nEZ3hlaqqiQ9MQ4lFl16c",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273838bc6e7654f99ecdd90e0ae",
+    "added_at": "2025-11-06T16:21:21Z"
+  },
+  {
+    "position": 24,
+    "track_id": "6157eGcWcBaHZcYIfQQZjn",
+    "track_name": "Music, Music, Music - Live At The Pershing, Chicago, 1958",
+    "track_uri": "spotify:track:6157eGcWcBaHZcYIfQQZjn",
+    "duration_ms": 177293,
+    "artists": [
+      {
+        "name": "Ahmad Jamal Trio",
+        "id": "0BqALs1lInR9TTOulUADH7"
+      }
+    ],
+    "album_name": "Ahmad Jamal At The Pershing: But Not For Me",
+    "album_id": "3nUwuIFxJid3GQo8c4F6HY",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273953db381d84bbf30e3eee624",
+    "added_at": "2025-11-06T16:21:36Z"
+  },
+  {
+    "position": 25,
+    "track_id": "24DqzDA1z7Dx2BpHFvcnDv",
+    "track_name": "Theme From M*A*S*H (Suicide Is Painless) - Remastered",
+    "track_uri": "spotify:track:24DqzDA1z7Dx2BpHFvcnDv",
+    "duration_ms": 362946,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-11-06T16:21:52Z"
+  },
+  {
+    "position": 26,
+    "track_id": "6lMnmaD4p4s3uclpU66H4f",
+    "track_name": "Blackberry Winter",
+    "track_uri": "spotify:track:6lMnmaD4p4s3uclpU66H4f",
+    "duration_ms": 221493,
+    "artists": [
+      {
+        "name": "Keith Jarrett",
+        "id": "0F3Aew9DSd6fb6192K1K0Y"
+      }
+    ],
+    "album_name": "Priceless Jazz Collection: Keith Jarrett",
+    "album_id": "2dRpzrC7bgXN8PhXA7ug94",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734a632f69df88cf09eb29327a",
+    "added_at": "2025-11-06T16:22:48Z"
+  },
+  {
+    "position": 27,
+    "track_id": "1HKZo7knu3IuCJo9JVGz1i",
+    "track_name": "Believe, Beleft, Below",
+    "track_uri": "spotify:track:1HKZo7knu3IuCJo9JVGz1i",
+    "duration_ms": 291226,
+    "artists": [
+      {
+        "name": "Esbj\u00f6rn Svensson Trio",
+        "id": "3HJzLaMbS0jMabxS3wttGk"
+      }
+    ],
+    "album_name": "Seven Days of Falling",
+    "album_id": "36M6vwSgrPqzUYYG4cKlIB",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27310a083427a64ed7abd0667e0",
+    "added_at": "2025-11-06T16:22:52Z"
+  }
+]

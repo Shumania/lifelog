@@ -1,0 +1,184 @@
+[
+  {
+    "position": 0,
+    "track_id": "6bFGodepI4y7w4AJBcCB1E",
+    "track_name": "When I Hear Music",
+    "track_uri": "spotify:track:6bFGodepI4y7w4AJBcCB1E",
+    "duration_ms": 425560,
+    "artists": [
+      {
+        "name": "Debbie Deb",
+        "id": "2fpDcOSlkE5VVZdL6BEczL"
+      }
+    ],
+    "album_name": "She\u2019s Back",
+    "album_id": "76Qt48poTVoLKFQXt0LzNI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273906fd7e9ae1c01f91a9675be",
+    "added_at": "2024-12-03T18:30:26Z"
+  },
+  {
+    "position": 1,
+    "track_id": "0nj9Bq5sHDiTxSHunhgkFb",
+    "track_name": "squabble up",
+    "track_uri": "spotify:track:0nj9Bq5sHDiTxSHunhgkFb",
+    "duration_ms": 157992,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      }
+    ],
+    "album_name": "GNX",
+    "album_id": "0hvT3yIEysuuvkK73vgdcW",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e2a0a166493a2bde5480a420",
+    "added_at": "2024-12-03T18:30:28Z"
+  },
+  {
+    "position": 2,
+    "track_id": "2LZ2CNbcbJrwh53pitRgom",
+    "track_name": "Silver Soul",
+    "track_uri": "spotify:track:2LZ2CNbcbJrwh53pitRgom",
+    "duration_ms": 298680,
+    "artists": [
+      {
+        "name": "Beach House",
+        "id": "56ZTgzPBDge0OvCGgMO3OY"
+      }
+    ],
+    "album_name": "Teen Dream",
+    "album_id": "51AxfjN2gEt5qeJqPY5w0e",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739ba6a1b973e91955ab23c50c",
+    "added_at": "2024-12-03T18:30:32Z"
+  },
+  {
+    "position": 3,
+    "track_id": "2HbKqm4o0w5wEeEFXm2sD4",
+    "track_name": "Money Trees",
+    "track_uri": "spotify:track:2HbKqm4o0w5wEeEFXm2sD4",
+    "duration_ms": 386906,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      },
+      {
+        "name": "Jay Rock",
+        "id": "28ExwzUQsvgJooOI0X1mr3"
+      }
+    ],
+    "album_name": "good kid, m.A.A.d city",
+    "album_id": "6PBZN8cbwkqm1ERj2BGXJ1",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d28d2ebdedb220e479743797",
+    "added_at": "2024-12-03T18:30:44Z"
+  },
+  {
+    "position": 4,
+    "track_id": "3DnJmpSvBNxngDOBeI5U0B",
+    "track_name": "If This World Were Mine (with Luther Vandross)",
+    "track_uri": "spotify:track:3DnJmpSvBNxngDOBeI5U0B",
+    "duration_ms": 323986,
+    "artists": [
+      {
+        "name": "Cheryl Lynn",
+        "id": "6UfoTQXaV3DuqtDVjZIxwZ"
+      },
+      {
+        "name": "Luther Vandross",
+        "id": "19y5MFBH7gohEdGwKM7QsP"
+      }
+    ],
+    "album_name": "Instant Love (Expanded Edition)",
+    "album_id": "61CzGFq3xVWqzpv9YwLYRG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27323dbcbc18bfd5bf86df72cb6",
+    "added_at": "2024-12-03T18:30:46Z"
+  },
+  {
+    "position": 5,
+    "track_id": "45J4avUb9Ni0bnETYaYFVJ",
+    "track_name": "luther (with sza)",
+    "track_uri": "spotify:track:45J4avUb9Ni0bnETYaYFVJ",
+    "duration_ms": 177598,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      },
+      {
+        "name": "SZA",
+        "id": "7tYKF4w9nC0nq9CsPZTHyP"
+      }
+    ],
+    "album_name": "GNX",
+    "album_id": "0hvT3yIEysuuvkK73vgdcW",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e2a0a166493a2bde5480a420",
+    "added_at": "2024-12-03T18:30:48Z"
+  },
+  {
+    "position": 6,
+    "track_id": "7Eey3pcHCqYmP7ZBq8jYgw",
+    "track_name": "I Believe To My Soul",
+    "track_uri": "spotify:track:7Eey3pcHCqYmP7ZBq8jYgw",
+    "duration_ms": 196323,
+    "artists": [
+      {
+        "name": "Monk Higgins",
+        "id": "1X3iNDsGkzTjRkSZJkvdH3"
+      }
+    ],
+    "album_name": "MacArthur Park",
+    "album_id": "0CCUcHptqRXcUWNTmT9JYK",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27312834eeb0c3177d500de2cf2",
+    "added_at": "2024-12-03T18:30:51Z"
+  },
+  {
+    "position": 7,
+    "track_id": "6AI3ezQ4o3HUoP6Dhudph3",
+    "track_name": "Not Like Us",
+    "track_uri": "spotify:track:6AI3ezQ4o3HUoP6Dhudph3",
+    "duration_ms": 274192,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      }
+    ],
+    "album_name": "Not Like Us",
+    "album_id": "5JjnoGJyOxfSZUZtk2rRwZ",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0c62b2339cbf493a999ad",
+    "added_at": "2024-12-03T18:30:52Z"
+  },
+  {
+    "position": 8,
+    "track_id": "1iXtpeHC0i6c7JBrKi3yaq",
+    "track_name": "Use Your Heart",
+    "track_uri": "spotify:track:1iXtpeHC0i6c7JBrKi3yaq",
+    "duration_ms": 289000,
+    "artists": [
+      {
+        "name": "SWV",
+        "id": "2NmK5FyrQ18HOPXq1UBzqa"
+      }
+    ],
+    "album_name": "New Beginning",
+    "album_id": "0y9RVnTvpZa3LTlUUaD7l4",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739c9d733e809545af8f217481",
+    "added_at": "2024-12-03T18:30:54Z"
+  },
+  {
+    "position": 9,
+    "track_id": "1SGvjfc85yzqKXsfKcCxn2",
+    "track_name": "heart pt. 6",
+    "track_uri": "spotify:track:1SGvjfc85yzqKXsfKcCxn2",
+    "duration_ms": 292461,
+    "artists": [
+      {
+        "name": "Kendrick Lamar",
+        "id": "2YZyLoL8N0Wb9xBt1NhZWg"
+      }
+    ],
+    "album_name": "GNX",
+    "album_id": "0hvT3yIEysuuvkK73vgdcW",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e2a0a166493a2bde5480a420",
+    "added_at": "2024-12-03T18:30:56Z"
+  }
+]

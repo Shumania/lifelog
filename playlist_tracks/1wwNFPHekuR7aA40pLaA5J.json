@@ -1,0 +1,524 @@
+[
+  {
+    "position": 0,
+    "track_id": "0uALpHsRA8sG1yo3JXtVRr",
+    "track_name": "A Foggy Day",
+    "track_uri": "spotify:track:0uALpHsRA8sG1yo3JXtVRr",
+    "duration_ms": 292226,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 1,
+    "track_id": "0O2eE0YnscB4FPBqxAcBWa",
+    "track_name": "Seven Steps to Heaven",
+    "track_uri": "spotify:track:0O2eE0YnscB4FPBqxAcBWa",
+    "duration_ms": 295444,
+    "artists": [
+      {
+        "name": "Ron Carter",
+        "id": "4wnzivx3OQ3vjrySAdTdJP"
+      }
+    ],
+    "album_name": "Dear Miles",
+    "album_id": "0DdaF9eOEQCcR0ViudNSgX",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273db90c5414d9e169da0226441",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 2,
+    "track_id": "5shKp4VqCY5SoV3rIt0jpr",
+    "track_name": "The Peacocks - Remastered 2003",
+    "track_uri": "spotify:track:5shKp4VqCY5SoV3rIt0jpr",
+    "duration_ms": 361946,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 3,
+    "track_id": "0oEIrVWpLj01XtFtDitQyR",
+    "track_name": "Some Other Time",
+    "track_uri": "spotify:track:0oEIrVWpLj01XtFtDitQyR",
+    "duration_ms": 299840,
+    "artists": [
+      {
+        "name": "Bill Evans Trio",
+        "id": "3VEG6gxFIMfl4Cdog26avS"
+      }
+    ],
+    "album_name": "Waltz For Debby (Original Jazz Classics Remaster 2010)",
+    "album_id": "0MjlKhtsyax9HSWNkYaWM2",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b97f82fd92c92369eafd9a47",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 4,
+    "track_id": "7duMo5Qom9NRBI2gp2usVO",
+    "track_name": "Love Is Here To Stay",
+    "track_uri": "spotify:track:7duMo5Qom9NRBI2gp2usVO",
+    "duration_ms": 346106,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 5,
+    "track_id": "2xt5UAQMvjuoAs2YDocjlw",
+    "track_name": "Ask Me Now - Alternate Take / Remastered 1998",
+    "track_uri": "spotify:track:2xt5UAQMvjuoAs2YDocjlw",
+    "duration_ms": 270893,
+    "artists": [
+      {
+        "name": "Thelonious Monk",
+        "id": "4PDpGtF16XpqvXxsrFwQnN"
+      }
+    ],
+    "album_name": "Genius Of Modern Music (Vol.2, Expanded Edition)",
+    "album_id": "7cUNwCAr6hCyGCzwyveU7j",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a36b4e921833c21b60615830",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 6,
+    "track_id": "19EQfNUvxMUe1reuMDA2Ao",
+    "track_name": "Don't Be 'Shamed - Live",
+    "track_uri": "spotify:track:19EQfNUvxMUe1reuMDA2Ao",
+    "duration_ms": 376760,
+    "artists": [
+      {
+        "name": "Benny Green",
+        "id": "4g55GmK5iQOyCoDdQCzWKZ"
+      }
+    ],
+    "album_name": "Testifyin! Live At The Village Vanguard",
+    "album_id": "5XwJJNwHAKOjGPr9vDaGfI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736333b58576fab679383beb31",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 7,
+    "track_id": "3UZSpAlc0WZjxkfbUBdUgT",
+    "track_name": "We Will Meet Again - Remastered",
+    "track_uri": "spotify:track:3UZSpAlc0WZjxkfbUBdUgT",
+    "duration_ms": 244786,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 8,
+    "track_id": "7lDhAXTGe5LO9xSbq56t0K",
+    "track_name": "Nice Work If You Can Get It",
+    "track_uri": "spotify:track:7lDhAXTGe5LO9xSbq56t0K",
+    "duration_ms": 283666,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 9,
+    "track_id": "75ITinyBtQEFvzsLDRti7r",
+    "track_name": "Study No. 6 - Extended Version",
+    "track_uri": "spotify:track:75ITinyBtQEFvzsLDRti7r",
+    "duration_ms": 244373,
+    "artists": [
+      {
+        "name": "Jason Moran",
+        "id": "7g3iwvP459BN53F7CDxemI"
+      }
+    ],
+    "album_name": "Ten",
+    "album_id": "18Z4yumEaGfFohmhJGjdo9",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273deb414175f71affcc7d90069",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 10,
+    "track_id": "1WygPWqmNs4s2fxtjmtI3O",
+    "track_name": "Young And Foolish",
+    "track_uri": "spotify:track:1WygPWqmNs4s2fxtjmtI3O",
+    "duration_ms": 354666,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 11,
+    "track_id": "1QrZNFUeVnenkq9D6cOTG5",
+    "track_name": "Inutil Paisagem",
+    "track_uri": "spotify:track:1QrZNFUeVnenkq9D6cOTG5",
+    "duration_ms": 417880,
+    "artists": [
+      {
+        "name": "Aaron Goldberg",
+        "id": "0BTfBwYC5Mw5ezDg91JBma"
+      }
+    ],
+    "album_name": "Worlds",
+    "album_id": "6NiaGvTW9ujl4mHMmALjHR",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f25431354aabd8b3ba91bb2e",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 12,
+    "track_id": "1DQe6feLlrRKgxEK6jU45y",
+    "track_name": "Someone to Watch over Me",
+    "track_uri": "spotify:track:1DQe6feLlrRKgxEK6jU45y",
+    "duration_ms": 179293,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 13,
+    "track_id": "3GimzseMaUjoAWjo6Gs3QH",
+    "track_name": "Danny Boy",
+    "track_uri": "spotify:track:3GimzseMaUjoAWjo6Gs3QH",
+    "duration_ms": 220493,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      },
+      {
+        "name": "Shelly Manne",
+        "id": "6M7ScGp8p2GspFJaIMh1Yo"
+      }
+    ],
+    "album_name": "Empathy",
+    "album_id": "3R0A51xf7JzlKCEm3RmleH",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27378df2528b1b80409e584fefd",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 14,
+    "track_id": "0UvCjnKyPIudAp9lpm9spY",
+    "track_name": "Be Free, a Way",
+    "track_uri": "spotify:track:0UvCjnKyPIudAp9lpm9spY",
+    "duration_ms": 230858,
+    "artists": [
+      {
+        "name": "Michael Wollny",
+        "id": "7MbjIv3XpMc2ciNcoWHFcS"
+      },
+      {
+        "name": "Tim Lefebvre",
+        "id": "0f92BXRSv36fG7o3QxCQ38"
+      },
+      {
+        "name": "Eric Schaefer",
+        "id": "78fgcTfahAcbrhArWRfzVg"
+      }
+    ],
+    "album_name": "Weltentraum",
+    "album_id": "6rthWlGJUS1UVi4ilMwgmj",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737495a86c38a916381dad76f3",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 15,
+    "track_id": "7j5fWLUycddmM6bdQ0a17d",
+    "track_name": "I Had a Ball",
+    "track_uri": "spotify:track:7j5fWLUycddmM6bdQ0a17d",
+    "duration_ms": 187800,
+    "artists": [
+      {
+        "name": "Ivan Paduart",
+        "id": "37THYs5PpPmNUIVJcmQ4BN"
+      }
+    ],
+    "album_name": "Blue Landscapes",
+    "album_id": "5ODzD1lvAXZKILfwo2My5U",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f64a4bf3014de1f0d3060c38",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 16,
+    "track_id": "3wPZVnOScmpbn6JkWJxi3S",
+    "track_name": "The Man I Love",
+    "track_uri": "spotify:track:3wPZVnOScmpbn6JkWJxi3S",
+    "duration_ms": 341666,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 17,
+    "track_id": "1G8ZiodFtDX5tNHwvxcllW",
+    "track_name": "B Minor Waltz - Remastered 2003",
+    "track_uri": "spotify:track:1G8ZiodFtDX5tNHwvxcllW",
+    "duration_ms": 196026,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 18,
+    "track_id": "4NBGEa1LwQoMjbdRrZZN0V",
+    "track_name": "Prelude To A Kiss",
+    "track_uri": "spotify:track:4NBGEa1LwQoMjbdRrZZN0V",
+    "duration_ms": 201200,
+    "artists": [
+      {
+        "name": "Bobby Timmons",
+        "id": "0xRqtLGIVSzXM9yg2wFMLC"
+      }
+    ],
+    "album_name": "This Here Is Bobby Timmons",
+    "album_id": "2kWl3HOLorETEmR8GBWrHX",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739c07ff2d953fea0ef64d17f9",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 19,
+    "track_id": "372MIVS0BFSKsB88WCxq6q",
+    "track_name": "Bye Bye Blackbird",
+    "track_uri": "spotify:track:372MIVS0BFSKsB88WCxq6q",
+    "duration_ms": 330422,
+    "artists": [
+      {
+        "name": "Ron Carter",
+        "id": "4wnzivx3OQ3vjrySAdTdJP"
+      }
+    ],
+    "album_name": "Dear Miles",
+    "album_id": "0DdaF9eOEQCcR0ViudNSgX",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273db90c5414d9e169da0226441",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 20,
+    "track_id": "3PQZOz2fjmyGd3uq9IWjou",
+    "track_name": "Summertime",
+    "track_uri": "spotify:track:3PQZOz2fjmyGd3uq9IWjou",
+    "duration_ms": 389040,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Gershwin For Lovers",
+    "album_id": "1fmizidXDzZpCFuQU8l5LG",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ea0504f4f6145eef957320c",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 21,
+    "track_id": "253MlEWhgOkU3ncefccjMR",
+    "track_name": "Lucky To Be Me",
+    "track_uri": "spotify:track:253MlEWhgOkU3ncefccjMR",
+    "duration_ms": 221066,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 22,
+    "track_id": "1wCe7Rl3SRopd2hZxny2Zg",
+    "track_name": "My Man's Gone Now - Live At The Village Vanguard, NYC; 6/25/1961",
+    "track_uri": "spotify:track:1wCe7Rl3SRopd2hZxny2Zg",
+    "duration_ms": 384880,
+    "artists": [
+      {
+        "name": "Bill Evans Trio",
+        "id": "3VEG6gxFIMfl4Cdog26avS"
+      }
+    ],
+    "album_name": "Sunday At The Village Vanguard [Keepnews Collection]",
+    "album_id": "3uwufR7PwniMX7t3v4I5oB",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731fa735fc5a555f64edacca2b",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 23,
+    "track_id": "0UKVXCZUYsjr5FW0xspCJk",
+    "track_name": "Jungle Blues",
+    "track_uri": "spotify:track:0UKVXCZUYsjr5FW0xspCJk",
+    "duration_ms": 323066,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Alone With Three Giants",
+    "album_id": "3u1KUeXqV5l4Fr9uf11odM",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273695cca7af0cfafebb8ade517",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 24,
+    "track_id": "7fmhH8sQPLwiGPMOkFr7eU",
+    "track_name": "Sometime Ago - Remastered",
+    "track_uri": "spotify:track:7fmhH8sQPLwiGPMOkFr7eU",
+    "duration_ms": 273706,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 25,
+    "track_id": "2pxdIOdG4igmbck0f2qoLO",
+    "track_name": "I'll Follow You - Remastered 1998 / Rudy Van Gelder Edition",
+    "track_uri": "spotify:track:2pxdIOdG4igmbck0f2qoLO",
+    "duration_ms": 228573,
+    "artists": [
+      {
+        "name": "Thelonious Monk",
+        "id": "4PDpGtF16XpqvXxsrFwQnN"
+      }
+    ],
+    "album_name": "Genius Of Modern Music (Vol.2, Expanded Edition)",
+    "album_id": "7cUNwCAr6hCyGCzwyveU7j",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a36b4e921833c21b60615830",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 26,
+    "track_id": "33AoAuG9xUoj7g3YvybhcU",
+    "track_name": "Testifyin' - Live",
+    "track_uri": "spotify:track:33AoAuG9xUoj7g3YvybhcU",
+    "duration_ms": 364666,
+    "artists": [
+      {
+        "name": "Benny Green",
+        "id": "4g55GmK5iQOyCoDdQCzWKZ"
+      }
+    ],
+    "album_name": "Testifyin! Live At The Village Vanguard",
+    "album_id": "5XwJJNwHAKOjGPr9vDaGfI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736333b58576fab679383beb31",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 27,
+    "track_id": "5l0TSFftfKMk7FF84EO7FO",
+    "track_name": "What Is There To Say?",
+    "track_uri": "spotify:track:5l0TSFftfKMk7FF84EO7FO",
+    "duration_ms": 295253,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 28,
+    "track_id": "0NxF4oQN28O7gCuzyLClJ1",
+    "track_name": "Cross Road Blues",
+    "track_uri": "spotify:track:0NxF4oQN28O7gCuzyLClJ1",
+    "duration_ms": 226666,
+    "artists": [
+      {
+        "name": "Marcus Roberts",
+        "id": "6dz608P8sHylVvVVo5OLx2"
+      }
+    ],
+    "album_name": "Blues For The New Millennium",
+    "album_id": "6Xd7AmBb87RhgUcBMUVYPS",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ce820f3304d4fffa16a0c04",
+    "added_at": "2025-07-28T14:31:15Z"
+  },
+  {
+    "position": 29,
+    "track_id": "55kNVaxm3H7gqYkzezGQgR",
+    "track_name": "Crepuscule With Nellie",
+    "track_uri": "spotify:track:55kNVaxm3H7gqYkzezGQgR",
+    "duration_ms": 357773,
+    "artists": [
+      {
+        "name": "Jason Moran",
+        "id": "7g3iwvP459BN53F7CDxemI"
+      }
+    ],
+    "album_name": "Ten",
+    "album_id": "18Z4yumEaGfFohmhJGjdo9",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273deb414175f71affcc7d90069",
+    "added_at": "2025-07-28T14:31:15Z"
+  }
+]

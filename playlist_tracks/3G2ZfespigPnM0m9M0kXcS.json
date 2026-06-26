@@ -1,0 +1,540 @@
+[
+  {
+    "position": 0,
+    "track_id": "0sjxRg1VlYfx4YG7uxurrq",
+    "track_name": "I Put A Spell On You",
+    "track_uri": "spotify:track:0sjxRg1VlYfx4YG7uxurrq",
+    "duration_ms": 155026,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "I Put A Spell On You",
+    "album_id": "3ofZeSWPHZOE5WC2tNZDez",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273892abb1ade35b4863b29e051",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 1,
+    "track_id": "0w7mhiHnM0rhdu3l5mDDYl",
+    "track_name": "When I Fall In Love",
+    "track_uri": "spotify:track:0w7mhiHnM0rhdu3l5mDDYl",
+    "duration_ms": 297386,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      },
+      {
+        "name": "Scott LaFaro",
+        "id": "4g7uUySyORXh2KgDEhgxXa"
+      },
+      {
+        "name": "Paul Motian",
+        "id": "4VIPZJwfn4EGbJxYVHJ0WX"
+      }
+    ],
+    "album_name": "Portrait In Jazz [Keepnews Collection]",
+    "album_id": "7dlYNvbD4QYDL3sSkTCjxi",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273079febd5ded0a77d42d70a55",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 2,
+    "track_id": "5Lhjlnly9Ynhf52ojQS534",
+    "track_name": "My Baby Just Cares for Me (2013 - Remaster)",
+    "track_uri": "spotify:track:5Lhjlnly9Ynhf52ojQS534",
+    "duration_ms": 215746,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Little Girl Blue (2013 - Remaster)",
+    "album_id": "01NGiVifTgrJzdwtgHyfU3",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27379d4b738f89a33471c9e0aa6",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 3,
+    "track_id": "3f9KhpRN6mMYoVnpuozgHD",
+    "track_name": "Gary's Theme - Remastered 2003",
+    "track_uri": "spotify:track:3f9KhpRN6mMYoVnpuozgHD",
+    "duration_ms": 257693,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 4,
+    "track_id": "5CKHhg31HcYYhwUeeGqvhq",
+    "track_name": "I Wish I Knew How It Would Feel to Be Free",
+    "track_uri": "spotify:track:5CKHhg31HcYYhwUeeGqvhq",
+    "duration_ms": 188613,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Silk & Soul (Expanded Edition)",
+    "album_id": "2miVfa78vOd0o8Vbsgd7g3",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730cf2e3d1e85c5bd6d7bedee0",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 5,
+    "track_id": "1WygPWqmNs4s2fxtjmtI3O",
+    "track_name": "Young And Foolish",
+    "track_uri": "spotify:track:1WygPWqmNs4s2fxtjmtI3O",
+    "duration_ms": 354666,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 6,
+    "track_id": "6Rqn2GFlmvmV4w9Ala0I1e",
+    "track_name": "Feeling Good",
+    "track_uri": "spotify:track:6Rqn2GFlmvmV4w9Ala0I1e",
+    "duration_ms": 174000,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "I Put A Spell On You",
+    "album_id": "3ofZeSWPHZOE5WC2tNZDez",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273892abb1ade35b4863b29e051",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 7,
+    "track_id": "5shKp4VqCY5SoV3rIt0jpr",
+    "track_name": "The Peacocks - Remastered 2003",
+    "track_uri": "spotify:track:5shKp4VqCY5SoV3rIt0jpr",
+    "duration_ms": 361946,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 8,
+    "track_id": "7M9pPyt8Gr41THLhbz4NSB",
+    "track_name": "Don't Let Me Be Misunderstood",
+    "track_uri": "spotify:track:7M9pPyt8Gr41THLhbz4NSB",
+    "duration_ms": 166200,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Broadway-Blues-Ballads",
+    "album_id": "0do3UV5axUHkROOTkcxr1J",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731bc47b0dbddd7142c9a2ebf0",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 9,
+    "track_id": "1G8ZiodFtDX5tNHwvxcllW",
+    "track_name": "B Minor Waltz - Remastered 2003",
+    "track_uri": "spotify:track:1G8ZiodFtDX5tNHwvxcllW",
+    "duration_ms": 196026,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 10,
+    "track_id": "5xRP5iyVdGglqlY4Vcjhkx",
+    "track_name": "Sinnerman",
+    "track_uri": "spotify:track:5xRP5iyVdGglqlY4Vcjhkx",
+    "duration_ms": 622000,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Pastel Blues",
+    "album_id": "31pd81sWDaK2pP3ok5892z",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273df49506f74db624312118ca2",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 11,
+    "track_id": "253MlEWhgOkU3ncefccjMR",
+    "track_name": "Lucky To Be Me",
+    "track_uri": "spotify:track:253MlEWhgOkU3ncefccjMR",
+    "duration_ms": 221066,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 12,
+    "track_id": "1x9ahz0ALGHgbN9wwDjmre",
+    "track_name": "Here Comes the Sun",
+    "track_uri": "spotify:track:1x9ahz0ALGHgbN9wwDjmre",
+    "duration_ms": 214093,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Here Comes The Sun (Expanded Edition)",
+    "album_id": "3bm8jq96m8I1FZc8BsfG8g",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e61aa18bbda3f9c5dbb499b7",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 13,
+    "track_id": "3GimzseMaUjoAWjo6Gs3QH",
+    "track_name": "Danny Boy",
+    "track_uri": "spotify:track:3GimzseMaUjoAWjo6Gs3QH",
+    "duration_ms": 220493,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      },
+      {
+        "name": "Shelly Manne",
+        "id": "6M7ScGp8p2GspFJaIMh1Yo"
+      }
+    ],
+    "album_name": "Empathy",
+    "album_id": "3R0A51xf7JzlKCEm3RmleH",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27378df2528b1b80409e584fefd",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 14,
+    "track_id": "5ywoRjfVIlcJiSAxwPT3Pt",
+    "track_name": "Mr. Bojangles",
+    "track_uri": "spotify:track:5ywoRjfVIlcJiSAxwPT3Pt",
+    "duration_ms": 299213,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Here Comes The Sun (Expanded Edition)",
+    "album_id": "3bm8jq96m8I1FZc8BsfG8g",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e61aa18bbda3f9c5dbb499b7",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 15,
+    "track_id": "3UZSpAlc0WZjxkfbUBdUgT",
+    "track_name": "We Will Meet Again - Remastered",
+    "track_uri": "spotify:track:3UZSpAlc0WZjxkfbUBdUgT",
+    "duration_ms": 244786,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 16,
+    "track_id": "3NcJu9876GBJuNU6vJOrbb",
+    "track_name": "I Want a Little Sugar In My Bowl",
+    "track_uri": "spotify:track:3NcJu9876GBJuNU6vJOrbb",
+    "duration_ms": 152106,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Nina Simone Sings The Blues (Expanded Edition)",
+    "album_id": "12aKG91Tj6hJFOe90TzcX2",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738c1edace3ab711d2963dfdc8",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 17,
+    "track_id": "7fmhH8sQPLwiGPMOkFr7eU",
+    "track_name": "Sometime Ago - Remastered",
+    "track_uri": "spotify:track:7fmhH8sQPLwiGPMOkFr7eU",
+    "duration_ms": 273706,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 18,
+    "track_id": "32BTFbqhSvYKftE0e8a8d4",
+    "track_name": "I Shall Be Released",
+    "track_uri": "spotify:track:32BTFbqhSvYKftE0e8a8d4",
+    "duration_ms": 233000,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "To Love Somebody (Expanded Edition)",
+    "album_id": "6T4nAC6CRLciyg4tQbgovi",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d443fe6c1b51189c885c8bb8",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 19,
+    "track_id": "5l0TSFftfKMk7FF84EO7FO",
+    "track_name": "What Is There To Say?",
+    "track_uri": "spotify:track:5l0TSFftfKMk7FF84EO7FO",
+    "duration_ms": 295253,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Everybody Digs Bill Evans",
+    "album_id": "2zSAVheEFBPMuUozd6C9gt",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27386ae75aef90b01b817da4378",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 20,
+    "track_id": "0nQIWIpljdufnG7XEOEbtp",
+    "track_name": "I Loves You, Porgy - 2014 - Remaster",
+    "track_uri": "spotify:track:0nQIWIpljdufnG7XEOEbtp",
+    "duration_ms": 248223,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Nina Simone and Her Friends (Remastered 2014)",
+    "album_id": "2CeiAmKMUqcHfNU9Lv3yuQ",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730c2642a086be104e6373ddfd",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 21,
+    "track_id": "6NVHxwaBkfTIINMCmZ1JUl",
+    "track_name": "Spring Is Here",
+    "track_uri": "spotify:track:6NVHxwaBkfTIINMCmZ1JUl",
+    "duration_ms": 309360,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      },
+      {
+        "name": "Scott LaFaro",
+        "id": "4g7uUySyORXh2KgDEhgxXa"
+      },
+      {
+        "name": "Paul Motian",
+        "id": "4VIPZJwfn4EGbJxYVHJ0WX"
+      }
+    ],
+    "album_name": "Portrait In Jazz [Keepnews Collection]",
+    "album_id": "7dlYNvbD4QYDL3sSkTCjxi",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273079febd5ded0a77d42d70a55",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 22,
+    "track_id": "5yMRZqh2HCo5NFbLNt6sD1",
+    "track_name": "Nobody Knows You When You're Down And Out",
+    "track_uri": "spotify:track:5yMRZqh2HCo5NFbLNt6sD1",
+    "duration_ms": 158200,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Pastel Blues",
+    "album_id": "31pd81sWDaK2pP3ok5892z",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273df49506f74db624312118ca2",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 23,
+    "track_id": "6VjSeTSMiMq2YJPGlAuWvt",
+    "track_name": "Like Someone In Love",
+    "track_uri": "spotify:track:6VjSeTSMiMq2YJPGlAuWvt",
+    "duration_ms": 387893,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "The Complete Riverside Recordings (Remastered 1987)",
+    "album_id": "4il7hbjOvJ62n0MsZyl3vs",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735e953db10f85872dfe957ac5",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 24,
+    "track_id": "3LELTbDh9YCJrJIUERcj9p",
+    "track_name": "Just Like a Woman",
+    "track_uri": "spotify:track:3LELTbDh9YCJrJIUERcj9p",
+    "duration_ms": 290080,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Here Comes The Sun (Expanded Edition)",
+    "album_id": "3bm8jq96m8I1FZc8BsfG8g",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e61aa18bbda3f9c5dbb499b7",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 25,
+    "track_id": "1K1s6R2T2alxwVCCcA2TkA",
+    "track_name": "A Time For Love",
+    "track_uri": "spotify:track:1K1s6R2T2alxwVCCcA2TkA",
+    "duration_ms": 306133,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "Alone",
+    "album_id": "2zb18USoZqTMgyGQkoHhv2",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b4168399c175b4699e879fa0",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 26,
+    "track_id": "2XzHou7MZzOBQBqjWw86Nt",
+    "track_name": "Love Me Or Leave Me",
+    "track_uri": "spotify:track:2XzHou7MZzOBQBqjWw86Nt",
+    "duration_ms": 244866,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "Let It All Out",
+    "album_id": "4bGiPtwVEKcXbXs7oKCMqD",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c8ef777dbf6677f99f96210d",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 27,
+    "track_id": "13KYyenapQ2RMEGBJuRkUa",
+    "track_name": "Come Rain Or Come Shine (Take 5)",
+    "track_uri": "spotify:track:13KYyenapQ2RMEGBJuRkUa",
+    "duration_ms": 204480,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      },
+      {
+        "name": "Scott LaFaro",
+        "id": "4g7uUySyORXh2KgDEhgxXa"
+      },
+      {
+        "name": "Paul Motian",
+        "id": "4VIPZJwfn4EGbJxYVHJ0WX"
+      }
+    ],
+    "album_name": "Portrait In Jazz [Keepnews Collection]",
+    "album_id": "7dlYNvbD4QYDL3sSkTCjxi",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273079febd5ded0a77d42d70a55",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 28,
+    "track_id": "628A54HsxBPfgJPShyD7gx",
+    "track_name": "Work Song",
+    "track_uri": "spotify:track:628A54HsxBPfgJPShyD7gx",
+    "duration_ms": 183666,
+    "artists": [
+      {
+        "name": "Nina Simone",
+        "id": "7G1GBhoKtEPnP86X2PvEYO"
+      }
+    ],
+    "album_name": "High Priestess Of Soul",
+    "album_id": "1M2ktinB3DcTbrVXD45jxn",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735aed4cd3d8d8e57d63af2d81",
+    "added_at": "2025-10-04T16:00:40Z"
+  },
+  {
+    "position": 29,
+    "track_id": "70Ujwdj5jSJ0Km6eZ5lXh1",
+    "track_name": "Without A Song - Remastered",
+    "track_uri": "spotify:track:70Ujwdj5jSJ0Km6eZ5lXh1",
+    "duration_ms": 485826,
+    "artists": [
+      {
+        "name": "Bill Evans",
+        "id": "4jXfFzeP66Zy67HM2mvIIF"
+      }
+    ],
+    "album_name": "You Must Believe In Spring (Remastered Version)",
+    "album_id": "2B583jxnkHmIyBU6Z8VlmI",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361fce905c16306cab399212b",
+    "added_at": "2025-10-04T16:00:40Z"
+  }
+]

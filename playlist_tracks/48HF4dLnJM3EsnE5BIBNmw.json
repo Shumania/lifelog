@@ -1,0 +1,467 @@
+[
+  {
+    "position": 0,
+    "track_id": "2B8TnS5nJijlzuORGs3RKy",
+    "track_name": "She Caught the Katy and Left Me a Mule to Ride",
+    "track_uri": "spotify:track:2B8TnS5nJijlzuORGs3RKy",
+    "duration_ms": 208733,
+    "artists": [
+      {
+        "name": "Taj Mahal",
+        "id": "1aTDTChWWyiJH3SEnYrdVp"
+      }
+    ],
+    "album_name": "The Natch'l Blues",
+    "album_id": "6ySAyGtXqiqF3Vya9bIir2",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273924652e54e8a91fa212f01c5",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 1,
+    "track_id": "7ad6wbYbJEfYsrEKSGmOzh",
+    "track_name": "Comin' Home",
+    "track_uri": "spotify:track:7ad6wbYbJEfYsrEKSGmOzh",
+    "duration_ms": 193600,
+    "artists": [
+      {
+        "name": "Delaney & Bonnie",
+        "id": "6dTCMsjfH2odCFlNb36SCG"
+      }
+    ],
+    "album_name": "D & B Together",
+    "album_id": "3YdU6tV7NwMprX9NcC612g",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731069957e9edf6895c1df3054",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 2,
+    "track_id": "5JBUpI6OGZahUqchMKe6UY",
+    "track_name": "Whipping Post",
+    "track_uri": "spotify:track:5JBUpI6OGZahUqchMKe6UY",
+    "duration_ms": 317438,
+    "artists": [
+      {
+        "name": "Allman Brothers Band",
+        "id": "4wQ3PyMz3WwJGI5uEqHUVR"
+      }
+    ],
+    "album_name": "The Allman Brothers Band (Deluxe)",
+    "album_id": "3BnNGoffl0O96ZlxYiPuml",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739ed6f7af72a4737c3fa4d95f",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 3,
+    "track_id": "5uDu2qOoDou7cFXsipAo8l",
+    "track_name": "Peaches En Regalia",
+    "track_uri": "spotify:track:5uDu2qOoDou7cFXsipAo8l",
+    "duration_ms": 218893,
+    "artists": [
+      {
+        "name": "Frank Zappa",
+        "id": "6ra4GIOgCZQZMOaUECftGN"
+      }
+    ],
+    "album_name": "Hot Rats",
+    "album_id": "0WYYrC9My9rYWigac003hw",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ee314008c5ae6e98904ebfe0",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 4,
+    "track_id": "15tLhnzO4o8fMOEjdZGfII",
+    "track_name": "Bitches Brew (feat. Wayne Shorter, Bennie Maupin, John McLaughlin, Chick Corea, Joe Zawinul, Dave Holland & Harvey Brooks)",
+    "track_uri": "spotify:track:15tLhnzO4o8fMOEjdZGfII",
+    "duration_ms": 1619373,
+    "artists": [
+      {
+        "name": "Miles Davis",
+        "id": "0kbYTNQb4Pb1rPbbaF0pT4"
+      },
+      {
+        "name": "Wayne Shorter",
+        "id": "0ZqhrTXYPA9DZR527ZnFdO"
+      },
+      {
+        "name": "Bennie Maupin",
+        "id": "2mv4xHxofvyWTp2ViBqgZb"
+      },
+      {
+        "name": "John McLaughlin",
+        "id": "4v0R1feRiuCDch7aAheVhY"
+      },
+      {
+        "name": "Chick Corea",
+        "id": "5olDKSsFhhmwh8UCWwKtpq"
+      },
+      {
+        "name": "Joe Zawinul",
+        "id": "3DkK9XA1CI1i7U7ovpAo1G"
+      },
+      {
+        "name": "Dave Holland",
+        "id": "1bqaQBqbqbEXPxLF0v6AAH"
+      },
+      {
+        "name": "Harvey Brooks",
+        "id": "6gAEBctgtvDuvkXInMa0Zu"
+      }
+    ],
+    "album_name": "Bitches Brew",
+    "album_id": "3Q0zkOZEOC855ErOOJ1AdO",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733f29c5269be5a4e9c4611d7a",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 5,
+    "track_id": "54uiTEd1MOB7ExqqKCj1HX",
+    "track_name": "Fresh Air",
+    "track_uri": "spotify:track:54uiTEd1MOB7ExqqKCj1HX",
+    "duration_ms": 321933,
+    "artists": [
+      {
+        "name": "Quicksilver Messenger Service",
+        "id": "7DCnwoFMqGN6eZULdcLZeL"
+      }
+    ],
+    "album_name": "Just For Love",
+    "album_id": "0jebR4BSBCxMAXezJcDC1m",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a320940a9229198497f8e7f3",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 6,
+    "track_id": "2cph4XTPjwu5eHPKQ43jMq",
+    "track_name": "The Letter - Single Version",
+    "track_uri": "spotify:track:2cph4XTPjwu5eHPKQ43jMq",
+    "duration_ms": 250626,
+    "artists": [
+      {
+        "name": "Joe Cocker",
+        "id": "3pFCERyEiP5xeN2EsPXhjI"
+      }
+    ],
+    "album_name": "The Anthology",
+    "album_id": "0OdFUi5lSenjXrgy4dVAP8",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737efa4d4536799483c489a4b0",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 7,
+    "track_id": "7n3WO6ESKS1uCI9fgkGs66",
+    "track_name": "I'd Love to Change the World - 2004 Remaster",
+    "track_uri": "spotify:track:7n3WO6ESKS1uCI9fgkGs66",
+    "duration_ms": 224133,
+    "artists": [
+      {
+        "name": "Ten Years After",
+        "id": "7nkLRaWHImCvWGHdNGnhVE"
+      }
+    ],
+    "album_name": "A Space in Time (Deluxe Version)",
+    "album_id": "5ZPvG6hav71Uqmlgs85xbE",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734aa7956a8d5742ac762699b2",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 8,
+    "track_id": "5yHwFyvSnIl8koP0bZIFQV",
+    "track_name": "Alone Again Or",
+    "track_uri": "spotify:track:5yHwFyvSnIl8koP0bZIFQV",
+    "duration_ms": 197274,
+    "artists": [
+      {
+        "name": "Love",
+        "id": "3Q6OOkfssqoMSTtl11J5Uk"
+      }
+    ],
+    "album_name": "60s HITS \u2013 100 Greatest Songs of the 1960s",
+    "album_id": "2u1UZgrpRbcZ0OJj5HeQMU",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b0b002112e91c85914e799e0",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 9,
+    "track_id": "4FfsiUZKiGmy8yMqRNECk2",
+    "track_name": "Train To Nowhere",
+    "track_uri": "spotify:track:4FfsiUZKiGmy8yMqRNECk2",
+    "duration_ms": 312160,
+    "artists": [
+      {
+        "name": "Savoy Brown",
+        "id": "17obwOahRWI121iMUZznh2"
+      }
+    ],
+    "album_name": "Train to Nowhere",
+    "album_id": "77p7NqORK6GMpX5Z2LrniU",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731c3e7f61f9d642266f840de5",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 10,
+    "track_id": "554Cm9j9Z7lnNEwK7IQ8Fz",
+    "track_name": "Diggy Liggy Lo",
+    "track_uri": "spotify:track:554Cm9j9Z7lnNEwK7IQ8Fz",
+    "duration_ms": 123986,
+    "artists": [
+      {
+        "name": "Rusty Kershaw",
+        "id": "0kL3qxFLvKJZou70ZVY9Ho"
+      },
+      {
+        "name": "Doug Kershaw",
+        "id": "5THBJK4ynnBnn5uvIamir1"
+      }
+    ],
+    "album_name": "Volume 2",
+    "album_id": "2ldXbLUZJwtHZhuDztiucd",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732cdd71d072881e8f8552d215",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 11,
+    "track_id": "4ekhcmbinPu8eLHtxD2lav",
+    "track_name": "The Fish Cheer / I-Feel-Like-I\u2019m-Fixin\u2019-To Die Rag",
+    "track_uri": "spotify:track:4ekhcmbinPu8eLHtxD2lav",
+    "duration_ms": 223933,
+    "artists": [
+      {
+        "name": "Country Joe & The Fish",
+        "id": "0a63dfrxBQKqh160P8iUNL"
+      }
+    ],
+    "album_name": "I-Feel-Like-I'm-Fixin'-To-Die",
+    "album_id": "5qLH7ahsjN4qZumjwdlkhT",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273001d8526513bb190bf2cb42e",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 12,
+    "track_id": "1H5IfYyIIAlgDX8zguUzns",
+    "track_name": "Suspicious Minds",
+    "track_uri": "spotify:track:1H5IfYyIIAlgDX8zguUzns",
+    "duration_ms": 263135,
+    "artists": [
+      {
+        "name": "Elvis Presley",
+        "id": "43ZHCT0cAZBISjO8DG9PnE"
+      }
+    ],
+    "album_name": "From Elvis in Memphis",
+    "album_id": "3ekkFrfotMsEAKc5g71GHk",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b26c34d79e4cdaa73672a0b1",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 13,
+    "track_id": "672N8DGGTOLCOgWe0koX5g",
+    "track_name": "I Wanna Be Your Dog",
+    "track_uri": "spotify:track:672N8DGGTOLCOgWe0koX5g",
+    "duration_ms": 188560,
+    "artists": [
+      {
+        "name": "The Stooges",
+        "id": "4BFMTELQyWJU1SwqcXMBm3"
+      }
+    ],
+    "album_name": "The Stooges",
+    "album_id": "3MANoCcmaHWeXSuWiO3iVo",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a7d2baa04a56c87de579db69",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 14,
+    "track_id": "3EsIAGUcwXzcQBk53A27FS",
+    "track_name": "Kick out the Jams",
+    "track_uri": "spotify:track:3EsIAGUcwXzcQBk53A27FS",
+    "duration_ms": 167560,
+    "artists": [
+      {
+        "name": "MC5",
+        "id": "4WquJweZPIK9qcfVFhTKvf"
+      }
+    ],
+    "album_name": "The Big Bang - The Best Of MC5",
+    "album_id": "16Ll6sRsLzMjhdBZrmLcGF",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cb79463e324c85eee3509b98",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 15,
+    "track_id": "0kp728Knw5PYvU3QzMZ0yJ",
+    "track_name": "Uncle John's Band - 2013 Remaster",
+    "track_uri": "spotify:track:0kp728Knw5PYvU3QzMZ0yJ",
+    "duration_ms": 284909,
+    "artists": [
+      {
+        "name": "Grateful Dead",
+        "id": "4TMHGUX5WI7OOm53PqSDAT"
+      }
+    ],
+    "album_name": "Workingman's Dead",
+    "album_id": "4jxokHekH1qSad1DcC82ku",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734d3659e33c2d63d5b54d1f2c",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 16,
+    "track_id": "7aTCCNpHJD2Jgv0LLVJb8Y",
+    "track_name": "Up On Cripple Creek",
+    "track_uri": "spotify:track:7aTCCNpHJD2Jgv0LLVJb8Y",
+    "duration_ms": 270293,
+    "artists": [
+      {
+        "name": "The Band",
+        "id": "4vpDg7Y7fU982Ds30zawDA"
+      }
+    ],
+    "album_name": "The Band",
+    "album_id": "4vXFiaDS8zuEl5bOUbW53x",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a6783876afd7e9c96f0869e3",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 17,
+    "track_id": "43dICZWeruQuFctoHrIEVS",
+    "track_name": "Space Cowboy",
+    "track_uri": "spotify:track:43dICZWeruQuFctoHrIEVS",
+    "duration_ms": 296333,
+    "artists": [
+      {
+        "name": "Steve Miller Band",
+        "id": "6QtGlUje9TIkLrgPZrESuk"
+      }
+    ],
+    "album_name": "Brave New World",
+    "album_id": "3JZytXag49xa4llN36anuV",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273eb86b9f20d2dc7ca6e89cbe0",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 18,
+    "track_id": "2EFtUP7BmsjHzhQqI6A4rp",
+    "track_name": "Down by the River - 2009 Remaster",
+    "track_uri": "spotify:track:2EFtUP7BmsjHzhQqI6A4rp",
+    "duration_ms": 558186,
+    "artists": [
+      {
+        "name": "Neil Young",
+        "id": "6v8FB84lnmJs434UJf2Mrm"
+      },
+      {
+        "name": "Crazy Horse",
+        "id": "0oi7g8NUnlLh5tJvg2y5e3"
+      }
+    ],
+    "album_name": "Everybody Knows This Is Nowhere",
+    "album_id": "70Yl2w1p00whfnC7fj94ox",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732ca212f8f1480d8c291169da",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 19,
+    "track_id": "4NOdVqCo6n2Bzsyhl00oB5",
+    "track_name": "Get Up I Feel Like Being Like A Sex Machine, Pts. 1 & 2",
+    "track_uri": "spotify:track:4NOdVqCo6n2Bzsyhl00oB5",
+    "duration_ms": 318293,
+    "artists": [
+      {
+        "name": "James Brown",
+        "id": "7GaxyUddsPok8BuhxN6OUW"
+      },
+      {
+        "name": "The Original J.B.s",
+        "id": "4GwjLszGqU37HqCgpBNPoU"
+      }
+    ],
+    "album_name": "Get On Up - The James Brown Story",
+    "album_id": "6Wzf9BalBqQAenrUb9xzUH",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27344c6ea70ac6841e4fabd043f",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 20,
+    "track_id": "4Tjs8b6jL1s18sjURJtswp",
+    "track_name": "Lola (2020 Stereo Remaster)",
+    "track_uri": "spotify:track:4Tjs8b6jL1s18sjURJtswp",
+    "duration_ms": 241991,
+    "artists": [
+      {
+        "name": "The Kinks",
+        "id": "1SQRv42e4PjEYfPhS0Tk9E"
+      }
+    ],
+    "album_name": "Lola Versus Powerman and the Moneygoround, Pt. 1",
+    "album_id": "6cv47fKkAyi9Lm5wwud4It",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273da0e0c87f57499b479e7da59",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 21,
+    "track_id": "0WNSiG9r6XtrrERqFBO8GR",
+    "track_name": "Born Under a Bad Sign",
+    "track_uri": "spotify:track:0WNSiG9r6XtrrERqFBO8GR",
+    "duration_ms": 250466,
+    "artists": [
+      {
+        "name": "The Paul Butterfield Blues Band",
+        "id": "6kz7WuPaUa4QVreP27I33i"
+      }
+    ],
+    "album_name": "The Resurrection Of Pigboy Crabshaw",
+    "album_id": "5nEOJtjR1clDZQZwAlA7Qs",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273efd4864753c081adb5cbd2e9",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 22,
+    "track_id": "7m9jsJuhrGrgT2GkN0f5yA",
+    "track_name": "Delta Lady",
+    "track_uri": "spotify:track:7m9jsJuhrGrgT2GkN0f5yA",
+    "duration_ms": 248000,
+    "artists": [
+      {
+        "name": "Leon Russell",
+        "id": "6r1Xmz7YUD4z0VRUoGm8XN"
+      }
+    ],
+    "album_name": "Retrospective",
+    "album_id": "5l1GaRZlQ7jZ8XLW6qzCeL",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27388633ebf0f4bebca731881bc",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 23,
+    "track_id": "3Bh6uInhcVBVvLraGZdkKD",
+    "track_name": "Who'll Stop The Rain",
+    "track_uri": "spotify:track:3Bh6uInhcVBVvLraGZdkKD",
+    "duration_ms": 147493,
+    "artists": [
+      {
+        "name": "Creedence Clearwater Revival",
+        "id": "3IYUhFvPQItj6xySrBmZkd"
+      }
+    ],
+    "album_name": "Cosmo's Factory (Expanded Edition)",
+    "album_id": "4GLxEXWI3JiRKp6H7bfTIK",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27361834aa14b97a7d9c693134f",
+    "added_at": "2026-06-17T19:44:42Z"
+  },
+  {
+    "position": 24,
+    "track_id": "6ujfkCMQF1dZ1xCL4jXhxa",
+    "track_name": "Eight Miles High",
+    "track_uri": "spotify:track:6ujfkCMQF1dZ1xCL4jXhxa",
+    "duration_ms": 1138160,
+    "artists": [
+      {
+        "name": "Golden Earring",
+        "id": "1iTlOqIrZy8DlvCPJY2sjS"
+      }
+    ],
+    "album_name": "Eight Miles High",
+    "album_id": "7AJJ3tzmiN84svneRLBVGJ",
+    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273909f507eaf30bbda81cf0897",
+    "added_at": "2026-06-17T19:44:42Z"
+  }
+]

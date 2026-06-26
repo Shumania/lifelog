@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Playlists — Listening Log</title>
+<style>
+html, body { height: 100%; }
+/* Lifelog dark theme recreation */
+:root {
+  --bg: #0a0e1a;
+  --surface: #131829;
+  --surface2: #1a2035;
+  --border: #232940;
+  --text: #e2e8f0;
+  --text-dim: #8892a8;
+  --accent: #4ade80;
+  --accent2: #60a5fa;
+  --spotify: #1db954;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Tab bar */
+.content-tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+.content-tab {
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.content-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.content-tab:hover:not(.active) { color: var(--text); }
+
+/* Controls bar */
+.playlist-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.playlist-search {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  min-width: 0;
+}
+.playlist-search:focus { border-color: var(--accent); }
+.playlist-search::placeholder { color: var(--text-dim); }
+
+.sort-select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.playlist-stat {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* Playlist list */
+.playlist-list {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Playlist card */
+.playlist-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.playlist-card:hover { border-color: var(--text-dim); }
+.playlist-card.open { border-color: rgba(74, 222, 128, 0.3); }
+
+.pc-header {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  user-select: none;
+  min-height: 72px;
+}
+.pc-art {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.pc-art-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.pc-info {
+  flex: 1;
+  min-width: 0;
+}
+.pc-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pc-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.pc-owner-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(96, 165, 250, 0.1);
+  color: var(--accent2);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  margin-left: 4px;
+}
+
+.pc-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.pc-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.pc-btn:hover { background: var(--surface2); border-color: var(--accent); }
+.pc-btn:active { transform: scale(0.92); }
+.pc-btn.queue { color: var(--accent2); }
+.pc-btn.queue:hover { border-color: var(--accent2); }
+
+.pc-expand {
+  color: var(--text-dim);
+  font-size: 14px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.playlist-card.open .pc-expand { transform: rotate(90deg); color: var(--accent); }
+
+/* Track list */
+.pc-body {
+  display: none;
+  border-top: 1px solid var(--border);
+}
+.playlist-card.open .pc-body { display: block; }
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(35, 41, 64, 0.5);
+  transition: background 0.1s;
+}
+.track-row:hover { background: rgba(255, 255, 255, 0.02); }
+.track-row:last-child { border-bottom: none; }
+
+.tr-num {
+  width: 24px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.tr-art {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.tr-info {
+  flex: 1;
+  min-width: 0;
+}
+.tr-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tr-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tr-duration {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.tr-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tr-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.tr-btn:hover { background: var(--surface2); }
+.tr-btn.queue { color: var(--accent2); }
+
+/* Owner group headers */
+.owner-group-header {
+  padding: 10px 16px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Design options panel */
+.design-panel {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.design-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.design-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.design-toggle {
+  padding: 3px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.design-toggle.active {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.design-toggle:hover:not(.active) {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+/* Loading */
+.track-loading {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Empty search state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+}
+
+/* Scrollable container */
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+img.pc-art, img.tr-art { display: inline-block !important; max-width: none !important; }
+img.pc-art { width: 48px !important; height: 48px !important; min-width: 48px; min-height: 48px; }
+img.tr-art { width: 32px !important; height: 32px !important; min-width: 32px; min-height: 32px; }
+</style>
+</head>
+<body>
+<div id="app" style="display:flex;flex-direction:column;height:100vh;height:100dvh"></div>
+<script>
+"use strict";
+const PLAYLISTS = [{"id":"5riS1vtIe8Eu6wa5BWUfxe","name":"AWS Focus Study 2025","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e020ebc17239b6b18ba88cfb8caab67616d00001e0237a379ca6520eaf191de6ff2ab67616d00001e024066cd51608876579d15cf51ab67616d00001e02a21ec108877d27b0550014d3","followers_total":0,"tracks_total":50},{"id":"4aRqlK3GQAHe0IvZ6ObR2b","name":"Born in Autumn","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0222f8a3344beb9daaea6635ecab67616d00001e026a6b514522142e1ffabd9101ab67616d00001e02b6955ba9a492e1fd8f16e5faab67616d00001e02ffd122f2877c29e384f0b3aa","followers_total":0,"tracks_total":46},{"id":"4Ye5udvB4cfcyfTJHC3k3I","name":"Shuman Picks 2025","description":"First 11 songs I picked as best new discoveries, the rest were suggested by Spotify ai","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02013c2a2a3ae10543122a4fd7ab67616d00001e0274f7b678ad289a6e3ac304a3ab67616d00001e029a4e061f74b6a4f75362845eab67616d00001e02eb0bb983ac6a681f593ee252","followers_total":0,"tracks_total":38},{"id":"5KwBOI7zuRssS48MLlL3tY","name":"WOPOP KEXP - June 16th 2026","description":"KEXP Wo&#x27; Pop 7-10 PM Pacific, June 16 2026 \u2014 DJ Darek Mazzone \u2014 Celebrating the World Cup in Music &amp; Honoring Abdullah Ibrahim","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0220c497810f503069b27c0bddab67616d00001e022843e424e53ca2d241cb36b6ab67616d00001e027e2bd1ddeb38a0e50bdb516bab67616d00001e02ac8367a27c0eb7195dc3a58d","followers_total":0,"tracks_total":35},{"id":"6NKoYe2HIFPnFDMHsIwKH8","name":"WOPOP KEXP - June 9th 2026","description":"KEXP Wo&#x27; Pop 7-10 PM Pacific, June 9 2026 \u2014 DJ Jyoti B.Fly","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02087cfb01dc9c9b1031869a2cab67616d00001e0225707c330c258d70c79655d9ab67616d00001e02c8141b189943ca3ef1515e87ab67616d00001e02fe348218742cfd785b4e8cfb","followers_total":0,"tracks_total":33},{"id":"5R6AiyMz1Ooy5kTnLIkXOS","name":"Eclectic Mashup Mix","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0fb5b1801e26290a7d01bd910","followers_total":0,"tracks_total":30},{"id":"1Op9bj8FWA0uexSVHv9wOK","name":"Trip-Hop Vibes","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a012ed9a9f9e3160c92585f04e","followers_total":0,"tracks_total":30},{"id":"4ypVCS8PsZRVEsb9YgtCNM","name":"Solo Piano Jazz","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a09c25a3a7357db9780087ca3e","followers_total":0,"tracks_total":30},{"id":"2V7Tnxxnq2AGyhMtjYq5Ya","name":"A Rebirthed Rebirth of Cool series Vol 1-7","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e027455ad88e7c726cdf7bc0f2fab67616d00001e02d3cce3383d2c8130414ac95cab67616d00001e02e1581372935d71defa0fb164ab67616d00001e02f1ad2705d34f8c17b6e37c57","followers_total":0,"tracks_total":202},{"id":"4SOnjDTTfajTb7nQ9XJb2V","name":"Artists Albums found 2025","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e026f76f3478c7050ad8e5750a4ab67616d00001e02a83e7819b657b8adc01cf591ab67616d00001e02c6aeec40a5b555c715b00b6dab67616d00001e02fd69099343fa7827e78cca4b","followers_total":0,"tracks_total":158},{"id":"1yJMXZuky9KNFHodJBnFMR","name":"diamonds and 2018","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e021093b1a9528d6ac67479228bab67616d00001e02a3c44b7a278ab2140b49d81cab67616d00001e02c9f6a742f2337f938e89f599ab67616d00001e02dc30583ba717007b00cceb25","followers_total":0,"tracks_total":98},{"id":"66mA9a4So8KFR30ZtrZnhK","name":"Late in 2025","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02289467cc1cd63030f8d9b214ab67616d00001e022e577adef0cafa4494bda062ab67616d00001e027ae0fb26828085db601cecc1ab67616d00001e02d7472cb2c5c09b780c23bf16","followers_total":0,"tracks_total":85},{"id":"3kM6gqROxfdcxzhQLtEGAd","name":"My own version of early alternative","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02416cc99a089bbe8db8ac1311ab67616d00001e0246b017e0c96e4186e82df085ab67616d00001e02628103d0e62602f00408345dab67616d00001e02b1235c0092f6658466e96819","followers_total":0,"tracks_total":75},{"id":"3G2ZfespigPnM0m9M0kXcS","name":"Gil Scott-Heron Mix","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0fd35d4e989f5b6826ccb6f4d","followers_total":0,"tracks_total":30},{"id":"1wwNFPHekuR7aA40pLaA5J","name":"Jazz Piano Solos","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0347941f17f1b1f2bb4391900","followers_total":0,"tracks_total":30},{"id":"6WPX00PKkwYbayR5ztLiDv","name":"More Dance Vibes","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0501b399a0d22d37ef29b6c25","followers_total":0,"tracks_total":30},{"id":"31qmyGp3ZPpksSfg6DLHRj","name":"Upbeat Workout Vibes with 90s Hip Hop & Dance","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0ec39a2975092ee847b0728c7","followers_total":0,"tracks_total":30},{"id":"1N8jZS88tOgqdjUBlvxdsW","name":"KEXP May 5, 2026 (5-7 AM)","description":"KEXP 90.3 FM playlist from May 5, 2026, 5:00-7:00 AM Pacific","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0217012ffa2fd2e418939fa7b5ab67616d00001e02a56cfcd8bd24b259d732520fab67616d00001e02dacae168c80f791843f52439ab67616d00001e02ea27a9e38db1ec66119356af","followers_total":0,"tracks_total":29},{"id":"5VXL55vOzr6k0qFSOS1hLr","name":"Dance & Hardcore Workout Mix","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0e4585586af131cd1d1753559","followers_total":0,"tracks_total":28},{"id":"6iNYbtu6sTzBPOWoPaOj2O","name":"Eva Walker Eighth of December","description":"Created with Spotlistr - www.spotlistr.com","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0256e6cb57dcca3e9f1e30cfd8ab67616d00001e02a608e02fea1dd47143649c91ab67616d00001e02b03271f8fbe42dda27be07d0ab67616d00001e02f79a977a7d86c9e17e207a50","followers_total":0,"tracks_total":28},{"id":"6czUBJoV8ocqpiI0h4gUB3","name":"Solo piano","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e021ea0504f4f6145eef957320cab67616d00001e0246ae4364de12380a77ebfd20ab67616d00001e026a1fcecb6779fbef159befe2ab67616d00001e029ca8f14f8e54866208e4e2c6","followers_total":0,"tracks_total":28},{"id":"69gNLNz9rEdP02F9GhjR8u","name":"Hiphopwork","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0204b9ab6bd4bf6a350ba902eaab67616d00001e025108aaef24184cc5d5c722f9ab67616d00001e0289b56f56323925d57b38944dab67616d00001e029710731c9d7baec635f1bab1","followers_total":0,"tracks_total":28},{"id":"6asSj3mRi1QBneaS66uSy5","name":"KEXP Jan 30, 2026 (5-7 AM)","description":"Tracks from KEXP 90.3 FM Seattle, Friday January 30, 2026, 5:00 AM - 7:00 AM","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e027195c4f5f2f4a8236748baafab67616d00001e02850940d46dfa5f5fbea46ba0ab67616d00001e02aa32b8f698d38c755f0a7360ab67616d00001e02b76f1da900d73470021985d8","followers_total":0,"tracks_total":27},{"id":"2XemM0lzSNtS3YmCIrJSpc","name":"Early June 10th 2026","description":"KEXP 5-7 AM Pacific, June 10 2026 \u2014 DJ Eva Walker","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02100a85d0e5c743750bed630dab67616d00001e024d6adb15c037b39ee8a53049ab67616d00001e0270202a53753de37a79b85d4aab67616d00001e028541b9cc9305fb1fd2fa8bbe","followers_total":0,"tracks_total":26},{"id":"48HF4dLnJM3EsnE5BIBNmw","name":"What Early 1970 Felt Like","description":"Beyond the charts \u2014 what the Fillmore crowds heard, the critics championed, and the touring acts delivered in early 1970. Curated from Rolling Stone, Village Voice, Creem, and Fillmore&#x2F;Winterland show archives.","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e021069957e9edf6895c1df3054ab67616d00001e02924652e54e8a91fa212f01c5ab67616d00001e029ed6f7af72a4737c3fa4d95fab67616d00001e02ee314008c5ae6e98904ebfe0","followers_total":0,"tracks_total":25},{"id":"5a48hWwu7eYZ6xNfRjA8oG","name":"Spring cometh 26","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0236615a0a60523dd62135ab3aab67616d00001e02498ab3813bf458fb836c8822ab67616d00001e0280ed8fe3bc537839f250ee8aab67616d00001e02f91223caafb7c1dccd24f97e","followers_total":0,"tracks_total":27},{"id":"2GXqXT4X1jGZbyQ3Pt5u3x","name":"Early May 13th 2026","description":"KEXP 90.3 FM playlist from May 13, 2026, 5:00-7:00 AM Pacific","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e023df4b104a4d5f44f5f515bf7ab67616d00001e0259654022fe74df87ff7cf866ab67616d00001e0267b3ea39b7cfb165143c88a9ab67616d00001e02d3052e0afb106c70577c56cf","followers_total":0,"tracks_total":23},{"id":"7xfKRk58SvjITxc8gbGtrL","name":"Early May 19th 2026","description":"KEXP playlist - May 19, 2026 5-7 AM Pacific","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02940cb5157ca3239881666d71ab67616d00001e02b01a25318ec4c52b9d909421ab67616d00001e02bde039ed52aa4f39276c5360ab67616d00001e02ccdb9c22f07f24a773110a87","followers_total":0,"tracks_total":23},{"id":"5SdAIjae3hegPuRk9NiTZ3","name":"Eva Walker November Nineteenth","description":"Created with Spotlistr - www.spotlistr.com","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da8457fe1f622587e369fb7da16f","followers_total":0,"tracks_total":23},{"id":"2GHe0Cgn32y8oAItxk34L9","name":"KEXP Mar 4, 2026 (5-7 AM)","description":"KEXP 90.3 FM playlist from March 4, 2026, 5:00-7:00 AM Pacific","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02639b2f3794b5ea59e31775d7ab67616d00001e026f14f7b39defdeb512cf66c7ab67616d00001e02717b7da61aa814a1a3c3dbceab67616d00001e02a29ca418b2a64e80002a86e3","followers_total":0,"tracks_total":23},{"id":"1XrQ7C2un7mbzAqnkq1zBs","name":"KEXP Mar 3, 2026 (5-7 AM)","description":"Tracks from KEXP 90.3 FM Seattle, Tuesday March 3, 2026, 5:00 AM - 7:00 AM","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0289db76a3e3de45860942463cab67616d00001e029bee596da8e3f67a3ce6e7d7ab67616d00001e02de3c04b5fc750b68899b20a9ab67616d00001e02f3a3c1b2b5128d9fb396cab1","followers_total":0,"tracks_total":22},{"id":"24cm7XiCQfHeDoJe34uF6O","name":"KEXP Feb 9, 2026 (5-7 AM)","description":"Tracks from KEXP 90.3 FM Seattle, Monday February 9, 2026, 5:00 AM - 7:00 AM","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0210828418b55a8060ecdd3d4aab67616d00001e0290a9a11cf27f0a1d3d8e3005ab67616d00001e02b7b1313613b3e7fcbca7df66ab67616d00001e02f12a8a7e0b2cbe16d2bef4dc","followers_total":0,"tracks_total":22},{"id":"190ZdpYz39fmtqPF2zeL9J","name":"KEXP Feb 9, 2026 (5-7 AM) - Reversed","description":"Tracks from KEXP 90.3 FM Seattle, Monday February 9, 2026, 5:00 AM - 7:00 AM (in reverse order)","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e021c72ad5458bcc5d5650e3093ab67616d00001e02679340f56c596a303205912cab67616d00001e028e14857f3ed3aa6e8bd818b3ab67616d00001e02b45b315e3fa87ad1f13da656","followers_total":0,"tracks_total":22},{"id":"3c0VFCRzgwZBMOE4SzdMvA","name":"WOPOP KEXP - May 5th 2026","description":"KEXP 90.3 FM WOPOP playlist from May 5, 2026, 7:00-9:00 PM Pacific","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e0204c80edc41da2d38c4d4d128ab67616d00001e027f485e1441bbf288abd4c706ab67616d00001e02937334beab2f5be91c27bc43ab67616d00001e02f086a97793ae45926192a353","followers_total":0,"tracks_total":21},{"id":"37i9dQZF1FwURc8rPvuzOt","name":"Upbeat Vocal Vibes","description":"Upbeat, non-instrumental songs with vocals that sound similar to songs in your liked playlist.","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/prompted-v2/37i9dQZF1FwURc8rPvuzOt/2ae44aa3/en","followers_total":0,"tracks_total":20},{"id":"3qMJ6GB1OwFK3FnmCHd7zU","name":"February 1970 - Pop, Rock & Jazz","description":"Songs released or charting in February 1970. A blend of pop, rock, blues-jazz and funk from one of music&#x27;s greatest months.","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e020639133400fd25de423ed993ab67616d00001e026c52a1a775f9025cfdf20c4bab67616d00001e0283e4bf3a6c360b852a41b7fcab67616d00001e02b2118ba6928e56e2815c1dfc","followers_total":0,"tracks_total":18},{"id":"4Ld7cfItBTIop7bE8MPEOi","name":"Heading to November","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02053b2ecfdc9eef23dcbfe9a6ab67616d00001e0208bf5bb1bc01a584bca76873ab67616d00001e02989db81cb16ee7c7dcae2a74ab67616d00001e029a7aa0ab6701a8d64d0d31d7","followers_total":0,"tracks_total":10},{"id":"1pFox86vxtDrBmOPRXLklm","name":"summa","description":"","owner":"Andrew Shuman","owner_id":"shuzamin","image_url":"https://mosaic.scdn.co/640/ab67616d00001e020bc584e8e6aefded5b054117ab67616d00001e0245aa528dd9059f349ed9e11eab67616d00001e024fb624c5275ee099aea7f8a6ab67616d00001e02bd158c797b1026005c2917bc","followers_total":0,"tracks_total":6},{"id":"6EEBG7GmAebKWdflwDOG68","name":"This is a Los Angeles playlist","description":"Songs about LA and&#x2F;or by bands from LA","owner":"Ian Adelman","owner_id":"ianadelman","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02267f18966fa512b732f23353ab67616d00001e0236572e6726714544f5bed456ab67616d00001e024b3787e954c118353100783cab67616d00001e029710731c9d7baec635f1bab1","followers_total":0,"tracks_total":43},{"id":"3nmWZca63mUoCxwhUNkX3U","name":"Motivate","description":"","owner":"Chris","owner_id":"freeesshhhh","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02009995e12a6da0545c3c018aab67616d00001e0217c2e6868830e76766d11876ab67616d00001e0227004fa600c8b3db34a3efefab67616d00001e028323143296ff7b2801e32789","followers_total":0,"tracks_total":27},{"id":"3SGBEk1CaRUZm0x16YkWMX","name":"The Amplifier: Digging Into Kendrick Lamar's Samples","description":"<a href=\"https://www.nytimes.com/2024/11/26/arts/music/amplifier-newsletter-kendrick-lamar-samples.html\">Read the newsletter here.</a>","owner":"nytimes","owner_id":"nytimes","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02906fd7e9ae1c01f91a9675beab67616d00001e029ba6a1b973e91955ab23c50cab67616d00001e02d28d2ebdedb220e479743797ab67616d00001e02e2a0a166493a2bde5480a420","followers_total":0,"tracks_total":10},{"id":"1oeHL2QQIp84TXPEc3F7Np","name":"Songs sampled in Hip Hop / Rap - Old School samples","description":"A collection of songs that have been sampled in rap music","owner":"Stevie","owner_id":"123051721","image_url":"https://mosaic.scdn.co/640/ab67616d00001e020e77b154b028c287de99facbab67616d00001e02229e87b6d1da512c14164cc0ab67616d00001e022c13019d352d1f7cb263dfe7ab67616d00001e0236b80fb6bf3c3a1a9528f5d6","followers_total":0,"tracks_total":300},{"id":"3yEPDqNUAxQ8Mw1VXXm1vo","name":"New year's eve champagne - Thom Yorke","description":"Mix de Thom Yorke - r\u00e9veillon du 31 d\u00e9cembre 2023 - France Inter","owner":"Julien Fu","owner_id":"1158103913","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da8402cff646b3b8662fee076933","followers_total":0,"tracks_total":28},{"id":"4VijMlimXH3tDm6gPPykNm","name":"KEXP's Runcast w John Richards","description":"","owner":"Laura Bergstein","owner_id":"121054658","image_url":"https://mosaic.scdn.co/640/ab67616d00001e02053b2ecfdc9eef23dcbfe9a6ab67616d00001e021d5a25b77f59f506a845b0f2ab67616d00001e029a7aa0ab6701a8d64d0d31d7ab67616d00001e02d89fd5e7dfd1a04a806c7ed5","followers_total":0,"tracks_total":14},{"id":"3MQHSDIkdF1RUlr4dcIBPj","name":"Mark Ronson | NIGHT PEOPLE (Complete Collection)","description":"Night People conjures the undeniable magic of '90s New York. It evokes the rush of a time and place where fashionistas and rappers on the rise danced alongside club kids and 9-to-5'ers \u2013 and invites us into the tribe of creatives and partiers who came alive when the sun went down.  ","owner":"Mark Ronson","owner_id":"markronson","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da84a26b075022160ac92e3538c6","followers_total":0,"tracks_total":257},{"id":"6hwPKySzIvR5tLrNHbpwU0","name":"The Rebirth of Cool series Vol 1-7","description":"Every track that is available on Spotify from this classic Acid Jazz, Trip Hop, Electronic, Hip Hop series","owner":"djdeoca","owner_id":"djdeoca","image_url":"https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da843abdf198a0666f54c71a8278","followers_total":0,"tracks_total":202}];
+const TRACK_DIR = "playlist_tracks";
+
+let state = {
+  query: "",
+  sortKey: "alpha",
+  expandMode: "accordion",
+  groupByOwner: false,
+  openIds: new Set(),
+  trackCache: {},
+  trackLoading: new Set(),
+  trackError: new Set()
+};
+
+function $(sel, ctx) { return (ctx||document).querySelector(sel); }
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === "className") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+    else el.setAttribute(k, v);
+  });
+  kids.flat(Infinity).forEach(c => {
+    if (c == null) return;
+    el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  });
+  return el;
+}
+
+function fmtDur(ms) {
+  const m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000);
+  return m + ":" + String(s).padStart(2,"0");
+}
+
+async function loadTracks(id) {
+  state.trackLoading.add(id);
+  state.trackError.delete(id);
+  render();
+  try {
+    const r = await fetch(TRACK_DIR + "/" + id + ".json");
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    data.sort((a,b) => a.position - b.position);
+    state.trackCache[id] = data;
+  } catch(e) {
+    state.trackError.add(id);
+  }
+  state.trackLoading.delete(id);
+  render();
+}
+
+function toggleCard(id) {
+  if (state.openIds.has(id)) {
+    state.openIds.delete(id);
+  } else {
+    if (state.expandMode === "accordion") state.openIds.clear();
+    state.openIds.add(id);
+    if (!state.trackCache[id] && !state.trackLoading.has(id)) loadTracks(id);
+  }
+  render();
+}
+
+function buildTrackRow(t, i) {
+  const artEl = t.album_image_url
+    ? h("img", { src: t.album_image_url, className: "tr-art", alt: "" })
+    : h("div", { style: { width:"32px",height:"32px",borderRadius:"4px",background:"var(--surface)",flexShrink:"0" } });
+  return h("div", { className: "track-row" },
+    h("span", { className: "tr-num" }, String(t.position+1)),
+    artEl,
+    h("div", { className: "tr-info" },
+      h("div", { className: "tr-name" }, t.track_name),
+      h("div", { className: "tr-detail" }, t.artists.map(a=>a.name).join(", ") + " · " + t.album_name)
+    ),
+    h("span", { className: "tr-duration" }, fmtDur(t.duration_ms)),
+    h("div", { className: "tr-actions" },
+      h("button", { className: "tr-btn", title: "Play" }, "▶"),
+      h("button", { className: "tr-btn queue", title: "Queue" }, "+")
+    )
+  );
+}
+
+function buildCard(p) {
+  const isOpen = state.openIds.has(p.id);
+  const isShared = p.owner && p.owner !== "Andrew Shuman";
+
+  const imgEl = p.image_url
+    ? h("img", { src: p.image_url, className: "pc-art", alt: "",
+        style: { width:"48px",height:"48px",minWidth:"48px",minHeight:"48px" } })
+    : h("div", { className: "pc-art-placeholder",
+        style: { width:"48px",height:"48px",minWidth:"48px",minHeight:"48px" } }, "♫");
+
+  const metaKids = [p.tracks_total + " tracks"];
+  if (isShared) {
+    metaKids.push(h("span", { className: "pc-owner-badge" }, p.owner));
+  }
+
+  const header = h("div", { className: "pc-header", onClick: () => toggleCard(p.id) },
+    imgEl,
+    h("div", { className: "pc-info" },
+      h("div", { className: "pc-name" }, p.name),
+      h("div", { className: "pc-meta" }, ...metaKids)
+    ),
+    h("div", { className: "pc-actions" },
+      h("button", { className: "pc-btn", title: "Play", onClick: e => e.stopPropagation() }, "▶"),
+      h("button", { className: "pc-btn queue", title: "Queue", onClick: e => e.stopPropagation() }, "+")
+    ),
+    h("span", { className: "pc-expand" }, "›")
+  );
+
+  let bodyContent;
+  if (state.trackLoading.has(p.id)) {
+    const spinner = h("span", { style: { display:"inline-block",width:"14px",height:"14px",border:"2px solid #60a5fa",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.7s linear infinite" } });
+    bodyContent = h("div", { className: "track-loading" }, spinner, " Loading tracks…");
+  } else if (state.trackError.has(p.id)) {
+    bodyContent = h("div", { className: "track-loading", style: { cursor:"pointer" }, onClick: () => loadTracks(p.id) },
+      h("span", { style: { opacity:"0.6" } }, "Failed to load tracks — "),
+      h("span", { style: { color:"var(--accent2)",textDecoration:"underline" } }, "tap to retry")
+    );
+  } else if (state.trackCache[p.id]) {
+    bodyContent = h("div", {}, ...state.trackCache[p.id].map((t,i) => buildTrackRow(t,i)));
+  } else {
+    bodyContent = h("div", {});
+  }
+
+  const body = h("div", { className: "pc-body" }, bodyContent);
+  const card = h("div", { className: "playlist-card" + (isOpen ? " open" : "") }, header, body);
+  return card;
+}
+
+function render() {
+  const app = $("#app");
+  app.innerHTML = "";
+
+  // Tab bar
+  const tabs = h("div", { className: "content-tabs" },
+    h("div", { className: "content-tab", style: { opacity: "0.4" } }, "History"),
+    h("div", { className: "content-tab", style: { opacity: "0.4" } }, "Discovery"),
+    h("div", { className: "content-tab active" }, "Playlists")
+  );
+
+  // Design options
+  function dBtn(label, active, onClick) {
+    return h("button", { className: "design-toggle" + (active ? " active" : ""), onClick }, label);
+  }
+  const designPanel = h("div", { className: "design-panel" },
+    h("span", { className: "design-label" }, "🎨 Design Options"),
+    h("div", { className: "design-option" },
+      h("span", {}, "Expand:"),
+      dBtn("Accordion", state.expandMode==="accordion", () => { state.expandMode="accordion"; render(); }),
+      dBtn("Multi-open", state.expandMode==="multi", () => { state.expandMode="multi"; render(); })
+    ),
+    h("div", { className: "design-option" },
+      h("span", {}, "Group:"),
+      dBtn("Flat", !state.groupByOwner, () => { state.groupByOwner=false; render(); }),
+      dBtn("By owner", state.groupByOwner, () => { state.groupByOwner=true; render(); })
+    ),
+    h("div", { className: "design-option" },
+      h("span", {}, "Sort:"),
+      dBtn("A–Z", state.sortKey==="alpha", () => { state.sortKey="alpha"; render(); }),
+      dBtn("Most tracks", state.sortKey==="tracks-desc", () => { state.sortKey="tracks-desc"; render(); }),
+      dBtn("Fewest", state.sortKey==="tracks-asc", () => { state.sortKey="tracks-asc"; render(); })
+    )
+  );
+
+  // Search / sort controls
+  const searchInput = h("input", {
+    type: "search", className: "playlist-search", placeholder: "Search playlists…",
+    value: state.query,
+    onInput: (e) => { state.query = e.target.value; render(); }
+  });
+  const sortSelect = h("select", {
+    className: "sort-select", value: state.sortKey,
+    onChange: (e) => { state.sortKey = e.target.value; render(); }
+  },
+    h("option", { value: "alpha" }, "A–Z"),
+    h("option", { value: "tracks-desc" }, "Most tracks"),
+    h("option", { value: "tracks-asc" }, "Fewest tracks"),
+    h("option", { value: "owner" }, "By owner")
+  );
+  sortSelect.value = state.sortKey;
+
+  // Filter & sort
+  const q = state.query.toLowerCase();
+  let filtered = PLAYLISTS.filter(p => p.name.toLowerCase().includes(q) || (p.owner && p.owner.toLowerCase().includes(q)));
+  filtered.sort((a,b) => {
+    if (state.sortKey==="alpha") return a.name.localeCompare(b.name);
+    if (state.sortKey==="tracks-desc") return b.tracks_total - a.tracks_total;
+    if (state.sortKey==="tracks-asc") return a.tracks_total - b.tracks_total;
+    if (state.sortKey==="owner") return a.owner.localeCompare(b.owner) || a.name.localeCompare(b.name);
+    return 0;
+  });
+
+  const totalTracks = PLAYLISTS.reduce((s,p) => s + p.tracks_total, 0);
+  const statSpan = h("span", { className: "playlist-stat" },
+    filtered.length + "/" + PLAYLISTS.length + " · " + totalTracks.toLocaleString() + " tracks"
+  );
+
+  const controls = h("div", { className: "playlist-controls" }, searchInput, sortSelect, statSpan);
+
+  // Group
+  const groups = [];
+  if (state.groupByOwner) {
+    const byOwner = new Map();
+    filtered.forEach(p => {
+      const owner = p.owner || "Unknown";
+      if (!byOwner.has(owner)) byOwner.set(owner, []);
+      byOwner.get(owner).push(p);
+    });
+    const andrewKey = "Andrew Shuman";
+    if (byOwner.has(andrewKey)) {
+      groups.push({ header: "Your Playlists (" + byOwner.get(andrewKey).length + ")", playlists: byOwner.get(andrewKey) });
+      byOwner.delete(andrewKey);
+    }
+    const otherKeys = [...byOwner.keys()].sort();
+    if (otherKeys.length > 0) {
+      const shared = [];
+      otherKeys.forEach(k => shared.push(...byOwner.get(k)));
+      groups.push({ header: "Shared / Followed (" + shared.length + ")", playlists: shared });
+    }
+  } else {
+    groups.push({ playlists: filtered });
+  }
+
+  // Build list
+  const listKids = [];
+  if (PLAYLISTS.length === 0) {
+    listKids.push(h("div", { className: "empty-state" }, "Loading playlists…"));
+  } else if (filtered.length === 0) {
+    listKids.push(h("div", { className: "empty-state" }, "No matching playlists"));
+  } else {
+    groups.forEach(g => {
+      if (g.header) listKids.push(h("div", { className: "owner-group-header" }, g.header));
+      g.playlists.forEach(p => listKids.push(buildCard(p)));
+    });
+  }
+
+  const list = h("div", { className: "playlist-list" }, ...listKids);
+  const tabContent = h("div", { className: "tab-content" }, list);
+
+  app.appendChild(tabs);
+  app.appendChild(designPanel);
+  app.appendChild(controls);
+  app.appendChild(tabContent);
+
+  // Restore search focus & cursor position
+  const newInput = $(".playlist-search");
+  if (newInput && state.query) {
+    newInput.focus();
+    newInput.setSelectionRange(state.query.length, state.query.length);
+  }
+}
+
+render();
+</script>
+</body>
+</html>
