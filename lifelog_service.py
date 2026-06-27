@@ -1919,12 +1919,8 @@ def get_track_info(device):
             except Exception:
                 pass
 
-        # v2.39: Log captured album identifiers (always log to diagnose)
-        if didl_parent_id or didl_album_art_uri:
-            log(f"[DIDL-album] {name}: parentID='{didl_parent_id}' albumArtURI='{didl_album_art_uri[:200]}'")
-        else:
-            _meta_preview = str(metadata)[:300] if metadata else "(no metadata)"
-            log(f"[DIDL-album] {name}: NO parentID/albumArtURI found. metadata type={type(metadata).__name__} preview={_meta_preview}")
+        # v2.39→v2.40: DIDL fields (parentID, albumArtURI) flow silently into ring buffer.
+        # Per-poll logging removed — parentID is -1 for all services (Spotify/Qobuz/Apple Music).
 
         # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
         # Qobuz/Apple Music DIDL from Sonos is often empty. If we played the track
