@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.34"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.35"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1769,6 +1769,28 @@ def get_track_info(device):
         _JUNK_TITLES = ("ZPSTR_CONNECTING", "ZPSTR_BUFFERING", "NOT_IMPLEMENTED", "x-sonosapi-stream:")
         if title.upper() in (j.upper() for j in _JUNK_TITLES):
             title = ""
+        # v2.35: Extract artist from DIDL metadata when SoCo field is empty
+        artist_raw = info.get("artist", "").strip()
+        album_raw  = info.get("album", "").strip()
+        if metadata and (not artist_raw or not album_raw or not title):
+            try:
+                import re as _re
+                if not title:
+                    _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', metadata)
+                    if _dc:
+                        title = _dc.group(1).strip()
+                        log(f"[DIDL-fallback] Recovered title from DIDL XML: '{title}' for {name}")
+                if not artist_raw:
+                    _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', metadata)
+                    if _cr:
+                        artist_raw = _cr.group(1).strip()
+                        log(f"[DIDL-fallback] Recovered artist from DIDL XML: '{artist_raw}' for {name}")
+                if not album_raw:
+                    _al = _re.search(r'<upnp:album>([^<]+)</upnp:album>', metadata)
+                    if _al:
+                        album_raw = _al.group(1).strip()
+            except Exception as _e:
+                log(f"[DIDL-fallback] Parse error: {_e}")
         if not title:
             if _is_radio_stream:
                 # Derive a synthetic title from the URI
@@ -1780,8 +1802,17 @@ def get_track_info(device):
                 else:
                     title = "Radio Stream"
             else:
-                speaker_failures[name] = 0
-                return None
+                # v2.35: Last resort — use service name so Now Playing still fires
+                _svc = detect_service(uri, metadata)
+                if _svc and _svc not in ("unknown",):
+                    _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
+                    title = f"{_svc_label} Track"
+                    log(f"[DIDL-fallback] Using synthetic title '{title}' for {uri[:80]} on {name}")
+                    log(f"[DIDL-fallback] Raw info keys: title='{info.get('title','')}' artist='{info.get('artist','')}' uri='{uri[:80]}' meta_len={len(metadata)}")
+                else:
+                    log(f"[now-playing] Dropping empty-title track on {name}: uri={uri[:80]} meta_len={len(metadata)}")
+                    speaker_failures[name] = 0
+                    return None
         dur_str  = info.get("duration", "0:00:00")
         dur_secs = 0
         try:
@@ -1793,8 +1824,8 @@ def get_track_info(device):
         except: members = [device.player_name]
         speaker_failures[name] = 0
         ctx = get_container_context(device)
-        return {"title": title, "artist": info.get("artist","").strip(),
-                "album": info.get("album","").strip(), "uri": uri,
+        return {"title": title, "artist": artist_raw,
+                "album": album_raw, "uri": uri,
                 "service": detect_service(uri, metadata),
                 "duration_seconds": dur_secs, "rooms": members,
                 "coordinator": device.player_name,
