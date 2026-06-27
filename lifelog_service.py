@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.38"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.39"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -300,6 +300,8 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         "service": track_info.get("service", ""),
         "uri": track_info.get("uri", ""),
         "timestamp": (started_at or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "didl_parent_id": track_info.get("didl_parent_id", ""),
+        "didl_album_art_uri": track_info.get("didl_album_art_uri", ""),
     }
     _state_ring_buffer.insert(0, entry)
     while len(_state_ring_buffer) > STATE_RING_MAX:
@@ -1778,6 +1780,9 @@ def get_track_info(device):
         album_raw  = info.get("album", "").strip()
         import re as _re
         from html import unescape as _html_unescape
+        # v2.39: Capture album identifiers from DIDL for album-level replay
+        didl_parent_id = ""
+        didl_album_art_uri = ""
 
         # --- Phase 1: Try SoCo's metadata field (TrackMetaData from GetPositionInfo) ---
         if metadata and (not artist_raw or not album_raw or not title):
@@ -1800,6 +1805,15 @@ def get_track_info(device):
                         _al = _re.search(r'<upnp:album>([^<]+)</upnp:album>', _src)
                         if _al:
                             album_raw = _al.group(1).strip()
+                    # v2.39: Extract parentID (album container) and albumArtURI
+                    if not didl_parent_id:
+                        _pid = _re.search(r'parentID="([^"]*)"', _src)
+                        if _pid:
+                            didl_parent_id = _pid.group(1).strip()
+                    if not didl_album_art_uri:
+                        _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', _src)
+                        if _aau:
+                            didl_album_art_uri = _aau.group(1).strip()
                     if title and artist_raw:
                         break  # Got what we need
             except Exception as _e:
@@ -1830,8 +1844,22 @@ def get_track_info(device):
                         log(f"[DIDL-raw] Recovered artist from DidlObject: '{artist_raw}'")
                     if not album_raw and getattr(_raw_meta, 'album', ''):
                         album_raw = getattr(_raw_meta, 'album', '')
+                    # v2.39: Extract album identifiers from DidlObject
+                    if not didl_parent_id and getattr(_raw_meta, 'parent_id', ''):
+                        didl_parent_id = str(getattr(_raw_meta, 'parent_id', ''))
+                    if not didl_album_art_uri and getattr(_raw_meta, 'album_art_uri', ''):
+                        didl_album_art_uri = str(getattr(_raw_meta, 'album_art_uri', ''))
                 else:
                     log(f"[DIDL-raw]   TrackMetaData: {repr(str(_raw_meta))[:200]}")
+                    # v2.39: Try regex on raw string for parentID/albumArtURI
+                    if not didl_parent_id:
+                        _pid = _re.search(r'parentID="([^"]*)"', str(_raw_meta))
+                        if _pid:
+                            didl_parent_id = _pid.group(1).strip()
+                    if not didl_album_art_uri:
+                        _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', str(_raw_meta))
+                        if _aau:
+                            didl_album_art_uri = _aau.group(1).strip()
                 # Also try EnqueuedTransportURIMetaData
                 if (_enq_meta and isinstance(_enq_meta, str) and len(_enq_meta) > 10
                         and (not title or not artist_raw)):
@@ -1855,6 +1883,10 @@ def get_track_info(device):
                             title = _t
             except Exception as _e:
                 log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
+
+        # v2.39: Log captured album identifiers
+        if didl_parent_id or didl_album_art_uri:
+            log(f"[DIDL-album] {name}: parentID='{didl_parent_id}' albumArtURI='{didl_album_art_uri[:200]}'")
 
         # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
         # Qobuz/Apple Music DIDL from Sonos is often empty. If we played the track
@@ -1929,7 +1961,9 @@ def get_track_info(device):
                 "service": detect_service(uri, metadata),
                 "duration_seconds": dur_secs, "rooms": members,
                 "coordinator": device.player_name,
-                "container": ctx}
+                "container": ctx,
+                "didl_parent_id": didl_parent_id,
+                "didl_album_art_uri": didl_album_art_uri}
     except Exception as e:
         failures = speaker_failures.get(name, 0) + 1
         speaker_failures[name] = failures
@@ -1963,6 +1997,8 @@ def post_history(track, room, started_at, ended_at):
         "duration_played_seconds": duration_played,
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
+        "didl_parent_id": track.get("didl_parent_id", ""),
+        "didl_album_art_uri": track.get("didl_album_art_uri", ""),
     }
     # Add container context (playlist/album/station) if available
     container = track.get("container")
