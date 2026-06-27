@@ -229,6 +229,14 @@ _current_mute_states     = {}   # room -> bool (True=muted)
 speaker_failures         = {}
 speaker_offline_since    = {}
 
+# --- URI METADATA CACHE (v2.37) ----------------------------------------------
+# When play_next enqueues a non-Spotify track with known title/artist/album,
+# cache it keyed by URI. get_track_info() checks this cache before falling back
+# to synthetic titles like "Qobuz Track". Qobuz and Apple Music DIDL metadata
+# from Sonos is often empty even though we sent correct metadata when enqueuing.
+# Cache entries expire after 4 hours to avoid stale data buildup.
+_uri_metadata_cache      = {}   # uri -> {"title": str, "artist": str, "album": str, "ts": float}
+
 # --- POLL SNAPSHOT (v2.24) ---------------------------------------------------
 # Single-pass snapshot computed once per poll cycle. All downstream consumers
 # (SSE enrichment, state push, heartbeat, diagnostics) read from this instead
@@ -1844,6 +1852,25 @@ def get_track_info(device):
             except Exception as _e:
                 log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
 
+        # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
+        # Qobuz/Apple Music DIDL from Sonos is often empty. If we played the track
+        # via play_next, we cached the metadata then. Look it up now.
+        _URI_CACHE_TTL = 4 * 3600  # 4 hours
+        if uri and (not title or not artist_raw) and uri in _uri_metadata_cache:
+            _cached = _uri_metadata_cache[uri]
+            if time.time() - _cached["ts"] < _URI_CACHE_TTL:
+                if not title and _cached["title"]:
+                    title = _cached["title"]
+                    log(f"[DIDL-cache] Recovered title from play_next cache: '{title}' for {name}")
+                if not artist_raw and _cached["artist"]:
+                    artist_raw = _cached["artist"]
+                    log(f"[DIDL-cache] Recovered artist from play_next cache: '{artist_raw}' for {name}")
+                if not album_raw and _cached["album"]:
+                    album_raw = _cached["album"]
+                    log(f"[DIDL-cache] Recovered album from play_next cache: '{album_raw}' for {name}")
+            else:
+                del _uri_metadata_cache[uri]  # expired
+
         if not title:
             if _is_radio_stream:
                 # Derive a synthetic title from the URI
@@ -1861,9 +1888,7 @@ def get_track_info(device):
                     _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
                     title = f"{_svc_label} Track"
                     log(f"[DIDL-fallback] Using synthetic title '{title}' for {uri[:80]} on {name}")
-                    log(f"[DIDL-fallback] All SoCo info keys: {list(info.keys())}")
-                    for _k, _v in info.items():
-                        log(f"[DIDL-fallback]   {_k} = {repr(str(_v))[:200]}")
+                    log(f"[DIDL-fallback] Raw info keys: title='{info.get('title','')}' artist='{info.get('artist','')}' uri='{uri[:80]}' meta_len={len(metadata)}")
                 else:
                     log(f"[now-playing] Dropping empty-title track on {name}: uri={uri[:80]} meta_len={len(metadata)}")
                     speaker_failures[name] = 0
@@ -2612,6 +2637,17 @@ def execute_command(cmd, source="unknown"):
                             # Any next() failure -- just play directly
                             log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
                             coordinator.play_from_queue(0)
+                    # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
+                    # can recover title/artist when Sonos DIDL comes back empty.
+                    if not is_spotify and (title or cmd_artist):
+                        _uri_metadata_cache[track_uri] = {
+                            "title": title or "",
+                            "artist": cmd_artist or "",
+                            "album": cmd.get("album", "") or "",
+                            "ts": time.time(),
+                        }
+                        log(f"play_next: cached metadata for {track_uri[:80]}: '{title}' - {cmd_artist}")
+
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
@@ -2723,6 +2759,15 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = "No URI provided"
             else:
                 dev.play_uri(uri, meta=meta, title=title)
+                # v2.37: Cache metadata so polling can recover it when DIDL is empty
+                if not uri.startswith("x-sonos-spotify:") and not uri.startswith("spotify:"):
+                    _uri_metadata_cache[uri] = {
+                        "title": title or "",
+                        "artist": cmd.get("artist", "") or "",
+                        "album": cmd.get("album", "") or "",
+                        "ts": time.time(),
+                    }
+                    log(f"play_uri: cached metadata for {uri[:80]}: '{title}'")
                 result["success"] = True
                 room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                 result["message"] = f"Playing '{title}' in {room_label}"
