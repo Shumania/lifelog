@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.35"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.36"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1775,6 +1775,9 @@ def get_track_info(device):
         if metadata and (not artist_raw or not album_raw or not title):
             try:
                 import re as _re
+                # v2.36: Log raw metadata when fallback is needed so we can see what Sonos sends
+                if not title or not artist_raw:
+                    log(f"[DIDL-debug] Raw metadata for {name} ({len(metadata)}b): {metadata[:300]}")
                 if not title:
                     _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', metadata)
                     if _dc:
