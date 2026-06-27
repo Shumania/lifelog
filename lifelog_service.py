@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.36"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.37"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1765,31 +1765,85 @@ def get_track_info(device):
         _JUNK_TITLES = ("ZPSTR_CONNECTING", "ZPSTR_BUFFERING", "NOT_IMPLEMENTED", "x-sonosapi-stream:")
         if title.upper() in (j.upper() for j in _JUNK_TITLES):
             title = ""
-        # v2.35: Extract artist from DIDL metadata when SoCo field is empty
+        # v2.37: Enhanced DIDL metadata extraction with raw AVTransport fallback
         artist_raw = info.get("artist", "").strip()
         album_raw  = info.get("album", "").strip()
+        import re as _re
+        from html import unescape as _html_unescape
+
+        # --- Phase 1: Try SoCo's metadata field (TrackMetaData from GetPositionInfo) ---
         if metadata and (not artist_raw or not album_raw or not title):
             try:
-                import re as _re
-                # v2.36: Log raw metadata when fallback is needed so we can see what Sonos sends
                 if not title or not artist_raw:
-                    log(f"[DIDL-debug] Raw metadata for {name} ({len(metadata)}b): {metadata[:300]}")
-                if not title:
-                    _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', metadata)
-                    if _dc:
-                        title = _dc.group(1).strip()
-                        log(f"[DIDL-fallback] Recovered title from DIDL XML: '{title}' for {name}")
-                if not artist_raw:
-                    _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', metadata)
-                    if _cr:
-                        artist_raw = _cr.group(1).strip()
-                        log(f"[DIDL-fallback] Recovered artist from DIDL XML: '{artist_raw}' for {name}")
-                if not album_raw:
-                    _al = _re.search(r'<upnp:album>([^<]+)</upnp:album>', metadata)
-                    if _al:
-                        album_raw = _al.group(1).strip()
+                    log(f"[DIDL-debug] SoCo metadata for {name} ({len(metadata)}b): {metadata[:500]}")
+                # Try with and without HTML entity decoding
+                for _src in [metadata, _html_unescape(metadata)]:
+                    if not title:
+                        _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', _src)
+                        if _dc:
+                            title = _dc.group(1).strip()
+                            log(f"[DIDL-fallback] Recovered title from DIDL XML: '{title}' for {name}")
+                    if not artist_raw:
+                        _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', _src)
+                        if _cr:
+                            artist_raw = _cr.group(1).strip()
+                            log(f"[DIDL-fallback] Recovered artist from DIDL XML: '{artist_raw}' for {name}")
+                    if not album_raw:
+                        _al = _re.search(r'<upnp:album>([^<]+)</upnp:album>', _src)
+                        if _al:
+                            album_raw = _al.group(1).strip()
+                    if title and artist_raw:
+                        break  # Got what we need
             except Exception as _e:
                 log(f"[DIDL-fallback] Parse error: {_e}")
+
+        # --- Phase 2: If still missing, try raw AVTransport GetPositionInfo ---
+        if not title or not artist_raw:
+            try:
+                _raw = device.avTransport.GetPositionInfo(InstanceID=0)
+                _raw_meta = _raw.get("TrackMetaData", "")
+                _enq_meta = _raw.get("EnqueuedTransportURIMetaData", "")
+                # Log raw fields for diagnostics
+                log(f"[DIDL-raw] GetPositionInfo for {name}:")
+                log(f"[DIDL-raw]   TrackURI: {_raw.get('TrackURI', '')[:120]}")
+                log(f"[DIDL-raw]   TrackMetaData type={type(_raw_meta).__name__} len={len(str(_raw_meta))}")
+                if _raw_meta and isinstance(_raw_meta, str) and len(_raw_meta) > 10:
+                    log(f"[DIDL-raw]   TrackMetaData: {str(_raw_meta)[:500]}")
+                elif hasattr(_raw_meta, 'title'):
+                    # SoCo may parse it into a DidlObject
+                    log(f"[DIDL-raw]   TrackMetaData is DidlObject: title='{getattr(_raw_meta, 'title', '')}' creator='{getattr(_raw_meta, 'creator', '')}'")
+                    if not title and getattr(_raw_meta, 'title', ''):
+                        title = _raw_meta.title
+                        log(f"[DIDL-raw] Recovered title from DidlObject: '{title}'")
+                    if not artist_raw and getattr(_raw_meta, 'creator', ''):
+                        artist_raw = _raw_meta.creator
+                        log(f"[DIDL-raw] Recovered artist from DidlObject: '{artist_raw}'")
+                    if not album_raw and getattr(_raw_meta, 'album', ''):
+                        album_raw = getattr(_raw_meta, 'album', '')
+                else:
+                    log(f"[DIDL-raw]   TrackMetaData: {repr(str(_raw_meta))[:200]}")
+                # Also try EnqueuedTransportURIMetaData
+                if (_enq_meta and isinstance(_enq_meta, str) and len(_enq_meta) > 10
+                        and (not title or not artist_raw)):
+                    log(f"[DIDL-raw]   EnqueuedMeta: {str(_enq_meta)[:500]}")
+                    for _src in [_enq_meta, _html_unescape(_enq_meta)]:
+                        if not title:
+                            _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', _src)
+                            if _dc:
+                                title = _dc.group(1).strip()
+                                log(f"[DIDL-raw] Recovered title from EnqueuedMeta: '{title}'")
+                        if not artist_raw:
+                            _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', _src)
+                            if _cr:
+                                artist_raw = _cr.group(1).strip()
+                                log(f"[DIDL-raw] Recovered artist from EnqueuedMeta: '{artist_raw}'")
+                elif hasattr(_enq_meta, 'title'):
+                    log(f"[DIDL-raw]   EnqueuedMeta is DidlObject: title='{getattr(_enq_meta, 'title', '')}'")
+                    if not title and getattr(_enq_meta, 'title', ''):
+                        title = _enq_meta.title
+            except Exception as _e:
+                log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
+
         if not title:
             if _is_radio_stream:
                 # Derive a synthetic title from the URI
@@ -1807,7 +1861,9 @@ def get_track_info(device):
                     _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
                     title = f"{_svc_label} Track"
                     log(f"[DIDL-fallback] Using synthetic title '{title}' for {uri[:80]} on {name}")
-                    log(f"[DIDL-fallback] Raw info keys: title='{info.get('title','')}' artist='{info.get('artist','')}' uri='{uri[:80]}' meta_len={len(metadata)}")
+                    log(f"[DIDL-fallback] All SoCo info keys: {list(info.keys())}")
+                    for _k, _v in info.items():
+                        log(f"[DIDL-fallback]   {_k} = {repr(str(_v))[:200]}")
                 else:
                     log(f"[now-playing] Dropping empty-title track on {name}: uri={uri[:80]} meta_len={len(metadata)}")
                     speaker_failures[name] = 0
