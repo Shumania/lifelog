@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.39"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.40"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1884,9 +1884,47 @@ def get_track_info(device):
             except Exception as _e:
                 log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
 
-        # v2.39: Log captured album identifiers
+        # v2.39: Extract album identifiers unconditionally from metadata string
+        # (Phase 1/2 are gated on missing title/artist, but we need parentID/albumArtURI
+        #  even when SoCo already gives us title/artist/album)
+        if metadata and not didl_parent_id:
+            try:
+                _pid = _re.search(r'parentID="([^"]*)"', metadata)
+                if _pid:
+                    didl_parent_id = _pid.group(1).strip()
+                if not didl_parent_id:
+                    _pid = _re.search(r'parentID="([^"]*)"', _html_unescape(metadata))
+                    if _pid:
+                        didl_parent_id = _pid.group(1).strip()
+            except Exception as _e:
+                log(f"[DIDL-album] parentID parse error: {_e}")
+        if metadata and not didl_album_art_uri:
+            try:
+                _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', metadata)
+                if _aau:
+                    didl_album_art_uri = _aau.group(1).strip()
+                if not didl_album_art_uri:
+                    _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', _html_unescape(metadata))
+                    if _aau:
+                        didl_album_art_uri = _aau.group(1).strip()
+            except Exception as _e:
+                log(f"[DIDL-album] albumArtURI parse error: {_e}")
+        # Also try the raw DidlObject attributes if metadata is a parsed object
+        if metadata and (not didl_parent_id or not didl_album_art_uri):
+            try:
+                if not isinstance(metadata, str) and not didl_parent_id and getattr(metadata, 'parent_id', ''):
+                    didl_parent_id = str(getattr(metadata, 'parent_id', ''))
+                if not isinstance(metadata, str) and not didl_album_art_uri and getattr(metadata, 'album_art_uri', ''):
+                    didl_album_art_uri = str(getattr(metadata, 'album_art_uri', ''))
+            except Exception:
+                pass
+
+        # v2.39: Log captured album identifiers (always log to diagnose)
         if didl_parent_id or didl_album_art_uri:
             log(f"[DIDL-album] {name}: parentID='{didl_parent_id}' albumArtURI='{didl_album_art_uri[:200]}'")
+        else:
+            _meta_preview = str(metadata)[:300] if metadata else "(no metadata)"
+            log(f"[DIDL-album] {name}: NO parentID/albumArtURI found. metadata type={type(metadata).__name__} preview={_meta_preview}")
 
         # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
         # Qobuz/Apple Music DIDL from Sonos is often empty. If we played the track
