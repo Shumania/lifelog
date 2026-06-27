@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.37"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.38"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1817,11 +1817,13 @@ def get_track_info(device):
                 log(f"[DIDL-raw]   TrackMetaData type={type(_raw_meta).__name__} len={len(str(_raw_meta))}")
                 if _raw_meta and isinstance(_raw_meta, str) and len(_raw_meta) > 10:
                     log(f"[DIDL-raw]   TrackMetaData: {str(_raw_meta)[:500]}")
-                elif hasattr(_raw_meta, 'title'):
-                    # SoCo may parse it into a DidlObject
+                elif not isinstance(_raw_meta, str) and hasattr(_raw_meta, 'title'):
+                    # SoCo may parse it into a DidlObject (but not a plain str — str.title is a method!)
                     log(f"[DIDL-raw]   TrackMetaData is DidlObject: title='{getattr(_raw_meta, 'title', '')}' creator='{getattr(_raw_meta, 'creator', '')}'")
                     if not title and getattr(_raw_meta, 'title', ''):
-                        title = _raw_meta.title
+                        _t = _raw_meta.title
+                        if isinstance(_t, str):
+                            title = _t
                         log(f"[DIDL-raw] Recovered title from DidlObject: '{title}'")
                     if not artist_raw and getattr(_raw_meta, 'creator', ''):
                         artist_raw = _raw_meta.creator
@@ -1845,10 +1847,12 @@ def get_track_info(device):
                             if _cr:
                                 artist_raw = _cr.group(1).strip()
                                 log(f"[DIDL-raw] Recovered artist from EnqueuedMeta: '{artist_raw}'")
-                elif hasattr(_enq_meta, 'title'):
+                elif not isinstance(_enq_meta, str) and hasattr(_enq_meta, 'title'):
                     log(f"[DIDL-raw]   EnqueuedMeta is DidlObject: title='{getattr(_enq_meta, 'title', '')}'")
                     if not title and getattr(_enq_meta, 'title', ''):
-                        title = _enq_meta.title
+                        _t = _enq_meta.title
+                        if isinstance(_t, str):
+                            title = _t
             except Exception as _e:
                 log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
 
@@ -1903,6 +1907,22 @@ def get_track_info(device):
         try:    members = list(dict.fromkeys(m.player_name for m in device.group.members))  # v2.36: deduplicate (SoCo sometimes returns coordinator twice)
         except: members = [device.player_name]
         speaker_failures[name] = 0
+        # v2.38: Safety net — ensure title/artist/album are plain strings (never method refs)
+        for _field_name, _field_val in [("title", title), ("artist", artist_raw), ("album", album_raw)]:
+            if _field_val and not isinstance(_field_val, str):
+                log(f"[DIDL-safety] Non-string {_field_name} detected: {type(_field_val).__name__} = {repr(_field_val)[:100]} — clearing")
+                if _field_name == "title": title = None
+                elif _field_name == "artist": artist_raw = None
+                elif _field_name == "album": album_raw = None
+        if not title:
+            _svc = detect_service(uri, metadata)
+            if _svc and _svc not in ("unknown",):
+                _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
+                title = f"{_svc_label} Track"
+                log(f"[DIDL-safety] Used synthetic title '{title}' after clearing non-string")
+            else:
+                log(f"[DIDL-safety] No valid title after clearing non-string on {name}")
+                return None
         ctx = get_container_context(device)
         return {"title": title, "artist": artist_raw,
                 "album": album_raw, "uri": uri,
@@ -3143,7 +3163,16 @@ def ntfy_listener_thread():
                     raw = msg.get("message", "")
                     log(f"[!] ntfy: {raw[:120]}")
                     try:
-                        cmd    = json.loads(raw)
+                        try:
+                            cmd = json.loads(raw)
+                        except (json.JSONDecodeError, ValueError):
+                            # v2.38: Support plain-text commands like "update_check" or "get_logs"
+                            _plain = raw.strip()
+                            if _plain and _plain.isidentifier():
+                                cmd = {"action": _plain}
+                                log(f"ntfy: parsed plain-text command as action='{_plain}'")
+                            else:
+                                raise
                         # Use ntfy server timestamp (always correct, in seconds)
                         ntfy_ts = msg.get("time", 0)
                         age     = time.time() - ntfy_ts if ntfy_ts else 0
