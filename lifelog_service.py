@@ -758,25 +758,21 @@ def _build_poll_snapshot(coordinators):
                     modes[name] = mode
                 except Exception:
                     pass
-                # Coordinator is playing -- add it and any genuinely grouped members.
+                # Coordinator is playing -- add it and all grouped members.
+                # v2.36: Simplified — use dev.group.members directly (same as get_track_info).
+                # Old IP-verification code silently dropped members when SoCo cache was stale.
                 playing.append(name)
                 if dev.group:
                     try:
-                        coord_ip = dev.ip_address
                         for member in dev.group.members:
                             mname = member.player_name
                             if mname == name:
                                 continue
-                            try:
-                                mc = member.group.coordinator if member.group else None
-                                if mc and mc.ip_address == coord_ip:
-                                    playing.append(mname)
-                                    if mname not in current_devices_by_name:
-                                        current_devices_by_name[mname] = member
-                            except Exception:
-                                pass
+                            playing.append(mname)
+                            if mname not in current_devices_by_name:
+                                current_devices_by_name[mname] = member
                     except Exception as e:
-                        log(f"[snapshot] group check error for {name}: {e}")
+                        log(f"[snapshot] group member enumeration error for {name}: {e}")
             elif state == "PAUSED_PLAYBACK":
                 pass  # captured in states dict, used for rooms_paused below
         except Exception as e:
