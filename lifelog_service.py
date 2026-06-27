@@ -1819,7 +1819,7 @@ def get_track_info(device):
             if len(p) == 3:
                 dur_secs = int(p[0])*3600 + int(p[1])*60 + int(p[2])
         except Exception: pass
-        try:    members = [m.player_name for m in device.group.members]
+        try:    members = list(dict.fromkeys(m.player_name for m in device.group.members))  # v2.36: deduplicate (SoCo sometimes returns coordinator twice)
         except: members = [device.player_name]
         speaker_failures[name] = 0
         ctx = get_container_context(device)
