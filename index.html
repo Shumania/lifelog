@@ -1627,7 +1627,7 @@ function renderStatusBar() {
     const label = names[c.client_id] || c.client_id;
     const ver = c.version ? ` v${c.version}` : '';
     return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}<span style="font-weight:400;opacity:0.7">${esc(ver)}</span></span>`;
-  }).join('') + ' <span onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">🔄</span>';
+  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">🔄</span>';
 }
 
 function hardRefresh() {
