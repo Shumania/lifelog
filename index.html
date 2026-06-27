@@ -653,7 +653,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.37';
+const PAGE_VERSION = 'p2.38';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1973,7 +1973,7 @@ function renderRadioSession(item) {
     tracksHtml = `<div class="radio-tracks" id="rs-${sid}" style="display:${wasExpanded ? 'block' : 'none'};padding:4px 0 4px 36px;">`;
     for (const t of item.tracks) {
       const childSvc = item.source || 'sonos_radio';
-      const playData = t.uri ? encodeURIComponent(JSON.stringify({uri:t.uri,title:t.title,artist:t.artist||'',service:childSvc})).replace(/'/g,'%27') : '';
+      const playData = t.uri ? encodeURIComponent(JSON.stringify({uri:t.uri,title:t.title,artist:t.artist||'',album:t.album||'',service:childSvc})).replace(/'/g,'%27') : '';
       const exploreData = encodeURIComponent(JSON.stringify({title:t.title,artist:t.artist||'',album:t.album||'',source:childSvc,uri:t.uri||''})).replace(/'/g,'%27');
       tracksHtml += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;">
         ${t.album_image ? `<img src="${esc(t.album_image)}" style="width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0;">` : '<div style="width:28px;height:28px;border-radius:4px;background:var(--surface);flex-shrink:0;"></div>'}
@@ -2080,7 +2080,7 @@ function renderHistory() {
     const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
     // CRITICAL: encodeURIComponent does NOT encode single quotes — they break onclick='...' attributes.
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
-    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',service:item.service||''})).replace(/'/g,'%27');
+    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',album:item.album||'',service:item.service||''})).replace(/'/g,'%27');
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
     const ctxId = 'ctx-' + (item.timestamp||'').replace(/\W/g,'');
     // Has album or context → show expand button
@@ -2457,7 +2457,7 @@ async function directPlay(action, encodedData) {
     }
     const finalUri = playUri || uri;
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', artist: info.artist || '', rooms, target_client_id: commanderId });
+    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', artist: info.artist || '', album: info.album || '', rooms, target_client_id: commanderId });
     if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
     return;
   }
