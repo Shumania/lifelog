@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.40"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.41"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1919,7 +1919,7 @@ def get_track_info(device):
             except Exception:
                 pass
 
-        # v2.39→v2.40: DIDL fields (parentID, albumArtURI) flow silently into ring buffer.
+        # v2.41: DIDL fields (parentID, albumArtURI) flow silently into ring buffer.
         # Per-poll logging removed — parentID is -1 for all services (Spotify/Qobuz/Apple Music).
 
         # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
