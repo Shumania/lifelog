@@ -653,7 +653,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.39';
+const PAGE_VERSION = 'p2.40';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2104,7 +2104,7 @@ function renderHistory() {
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         ${exploreButton(item.artist, exploreData)}
-        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||'',sonos_uri:item.sonos_uri||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
+        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
     </div>
     ${hasCtx ? `<div class="ctx-panel" id="${ctxId}"></div>` : ''}`;
@@ -2680,14 +2680,20 @@ async function playContext(action, encodedData) {
   const info = JSON.parse(decodeURIComponent(encodedData));
   let contextUri = info.context_uri;
   const svc = (info.service || '').toLowerCase();
+  const sonosUri = (info.sonos_uri || '').toLowerCase();
+  console.log('[playContext]', action, 'svc=' + svc, 'album=' + info.album, 'context_uri=' + (contextUri || '(none)'), 'sonos_uri=' + (info.sonos_uri || '(none)'));
 
   // --- QOBUZ / APPLE MUSIC ALBUM PATH (Sonos only) ---
   // These services don't have Spotify-style context URIs. Use play_album action
   // which searches the music service natively and queues the full album.
-  if ((svc.includes('qobuz') || svc.includes('apple')) && info.album && house !== 'roaming') {
+  // Detect by service name OR by sonos_uri pattern (sid=31 = Qobuz, sid=204 = Apple Music)
+  const isQobuz = svc.includes('qobuz') || sonosUri.includes('sid=31');
+  const isApple = svc.includes('apple') || sonosUri.includes('sid=204');
+  if ((isQobuz || isApple) && info.album && house !== 'roaming') {
     const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
-    const service = svc.includes('qobuz') ? 'Qobuz' : 'Apple Music';
+    const service = isQobuz ? 'Qobuz' : 'Apple Music';
+    console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist);
     const label = info.album;
     showToast('Searching ' + service + '…');
     const payload = {
