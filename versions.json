@@ -1,5 +1,5 @@
 {
-  "service_version": "2.42",
+  "service_version": "2.43",
   "clients": {
     "lifelog_mind": {
       "house": "vashon",
