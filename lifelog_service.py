@@ -60,7 +60,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.41"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.42"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -2466,6 +2466,43 @@ def execute_command(cmd, source="unknown"):
                         result["data"]    = {"title":title,"uri":uri,"service":svc_name}
                     else:
                         result["message"] = f"Found '{title}' but no URI"
+
+        elif action == "search_and_queue":
+            # Like search_and_play but uses add_to_queue(DidlObject) instead of play_uri
+            from soco.music_services import MusicService
+            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            svc_name    = cmd.get("service", "Qobuz")
+            query       = cmd.get("query", "")
+            search_type = cmd.get("search_type", "albums")
+            dev = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found"
+            elif not query:
+                result["message"] = "No query provided"
+            else:
+                items = list(MusicService(svc_name).search(search_type, query, 0, 5))
+                if not items:
+                    result["message"] = f"No {search_type} for '{query}' on {svc_name}"
+                else:
+                    first = items[0]
+                    title = getattr(first, "title", str(first))
+                    uri   = getattr(first, "uri", None)
+                    item_class = type(first).__name__
+                    log(f"search_and_queue: item type={item_class} title='{title}' uri={uri}")
+                    log(f"search_and_queue: item attrs: {[a for a in dir(first) if not a.startswith('_')]}")
+                    try:
+                        pos = dev.add_to_queue(first)
+                        log(f"search_and_queue: add_to_queue returned position={pos}")
+                        dev.play_from_queue(pos - 1)  # 0-indexed
+                        result["success"] = True
+                        result["message"] = f"Queued+playing '{title}' ({svc_name}) in {room} at pos {pos}"
+                        result["data"] = {"title": title, "uri": uri, "service": svc_name, "item_class": item_class, "position": pos}
+                    except Exception as eq:
+                        log(f"search_and_queue: add_to_queue failed: {eq}")
+                        # Fallback: log the DIDL for debugging
+                        meta = getattr(first, "to_didl_string", lambda: "n/a")()
+                        log(f"search_and_queue: DIDL metadata: {meta[:500]}")
+                        result["message"] = f"add_to_queue failed: {eq}"
 
         elif action == "play_spotify_uri":
             from soco.plugins.sharelink import ShareLinkPlugin
