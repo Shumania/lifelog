@@ -1,0 +1,137 @@
+[
+ {
+  "position": 0,
+  "track_id": "358jMpTqOfIOYjpcg2Ig2j",
+  "track_name": "Bonnie And Clyde",
+  "track_uri": "spotify:track:358jMpTqOfIOYjpcg2Ig2j",
+  "duration_ms": 256000,
+  "artists": [
+   {
+    "name": "Brigitte Bardot",
+    "id": "1q24xIsAD7JZuVkTLR9TJy"
+   },
+   {
+    "name": "Serge Gainsbourg",
+    "id": "01C9OoXDvCKkGcf735Tcfo"
+   }
+  ],
+  "album_name": "Bubble Gum",
+  "album_id": "1Rvk3tavC4U97f1UObfsnb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02950e076c1a71a2a3215ffafe",
+  "added_at": "2026-07-11T17:20:24Z"
+ },
+ {
+  "position": 1,
+  "track_id": "5gHHwMbfqfEU4g3DGRKGhZ",
+  "track_name": "Laetitia - Bande originale du film \"Les aventuriers\"",
+  "track_uri": "spotify:track:5gHHwMbfqfEU4g3DGRKGhZ",
+  "duration_ms": 144133,
+  "artists": [
+   {
+    "name": "Alain Delon",
+    "id": "2e1aRMKieswINolf49MzQ8"
+   }
+  ],
+  "album_name": "Le Samoura\u00ef / Les Aventuriers",
+  "album_id": "7tDqrNxUlyXMDzcjGNg0hE",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02299548a36dc4debc660c8f99",
+  "added_at": "2026-07-11T17:21:12Z"
+ },
+ {
+  "position": 2,
+  "track_id": "26ivjFyAPRjNnhhZ1IbeAQ",
+  "track_name": "Freak",
+  "track_uri": "spotify:track:26ivjFyAPRjNnhhZ1IbeAQ",
+  "duration_ms": 239960,
+  "artists": [
+   {
+    "name": "Yseult",
+    "id": "1QsdzIKkTT5gDFj8GB1cIX"
+   },
+   {
+    "name": "JT",
+    "id": "39af15p0feaAOdL9DTRj3m"
+   }
+  ],
+  "album_name": "Freak",
+  "album_id": "5xbEWVYh6xBdMyOxqOkqD9",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02ed1ee095de24997d8e99fa00",
+  "added_at": "2026-07-11T17:21:45Z"
+ },
+ {
+  "position": 3,
+  "track_id": "0pfTlQJBOV4LUmF8qqrVy5",
+  "track_name": "Deadly Valentine",
+  "track_uri": "spotify:track:0pfTlQJBOV4LUmF8qqrVy5",
+  "duration_ms": 364986,
+  "artists": [
+   {
+    "name": "Charlotte Gainsbourg",
+    "id": "2rBcvLKWCZs9w1qIWv560v"
+   }
+  ],
+  "album_name": "Rest",
+  "album_id": "5nalJu58LJj7AMMyHwtbLX",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02707b41502b707f5f9461c2ba",
+  "added_at": "2026-07-11T17:22:13Z"
+ },
+ {
+  "position": 4,
+  "track_id": "7jOM0KIKgIppqIEvEjixaj",
+  "track_name": "All I Need (feat. Beth Hirsch)",
+  "track_uri": "spotify:track:7jOM0KIKgIppqIEvEjixaj",
+  "duration_ms": 268306,
+  "artists": [
+   {
+    "name": "Air",
+    "id": "1P6U1dCeHxPui5pIrGmndZ"
+   },
+   {
+    "name": "Beth Hirsch",
+    "id": "7a1nGgiWVcRP4PV6xkXQ96"
+   }
+  ],
+  "album_name": "Moon Safari",
+  "album_id": "206GTDefY2qRMQxYXmfb0a",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e027f4dc15877a3c43f611a2709",
+  "added_at": "2026-07-11T17:22:19Z"
+ },
+ {
+  "position": 5,
+  "track_id": "1MLvc7jAgCTIqVbI2Hr2uE",
+  "track_name": "Between The Bars",
+  "track_uri": "spotify:track:1MLvc7jAgCTIqVbI2Hr2uE",
+  "duration_ms": 224973,
+  "artists": [
+   {
+    "name": "Madeleine Peyroux",
+    "id": "7nXyULtoL8k7wP9l6kg8Ef"
+   }
+  ],
+  "album_name": "Careless Love",
+  "album_id": "4Kev9VMY5Ypfo19jRqK6bW",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02d0f5bb9695225a5c88db29bd",
+  "added_at": "2026-07-11T17:22:40Z"
+ },
+ {
+  "position": 6,
+  "track_id": "3p441l1s27Pfo8at57EwEf",
+  "track_name": "Je t'aime moi non plus",
+  "track_uri": "spotify:track:3p441l1s27Pfo8at57EwEf",
+  "duration_ms": 270506,
+  "artists": [
+   {
+    "name": "Brigitte Bardot",
+    "id": "1q24xIsAD7JZuVkTLR9TJy"
+   },
+   {
+    "name": "Serge Gainsbourg",
+    "id": "01C9OoXDvCKkGcf735Tcfo"
+   }
+  ],
+  "album_name": "Bubble Gum",
+  "album_id": "1Rvk3tavC4U97f1UObfsnb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d00001e02950e076c1a71a2a3215ffafe",
+  "added_at": "2026-07-11T17:22:58Z"
+ }
+]
