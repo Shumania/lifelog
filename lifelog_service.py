@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.45"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.46"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -2984,9 +2984,13 @@ def execute_command(cmd, source="unknown"):
                                 log(f"play_next: after next(), state={state} -> forcing play_from_queue({insert_pos - 1})")
                                 coordinator.play_from_queue(insert_pos - 1)
                         except Exception as skip_err:
-                            # Any next() failure -- just play directly
-                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
-                            coordinator.play_from_queue(0)
+                            # Any next() failure -- play the track we just inserted.
+                            # v2.46 fix: was play_from_queue(0), which played the HEAD of
+                            # the existing (possibly stale/foreign) queue instead of the
+                            # inserted track. Cold speakers reject next() with UPnP 701,
+                            # so this path fired and played leftover queue content.
+                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
+                            coordinator.play_from_queue(insert_pos - 1)
                     # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
                     # can recover title/artist when Sonos DIDL comes back empty.
                     if not is_spotify and (title or cmd_artist):
