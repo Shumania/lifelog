@@ -608,8 +608,14 @@
     </div>
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
+      <button class="sync-btn" id="deep-refresh-btn" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
       <button class="sync-btn" id="sync-btn" onclick="syncNow()">↻ Sync</button>
 
+    </div>
+    <!-- p2.42 deep-refresh banner: NON-BLOCKING by design (AD-032). Commands (pause/volume/rooms)
+         go browser→ntfy→client and SSE stays live, so the page must never modal-block during refresh. -->
+    <div id="refresh-banner" hidden style="margin:6px 0;padding:8px 12px;border:1px solid #e0a02055;background:#e0a02011;border-radius:8px;font-size:12px;color:var(--text-dim)">
+      ⏳ Double-checking cached data — flushing speakers &amp; polling roaming Spotify. History will update in a few minutes; playback controls still work. <span id="refresh-elapsed" style="font-variant-numeric:tabular-nums;font-weight:600">0:00</span>
     </div>
     <div class="content-panel" id="subtab-music">
       <div class="history-list" id="music-list">
@@ -653,7 +659,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.41';
+const PAGE_VERSION = 'p2.42';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1937,7 +1943,12 @@ function renderAll() {
   if (!document.getElementById('tab-playlists').hidden) renderPlaylists();
   updateCounts();
   if (data && data.generated_at) {
-    document.getElementById('updated-label').textContent = 'Updated ' + fmtRelative(new Date(data.generated_at));
+    // p2.42: stale chip past 30 min — signals that a deep refresh would actually fetch something
+    // (roaming plays poll every ~2h; Sonos buffers flush every ~30 min, so >30 min = possibly behind)
+    const genD = new Date(data.generated_at);
+    const ageMin = (Date.now() - genD.getTime()) / 60000;
+    document.getElementById('updated-label').innerHTML = 'Updated ' + esc(fmtRelative(genD)) +
+      (ageMin > 30 ? ' <span style="color:#e0a020;font-weight:600" title="Published data is over 30 min old — ⟳ Refresh will fetch roaming plays and flush speaker buffers">· stale</span>' : '');
   }
 }
 
@@ -2899,6 +2910,74 @@ async function exploreArtist(btn, encodedData) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SYNC
 // ══════════════════════════════════════════════════════════════════════════════
+// ── p2.42 Deep refresh (AD-032) ─────────────────────────────────────────────
+// Fires the manual_refresh webhook (agent: flush both houses → roaming Spotify poll →
+// head-only republish), then polls data-head.json until generated_at advances.
+// DESIGN NOTES:
+// - NON-BLOCKING: playback commands go browser→ntfy→client and SSE stays live during
+//   refresh; the banner informs, it never blocks. Do not turn this into a modal.
+// - Reuses SYNC_WEBHOOK with body {action:'manual_refresh'} — the agent dispatches on
+//   that field (empty body = classic full Spotify sync from the other button).
+// - Guard release (Rule 11): _dr clears on success OR 10-min timeout, re-enabling the button.
+// - Latency telemetry: start/done/timeout logged to console with ISO timestamps;
+//   server-side event_metrics row is written by the agent.
+let _dr = null;
+async function deepRefresh() {
+  if (_dr) return; // already running
+  const btn = document.getElementById('deep-refresh-btn');
+  const t0 = Date.now();
+  const baseline = (data && data.generated_at) || '';
+  console.log('[deepRefresh] START ' + new Date(t0).toISOString() + ' baseline generated_at=' + baseline);
+  try {
+    await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({ action: 'manual_refresh', t_requested: new Date(t0).toISOString(), page_version: PAGE_VERSION }) });
+  } catch(e) {
+    console.warn('[deepRefresh] webhook POST failed:', e && e.message);
+    showToast('⚠️ Refresh request failed — check connection');
+    return;
+  }
+  _dr = { t0, baseline };
+  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Refreshing…';
+  document.getElementById('refresh-banner').hidden = false;
+  _dr.timer = setInterval(() => {
+    if (!_dr) return;
+    const s = Math.floor((Date.now() - _dr.t0) / 1000);
+    const el = document.getElementById('refresh-elapsed');
+    if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }, 1000);
+  _dr.pollTimer = setInterval(_drPoll, 20000);
+}
+async function _drPoll() {
+  if (!_dr) return;
+  const elapsed = Date.now() - _dr.t0;
+  try {
+    const r = await fetch(DATA_HEAD_URL + '?t=' + Date.now());
+    if (r.ok) {
+      const head = await r.json();
+      if (head && head.generated_at && head.generated_at > _dr.baseline) {
+        const secs = Math.round(elapsed / 1000);
+        console.log('[deepRefresh] DONE in ' + secs + 's — new generated_at=' + head.generated_at);
+        _drFinish();
+        await loadData(true);
+        showToast('✓ Data refreshed (' + Math.floor(secs / 60) + 'm ' + (secs % 60) + 's)');
+        return;
+      }
+    }
+  } catch(e) { console.warn('[deepRefresh] poll error:', e && e.message); }
+  if (elapsed > 10 * 60 * 1000) {
+    console.warn('[deepRefresh] TIMEOUT after 10 min — releasing button (agent may still finish; label will update on next reload)');
+    _drFinish();
+    showToast('⚠️ Refresh is taking longer than expected — data will appear when ready');
+  }
+}
+function _drFinish() {
+  if (!_dr) return;
+  clearInterval(_dr.timer); clearInterval(_dr.pollTimer); _dr = null;
+  const btn = document.getElementById('deep-refresh-btn');
+  btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '⟳ Refresh';
+  document.getElementById('refresh-banner').hidden = true;
+}
+
 async function syncNow() {
   const btn = document.getElementById('sync-btn');
   btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
