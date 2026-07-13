@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.44"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.45"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -958,6 +958,8 @@ def build_status_snapshot():
         "ntfy": {
             "connected": _ntfy_connected,
             "reconnects": _ntfy_reconnects,
+            # v2.45: populate staleness age so the [STALE] diagnostic can actually fire
+            "last_event_age_s": int(time.time() - _ntfy_last_event_ts) if _ntfy_last_event_ts else None,
         },
         "track_changes": list(_track_changes[-5:]),
     }
@@ -1415,17 +1417,34 @@ def heartbeat_thread():
 def _heartbeat_thread_inner():
     global last_post_ts
 
-    # Always send on startup so status shows online immediately
-    _send_heartbeat()
+    # v2.45: no startup send here -- the ready heartbeat (sent after Sonos
+    # discovery, ~3s after boot) is the single startup heartbeat. Sending
+    # here too made every boot cost 2-3 redundant webhook runs.
     last_post_ts = time.time()
 
+    _quiet_entry_flushed = False
     while True:
         time.sleep(60)  # check every minute
 
         if not is_active_hours():
+            # v2.45: flush once on entry into quiet hours so evening listens
+            # don't sit buffered until 7 AM (S-M4). Lands within ~1 min of
+            # 22:00, inside the wellness-check grace window.
+            if not _quiet_entry_flushed:
+                _quiet_entry_flushed = True
+                with pending_buffer_lock:
+                    has_pending = len(pending_buffer) > 0
+                if has_pending:
+                    log("* Heartbeat: quiet-hours entry -- flushing pending buffer before pause")
+                    try:
+                        flush_buffer(reason="quiet-hours-entry")
+                        last_post_ts = time.time()
+                    except Exception as e:
+                        log(f"* Heartbeat: quiet-hours entry flush failed: {e}")
             log(f"* Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) -- paused")
             time.sleep(HEARTBEAT_QUIET_SLEEP)
             continue
+        _quiet_entry_flushed = False
 
         since_last = time.time() - last_post_ts
         if since_last < HEARTBEAT_FALLBACK_SECS:
@@ -1649,7 +1668,7 @@ def _jit_discover(room_name):
     global current_devices_by_name
     try:
         import soco
-        log(f"[JIT] Room '{room_name}' not in cache — running one-shot discovery")
+        log(f"[JIT] Room '{room_name}' not in cache -- running one-shot discovery")
         devices = soco.discover(timeout=3)
         if not devices:
             log(f"[JIT] Discovery found no devices")
@@ -2009,7 +2028,7 @@ def get_track_info(device):
         # v2.38: Safety net — ensure title/artist/album are plain strings (never method refs)
         for _field_name, _field_val in [("title", title), ("artist", artist_raw), ("album", album_raw)]:
             if _field_val and not isinstance(_field_val, str):
-                log(f"[DIDL-safety] Non-string {_field_name} detected: {type(_field_val).__name__} = {repr(_field_val)[:100]} — clearing")
+                log(f"[DIDL-safety] Non-string {_field_name} detected: {type(_field_val).__name__} = {repr(_field_val)[:100]} -- clearing")
                 if _field_name == "title": title = None
                 elif _field_name == "artist": artist_raw = None
                 elif _field_name == "album": album_raw = None
@@ -2248,9 +2267,9 @@ def _setup_rooms(cmd, devices):
         if joined or to_remove:
             time.sleep(1)
         if joined:
-            log(f"_setup_rooms: incremental group update — {primary} + {joined} (removed: {list(to_remove)})")
+            log(f"_setup_rooms: incremental group update -- {primary} + {joined} (removed: {list(to_remove)})")
         else:
-            log(f"_setup_rooms: group adjusted — removed {list(to_remove)}")
+            log(f"_setup_rooms: group adjusted -- removed {list(to_remove)}")
     else:
         # Single room: should be solo
         if len(current_members) == 1:
@@ -2281,7 +2300,7 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -2333,6 +2352,42 @@ def execute_command(cmd, source="unknown"):
             result["message"] = f"Running update check (v{SERVICE_VERSION})"
             def _do(): time.sleep(2); self_update_check()
             threading.Thread(target=_do, daemon=True).start()
+
+        elif action == "restart":
+            # v2.45: real remote restart. Post result first (2s delay in thread),
+            # flush history buffer, then respawn a fresh process and exit.
+            result["success"] = True
+            result["message"] = f"Restarting service (v{SERVICE_VERSION})"
+            def _do_restart():
+                global _mutex_handle
+                time.sleep(2)
+                try:
+                    flush_buffer(reason="pre-restart")
+                except Exception as e:
+                    log(f"[restart] pre-restart flush failed: {e}")
+                try:
+                    _persist_state_ring_buffer()
+                except Exception as e:
+                    log(f"[restart] ring buffer persist failed: {e}")
+                log("[restart] Respawning new process...")
+                if _mutex_handle is not None:
+                    try:
+                        import ctypes as _ct
+                        _ct.windll.kernel32.CloseHandle(_mutex_handle)
+                        _mutex_handle = None
+                    except Exception as e:
+                        log(f"[restart] mutex release failed: {e}")
+                try:
+                    _rst_script = Path(sys.argv[0]).resolve()
+                    subprocess.Popen(
+                        [sys.executable, str(_rst_script)] + sys.argv[1:],
+                        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+                    )
+                except Exception as e:
+                    log(f"[restart] RESPAWN FAILED: {e} -- NOT exiting (service stays up)")
+                    return
+                os._exit(0)
+            threading.Thread(target=_do_restart, daemon=True).start()
 
         elif action == "flush":
             # DESIGN NOTE: Flush is a silent action that drains pending_buffer and
@@ -2691,7 +2746,7 @@ def execute_command(cmd, source="unknown"):
                 dev.play_from_queue(0)
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
-                repeat = cmd.get("repeat", True)  # default True for backward compat
+                repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
                 if shuffle and repeat:
                     dev.play_mode = "SHUFFLE"           # shuffle + repeat all
                 elif shuffle and not repeat:
@@ -3082,19 +3137,25 @@ def execute_command(cmd, source="unknown"):
                 result["data"] = {"title": title, "uri": uri, "room": rooms[0], "rooms": rooms}
 
         elif action == "stop":
-            rooms = cmd.get("rooms", list(devices.keys()))
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else list(devices.keys()))
             if isinstance(rooms, str): rooms = [rooms]
             stopped = []
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
                     try: dev.stop(); stopped.append(r)
-                    except: pass
-            result["success"] = True
-            result["message"] = f"Stopped: {', '.join(stopped)}"
+                    except Exception as e: log(f"stop failed in {r}: {e}")
+            if stopped:
+                result["success"] = True
+                result["message"] = f"Stopped: {', '.join(stopped)}"
+            else:
+                result["success"] = False
+                result["message"] = f"stop: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action == "pause":
-            rooms = cmd.get("rooms", [])
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else [])
             if isinstance(rooms, str): rooms = [rooms]
             # Deduplicate by coordinator — one call per group, not per room
             seen_coords = set()
@@ -3109,11 +3170,16 @@ def execute_command(cmd, source="unknown"):
                         except: pass
                     else:
                         paused.append(r)
-            result["success"] = True
-            result["message"] = f"Paused: {', '.join(paused)}"
+            if paused:
+                result["success"] = True
+                result["message"] = f"Paused: {', '.join(paused)}"
+            else:
+                result["success"] = False
+                result["message"] = f"pause: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action in ("resume", "play_resume"):
-            rooms = cmd.get("rooms", [])
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else [])
             if isinstance(rooms, str): rooms = [rooms]
             # Deduplicate by coordinator — one call per group, not per room
             seen_coords = set()
@@ -3128,8 +3194,12 @@ def execute_command(cmd, source="unknown"):
                         except: pass
                     else:
                         resumed.append(r)
-            result["success"] = True
-            result["message"] = f"Resumed: {', '.join(resumed)}"
+            if resumed:
+                result["success"] = True
+                result["message"] = f"Resumed: {', '.join(resumed)}"
+            else:
+                result["success"] = False
+                result["message"] = f"resume: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action == "next":
             rooms = cmd.get("rooms", [])
@@ -3793,17 +3863,13 @@ def main():
         flag_in_progress.unlink(missing_ok=True)
         bak_path.unlink(missing_ok=True)
 
-    # -- Startup "boot" heartbeat -- immediate visibility after upgrade --------
-    try:
-        log("Sending startup boot heartbeat...")
-        payload = {"type": "heartbeat", "startup_phase": "boot"}
-        payload.update(heartbeat_fields())
-        requests.post(WEBHOOK, json=payload, timeout=10)
-        log("Boot heartbeat sent")
-    except Exception as e:
-        log(f"Boot heartbeat failed: {e}")
+    # -- Startup "boot" phase: LOG ONLY (v2.45) --------------------------------
+    # The ready heartbeat (sent right after Sonos discovery, ~3s later) is the
+    # single startup heartbeat. Boot+standalone+ready used to send 3 webhook
+    # POSTs within 3 seconds, each spawning a redundant agent run.
+    log(f"Boot phase reached (v{SERVICE_VERSION}) -- heartbeat deferred to ready phase")
 
-    log(f"=== v{SERVICE_VERSION} init complete — entering main loop ===")
+    log(f"=== v{SERVICE_VERSION} init complete -- entering main loop ===")
 
     # Sonos runs on main thread (visible activity in console)
     if "sonos" in modules:
@@ -3852,12 +3918,13 @@ if __name__ == "__main__":
                 "client_type": "lifelog_service",
                 "house": globals().get("house", "unknown"),
                 "version": SERVICE_VERSION,
-                "computer": globals().get("COMPUTER_NAME", "unknown"),
+                "computer": globals().get("computer", "unknown"),
                 "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "crash_error": str(e),
                 "crash_traceback": tb[-2000:],  # last 2000 chars of traceback
-                "recent_logs": list(globals().get("_recent_logs", []))[-30:],
-                "recent_errors": list(globals().get("_recent_errors", []))[-10:],
+                # v2.45: use the real ring buffers (were undefined globals -> always empty)
+                "recent_logs": list(globals().get("_log_ring", []))[-30:],
+                "recent_errors": list(globals().get("_error_ring", []))[-10:],
             }
             _wh = globals().get("WEBHOOK")
             if _wh:
