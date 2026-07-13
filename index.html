@@ -653,7 +653,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.40';
+const PAGE_VERSION = 'p2.41';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -715,6 +715,9 @@ const SP_CLIENT_ID = '3a0b113d0c56401a8da7386014e605d3';
 const SP_REDIRECT = location.origin + '/lifelog/index.html';
 let spotifyDevices = [];
 let spotifySelectedDeviceId = localStorage.getItem('ll_spotify_device') || null;
+// p2.41 (U-M1): timestamp of last manual device tap — polls must not revert it for 60s
+let _manualDeviceSelectAt = 0;
+function _manualPinActive() { return Date.now() - _manualDeviceSelectAt < 60000; }
 let spotifyNowPlaying = null;
 let _spotifyDevicePollTimer = null;
 let _spotifyNpPollTimer = null;
@@ -1254,7 +1257,8 @@ async function fetchSpotifyDevices() {
     }
     spotifyDevices = Object.values(_deviceCache).sort((a,b) => a.stale === b.stale ? 0 : a.stale ? 1 : -1).map(e => ({...e.device, _stale: e.stale}));
     const active = spotifyDevices.find(x => x.is_active && !x._stale);
-    if (active) { spotifySelectedDeviceId = active.id; localStorage.setItem('ll_spotify_device', active.id); }
+    // p2.41: honor manual selection pin — don't let the poll revert a just-tapped device
+    if (active && !_manualPinActive()) { spotifySelectedDeviceId = active.id; localStorage.setItem('ll_spotify_device', active.id); }
     else if (!spotifySelectedDeviceId || !spotifyDevices.find(x => x.id === spotifySelectedDeviceId)) {
       spotifySelectedDeviceId = spotifyDevices[0]?.id || null;
     }
@@ -1275,7 +1279,7 @@ async function fetchSpotifyNowPlaying() {
         progress_ms: d.progress_ms || 0, duration_ms: d.item.duration_ms || 0,
         is_playing: d.is_playing, uri: d.item.uri
       };
-      if (d.device?.id) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
+      if (d.device?.id && !_manualPinActive()) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
     }
   } catch(e) { spotifyNowPlaying = null; }
   if (house === 'roaming') renderNowPlayingRoaming();
@@ -1321,10 +1325,24 @@ function renderSpotifyDevices() {
   el.innerHTML = html;
 }
 
-function selectSpotifyDevice(id) {
+// p2.41 (U-M1): tapping a device now actively TRANSFERS playback to it via
+// PUT /me/player, instead of only saving the ID locally (which did nothing
+// user-visible). A 60s pin (_manualDeviceSelectAt, declared with globals) stops
+// the polls from reverting the manual choice before Spotify's API reflects it.
+async function selectSpotifyDevice(id) {
   spotifySelectedDeviceId = id;
   localStorage.setItem('ll_spotify_device', id);
+  _manualDeviceSelectAt = Date.now();
   renderSpotifyDevices();
+  try {
+    await spotifyApi('PUT', '/me/player', { device_ids: [id], play: false });
+    const dev = spotifyDevices.find(x => x.id === id);
+    showToast('✓ Transferred to ' + (dev ? dev.name : 'device'));
+    setTimeout(fetchSpotifyNowPlaying, 1500);
+  } catch(e) {
+    console.warn('[selectSpotifyDevice] transfer failed:', e && e.message);
+    showToast('Transfer failed — is Spotify open on that device?', true);
+  }
 }
 
 function disconnectSpotify() {
@@ -1893,10 +1911,15 @@ async function loadData(loadArchive) {
       archiveItems = full.items || [];
       archiveLoaded = true;
       const headItems = data ? (data.items || []) : [];
-      allItems = mergeItems(headItems, archiveItems);
+      // p2.41: also merge current allItems — the old code rebuilt from raw head+archive
+      // only, silently dropping fresher tracks merged in after a Sync (they vanished
+      // from History until the next full publish).
+      allItems = mergeItems(mergeItems(headItems, allItems), archiveItems);
       renderHistory();
       updateCounts();
-    } catch(e) {}
+    } catch(e) {
+      console.warn('[loadData] archive fetch failed:', e && e.message);
+    }
   }
 }
 
@@ -2173,9 +2196,9 @@ function renderSuggRow(s, explorationId) {
       ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
     </div>
     <div class="sugg-actions">
-      ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${uri}','${lbl}')">▶</button>
-      <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${uri}','${lbl}')">+</button>` : ''}
-      ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},'${uri}',this)">▾</button>` : ''}
+      ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">▶</button>
+      <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">+</button>` : ''}
+      ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},decodeURIComponent('${uri}'),this)">▾</button>` : ''}
     </div>
   </div>`;
   if (isAlbum) h += `<div class="album-tracks-panel" id="at-${explorationId}-${albumId}"></div></div>`;
@@ -2237,8 +2260,9 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
   for (const t of tracks) {
     const tName = t.name || t.t || '';
     const tUriVal = t.uri || t.u || '';
-    const tUri = tUriVal.replace(/'/g, "\\'");
-    const tLbl = tName.replace(/'/g, "\\'");
+    // p2.41: encode pattern (see renderSuggRow) — double quotes in track names broke onclick
+    const tUri = encodeURIComponent(tUriVal).replace(/'/g, '%27');
+    const tLbl = encodeURIComponent(tName).replace(/'/g, '%27');
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
@@ -2303,8 +2327,8 @@ function renderDiscovery() {
           <span class="disc-source-title">${esc(sourceTrack.label)}</span>
         </div>
         <div class="sugg-actions">
-          ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${stUri}','${stLbl}')">▶</button>
-          <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${stUri}','${stLbl}')">+</button>` : ''}
+          ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">▶</button>
+          <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">+</button>` : ''}
         </div>
       </div>`;
     }

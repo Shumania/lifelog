@@ -34,6 +34,7 @@ import os
 import threading
 import subprocess
 import traceback
+import re  # v2.44: module-level -- get_container_context() used re without import (silent NameError)
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.42"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.44"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -253,7 +254,9 @@ _poll_snapshot = {
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
 # last_cmd_sha removed in v2.24 (GitHub command polling retired)
 executed_cmd_hashes      = {}   # hash -> timestamp (TTL-based dedup)
-CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s -- covers ntfy replay window
+# v2.44: TTL raised 60s -> 360s. ntfy replays since=5m on reconnect; a 60s TTL
+# let already-executed commands re-execute after restarts/reconnects.
+CMD_DEDUP_TTL_SECONDS    = 360  # must exceed ntfy's since=5m replay window
 last_sonos_activity_ts   = 0.0  # updated when a track is buffered
 last_track_added_ts      = 0.0  # updated when a track is added to buffer
 last_post_ts             = 0.0  # updated whenever any POST succeeds
@@ -261,6 +264,17 @@ pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 STATE_RING_PATH          = INSTALL_DIR / "state_ring_buffer.json"
+# v2.44: persist executed command hashes across restarts so ntfy's since=5m
+# replay after a restart can't re-execute commands the old process already ran.
+EXECUTED_CMDS_PATH       = INSTALL_DIR / "executed_cmds.json"
+try:
+    if EXECUTED_CMDS_PATH.exists():
+        _loaded_hashes = json.loads(EXECUTED_CMDS_PATH.read_text(encoding="utf-8"))
+        _cutoff = time.time() - CMD_DEDUP_TTL_SECONDS
+        executed_cmd_hashes.update({h: ts for h, ts in _loaded_hashes.items() if ts > _cutoff})
+        print(f"[dedup] loaded {len(executed_cmd_hashes)} unexpired command hash(es) from disk")
+except Exception as _dh_err:
+    print(f"[dedup] WARNING: failed to load executed_cmds.json: {_dh_err}")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -676,6 +690,22 @@ def self_update_check():
         ver_path.write_text(latest + "\n", encoding="utf-8")
         log(f"Wrote VERSION file: {ver_path} = {latest}")
         log(f"Updated to v{latest} -- restarting in new window...")
+        # v2.44 CRITICAL FIX: flush buffered + in-flight history BEFORE handing off.
+        # Previously os._exit(0) discarded pending_buffer and the currently-playing
+        # room_state tracks -- guaranteed data loss on every self-update.
+        try:
+            _now = datetime.now(timezone.utc)
+            for _room, _st in list(room_state.items()):
+                try:
+                    if _st and _st.get("track_key") and _st.get("started_at"):
+                        log(f"[update] retiring in-flight track on {_room}: {_st['track_key'][:80]}")
+                        post_history(_st["track_info"], _room, _st["started_at"], _now)
+                except Exception as _rerr:
+                    log(f"[update] WARNING: retire failed for {_room}: {_rerr}")
+            flush_buffer("pre-update")
+            log("[update] pre-update history flush complete")
+        except Exception as _ferr:
+            log(f"[update] WARNING: pre-update flush failed: {_ferr}")
         # Release the single-instance mutex BEFORE spawning so the new process
         # can acquire it immediately (avoids race where new process starts fast,
         # sees ERROR_ALREADY_EXISTS, and exits with "another instance running").
@@ -1737,7 +1767,10 @@ def get_container_context(device):
             "container_type": container_type,
             "spotify_context": spotify_context,
         }
-    except Exception:
+    except Exception as _cc_err:
+        # v2.44: was a silent `return None` -- it hid a NameError (missing import re)
+        # for months, nulling container context on every track. Never swallow silently.
+        log(f"[container] get_container_context failed: {type(_cc_err).__name__}: {_cc_err}")
         return None
 
 
@@ -2090,6 +2123,12 @@ def _mark_executed(cmd):
         expired = [h for h, ts in executed_cmd_hashes.items() if ts < cutoff]
         for h in expired:
             del executed_cmd_hashes[h]
+    # v2.44: write-through to disk so a restart + ntfy since=5m replay
+    # can't re-execute commands this process already ran.
+    try:
+        EXECUTED_CMDS_PATH.write_text(json.dumps(executed_cmd_hashes), encoding="utf-8")
+    except Exception as _we:
+        log(f"[dedup] WARNING: failed to persist executed_cmds.json: {_we}")
 
 def _already_executed(cmd):
     h = _cmd_hash(cmd)
@@ -2099,6 +2138,8 @@ def _already_executed(cmd):
     if time.time() - ts > CMD_DEDUP_TTL_SECONDS:
         del executed_cmd_hashes[h]
         return False
+    # v2.44: verbose dedup decision -- silent rejections are undebuggable remotely
+    log(f"[dedup] REJECTED replayed command (hash={h[:12]}, age={int(time.time()-ts)}s, action={cmd.get('action','?')})")
     return True
 
 # --- SONOS: EXECUTE COMMAND -------------------------------------------------
@@ -2947,6 +2988,16 @@ def execute_command(cmd, source="unknown"):
                         coord_name = coordinator.player_name
                         coord_key = f"{title}|{artist}|{track_uri}"
                         _last_ui_track[coord_name] = coord_key
+                        # v2.44 CRITICAL FIX: retire the previously-playing track to history
+                        # BEFORE overwriting room_state. Previously every commanded track
+                        # change silently dropped one history row.
+                        try:
+                            _prev = room_state.get(coord_name)
+                            if _prev and _prev.get("track_key") and _prev.get("started_at") and _prev["track_key"] != coord_key:
+                                log(f"[history] play_next retiring previous track on {coord_name}: {_prev['track_key'][:80]}")
+                                post_history(_prev["track_info"], coord_name, _prev["started_at"], datetime.now(timezone.utc))
+                        except Exception as _re_err:
+                            log(f"[history] WARNING: play_next retire failed: {_re_err}")
                         # Also inject into room_state so status_update SSE has correct data
                         room_state[coord_name] = {
                             "track_key": coord_key,
@@ -2990,8 +3041,11 @@ def execute_command(cmd, source="unknown"):
                     dev.play_mode = "NORMAL"
                     dev.play_from_queue(0)
                     result["success"] = True
-                    result["message"] = f"Playing radio ({added} tracks) in {room}: {title}"
-                    result["data"] = {"title": title, "queued": added}
+                    # v2.44: was f"...in {room}" -- NameError ('room' undefined) corrupted
+                    # every play_radio result message and fired post_error despite success.
+                    radio_room_label = " + ".join(rooms) if rooms else dev.player_name
+                    result["message"] = f"Playing radio ({added} tracks) in {radio_room_label}: {title}"
+                    result["data"] = {"title": title, "queued": added, "room": rooms[0] if rooms else dev.player_name, "rooms": rooms}
                 else:
                     result["message"] = "Failed to queue any tracks"
 
@@ -3324,13 +3378,6 @@ def execute_command(cmd, source="unknown"):
             rp.append(cmd_room)
             result["heartbeat"]["rooms_playing"] = sorted(rp)
             log(f"[sonos] Injected {cmd_room} into rooms_playing (post-play)")
-    with pending_buffer_lock:
-        if pending_buffer:
-            result["pending_history"] = list(pending_buffer)
-            pending_buffer.clear()
-    if result.get("pending_history"):
-        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
-        except: pass
     result["t_result_sent"] = now_iso()
 
     # Record structured command outcome (ALL commands, silent or not)
@@ -3343,9 +3390,22 @@ def execute_command(cmd, source="unknown"):
     )
 
     # Silent actions (volume, etc.) -- log locally, skip webhook POST entirely
+    # v2.44 CRITICAL FIX: buffer drain moved BELOW this early-return. Previously
+    # silent commands drained pending_buffer into a result that was never POSTed,
+    # then the next flush_buffer() overwrote PENDING_PATH -- permanent history loss.
     if is_silent:
         log(f"Command (silent): {result['message']}")
         return
+
+    # Piggyback buffered history on this (non-silent) command result
+    with pending_buffer_lock:
+        if pending_buffer:
+            log(f"[buffer] piggyback drain: {len(pending_buffer)} pending item(s) attached to '{action}' result")
+            result["pending_history"] = list(pending_buffer)
+            pending_buffer.clear()
+    if result.get("pending_history"):
+        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
+        except Exception as pe: log(f"[buffer] WARNING: PENDING_PATH write failed: {pe}")
 
     # Include SSE relay data for server-side relay to ntfy
     sse_relay = build_sse_relay_payload()
