@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.48.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -504,8 +504,11 @@ def log(msg):
     with _log_ring_lock:
         _log_ring.append(line)
     # Also capture to error ring if line matches any error keyword (v2.48: case-insensitive)
+    # v2.48.1: skip [DIDL-*] debug dumps — the DIDL XML contains "xmlns:upnp", which
+    # matched the case-insensitive "upnp" keyword and flooded the error ring with
+    # metadata dumps that aren't errors.
     _mlow = msg.lower()
-    if any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
+    if (not _mlow.startswith("[didl-")) and any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
         with _error_ring_lock:
             _error_ring.append(line)
     try:
@@ -3348,6 +3351,7 @@ def execute_command(cmd, source="unknown"):
             # Deduplicate by coordinator — one call per group, not per room
             seen_coords = set()
             paused = []
+            idle_skips = []  # v2.48.1: rooms where pause() raised (nothing playing)
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
@@ -3355,12 +3359,21 @@ def execute_command(cmd, source="unknown"):
                     if coord.player_name not in seen_coords:
                         seen_coords.add(coord.player_name)
                         try: coord.pause(); paused.append(r)
-                        except: pass
+                        except Exception as e:
+                            # UPnP "transition not available" = nothing playing; benign
+                            idle_skips.append(r)
+                            log(f"pause: {r} had nothing to pause (benign no-op): {e}")
                     else:
                         paused.append(r)
             if paused:
                 result["success"] = True
                 result["message"] = f"Paused: {', '.join(paused)}"
+            elif idle_skips:
+                # v2.48.1: pausing an idle room is a successful no-op, not an error.
+                # The old "no rooms matched" message was misleading (the room WAS known)
+                # and tripped watchdog failed-command audits for a non-problem.
+                result["success"] = True
+                result["message"] = f"pause: nothing was playing in {', '.join(idle_skips)} — already idle (no-op)"
             else:
                 result["success"] = False
                 result["message"] = f"pause: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
@@ -3881,7 +3894,18 @@ def sonos_main_loop():
             rp = list(_poll_snapshot.get("rooms_playing", []))
             ms = dict(_poll_snapshot.get("mute_states", {}))
             rooms_changed = (rp != _last_sse_rooms_playing)
-            mutes_changed = (ms != _last_sse_mute_states)
+            # v2.48.1: topology-churn gate. Discovery timeouts make speakers vanish
+            # from / reappear in the mute dict every few minutes; plain dict
+            # inequality treated that KEY churn as a mute event and pushed SSE.
+            # Only genuine value flips on keys present in BOTH snapshots count now.
+            _m_added   = sorted(k for k in ms if k not in _last_sse_mute_states)
+            _m_removed = sorted(k for k in _last_sse_mute_states if k not in ms)
+            _m_flipped = sorted(k for k in ms if k in _last_sse_mute_states and ms[k] != _last_sse_mute_states[k])
+            mutes_changed = bool(_m_flipped)
+            if (_m_added or _m_removed) and not _m_flipped:
+                log(f"SSE suppressed: topology churn added={_m_added} removed={_m_removed} (no mute flip, no push)")
+            # Baseline updates every cycle so churn never accumulates into a false flip
+            _last_sse_mute_states = ms
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or mutes_changed or keepalive_due:
                 # v2.47.2: log WHY we're pushing — silent triggers made the
@@ -3889,16 +3913,12 @@ def sonos_main_loop():
                 if rooms_changed:
                     log(f"SSE trigger: rooms_changed {_last_sse_rooms_playing} -> {rp}")
                 if mutes_changed:
-                    added = sorted(k for k in ms if k not in _last_sse_mute_states)
-                    removed = sorted(k for k in _last_sse_mute_states if k not in ms)
-                    flipped = sorted(k for k in ms if k in _last_sse_mute_states and ms[k] != _last_sse_mute_states[k])
-                    log(f"SSE trigger: mutes_changed added={added} removed={removed} flipped={flipped}")
+                    log(f"SSE trigger: mutes_changed flipped={_m_flipped} (added={_m_added} removed={_m_removed})")
                 if keepalive_due and not (rooms_changed or mutes_changed):
                     log("SSE trigger: 15-min keepalive")
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
-                _last_sse_mute_states = ms
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"
