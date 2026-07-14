@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.47.2"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.48"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -133,7 +133,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 # CMD_POLL_EVERY removed in v2.24 — GitHub command polling retired (ntfy is sole transport)
-HEARTBEAT_FALLBACK_SECS    = 3600  # keepalive heartbeat every 60 min (only if no real POST)
+HEARTBEAT_FALLBACK_SECS    = 7200  # v2.48: keepalive every 2h when idle (was 60 min; only if no real POST)
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -455,10 +455,14 @@ _log_ring_lock   = threading.Lock()
 _ERROR_RING_MAX  = 100
 _error_ring      = deque(maxlen=_ERROR_RING_MAX)
 _error_ring_lock = threading.Lock()
-_ERROR_KEYWORDS  = ("ERROR", "FAIL", "Traceback", "Exception", "CRITICAL", "crash", "UPnP", "HTTP 4", "HTTP 5", "timed out", "refused")
+# v2.48: matching is CASE-INSENSITIVE. The old case-sensitive filter missed
+# transport errors like "ntfy stream error" and "ConnectionResetError", so they
+# never reached the error ring and were invisible to the watchdog audits.
+_ERROR_KEYWORDS  = ("error", "fail", "traceback", "exception", "critical", "crash", "upnp", "http 4", "http 5", "timed out", "refused", "unreachable")
+_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines")  # noise guards
 
 # Command results ring buffer — structured outcomes for agent-side correlation
-_CMD_RESULTS_MAX = 20
+_CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the debounced heartbeat delivers them
 _command_results = deque(maxlen=_CMD_RESULTS_MAX)
 _command_results_lock = threading.Lock()
 
@@ -499,8 +503,9 @@ def log(msg):
     # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
     with _log_ring_lock:
         _log_ring.append(line)
-    # Also capture to error ring if line matches any error keyword
-    if any(kw in msg for kw in _ERROR_KEYWORDS):
+    # Also capture to error ring if line matches any error keyword (v2.48: case-insensitive)
+    _mlow = msg.lower()
+    if any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
         with _error_ring_lock:
             _error_ring.append(line)
     try:
@@ -1183,10 +1188,35 @@ def heartbeat_fields():
     fields["command_results"] = get_command_results()
     return fields
 
+# v2.48: payload-light pure-idle heartbeats — state tracked between sends
+_last_hb_light_state = {"newest_err": "", "last_cmd_at": ""}
+
 def _send_heartbeat():
     sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
-    payload.update(heartbeat_fields())
+    fields = heartbeat_fields()
+    # v2.48: if nothing is playing AND no new errors AND no new command results
+    # since the last standalone heartbeat, trim the log payload (pure-idle diet).
+    # Full logs always remain available on demand via get_logs.
+    try:
+        _rp = fields.get("rooms_playing") or []
+        _errs = fields.get("recent_errors") or []
+        _newest_err = _errs[-1] if _errs else ""
+        _cmds = fields.get("command_results") or []
+        _last_cmd_at = _cmds[-1].get("at", "") if _cmds else ""
+        _pure_idle = (not _rp and not fields.get("now_playing_tracks")
+                      and _newest_err == _last_hb_light_state["newest_err"]
+                      and _last_cmd_at == _last_hb_light_state["last_cmd_at"])
+        if _pure_idle:
+            fields["recent_logs"] = (fields.get("recent_logs") or [])[-10:]
+            fields["recent_errors"] = _errs[-5:]
+            fields["hb_light"] = True
+            log("* Heartbeat: pure-idle -- payload-light (recent_logs trimmed to 10)")
+        _last_hb_light_state["newest_err"] = _newest_err
+        _last_hb_light_state["last_cmd_at"] = _last_cmd_at
+    except Exception as _le:
+        log(f"* Heartbeat: light-mode check failed ({_le}) -- sending full payload")
+    payload.update(fields)
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
@@ -1300,6 +1330,15 @@ def _sse_do_flush():
         payload = dict(_sse_bundle)
         _sse_bundle.clear()
     event_types = payload.pop("_event_types", [])
+    # v2.48: quiet-hours idle gate — during Seattle quiet hours (22:00-07:00)
+    # with nothing playing, drop pure status wiggles. Nobody is watching, and
+    # every SSE message carries full state, so dropped bundles lose nothing.
+    if not is_active_hours():
+        _rp_q = list(_poll_snapshot.get("rooms_playing", []))
+        _urgent = [et for et in event_types if et != "status_update"]
+        if not _rp_q and not _urgent:
+            log(f"SSE flush skipped: quiet hours + idle (dropped {event_types})")
+            return
     # Enrich with full state snapshot
     try:
         _sse_enrich_state(payload)
@@ -1402,12 +1441,53 @@ def flush_buffer(reason=""):
         r = requests.post(WEBHOOK, json=payload, timeout=20)
         log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
         last_post_ts = time.time()
-        try: PENDING_PATH.unlink(missing_ok=True)
+        # v2.48: don't blind-unlink -- a track added during the POST window would
+        # vanish from disk. Rewrite the file with whatever is currently buffered.
+        try:
+            with pending_buffer_lock:
+                _leftover = list(pending_buffer)
+            if _leftover:
+                PENDING_PATH.write_text(json.dumps(_leftover), encoding="utf-8")
+            else:
+                PENDING_PATH.unlink(missing_ok=True)
         except: pass
     except Exception as e:
         log(f"[FAIL] Flush failed [{reason}]: {e} -- restoring {len(items)} item(s) to buffer")
         with pending_buffer_lock:
             pending_buffer[:0] = items  # prepend back
+
+# --- DEBOUNCED STATE HEARTBEAT (v2.48) ---------------------------------------
+# After ANY state-changing command (silent or not), schedule ONE heartbeat POST
+# ~75s later. New commands in the burst reset the timer -> one agent run per
+# interaction burst. Refreshes the agent-side mirror (client_status, now_playing)
+# and delivers command_results promptly. Per-command acks stay rejected (v1.57).
+_debounce_hb_timer = None
+_debounce_hb_lock  = threading.Lock()
+DEBOUNCE_HB_DELAY_S = 75
+
+def _schedule_debounced_heartbeat(action):
+    global _debounce_hb_timer
+    with _debounce_hb_lock:
+        if _debounce_hb_timer:
+            _debounce_hb_timer.cancel()
+        _debounce_hb_timer = threading.Timer(DEBOUNCE_HB_DELAY_S, _fire_debounced_heartbeat)
+        _debounce_hb_timer.daemon = True
+        _debounce_hb_timer.start()
+    log(f"[debounce-hb] state heartbeat in {DEBOUNCE_HB_DELAY_S}s (after '{action}'; new commands reset timer)")
+
+def _fire_debounced_heartbeat():
+    global last_post_ts
+    log("[debounce-hb] firing post-command state heartbeat")
+    try:
+        with pending_buffer_lock:
+            _has_pending = len(pending_buffer) > 0
+        if _has_pending:
+            flush_buffer(reason="debounce-post-command")
+        else:
+            _send_heartbeat()
+        last_post_ts = time.time()
+    except Exception as _e:
+        log(f"[debounce-hb] FAILED: {_e}")
 
 # --- HEARTBEAT THREAD -------------------------------------------------------
 def heartbeat_thread():
@@ -2103,10 +2183,20 @@ def post_history(track, room, started_at, ended_at):
         if container.get("spotify_context"):
             item["spotify_context"] = container["spotify_context"]
     item["_buffered_at"] = time.time()  # for max-age relay flush
+    _persist_err = None
     with pending_buffer_lock:
         pending_buffer.append(item)
         last_track_added_ts = time.time()
         count = len(pending_buffer)
+        # v2.48: persist buffer on EVERY add (crash safety between flushes).
+        # Previously items only hit disk at flush time -- a crash mid-session
+        # lost everything buffered since the last flush.
+        try:
+            PENDING_PATH.write_text(json.dumps(list(pending_buffer)), encoding="utf-8")
+        except Exception as _pe:
+            _persist_err = str(_pe)
+    if _persist_err:
+        log(f"[buffer] WARNING: persist-on-add failed: {_persist_err}")
     log(f'+ Buffered: "{track["title"]}" - {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
     if count >= BATCH_SIZE:
         flush_buffer(reason="count")
@@ -2309,6 +2399,8 @@ def _setup_rooms(cmd, devices):
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
 SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
+# v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
+NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -3554,6 +3646,14 @@ def execute_command(cmd, source="unknown"):
         cmd_ts=cmd.get("cmd_ts"),
         detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
     )
+
+    # v2.48: debounced state heartbeat -- ANY state-changing command (silent or
+    # not) schedules one heartbeat ~75s out; new commands reset the timer.
+    if action not in NON_STATE_ACTIONS:
+        try:
+            _schedule_debounced_heartbeat(action)
+        except Exception as _de:
+            log(f"[debounce-hb] scheduling failed: {_de}")
 
     # Silent actions (volume, etc.) -- log locally, skip webhook POST entirely
     # v2.44 CRITICAL FIX: buffer drain moved BELOW this early-return. Previously
