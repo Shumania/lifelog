@@ -659,7 +659,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.42';
+const PAGE_VERSION = 'p2.43';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -710,8 +710,11 @@ let _sseLastMsg = Date.now();
 let _sseNowPlaying = {};  // per-house: {title, artist, album, rooms, ts, _fromStatus}
 let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
-let _roomsPlaying = [];  // rooms currently playing (from SSE status_update)
-let _roomsPaused = [];   // rooms currently paused (from SSE status_update)
+// U-M2 (p2.43): rooms state keyed by house — single globals cross-contaminated house panels
+let _roomsPlayingByHouse = {};  // house -> rooms currently playing (SSE status_update / state files)
+let _roomsPausedByHouse = {};   // house -> rooms currently paused
+function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
+function _rpPausedGet(h) { return _roomsPausedByHouse[h || house] || []; }
 let _roomsAll = {};      // per-house: rooms the service can see (for offline detection)
 let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 let _muteStates = {};    // coordinator -> bool (from SSE)
@@ -893,7 +896,10 @@ async function getSpotifyToken() {
   return localStorage.getItem('spotify_access_token');
 }
 
-async function spotifyApi(method, path, body) {
+async function spotifyApi(method, path, body, _authRetries) {
+  // U-M4 (p2.43): cap 401→token-refresh recursion at 1 retry — a token that refreshes
+  // "successfully" but keeps 401ing would otherwise loop forever hammering Spotify
+  _authRetries = _authRetries || 0;
   const token = await getSpotifyToken();
   if (!token) return null;
   const opts = { method, headers: { 'Authorization': 'Bearer ' + token } };
@@ -904,9 +910,10 @@ async function spotifyApi(method, path, body) {
   const _doFetch = async (attempt) => {
     const r = await fetch('https://api.spotify.com/v1' + path, opts);
     if (r.status === 401) {
+      if (_authRetries >= 1) { console.warn('[spotifyApi] still 401 after token refresh — giving up:', path); return null; }
       localStorage.removeItem('spotify_token_expiry');
       const retry = await getSpotifyToken();
-      if (retry) return spotifyApi(method, path, body);
+      if (retry) return spotifyApi(method, path, body, _authRetries + 1);
       return null;
     }
     // Retry transient server errors (502/503) once after a short delay
@@ -950,7 +957,7 @@ function setHouse(h, isUserClick) {
 function inferActiveRooms(h) {
   h = h || house;
   // If live state already confirmed nothing is playing, don't re-infer stale rooms
-  if (_initialRoomSeedDone[h] && (!_roomsPlaying || _roomsPlaying.length === 0)) return [];
+  if (_initialRoomSeedDone[h] && _rpGet(h).length === 0) return [];
   // From data rooms_playing (per-client metadata)
   if (data && data.client_status) {
     for (const c of data.client_status) {
@@ -993,7 +1000,7 @@ function renderRooms(h) {
   container.innerHTML = all.map(room => {
     const isActive = curSel.includes(room);
     const isPlaying = liveRooms.includes(room);
-    const isPaused = !isPlaying && _roomsPaused.includes(room);
+    const isPaused = !isPlaying && _rpPausedGet(h).includes(room);
     const isOffline = hasVisibility && !visibleRooms.includes(room);
     return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
   }).join('');
@@ -1018,7 +1025,7 @@ function updateSyncButton(h) {
   const btn = document.getElementById('sync-btn-' + h);
   if (!btn) return;
   const sel = new Set(selectedRooms[h] || []);
-  const live = new Set(_roomsPlaying || []);
+  const live = new Set(_rpGet(h));
   // Enable button if selection differs from what's actually playing
   const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
   if (differs) {
@@ -1034,7 +1041,7 @@ async function syncRooms(h) {
   if (h === 'roaming') return;
   const btn = document.getElementById('sync-btn-' + h);
   const sel = selectedRooms[h] || [];
-  console.log('[syncRooms] h=' + h, 'sel=' + JSON.stringify(sel), '_roomsPlaying=' + JSON.stringify(_roomsPlaying), 'commanderId=' + commanderId);
+  console.log('[syncRooms] h=' + h, 'sel=' + JSON.stringify(sel), '_roomsPlaying=' + JSON.stringify(_rpGet(h)), 'commanderId=' + commanderId);
   if (btn && btn.classList.contains('disabled')) {
     console.log('[syncRooms] Button disabled — selection matches live state');
     showToast('Selection matches current speakers');
@@ -1059,8 +1066,8 @@ async function syncRooms(h) {
   const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: cmdrId, t_requested: new Date().toISOString() });
   if (btn) { btn.classList.remove('syncing'); }
   if (ok) {
-    // Optimistically update _roomsPlaying so the button reflects new state
-    _roomsPlaying = [...rooms];
+    // Optimistically update rooms state so the button reflects new state
+    _roomsPlayingByHouse[h] = [...rooms];
     showToast(`✓ Speakers synced`);
     updateSyncButton(h);
   } else {
@@ -1385,8 +1392,8 @@ function setMuteIcon(btn, isMuted) {
 }
 
 function _getActiveRoom(h) {
-  // 1. Currently playing room
-  if (_roomsPlaying && _roomsPlaying.length > 0) return _roomsPlaying[0];
+  // 1. Currently playing room (this house)
+  if (_rpGet(h).length > 0) return _rpGet(h)[0];
   // 2. Selected rooms (room tiles user tapped — persisted in localStorage)
   const sel = selectedRooms[h];
   if (sel && sel.length > 0) return sel[0];
@@ -1655,9 +1662,10 @@ function renderStatusBar() {
 }
 
 function hardRefresh() {
-  showToast('Refreshing speakers…');
+  showToast(NTFY[house] ? 'Refreshing speakers…' : 'Refreshing…');
   // Force Sonos re-discovery so rooms_playing reflects current topology
-  postNtfy({ action: 'refresh' }).catch(() => {});
+  // U-M11 (p2.43): roaming has no speakers/ntfy topic — skip the Sonos command, still reload
+  if (NTFY[house]) postNtfy({ action: 'refresh' }).catch(() => {});
   // Preserve current tab across reload
   localStorage.setItem('ll_refresh_tab', house);
   // Give the service a moment to re-discover, then reload
@@ -1687,7 +1695,8 @@ async function fetchStateFiles() {
     try {
       const r = await fetch(url + '?t=' + Date.now());
       if (r.ok) results[h] = await r.json();
-    } catch(e) {}
+      else console.warn('[stateFiles] ' + h + ' fetch HTTP ' + r.status); // U-M6
+    } catch(e) { console.warn('[stateFiles] ' + h + ' fetch failed:', e && e.message); } // U-M6: was silent
   }));
   return results;
 }
@@ -1766,8 +1775,9 @@ function applyStateNowPlaying(stateFiles) {
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
     // Also seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
     if (state.rooms_playing && state.rooms_playing.length > 0) {
-      // Always update _roomsPlaying (reality) regardless of manual selection
-      if (h === house && stateTs > sseTs) { _roomsPlaying = [...state.rooms_playing]; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
+      // Always update rooms state (reality) regardless of manual selection
+      // U-M2: store for EVERY house (was gated to current tab, discarding other-house state)
+      if (stateTs > sseTs) { _roomsPlayingByHouse[h] = [...state.rooms_playing]; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : []; }
       // Only auto-set selectedRooms if user hasn't manually chosen
       if (stateTs > sseTs && !_userManualRoomSelect[h]) {
         selectedRooms[h] = [...state.rooms_playing];
@@ -1776,8 +1786,8 @@ function applyStateNowPlaying(stateFiles) {
       // Re-evaluate sync button since live state may have changed
       updateSyncButton(h);
     } else if (state.rooms_playing && state.rooms_playing.length === 0 && stateTs > sseTs) {
-      // State says no rooms playing — clear (only update globals for current house)
-      if (h === house) { _roomsPlaying = []; _roomsPaused = state.rooms_paused ? [...state.rooms_paused] : []; }
+      // State says no rooms playing — clear this house's state (U-M2: all houses, keyed)
+      _roomsPlayingByHouse[h] = []; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : [];
       // Clear stale auto-selected rooms on page load when nothing is playing
       if (!_userManualRoomSelect[h] && !_initialRoomSeedDone[h]) {
         _initialRoomSeedDone[h] = true;
@@ -1874,22 +1884,20 @@ async function loadData(loadArchive) {
       fetch('https://shumania.github.io/lifelog/versions.json?t=' + Date.now()).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
     data = headResp;
-    // Patch client_status from versions.json (always fresher than data-head.json)
+    // Patch client_status from versions.json
+    // U-M7 (p2.43): do NOT flatten every client to the global service_version — during
+    // staggered upgrades that hides which machine is still on the old build. Per-client
+    // truth order: versions.json clients[id].version > client's own reported version
+    // (heartbeat/SSE) > global service_version only when the client reports nothing.
     if (versionsResp && data.client_status) {
-      if (versionsResp.service_version) {
-        for (const c of data.client_status) {
-          if (c.version) c.version = versionsResp.service_version;
+      for (const c of data.client_status) {
+        const vc = versionsResp.clients ? versionsResp.clients[c.client_id] : null;
+        if (vc) {
+          if (vc.version) c.version = vc.version;
+          if (vc.sonos_commander !== undefined) c.sonos_commander = vc.sonos_commander ? 1 : 0;
+          if (vc.house) c.house = vc.house;
         }
-      }
-      // Patch sonos_commander and house from versions.json clients map
-      if (versionsResp.clients) {
-        for (const c of data.client_status) {
-          const vc = versionsResp.clients[c.client_id];
-          if (vc) {
-            if (vc.sonos_commander !== undefined) c.sonos_commander = vc.sonos_commander ? 1 : 0;
-            if (vc.house) c.house = vc.house;
-          }
-        }
+        if (!c.version && versionsResp.service_version) c.version = versionsResp.service_version;
       }
       console.log('[loadData] Patched client_status from versions.json:', JSON.stringify(versionsResp));
     }
@@ -1932,8 +1940,8 @@ async function loadData(loadArchive) {
 function renderAll() {
   renderStatusBar();
   updateCommander();
-  // Seed _roomsPlaying from data
-  _roomsPlaying = inferActiveRooms(house) || [];
+  // Seed rooms state from data
+  _roomsPlayingByHouse[house] = inferActiveRooms(house) || [];
   renderRooms(house);
   if (house === 'roaming') renderRoamingPanel();
   else renderNowPlayingSonos(house);
@@ -2071,7 +2079,8 @@ async function enrichRadioSession(sessionId) {
   const btn = document.getElementById('enrich-' + sessionId);
   if (btn) { btn.textContent = '⏳ Enriching…'; btn.disabled = true; btn.style.opacity = '0.6'; }
   try {
-    await fetch(ENRICH_RADIO_WEBHOOK, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_id: sessionId})});
+    const rEnrich = await fetch(ENRICH_RADIO_WEBHOOK, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({session_id: sessionId})});
+    if (!rEnrich.ok) throw new Error('HTTP ' + rEnrich.status); // U-M5: 4xx/5xx must not show ✓
     if (btn) { btn.textContent = '✓ Enriching…'; }
     // Poll for enriched data — CDN cache may lag
     let attempts = 0;
@@ -2111,7 +2120,10 @@ function renderHistory() {
 
     const loc = getLocation(item);
     const badge = getSourceBadge(item);
-    const rooms = Array.isArray(item.rooms) ? item.rooms.join(', ') : (item.room || '');
+    // U-M10 (p2.43): freshest rows (state-file merge, SSE retire) carry rooms in `domain`
+    // (array or string, writer-dependent) — normalize all three fields here
+    const roomsRaw = item.rooms ?? item.room ?? item.domain ?? '';
+    const rooms = Array.isArray(roomsRaw) ? roomsRaw.join(', ') : String(roomsRaw);
     // CRITICAL: encodeURIComponent does NOT encode single quotes — they break onclick='...' attributes.
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
     const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',album:item.album||'',service:item.service||''})).replace(/'/g,'%27');
@@ -2197,7 +2209,9 @@ function saveExpandedAlbums(set) {
 function renderSuggRow(s, explorationId) {
   const uri = (s.uri || '').replace(/'/g, "\\'");
   const lbl = (s.label || '').replace(/'/g, "\\'");
-  const isAlbum = !!(s.uri && s.uri.startsWith('spotify:album:') && explorationId);
+  // p2.43 minor: explorationId can legitimately be 0 — don't treat it as falsy
+  const hasExpl = explorationId !== undefined && explorationId !== null;
+  const isAlbum = !!(s.uri && s.uri.startsWith('spotify:album:') && hasExpl);
   const albumId = isAlbum ? s.uri.split(':').pop() : '';
   let h = '';
   if (isAlbum) h += '<div class="sugg-with-tracks">';
@@ -2501,7 +2515,7 @@ async function directPlay(action, encodedData) {
   // For Roaming, need a Spotify URI — search if we don't have one
   if (!uri) {
     const token = await getSpotifyToken();
-    if (!token) { showToast('Open Controller to connect Spotify', true); return; }
+    if (!token) { showToast('Connect Spotify first', true); return; } // p2.43 minor: stale "Open Controller" copy
     showToast('Searching...');
     try {
       const q = [info.artist, info.title].filter(Boolean).join(' ');
@@ -2895,10 +2909,11 @@ async function exploreArtist(btn, encodedData) {
   btn.classList.add('exploring');
   btn.textContent = '⏳';
   try {
-    await fetch(EXPLORE_WEBHOOK, {
+    const r = await fetch(EXPLORE_WEBHOOK, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(trackData)
     });
+    if (!r.ok) throw new Error('HTTP ' + r.status); // U-M5: 4xx/5xx must not show ✓
     btn.textContent = '✓'; btn.classList.remove('exploring');
     setTimeout(() => { btn.textContent = '🔍'; }, 3000);
   } catch(e) {
@@ -2983,7 +2998,8 @@ async function syncNow() {
   btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
   try {
     // Refresh Sonos topology + Super Sync
-    postNtfy({ action: 'refresh' }).catch(() => {});
+    // U-M11 (p2.43): skip Sonos refresh on roaming (no topic) — Super Sync still runs
+    if (NTFY[house]) postNtfy({ action: 'refresh' }).catch(() => {});
     await fetch(SUPER_SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
     btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
     // Collect runs ~5s, flush responses + wellness take ~25s, then reload
@@ -3042,6 +3058,13 @@ function connectSSE() {
       const outer = JSON.parse(e.data);
       if (!outer.message) return;
       const msg = JSON.parse(outer.message);
+      // U-M3 (p2.43): ntfy replays up to 16 min of history on every (re)connect (?since=16m).
+      // Never stamp events with Date.now() — use the ntfy server timestamp (outer.time, unix
+      // seconds) so replayed events can't masquerade as fresh. All now-playing state writes
+      // below are guarded by evtTs; fresher existing state (incl. data.json) wins.
+      const evtTs = outer.time ? outer.time * 1000 : Date.now();
+      const evtAge = Date.now() - evtTs;
+      const EVT_FRESH_MS = 600000; // 10 min, matches stale watchdog TTL
       // Infer house from msg.house OR ntfy topic name
       let sseHouse = msg.house || null;
       if (!sseHouse && outer.topic) {
@@ -3059,7 +3082,7 @@ function connectSSE() {
         const endedItem = {
           type: 'music', title: track.title, artist: track.artist||'', album: track.album||'',
           source: track.service ? 'sonos_' + track.service.replace('sonos_','') : 'sonos',
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(evtTs).toISOString(), // U-M3: real event time, not receipt time
           domain: (track.rooms||[]).join(', '), house: h||house,
           uri: track.uri||'', sonos_uri: track.uri||'', _fromSSE: true
         };
@@ -3076,14 +3099,20 @@ function connectSSE() {
       const events = msg.events || (msg.event ? [msg.event] : []);
 
       // --- Handle now_playing ---
-      if (events.includes('now_playing')) {
+      // U-M3: ignore replayed events that are stale (>10 min) or older than current state
+      const npIsStale = evtAge > EVT_FRESH_MS ||
+        (sseHouse && _sseNowPlaying[sseHouse] && (_sseNowPlaying[sseHouse].ts || 0) > evtTs);
+      if (events.includes('now_playing') && npIsStale) {
+        console.log('[sse] U-M3: skipping replayed now_playing (age ' + Math.round(evtAge/1000) + 's):', msg.title);
+      }
+      if (events.includes('now_playing') && !npIsStale) {
         if (_trackEndedTimer) { clearTimeout(_trackEndedTimer); _trackEndedTimer = null; }
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
-        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', uri: msg.uri||'', ts: Date.now() };
+        _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', uri: msg.uri||'', ts: evtTs };
         if (sseHouse) {
-          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: Date.now() };
+          _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: evtTs };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
             if (msg.rooms && msg.rooms.length > 0 && !_userManualRoomSelect[house]) {
@@ -3097,7 +3126,8 @@ function connectSSE() {
       }
 
       // --- Handle stopped ---
-      if (events.includes('stopped') || events.includes('track_ended')) {
+      // U-M3: same replay guard — an old stopped event must not clear fresher state
+      if ((events.includes('stopped') || events.includes('track_ended')) && !npIsStale) {
         if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
           retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
         }
@@ -3116,14 +3146,15 @@ function connectSSE() {
       if (sseHouse && msg.rooms_playing) {
         // Track all visible rooms for offline detection
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
+        // U-M2: always store rooms state under the event's own house (not just current tab)
+        _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
+        _roomsPausedByHouse[sseHouse] = msg.rooms_paused ? [...msg.rooms_paused] : [];
         // Auto-switch tab if music starts in another house
         if (!_tabManualOverride && msg.rooms_playing.length > 0 && sseHouse !== house) {
           console.log('[auto-tab] SSE: switching to', sseHouse, '(speakers started)');
           setHouse(sseHouse);
         }
         if (sseHouse === house) {
-          _roomsPlaying = [...msg.rooms_playing];
-          _roomsPaused = msg.rooms_paused ? [...msg.rooms_paused] : [];
           if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
             selectedRooms[house] = [...msg.rooms_playing];
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
@@ -3145,8 +3176,10 @@ function connectSSE() {
           updateMuteRepeatButtons();
         }
         // Defensive: if all rooms stopped (not just paused) and no explicit stopped event, clear now-playing
+        // U-M3: only if this snapshot is at least as fresh as the state it would clear
         const hasPausedRooms = msg.rooms_paused && msg.rooms_paused.length > 0;
-        if (msg.rooms_playing.length === 0 && _sseNowPlaying[sseHouse] && !events.includes('now_playing')) {
+        if (msg.rooms_playing.length === 0 && _sseNowPlaying[sseHouse] && !events.includes('now_playing') &&
+            evtTs >= (_sseNowPlaying[sseHouse].ts || 0)) {
           if (hasPausedRooms) {
             // Rooms are paused, not stopped — keep now-playing visible for resume
             console.log('[now-playing] Keeping paused track visible:', _sseNowPlaying[sseHouse].title);
@@ -3167,12 +3200,14 @@ function connectSSE() {
       }
 
       // --- Opportunistic now-playing from now_playing_tracks (status/snapshot) ---
-      if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && !events.includes('now_playing')) {
+      // U-M3: skip stale replayed snapshots; stamp with real event time
+      if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && !events.includes('now_playing') &&
+          evtAge <= EVT_FRESH_MS) {
         const t = msg.now_playing_tracks[0];
         const h = sseHouse || house;
         if (!_sseNowPlaying[h]) {
           _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
-            rooms: [...new Set(msg.now_playing_tracks.map(x=>x.rooms||[]).flat())], uri: t.uri||'', ts: Date.now(), _fromStatus: true };
+            rooms: [...new Set(msg.now_playing_tracks.map(x=>x.rooms||[]).flat())], uri: t.uri||'', ts: evtTs, _fromStatus: true };
           if (h === house) renderNowPlayingSonos(house);
         }
         if (!_sseNowPlayingGlobal) {
@@ -3194,7 +3229,9 @@ function connectSSE() {
       if (msg.client_id && data && data.client_status) {
         const c = data.client_status.find(s => s.client_id === msg.client_id);
         if (c) {
-          c.last_seen = new Date().toISOString();
+          // U-M3: use event time, and never move last_seen backwards (replays)
+          const prevSeen = c.last_seen ? new Date(c.last_seen).getTime() : 0;
+          if (evtTs > prevSeen) c.last_seen = new Date(evtTs).toISOString();
           if (msg.version) c.version = msg.version;
           // Patch sonos_commander from live SSE — data-head.json may be stale
           if (msg.sonos_commander !== undefined) c.sonos_commander = msg.sonos_commander ? 1 : 0;
@@ -3243,6 +3280,7 @@ let _plTrackLoading = new Set();
 let _plTrackError = new Set();
 let _plOpenIds = new Set();
 let _plLastListened = {};  // playlist_id → ISO timestamp of last listen
+let _plAccountOwnerId = null;  // p2.43: modal owner_id across playlists = account owner
 
 const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlist_metadata.json';
 const PL_TRACKS_BASE  = 'https://shumania.github.io/lifelog/playlist_tracks/';
@@ -3252,6 +3290,11 @@ async function loadPlaylistData() {
     const r = await fetch(PL_METADATA_URL + '?t=' + (Date.now()>>16));
     if (!r.ok) throw new Error('HTTP ' + r.status);
     _playlists = await r.json();
+    // p2.43 minor: derive the account owner (modal owner_id) instead of hardcoding a
+    // display name — "shared" badges survive display-name changes this way
+    const ownerCounts = {};
+    for (const p of _playlists) { if (p.owner_id) ownerCounts[p.owner_id] = (ownerCounts[p.owner_id] || 0) + 1; }
+    _plAccountOwnerId = Object.keys(ownerCounts).sort((a, b) => ownerCounts[b] - ownerCounts[a])[0] || null;
     computePlaylistLastListened();
     renderPlaylists();
   } catch(e) {
@@ -3372,7 +3415,7 @@ function renderPlaylists() {
   for (var fi = 0; fi < filtered.length; fi++) {
     var p = filtered[fi];
     var isOpen = _plOpenIds.has(p.id);
-    var isShared = p.owner && p.owner !== 'Andrew Shuman';
+    var isShared = p.owner_id ? (_plAccountOwnerId && p.owner_id !== _plAccountOwnerId) : false; // p2.43 minor: was hardcoded display name
 
     var meta = (p.tracks_total || 0) + ' tracks';
     if (p.created_approx) {
