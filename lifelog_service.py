@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.46"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.47"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -2601,11 +2601,14 @@ def execute_command(cmd, source="unknown"):
                         result["message"] = f"add_to_queue failed: {eq}"
 
         elif action == "play_album":
-            # [v2.43] Play a full album from Qobuz (or similar).
-            # Two-step: Qobuz API search to find the right album (disambiguate
-            # singles vs full albums via tracks_count), then MusicService search
-            # by album ID to get the native DidlObject, then add_to_queue().
+            # [v2.43] Play a full album natively (Qobuz). [v2.47] Apple Music branch.
+            # Shared design: resolve the album to a native MusicService DidlObject
+            # (per-service resolution below), then add_to_queue() -- Sonos expands
+            # the container into individual tracks. queue_only inserts after the
+            # current track without interrupting playback; otherwise we insert
+            # after current and skip to it (preserves the rest of the queue).
             from soco.music_services import MusicService
+            import urllib.parse
             QOBUZ_APP_ID = "712109809"
             album_title = cmd.get("title", "")
             album_artist = cmd.get("artist", "")
@@ -2619,113 +2622,202 @@ def execute_command(cmd, source="unknown"):
             else:
                 coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
                 query_str = f"{album_title} {album_artist}".strip()
-                log(f"play_album: searching Qobuz API for '{query_str}'")
 
-                # Step 1: Qobuz API search to get albums with tracks_count
-                try:
-                    import urllib.parse
-                    api_url = f"https://www.qobuz.com/api.json/0.2/catalog/search?query={urllib.parse.quote(query_str)}&app_id={QOBUZ_APP_ID}&limit=10&type=albums"
-                    resp = requests.get(api_url, timeout=10)
-                    resp.raise_for_status()
-                    api_data = resp.json()
-                    api_albums = api_data.get("albums", {}).get("items", [])
-                except Exception as api_err:
-                    log(f"play_album: Qobuz API search failed: {api_err}")
-                    api_albums = []
+                # Per-service resolution fills these. album_item stays None on
+                # failure -- the failing branch MUST set result["message"].
+                album_item = None
+                chosen_title, chosen_artist = album_title, album_artist
+                chosen_tracks, chosen_id = 0, ""
 
-                if not api_albums:
-                    log(f"play_album: no albums found via Qobuz API for '{query_str}'")
-                    result["message"] = f"No albums found on Qobuz for '{query_str}'"
-                else:
-                    # Log ALL results for visibility
-                    log(f"play_album: Qobuz API returned {len(api_albums)} albums:")
-                    for i, a in enumerate(api_albums):
-                        a_title = a.get("title", "?")
-                        a_artist = a.get("artist", {}).get("name", "?")
-                        a_tracks = a.get("tracks_count", 0)
-                        a_id = a.get("id", "?")
-                        a_qid = a.get("qobuz_id", "?")
-                        log(f"  [{i}] id={a_id} qobuz_id={a_qid} tracks={a_tracks} '{a_title}' by {a_artist}")
-
-                    # Step 2: Pick the album with the most tracks (skip singles)
-                    full_albums = [a for a in api_albums if a.get("tracks_count", 0) > 1]
-                    if not full_albums:
-                        log(f"play_album: all results are singles, using first result")
-                        chosen = api_albums[0]
-                    else:
-                        chosen = max(full_albums, key=lambda a: a.get("tracks_count", 0))
-
-                    chosen_id = chosen.get("id", "")
-                    chosen_title = chosen.get("title", "?")
-                    chosen_artist = chosen.get("artist", {}).get("name", "?")
-                    chosen_tracks = chosen.get("tracks_count", 0)
-                    log(f"play_album: selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
-
-                    # Step 3: MusicService search by album ID to get native DidlObject
+                if "apple" in svc_name.lower():
+                    # === APPLE MUSIC (v2.47) ===
+                    # Step 1: iTunes Search API (public, keyless) to disambiguate
+                    # singles vs full albums via trackCount + get canonical naming.
+                    log(f"play_album: searching iTunes API for '{query_str}'")
                     try:
-                        ms_items = list(MusicService(svc_name).search("albums", str(chosen_id), 0, 5))
-                        log(f"play_album: MusicService search for '{chosen_id}' returned {len(ms_items)} items")
-                        for j, msi in enumerate(ms_items):
-                            log(f"  MS[{j}] type={type(msi).__name__} title='{getattr(msi, 'title', '?')}' uri={getattr(msi, 'uri', '?')}")
-                    except Exception as ms_err:
-                        log(f"play_album: MusicService search failed: {ms_err}")
-                        ms_items = []
+                        api_url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query_str)}&entity=album&limit=10"
+                        resp = requests.get(api_url, timeout=10)
+                        resp.raise_for_status()
+                        api_albums = resp.json().get("results", [])
+                    except Exception as api_err:
+                        log(f"play_album: iTunes API search failed: {api_err}")
+                        api_albums = []
 
-                    if not ms_items:
-                        result["message"] = f"Found album '{chosen_title}' ({chosen_tracks} tracks) on Qobuz API but MusicService search failed"
+                    if api_albums:
+                        log(f"play_album: iTunes API returned {len(api_albums)} albums:")
+                        for i, a in enumerate(api_albums):
+                            log(f"  [{i}] id={a.get('collectionId','?')} tracks={a.get('trackCount',0)} '{a.get('collectionName','?')}' by {a.get('artistName','?')}")
+                        full_albums = [a for a in api_albums if a.get("trackCount", 0) > 1]
+                        if not full_albums:
+                            log(f"play_album: all iTunes results are singles, using first result")
+                            chosen = api_albums[0]
+                        else:
+                            chosen = max(full_albums, key=lambda a: a.get("trackCount", 0))
+                        chosen_title  = chosen.get("collectionName", album_title)
+                        chosen_artist = chosen.get("artistName", album_artist)
+                        chosen_tracks = chosen.get("trackCount", 0)
+                        chosen_id     = str(chosen.get("collectionId", ""))
+                        log(f"play_album: iTunes selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
                     else:
-                        album_item = ms_items[0]
-                        album_item_title = getattr(album_item, "title", str(album_item))
-                        log(f"play_album: queueing DidlObject '{album_item_title}' type={type(album_item).__name__}")
+                        log(f"play_album: iTunes API gave no results; falling back to raw SMAPI text search")
 
-                        # Step 4: add_to_queue with DidlObject -- Sonos expands album into tracks
+                    # Step 2: Apple Music SMAPI text search (Apple's SMAPI does not
+                    # support ID lookup the way Qobuz does, so we search by name and
+                    # pick the best normalized-title match).
+                    def _norm(s):
+                        return "".join(ch for ch in str(s).casefold() if ch.isalnum() or ch == " ").strip()
+                    ms = None
+                    try:
+                        ms = MusicService("Apple Music")
+                    except Exception as svc_err:
+                        log(f"play_album: MusicService('Apple Music') init failed: {svc_err}")
+                    search_terms = []
+                    canonical = f"{chosen_title} {chosen_artist}".strip()
+                    if canonical and canonical.casefold() != query_str.casefold():
+                        search_terms.append(canonical)
+                    search_terms.append(query_str)
+                    for term in search_terms:
+                        if ms is None or album_item is not None:
+                            break
                         try:
-                            if queue_only:
-                                # Insert after current track without interrupting playback
-                                try:
-                                    info = coordinator.get_current_track_info()
-                                    current_pos = int(info.get('playlist_position', 0))
-                                    insert_pos = current_pos + 1
-                                    pos = coordinator.add_to_queue(album_item, position=insert_pos)
-                                    log(f"play_album: queued (queue_only) at position {pos}")
-                                except Exception:
-                                    pos = coordinator.add_to_queue(album_item)
-                                    log(f"play_album: queued (queue_only, append) at position {pos}")
-                            else:
-                                # Play now: insert after current, then skip to it
-                                try:
-                                    info = coordinator.get_current_track_info()
-                                    current_pos = int(info.get('playlist_position', 0))
-                                    insert_pos = current_pos + 1
-                                    pos = coordinator.add_to_queue(album_item, position=insert_pos)
-                                    log(f"play_album: inserted at position {pos}, skipping to it")
-                                    coordinator.play_from_queue(pos - 1)  # 0-indexed
-                                except Exception:
-                                    pos = coordinator.add_to_queue(album_item)
-                                    log(f"play_album: appended at position {pos}, playing from there")
-                                    coordinator.play_from_queue(pos - 1)
+                            ms_items = list(ms.search("albums", term, 0, 10))
+                            log(f"play_album: Apple SMAPI search '{term}' returned {len(ms_items)} items")
+                            for j, msi in enumerate(ms_items):
+                                log(f"  MS[{j}] type={type(msi).__name__} title='{getattr(msi, 'title', '?')}'")
+                        except Exception as ms_err:
+                            log(f"play_album: Apple SMAPI search '{term}' failed: {ms_err}")
+                            ms_items = []
+                        if not ms_items:
+                            continue
+                        # Prefer exact normalized title match, then substring, then first
+                        want = _norm(chosen_title)
+                        exact = [m for m in ms_items if _norm(getattr(m, "title", "")) == want]
+                        sub   = [m for m in ms_items if want and want in _norm(getattr(m, "title", ""))]
+                        album_item = (exact or sub or ms_items)[0]
+                        match_kind = "exact" if exact else ("substring" if sub else "first")
+                        log(f"play_album: Apple pick '{getattr(album_item, 'title', '?')}' (match={match_kind})")
+                    if album_item is None:
+                        # Verbose failure detail: what can this household even search?
+                        try:
+                            cats = ms.available_search_categories if ms else "n/a"
+                        except Exception as cat_err:
+                            cats = f"unavailable ({cat_err})"
+                        log(f"play_album: Apple Music search exhausted; available_search_categories={cats}")
+                        result["message"] = f"No album found on Apple Music for '{query_str}' (tried: {search_terms})"
+                    else:
+                        chosen_title = getattr(album_item, "title", chosen_title)
 
-                            room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
-                            grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
-                            mode = "Queued" if queue_only else "Playing"
-                            result["success"] = True
-                            result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist} ({chosen_tracks} tracks) in {room_label}{grp_note}"
-                            result["data"] = {
-                                "title": chosen_title,
-                                "artist": chosen_artist,
-                                "tracks_count": chosen_tracks,
-                                "album_id": chosen_id,
-                                "service": svc_name,
-                                "room": rooms[0],
-                                "rooms": rooms,
-                                "queue_only": queue_only,
-                                "position": pos,
-                            }
-                        except Exception as q_err:
-                            log(f"play_album: add_to_queue failed: {q_err}")
-                            meta = getattr(album_item, "to_didl_string", lambda: "n/a")()
-                            log(f"play_album: DIDL: {meta[:500]}")
-                            result["message"] = f"add_to_queue failed for '{chosen_title}': {q_err}"
+                else:
+                    # === QOBUZ (v2.43) ===
+                    # Two-step: Qobuz API search to find the right album (disambiguate
+                    # singles vs full albums via tracks_count), then MusicService search
+                    # by album ID to get the native DidlObject.
+                    log(f"play_album: searching Qobuz API for '{query_str}'")
+                    try:
+                        api_url = f"https://www.qobuz.com/api.json/0.2/catalog/search?query={urllib.parse.quote(query_str)}&app_id={QOBUZ_APP_ID}&limit=10&type=albums"
+                        resp = requests.get(api_url, timeout=10)
+                        resp.raise_for_status()
+                        api_data = resp.json()
+                        api_albums = api_data.get("albums", {}).get("items", [])
+                    except Exception as api_err:
+                        log(f"play_album: Qobuz API search failed: {api_err}")
+                        api_albums = []
+
+                    if not api_albums:
+                        log(f"play_album: no albums found via Qobuz API for '{query_str}'")
+                        result["message"] = f"No albums found on Qobuz for '{query_str}'"
+                    else:
+                        # Log ALL results for visibility
+                        log(f"play_album: Qobuz API returned {len(api_albums)} albums:")
+                        for i, a in enumerate(api_albums):
+                            a_title = a.get("title", "?")
+                            a_artist = a.get("artist", {}).get("name", "?")
+                            a_tracks = a.get("tracks_count", 0)
+                            a_id = a.get("id", "?")
+                            a_qid = a.get("qobuz_id", "?")
+                            log(f"  [{i}] id={a_id} qobuz_id={a_qid} tracks={a_tracks} '{a_title}' by {a_artist}")
+
+                        # Pick the album with the most tracks (skip singles)
+                        full_albums = [a for a in api_albums if a.get("tracks_count", 0) > 1]
+                        if not full_albums:
+                            log(f"play_album: all results are singles, using first result")
+                            chosen = api_albums[0]
+                        else:
+                            chosen = max(full_albums, key=lambda a: a.get("tracks_count", 0))
+
+                        chosen_id = chosen.get("id", "")
+                        chosen_title = chosen.get("title", "?")
+                        chosen_artist = chosen.get("artist", {}).get("name", "?")
+                        chosen_tracks = chosen.get("tracks_count", 0)
+                        log(f"play_album: selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
+
+                        # MusicService search by album ID to get native DidlObject
+                        try:
+                            ms_items = list(MusicService(svc_name).search("albums", str(chosen_id), 0, 5))
+                            log(f"play_album: MusicService search for '{chosen_id}' returned {len(ms_items)} items")
+                            for j, msi in enumerate(ms_items):
+                                log(f"  MS[{j}] type={type(msi).__name__} title='{getattr(msi, 'title', '?')}' uri={getattr(msi, 'uri', '?')}")
+                        except Exception as ms_err:
+                            log(f"play_album: MusicService search failed: {ms_err}")
+                            ms_items = []
+
+                        if not ms_items:
+                            result["message"] = f"Found album '{chosen_title}' ({chosen_tracks} tracks) on Qobuz API but MusicService search failed"
+                        else:
+                            album_item = ms_items[0]
+
+                # === SHARED QUEUE STEP (all services) ===
+                if album_item is not None:
+                    album_item_title = getattr(album_item, "title", str(album_item))
+                    log(f"play_album: queueing DidlObject '{album_item_title}' type={type(album_item).__name__}")
+                    try:
+                        if queue_only:
+                            # Insert after current track without interrupting playback
+                            try:
+                                info = coordinator.get_current_track_info()
+                                current_pos = int(info.get('playlist_position', 0))
+                                insert_pos = current_pos + 1
+                                pos = coordinator.add_to_queue(album_item, position=insert_pos)
+                                log(f"play_album: queued (queue_only) at position {pos}")
+                            except Exception:
+                                pos = coordinator.add_to_queue(album_item)
+                                log(f"play_album: queued (queue_only, append) at position {pos}")
+                        else:
+                            # Play now: insert after current, then skip to it
+                            try:
+                                info = coordinator.get_current_track_info()
+                                current_pos = int(info.get('playlist_position', 0))
+                                insert_pos = current_pos + 1
+                                pos = coordinator.add_to_queue(album_item, position=insert_pos)
+                                log(f"play_album: inserted at position {pos}, skipping to it")
+                                coordinator.play_from_queue(pos - 1)  # 0-indexed
+                            except Exception:
+                                pos = coordinator.add_to_queue(album_item)
+                                log(f"play_album: appended at position {pos}, playing from there")
+                                coordinator.play_from_queue(pos - 1)
+
+                        room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
+                        grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
+                        mode = "Queued" if queue_only else "Playing"
+                        tracks_note = f" ({chosen_tracks} tracks)" if chosen_tracks else ""
+                        result["success"] = True
+                        result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist}{tracks_note} in {room_label}{grp_note}"
+                        result["data"] = {
+                            "title": chosen_title,
+                            "artist": chosen_artist,
+                            "tracks_count": chosen_tracks,
+                            "album_id": chosen_id,
+                            "service": svc_name,
+                            "room": rooms[0],
+                            "rooms": rooms,
+                            "queue_only": queue_only,
+                            "position": pos,
+                        }
+                    except Exception as q_err:
+                        log(f"play_album: add_to_queue failed: {q_err}")
+                        meta = getattr(album_item, "to_didl_string", lambda: "n/a")()
+                        log(f"play_album: DIDL: {meta[:500]}")
+                        result["message"] = f"add_to_queue failed for '{chosen_title}': {q_err}"
 
         elif action == "play_spotify_uri":
             from soco.plugins.sharelink import ShareLinkPlugin
