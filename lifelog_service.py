@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.47"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.47.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -2625,7 +2625,10 @@ def execute_command(cmd, source="unknown"):
 
                 # Per-service resolution fills these. album_item stays None on
                 # failure -- the failing branch MUST set result["message"].
+                # [v2.47.1] Apple resolves to apple_share_url (ShareLink) instead
+                # of a DidlObject; the shared queue step dispatches on it.
                 album_item = None
+                apple_share_url = None
                 chosen_title, chosen_artist = album_title, album_artist
                 chosen_tracks, chosen_id = 0, ""
 
@@ -2647,65 +2650,40 @@ def execute_command(cmd, source="unknown"):
                         log(f"play_album: iTunes API returned {len(api_albums)} albums:")
                         for i, a in enumerate(api_albums):
                             log(f"  [{i}] id={a.get('collectionId','?')} tracks={a.get('trackCount',0)} '{a.get('collectionName','?')}' by {a.get('artistName','?')}")
+                        def _norm(s):
+                            return "".join(ch for ch in str(s).casefold() if ch.isalnum() or ch == " ").strip()
                         full_albums = [a for a in api_albums if a.get("trackCount", 0) > 1]
                         if not full_albums:
                             log(f"play_album: all iTunes results are singles, using first result")
                             chosen = api_albums[0]
                         else:
-                            chosen = max(full_albums, key=lambda a: a.get("trackCount", 0))
+                            # [v2.47.1] Prefer exact normalized title match, then substring,
+                            # then iTunes relevance order. (max-trackCount wrongly picked
+                            # 35-track 'Decade' over the requested 'Harvest'.)
+                            want = _norm(album_title)
+                            exact = [a for a in full_albums if _norm(a.get("collectionName", "")) == want]
+                            sub   = [a for a in full_albums if want and want in _norm(a.get("collectionName", ""))]
+                            chosen = (exact or sub or full_albums)[0]
+                            match_kind = "exact" if exact else ("substring" if sub else "first-full")
+                            log(f"play_album: iTunes title match={match_kind} for '{album_title}'")
                         chosen_title  = chosen.get("collectionName", album_title)
                         chosen_artist = chosen.get("artistName", album_artist)
                         chosen_tracks = chosen.get("trackCount", 0)
                         chosen_id     = str(chosen.get("collectionId", ""))
                         log(f"play_album: iTunes selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
                     else:
-                        log(f"play_album: iTunes API gave no results; falling back to raw SMAPI text search")
+                        log(f"play_album: iTunes API gave no results for '{query_str}'")
 
-                    # Step 2: Apple Music SMAPI text search (Apple's SMAPI does not
-                    # support ID lookup the way Qobuz does, so we search by name and
-                    # pick the best normalized-title match).
-                    def _norm(s):
-                        return "".join(ch for ch in str(s).casefold() if ch.isalnum() or ch == " ").strip()
-                    ms = None
-                    try:
-                        ms = MusicService("Apple Music")
-                    except Exception as svc_err:
-                        log(f"play_album: MusicService('Apple Music') init failed: {svc_err}")
-                    search_terms = []
-                    canonical = f"{chosen_title} {chosen_artist}".strip()
-                    if canonical and canonical.casefold() != query_str.casefold():
-                        search_terms.append(canonical)
-                    search_terms.append(query_str)
-                    for term in search_terms:
-                        if ms is None or album_item is not None:
-                            break
-                        try:
-                            ms_items = list(ms.search("albums", term, 0, 10))
-                            log(f"play_album: Apple SMAPI search '{term}' returned {len(ms_items)} items")
-                            for j, msi in enumerate(ms_items):
-                                log(f"  MS[{j}] type={type(msi).__name__} title='{getattr(msi, 'title', '?')}'")
-                        except Exception as ms_err:
-                            log(f"play_album: Apple SMAPI search '{term}' failed: {ms_err}")
-                            ms_items = []
-                        if not ms_items:
-                            continue
-                        # Prefer exact normalized title match, then substring, then first
-                        want = _norm(chosen_title)
-                        exact = [m for m in ms_items if _norm(getattr(m, "title", "")) == want]
-                        sub   = [m for m in ms_items if want and want in _norm(getattr(m, "title", ""))]
-                        album_item = (exact or sub or ms_items)[0]
-                        match_kind = "exact" if exact else ("substring" if sub else "first")
-                        log(f"play_album: Apple pick '{getattr(album_item, 'title', '?')}' (match={match_kind})")
-                    if album_item is None:
-                        # Verbose failure detail: what can this household even search?
-                        try:
-                            cats = ms.available_search_categories if ms else "n/a"
-                        except Exception as cat_err:
-                            cats = f"unavailable ({cat_err})"
-                        log(f"play_album: Apple Music search exhausted; available_search_categories={cats}")
-                        result["message"] = f"No album found on Apple Music for '{query_str}' (tried: {search_terms})"
+                    # Step 2 [v2.47.1]: Build an Apple Music share link from the iTunes
+                    # collectionId and let ShareLinkPlugin queue the album container.
+                    # Apple's SMAPI search endpoint rejects soco search() calls with
+                    # SOAP-ENV:Server faults, so we bypass SMAPI entirely -- the iTunes
+                    # collectionId IS the native Apple Music album ID.
+                    if chosen_id:
+                        apple_share_url = f"https://music.apple.com/us/album/a/{chosen_id}"
+                        log(f"play_album: Apple share link: {apple_share_url} ('{chosen_title}' by {chosen_artist}, {chosen_tracks} tracks)")
                     else:
-                        chosen_title = getattr(album_item, "title", chosen_title)
+                        result["message"] = f"No album found via iTunes search for '{query_str}'"
 
                 else:
                     # === QOBUZ (v2.43) ===
@@ -2767,9 +2745,23 @@ def execute_command(cmd, source="unknown"):
                             album_item = ms_items[0]
 
                 # === SHARED QUEUE STEP (all services) ===
-                if album_item is not None:
-                    album_item_title = getattr(album_item, "title", str(album_item))
-                    log(f"play_album: queueing DidlObject '{album_item_title}' type={type(album_item).__name__}")
+                if album_item is not None or apple_share_url:
+                    from soco.plugins.sharelink import ShareLinkPlugin
+
+                    def _enqueue(position=None):
+                        # [v2.47.1] Dispatch: Apple via ShareLinkPlugin (share URL),
+                        # everything else via native DidlObject add_to_queue.
+                        if apple_share_url:
+                            sl = ShareLinkPlugin(coordinator)
+                            if position:
+                                return sl.add_share_link_to_queue(apple_share_url, position=position, dc_title=chosen_title)
+                            return sl.add_share_link_to_queue(apple_share_url, dc_title=chosen_title)
+                        if position:
+                            return coordinator.add_to_queue(album_item, position=position)
+                        return coordinator.add_to_queue(album_item)
+
+                    album_item_title = chosen_title if apple_share_url else getattr(album_item, "title", str(album_item))
+                    log(f"play_album: queueing '{album_item_title}' via {'ShareLink' if apple_share_url else type(album_item).__name__}")
                     try:
                         if queue_only:
                             # Insert after current track without interrupting playback
@@ -2777,10 +2769,10 @@ def execute_command(cmd, source="unknown"):
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
-                                pos = coordinator.add_to_queue(album_item, position=insert_pos)
+                                pos = _enqueue(insert_pos)
                                 log(f"play_album: queued (queue_only) at position {pos}")
                             except Exception:
-                                pos = coordinator.add_to_queue(album_item)
+                                pos = _enqueue()
                                 log(f"play_album: queued (queue_only, append) at position {pos}")
                         else:
                             # Play now: insert after current, then skip to it
@@ -2788,11 +2780,11 @@ def execute_command(cmd, source="unknown"):
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
-                                pos = coordinator.add_to_queue(album_item, position=insert_pos)
+                                pos = _enqueue(insert_pos)
                                 log(f"play_album: inserted at position {pos}, skipping to it")
                                 coordinator.play_from_queue(pos - 1)  # 0-indexed
                             except Exception:
-                                pos = coordinator.add_to_queue(album_item)
+                                pos = _enqueue()
                                 log(f"play_album: appended at position {pos}, playing from there")
                                 coordinator.play_from_queue(pos - 1)
 
