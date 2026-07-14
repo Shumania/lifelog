@@ -1,0 +1,860 @@
+[
+ {
+  "position": 0,
+  "track_id": "6TOhXLevQUI4fjrxLL1nJE",
+  "track_name": "Stand on the Word - 1982 Version",
+  "track_uri": "spotify:track:6TOhXLevQUI4fjrxLL1nJE",
+  "duration_ms": 286380,
+  "artists": [
+   {
+    "name": "The Joubert Singers",
+    "id": "2uGpuH0yo0iKx6rBqfgiA9"
+   }
+  ],
+  "album_name": "Stand on the Word",
+  "album_id": "6326gB2TfeUk41ywKkoo6M",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c3d05ff1e31b8a7936d6fe18",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 1,
+  "track_id": "2zyTP97uGsIc1C4KNNEkyn",
+  "track_name": "Across 110th Street",
+  "track_uri": "spotify:track:2zyTP97uGsIc1C4KNNEkyn",
+  "duration_ms": 230506,
+  "artists": [
+   {
+    "name": "Bobby Womack",
+    "id": "0vqkz1b2qBkoYrGMj2CUWq"
+   }
+  ],
+  "album_name": "Midnight Mover: The Bobby Womack Story",
+  "album_id": "7eVKCG0KD8FCvIlx8E1pBG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a70b89929f67316f0fa4426b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 2,
+  "track_id": "3X9MzewfAXyBbdPuWQDJUa",
+  "track_name": "If I Could Only Be Sure",
+  "track_uri": "spotify:track:3X9MzewfAXyBbdPuWQDJUa",
+  "duration_ms": 201533,
+  "artists": [
+   {
+    "name": "Nolan Porter",
+    "id": "7H2X4y4sB4EnP593GbQi66"
+   }
+  ],
+  "album_name": "Nolan",
+  "album_id": "1Bi02TLjn4ONPqXTM6r9eu",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737c383d6f3abc16826eef5179",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 3,
+  "track_id": "4YJ1KDI6tUSapyD6XTAg8i",
+  "track_name": "Hit Or Miss",
+  "track_uri": "spotify:track:4YJ1KDI6tUSapyD6XTAg8i",
+  "duration_ms": 234530,
+  "artists": [
+   {
+    "name": "Odetta",
+    "id": "2wkz8hACugzAvF0voupg3H"
+   }
+  ],
+  "album_name": "Odetta Sings",
+  "album_id": "1dG9AMcbsyxRCJO6aXL5jp",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733fbf596c80dee23ff2d49996",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 4,
+  "track_id": "7KePwNA8puA4BX8unrPygx",
+  "track_name": "Rebels",
+  "track_uri": "spotify:track:7KePwNA8puA4BX8unrPygx",
+  "duration_ms": 236472,
+  "artists": [
+   {
+    "name": "Wild Fire",
+    "id": "3gzfJi6zhuDoEiDbzuEXEv"
+   }
+  ],
+  "album_name": "Dance Hits",
+  "album_id": "4i37zBzxDyFam3nhhFeoPj",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a5116019a384ab131fc7dc92",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 5,
+  "track_id": "7rvGZDlfqCjY9EWEUg3Xs6",
+  "track_name": "Rock Steady",
+  "track_uri": "spotify:track:7rvGZDlfqCjY9EWEUg3Xs6",
+  "duration_ms": 193573,
+  "artists": [
+   {
+    "name": "Aretha Franklin",
+    "id": "7nwUJBm0HE4ZxD3f5cy5ok"
+   }
+  ],
+  "album_name": "Young, Gifted and Black",
+  "album_id": "0k5C3Z7w7uQpyGFQEzl7yB",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ee5fcff519d1098aa5de990d",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 6,
+  "track_id": "4ZZD770UuBTDKOyLlOb3d1",
+  "track_name": "Wade in the Water",
+  "track_uri": "spotify:track:4ZZD770UuBTDKOyLlOb3d1",
+  "duration_ms": 224706,
+  "artists": [
+   {
+    "name": "The Joubert Singers",
+    "id": "2uGpuH0yo0iKx6rBqfgiA9"
+   }
+  ],
+  "album_name": "Stand on the Word",
+  "album_id": "6326gB2TfeUk41ywKkoo6M",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c3d05ff1e31b8a7936d6fe18",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 7,
+  "track_id": "7wLtyMDljwAziOVC9d3FOh",
+  "track_name": "The Last Time",
+  "track_uri": "spotify:track:7wLtyMDljwAziOVC9d3FOh",
+  "duration_ms": 226586,
+  "artists": [
+   {
+    "name": "Andrew Oldham Orchestra",
+    "id": "3bT1LHMk4k4U4vGpVB17fQ"
+   }
+  ],
+  "album_name": "The Rolling Stones Songbook",
+  "album_id": "7IWy1SFM2ueJXMZiuullVe",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735fb239673a6d3285399fbcdf",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 8,
+  "track_id": "39eFFeKv7QaTBIukk7TYVu",
+  "track_name": "Summer In The City",
+  "track_uri": "spotify:track:39eFFeKv7QaTBIukk7TYVu",
+  "duration_ms": 244440,
+  "artists": [
+   {
+    "name": "Quincy Jones",
+    "id": "3rxIQc9kWT6Ueg4BhnOwRK"
+   }
+  ],
+  "album_name": "You've Got It Bad Girl",
+  "album_id": "4fbKwL6dBzBF07dOkc2yRB",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738eebdab9c507b776cfb0298b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 9,
+  "track_id": "4eDyujiAavhtJR7ZffQgCt",
+  "track_name": "It's Me O Lord",
+  "track_uri": "spotify:track:4eDyujiAavhtJR7ZffQgCt",
+  "duration_ms": 214853,
+  "artists": [
+   {
+    "name": "Pastor T.L. Barrett and the Youth for Christ Choir",
+    "id": "66l6SXrWHLjXFHfv202kdA"
+   }
+  ],
+  "album_name": "Like a Ship (Without a Sail)",
+  "album_id": "3NbIhR8hfscuwmD7MWBXpz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a41c1c5ba86984019f8b3855",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 10,
+  "track_id": "2bGrfkV1IYY0nUUJO53xtG",
+  "track_name": "The Message",
+  "track_uri": "spotify:track:2bGrfkV1IYY0nUUJO53xtG",
+  "duration_ms": 257760,
+  "artists": [
+   {
+    "name": "Cymande",
+    "id": "4hfcSstwnyuBoek1dQwLkG"
+   }
+  ],
+  "album_name": "Cymande",
+  "album_id": "06vHyS1KFTcMIyxKzuRAbK",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273dac65c0288bb956396671950",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 11,
+  "track_id": "2ptDz5oR8aID5U7NS8Bu8K",
+  "track_name": "Groovin' On My Baby's Love",
+  "track_uri": "spotify:track:2ptDz5oR8aID5U7NS8Bu8K",
+  "duration_ms": 165760,
+  "artists": [
+   {
+    "name": "Freddie Waters",
+    "id": "5KrrggdsyTunYNYIWSvv6g"
+   }
+  ],
+  "album_name": "The Complete Stax / Volt Soul Singles, Vol. 3: 1972-1975",
+  "album_id": "0qX1tjvl4tyjt4rbLwOtJU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736346898e51ab99360b707a7a",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 12,
+  "track_id": "3teQ8pkzhuw4JILPFUADIu",
+  "track_name": "You Goin' Miss Your Candyman",
+  "track_uri": "spotify:track:3teQ8pkzhuw4JILPFUADIu",
+  "duration_ms": 439240,
+  "artists": [
+   {
+    "name": "Terry Callier",
+    "id": "5cHmjJA9Lo0ga8s8QdxEzs"
+   }
+  ],
+  "album_name": "What Color Is Love",
+  "album_id": "61YKu9dRRskWOAT3ijKTr2",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738906380a5c17f94608dd93b3",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 13,
+  "track_id": "4GxjykzViMgPRh32aXyPoF",
+  "track_name": "Have You Been Good to Yourself",
+  "track_uri": "spotify:track:4GxjykzViMgPRh32aXyPoF",
+  "duration_ms": 229360,
+  "artists": [
+   {
+    "name": "Johnnie Frierson",
+    "id": "2hWD9jbxq2spqxPTuNyuVN"
+   }
+  ],
+  "album_name": "Have You Been Good to Yourself",
+  "album_id": "1kcDLZXZRUnZdRlCea4Yne",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b4f79cc3b1905e6d8df69a46",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 14,
+  "track_id": "6UV2Agb6JJE4JsFiTUoAv5",
+  "track_name": "Destiny",
+  "track_uri": "spotify:track:6UV2Agb6JJE4JsFiTUoAv5",
+  "duration_ms": 238351,
+  "artists": [
+   {
+    "name": "The Joubert Singers",
+    "id": "2uGpuH0yo0iKx6rBqfgiA9"
+   }
+  ],
+  "album_name": "Stand on the Word",
+  "album_id": "6326gB2TfeUk41ywKkoo6M",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c3d05ff1e31b8a7936d6fe18",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 15,
+  "track_id": "4IgmdiBgUq78Kufw8UYCdH",
+  "track_name": "Do You Believe",
+  "track_uri": "spotify:track:4IgmdiBgUq78Kufw8UYCdH",
+  "duration_ms": 241680,
+  "artists": [
+   {
+    "name": "Supreme Jubilees",
+    "id": "5XduRGfkKVRVqyEJ0D9trw"
+   }
+  ],
+  "album_name": "It'll All Be Over",
+  "album_id": "44SzY3kjspguXKotGULDYM",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273321ffbaa376ac4b6e2d6f24e",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 16,
+  "track_id": "5lc9L9FeLBwlJPgEbq9uEw",
+  "track_name": "Can You Get To That",
+  "track_uri": "spotify:track:5lc9L9FeLBwlJPgEbq9uEw",
+  "duration_ms": 169856,
+  "artists": [
+   {
+    "name": "Funkadelic",
+    "id": "450o9jw6AtiQlQkHCdH6Ru"
+   }
+  ],
+  "album_name": "Maggot Brain",
+  "album_id": "3ywVzrwMQ3Kq43N9zBdBQm",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27352573463beeda67fe242cab5",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 17,
+  "track_id": "1kG2PZ8geznbDA8I6iWeDi",
+  "track_name": "Think (About It)",
+  "track_uri": "spotify:track:1kG2PZ8geznbDA8I6iWeDi",
+  "duration_ms": 204160,
+  "artists": [
+   {
+    "name": "Lyn Collins",
+    "id": "6XJPGyxrP66scKvIE9kpPN"
+   }
+  ],
+  "album_name": "Think (About It)",
+  "album_id": "2197TH5e4lrSiZvYUPh3YE",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c0bb2637909a442c6467af70",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 18,
+  "track_id": "2c4zwlPMc5dHS3Kg6oeUjk",
+  "track_name": "Take Yo' Praise",
+  "track_uri": "spotify:track:2c4zwlPMc5dHS3Kg6oeUjk",
+  "duration_ms": 253574,
+  "artists": [
+   {
+    "name": "Camille Yarbrough",
+    "id": "1bSCGVnnijnSf8R9maUeJ9"
+   }
+  ],
+  "album_name": "The Iron Pot Cooker",
+  "album_id": "6l2ADv76CuJhDg0gCsbSbo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27304f172c4cdedfa6f813b0c57",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 19,
+  "track_id": "6G7MHIvSDR3ehXPkuDFAlM",
+  "track_name": "California Dreamin'",
+  "track_uri": "spotify:track:6G7MHIvSDR3ehXPkuDFAlM",
+  "duration_ms": 200973,
+  "artists": [
+   {
+    "name": "Bobby Womack",
+    "id": "0vqkz1b2qBkoYrGMj2CUWq"
+   }
+  ],
+  "album_name": "Fly Me To The Moon",
+  "album_id": "1Kw0H84LL5YuP37Kh8lbzY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738521692e95d60d4ba9331fe9",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 20,
+  "track_id": "6nbtMoqxiAurNCX8VkxeXe",
+  "track_name": "Wonderful",
+  "track_uri": "spotify:track:6nbtMoqxiAurNCX8VkxeXe",
+  "duration_ms": 296240,
+  "artists": [
+   {
+    "name": "Pastor T.L. Barrett and the Youth for Christ Choir",
+    "id": "66l6SXrWHLjXFHfv202kdA"
+   }
+  ],
+  "album_name": "Like a Ship (Without a Sail)",
+  "album_id": "3NbIhR8hfscuwmD7MWBXpz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a41c1c5ba86984019f8b3855",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 21,
+  "track_id": "6OKDxL7flqg9Rv7CbHaxmz",
+  "track_name": "Brothers On The Slide",
+  "track_uri": "spotify:track:6OKDxL7flqg9Rv7CbHaxmz",
+  "duration_ms": 251400,
+  "artists": [
+   {
+    "name": "Cymande",
+    "id": "4hfcSstwnyuBoek1dQwLkG"
+   }
+  ],
+  "album_name": "Promised Heights",
+  "album_id": "5MgSinqOBEYk9VFrtHU2bA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737cbbf85354cb200975313472",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 22,
+  "track_id": "1wGvueGYFPUmQUtVglgcPt",
+  "track_name": "Spirit in the Dark",
+  "track_uri": "spotify:track:1wGvueGYFPUmQUtVglgcPt",
+  "duration_ms": 243826,
+  "artists": [
+   {
+    "name": "Aretha Franklin",
+    "id": "7nwUJBm0HE4ZxD3f5cy5ok"
+   }
+  ],
+  "album_name": "Spirit in the Dark",
+  "album_id": "1s3FSienS5KcpWckmq4NHO",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27370de3def267a4ca716171842",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 23,
+  "track_id": "0OwvrdjaJOypNsNQHyBWE5",
+  "track_name": "California Soul",
+  "track_uri": "spotify:track:0OwvrdjaJOypNsNQHyBWE5",
+  "duration_ms": 177226,
+  "artists": [
+   {
+    "name": "Marlena Shaw",
+    "id": "0hirZ8kPPdM9pzXpoagB4w"
+   }
+  ],
+  "album_name": "The Spice Of Life",
+  "album_id": "6TRHI63AVabVkLPou2biv8",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c925139455d0480681315f02",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 24,
+  "track_id": "21zc5vR3zofPz2WZIVLYgJ",
+  "track_name": "Remember Who You Are",
+  "track_uri": "spotify:track:21zc5vR3zofPz2WZIVLYgJ",
+  "duration_ms": 197306,
+  "artists": [
+   {
+    "name": "Sly & The Family Stone",
+    "id": "5m8H6zSadhu1j9Yi04VLqD"
+   }
+  ],
+  "album_name": "Back On The Right Track",
+  "album_id": "1FQgfDq2fQT3YqrnBqhDVN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27343e7f2651bfcfb151cca8baa",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 25,
+  "track_id": "291yyP4mQmzdSWu3Q1BpS0",
+  "track_name": "I Love Every Little Thing About You",
+  "track_uri": "spotify:track:291yyP4mQmzdSWu3Q1BpS0",
+  "duration_ms": 296880,
+  "artists": [
+   {
+    "name": "Syreeta",
+    "id": "594LqcHtMvKoR0URmSiYJB"
+   }
+  ],
+  "album_name": "Syreeta",
+  "album_id": "6U4UAwqd7pbDloRFSwuWLY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a68275173c04ac83700cd1f8",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 26,
+  "track_id": "3s8Anp8dKObIw8Zy8uGgYC",
+  "track_name": "Dominoes",
+  "track_uri": "spotify:track:3s8Anp8dKObIw8Zy8uGgYC",
+  "duration_ms": 273133,
+  "artists": [
+   {
+    "name": "Donald Byrd",
+    "id": "3ZUZYvTkSr7kJQyAXVpqaL"
+   }
+  ],
+  "album_name": "Places And Spaces",
+  "album_id": "6btV6MDYhXZ2F6ZKKUfvdh",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730076bf69db901ac62df6f04b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 27,
+  "track_id": "4XCGfHpGVq8xw800o5cwWs",
+  "track_name": "Les Fleurs",
+  "track_uri": "spotify:track:4XCGfHpGVq8xw800o5cwWs",
+  "duration_ms": 199293,
+  "artists": [
+   {
+    "name": "Minnie Riperton",
+    "id": "2i1IdHG5w0wiSmJGoqAGlj"
+   }
+  ],
+  "album_name": "Come To My Garden",
+  "album_id": "3FuJjgDLCnwRgnRLfjjGPV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d85c957794c2a5b8b11de5f9",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 28,
+  "track_id": "3KLYkhq8QGEuKRkKj6E694",
+  "track_name": "Running Away",
+  "track_uri": "spotify:track:3KLYkhq8QGEuKRkKj6E694",
+  "duration_ms": 240306,
+  "artists": [
+   {
+    "name": "Roy Ayers",
+    "id": "6R9Mv0bgGE4Tqxna1q5Mrj"
+   }
+  ],
+  "album_name": "The Best Of Roy Ayers",
+  "album_id": "2FtG21lowfa5dnswLCmryp",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273751bd4695c84fca8464bc086",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 29,
+  "track_id": "0ly2Ny5m7qw4LF7AeU9d7j",
+  "track_name": "Take Life Easy",
+  "track_uri": "spotify:track:0ly2Ny5m7qw4LF7AeU9d7j",
+  "duration_ms": 255843,
+  "artists": [
+   {
+    "name": "Christy Essien Igbokwe",
+    "id": "1HefyGXvLQBSDcnWDXuuFm"
+   }
+  ],
+  "album_name": "One Understanding",
+  "album_id": "6yHYWMDX8i3WQ396kAfgyU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e732cd7941379bfbe2320845",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 30,
+  "track_id": "67mTcBC9GQ2W5gYbEDTSWI",
+  "track_name": "Stomp",
+  "track_uri": "spotify:track:67mTcBC9GQ2W5gYbEDTSWI",
+  "duration_ms": 221652,
+  "artists": [
+   {
+    "name": "The Joubert Singers",
+    "id": "2uGpuH0yo0iKx6rBqfgiA9"
+   }
+  ],
+  "album_name": "Stand on the Word",
+  "album_id": "6326gB2TfeUk41ywKkoo6M",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c3d05ff1e31b8a7936d6fe18",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 31,
+  "track_id": "4Oq0AUVncfWa2rD0idz6oV",
+  "track_name": "Like a Ship",
+  "track_uri": "spotify:track:4Oq0AUVncfWa2rD0idz6oV",
+  "duration_ms": 278680,
+  "artists": [
+   {
+    "name": "Pastor T.L. Barrett and the Youth for Christ Choir",
+    "id": "66l6SXrWHLjXFHfv202kdA"
+   }
+  ],
+  "album_name": "Like a Ship (Without a Sail)",
+  "album_id": "3NbIhR8hfscuwmD7MWBXpz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a41c1c5ba86984019f8b3855",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 32,
+  "track_id": "15coSKNGG21bUKZpJ2Lv6N",
+  "track_name": "It's Alright, I Feel It",
+  "track_uri": "spotify:track:15coSKNGG21bUKZpJ2Lv6N",
+  "duration_ms": 198666,
+  "artists": [
+   {
+    "name": "Nuyorican Soul",
+    "id": "2pMSfxqqpW87tzVwPQxeFw"
+   },
+   {
+    "name": "Jocelyn Brown",
+    "id": "2ga5ADaBpljQ3YrCh99ZMq"
+   }
+  ],
+  "album_name": "Nuyorican Soul",
+  "album_id": "0UZzbwCAVQhENWItyCZm5L",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273dfd2a2bd4955fd8c4591f9f8",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 33,
+  "track_id": "5f1dWtvWmx1RMP6ynU5PIH",
+  "track_name": "As Long As I've Got You",
+  "track_uri": "spotify:track:5f1dWtvWmx1RMP6ynU5PIH",
+  "duration_ms": 157613,
+  "artists": [
+   {
+    "name": "The Charmels",
+    "id": "3VklNAaOdAkZoqMMhDquLq"
+   }
+  ],
+  "album_name": "Stax-Volt: The Complete Singles 1959-1968",
+  "album_id": "0RPeS6tlJfJt1GQ1XilhkH",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273165ce4e9204e41d651b3f651",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 34,
+  "track_id": "3a1Ska1dAtx4KE4b86eumQ",
+  "track_name": "More Mess on My Thing",
+  "track_uri": "spotify:track:3a1Ska1dAtx4KE4b86eumQ",
+  "duration_ms": 252000,
+  "artists": [
+   {
+    "name": "The Poets Of Rhythm",
+    "id": "1i4iT0Sw4OUeMp7egnsbxR"
+   }
+  ],
+  "album_name": "Practice What You Preach",
+  "album_id": "0e3CsfgtzbhR5ofqRDnAlT",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ea218764894c9cb4efa21c76",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 35,
+  "track_id": "7HYX0zJkY6fjEJvaXSn9Od",
+  "track_name": "Can You Lose By Following God",
+  "track_uri": "spotify:track:7HYX0zJkY6fjEJvaXSn9Od",
+  "duration_ms": 254306,
+  "artists": [
+   {
+    "name": "Whole Truth",
+    "id": "4P20GTWdbAFbEI7yY2ttwB"
+   }
+  ],
+  "album_name": "Can You Lose By Following God b/w God Is Going To Raise A Nation",
+  "album_id": "5RNDzxhlXYBsT8FH9h0ORO",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737b9cf012877e77d964300532",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 36,
+  "track_id": "4W8IEREeLldaSQyGXcZQ2I",
+  "track_name": "Strawberry Letter 23",
+  "track_uri": "spotify:track:4W8IEREeLldaSQyGXcZQ2I",
+  "duration_ms": 239906,
+  "artists": [
+   {
+    "name": "Shuggie Otis",
+    "id": "4YHtIE7FI8ITfekzzN5Jpl"
+   }
+  ],
+  "album_name": "Freedom Flight",
+  "album_id": "7suTZDEkiDpzkouw300noM",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27390497cd6cc6338bbe57fc953",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 37,
+  "track_id": "0j0NJyTIMkozPchYkvGoOS",
+  "track_name": "Private Number",
+  "track_uri": "spotify:track:0j0NJyTIMkozPchYkvGoOS",
+  "duration_ms": 160933,
+  "artists": [
+   {
+    "name": "William Bell",
+    "id": "0mFoqJiNDtYntypvy6roGR"
+   },
+   {
+    "name": "Judy Clay",
+    "id": "6Bez6xFXAhRw4XTYVhUekp"
+   }
+  ],
+  "album_name": "The Best Of William Bell",
+  "album_id": "3qOZr2tczUvMFciKLk6lzb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27353fbbaa939812aaa4466fda4",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 38,
+  "track_id": "1NzoRQf7DCiGB1eteJqEhA",
+  "track_name": "Jeux de regards",
+  "track_uri": "spotify:track:1NzoRQf7DCiGB1eteJqEhA",
+  "duration_ms": 205426,
+  "artists": [
+   {
+    "name": "Isabelle Mayereau",
+    "id": "2zrg9fdTxZbnXD6T2DQrwq"
+   }
+  ],
+  "album_name": "Parcours",
+  "album_id": "04Qb618OP4BMIqZigOrqba",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27314e11245a69486d90e758b5c",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 39,
+  "track_id": "6SfLHjKD666UfI5PFHGxnN",
+  "track_name": "Le c\u0153ur au bout des doigts",
+  "track_uri": "spotify:track:6SfLHjKD666UfI5PFHGxnN",
+  "duration_ms": 158213,
+  "artists": [
+   {
+    "name": "Jacqueline Taieb",
+    "id": "2gaXk926O69Od01e5CSFdH"
+   }
+  ],
+  "album_name": "Jacqueline Ta\u00efeb",
+  "album_id": "61emYO8kHDuDFWjKS2aELG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736491022567e355d8633f5ff2",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 40,
+  "track_id": "5jO6agviIZnOFaaDoJnfkR",
+  "track_name": "You Can't Change a Man",
+  "track_uri": "spotify:track:5jO6agviIZnOFaaDoJnfkR",
+  "duration_ms": 241397,
+  "artists": [
+   {
+    "name": "Christy Essien Igbokwe",
+    "id": "1HefyGXvLQBSDcnWDXuuFm"
+   }
+  ],
+  "album_name": "One Understanding",
+  "album_id": "6yHYWMDX8i3WQ396kAfgyU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e732cd7941379bfbe2320845",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 41,
+  "track_id": "6R28J9Q3mTwtV75SbxqP5E",
+  "track_name": "Bad Girl Pt. 1",
+  "track_uri": "spotify:track:6R28J9Q3mTwtV75SbxqP5E",
+  "duration_ms": 150093,
+  "artists": [
+   {
+    "name": "Lee Moses",
+    "id": "073AjXFaMayG50bDyAopud"
+   }
+  ],
+  "album_name": "Bad Girl",
+  "album_id": "0HoEY0Vd9eNGToAI80mBI6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273235ea0f4efe61021e41eba4d",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 42,
+  "track_id": "1avBJlswkLnaMz54IKgmCV",
+  "track_name": "I Shall Wear a Crown",
+  "track_uri": "spotify:track:1avBJlswkLnaMz54IKgmCV",
+  "duration_ms": 236573,
+  "artists": [
+   {
+    "name": "Pastor T.L. Barrett and the Youth for Christ Choir",
+    "id": "66l6SXrWHLjXFHfv202kdA"
+   }
+  ],
+  "album_name": "Do Not Pass Me By Vol. II",
+  "album_id": "23F4TF713LJib7K2R8MiRY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e7cf819755eea0954b34311e",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 43,
+  "track_id": "6qivaRvwJ34QHswoNTbdwL",
+  "track_name": "Play with Fire",
+  "track_uri": "spotify:track:6qivaRvwJ34QHswoNTbdwL",
+  "duration_ms": 216226,
+  "artists": [
+   {
+    "name": "Barbara & Ernie",
+    "id": "30pW8ZsjaeU6vcnWayUwof"
+   }
+  ],
+  "album_name": "Prelude To...",
+  "album_id": "7u5Rw9wnUgH46QmhldQ5kJ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27301b0c7cb5fe7020ab369aaea",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 44,
+  "track_id": "1tzXnPndBrd2G5GXrOBc1c",
+  "track_name": "Vitamin C - 2004 Remastered Version",
+  "track_uri": "spotify:track:1tzXnPndBrd2G5GXrOBc1c",
+  "duration_ms": 214066,
+  "artists": [
+   {
+    "name": "CAN",
+    "id": "4l8xPGtl6DHR2uvunqrl8r"
+   }
+  ],
+  "album_name": "Ege Bamyasi (Remastered Version)",
+  "album_id": "3Qa2CdymyGvXkqoqIZykmT",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273416cc99a089bbe8db8ac1311",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 45,
+  "track_id": "2Gosa8RFYVL0ummZsC1RkN",
+  "track_name": "Keep On Moving",
+  "track_uri": "spotify:track:2Gosa8RFYVL0ummZsC1RkN",
+  "duration_ms": 242280,
+  "artists": [
+   {
+    "name": "The Hygrades",
+    "id": "6kP2CQaCRWY4aTw6hzLfXU"
+   }
+  ],
+  "album_name": "Keep On Moving",
+  "album_id": "5FdJf2mAyJnQ6h7eoC8alN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c55f5dac7ac7fba78f3de824",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 46,
+  "track_id": "42KlNWDzCS1yZgCuvj26Eu",
+  "track_name": "You Are Mine",
+  "track_uri": "spotify:track:42KlNWDzCS1yZgCuvj26Eu",
+  "duration_ms": 186066,
+  "artists": [
+   {
+    "name": "Jay Robinson",
+    "id": "34yZRw8eqgC88qyIIDElem"
+   }
+  ],
+  "album_name": "Will I Ever b/w You Are Mine",
+  "album_id": "34RHA0DM7B1BWyllT59GQO",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273eda7f683595f6ec076ecd956",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 47,
+  "track_id": "6fCQ0b4fGyyTqHwpHqxRll",
+  "track_name": "Forget Me Not",
+  "track_uri": "spotify:track:6fCQ0b4fGyyTqHwpHqxRll",
+  "duration_ms": 236106,
+  "artists": [
+   {
+    "name": "Say She She",
+    "id": "1WGb8nCPGJA0RyriSDIQfC"
+   }
+  ],
+  "album_name": "Silver",
+  "album_id": "043vgwukOxX7bcL4VuMX10",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e4f53d2a2cb5cfcce1f37fe7",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 48,
+  "track_id": "5nWF26A8HRgyc77mnLbeyL",
+  "track_name": "Somebody's Watching You",
+  "track_uri": "spotify:track:5nWF26A8HRgyc77mnLbeyL",
+  "duration_ms": 142906,
+  "artists": [
+   {
+    "name": "The Sacred Four",
+    "id": "6suwlkg0KYAhcM0QHQraju"
+   }
+  ],
+  "album_name": "Good God! Born Again Funk",
+  "album_id": "107HJpowu2T9nIkrsXNpE8",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d5692e1c885effcd2e634e44",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 49,
+  "track_id": "1IXa70EPedlpafPL7Ood2z",
+  "track_name": "After Laughter (Comes Tears)",
+  "track_uri": "spotify:track:1IXa70EPedlpafPL7Ood2z",
+  "duration_ms": 179413,
+  "artists": [
+   {
+    "name": "Wendy Rene",
+    "id": "4ba7uNtpOq0us2C5Nx19zN"
+   }
+  ],
+  "album_name": "After Laughter (Comes Tears)",
+  "album_id": "6wBfFrmOvBu0cyksWWlp94",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d25cc6f0755624f4b5be5372",
+  "added_at": "1970-01-01T00:00:00Z"
+ }
+]

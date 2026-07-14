@@ -1,0 +1,856 @@
+[
+ {
+  "position": 0,
+  "track_id": "0bRXwKfigvpKZUurwqAlEh",
+  "track_name": "Lovely Day",
+  "track_uri": "spotify:track:0bRXwKfigvpKZUurwqAlEh",
+  "duration_ms": 257157,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Menagerie",
+  "album_id": "3QjPTUI6UcPr5m9RujkO3c",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27367c1113f55ab816ef61d3993",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 1,
+  "track_id": "0ofHAoxe9vBkTCp2UQIavz",
+  "track_name": "Dreams - 2004 Remaster",
+  "track_uri": "spotify:track:0ofHAoxe9vBkTCp2UQIavz",
+  "duration_ms": 257800,
+  "artists": [
+   {
+    "name": "Fleetwood Mac",
+    "id": "08GQAI4eElDnROBrJRGE0X"
+   }
+  ],
+  "album_name": "Rumours (Super Deluxe)",
+  "album_id": "0BwWUstDMUbgq2NYONRqlu",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e52a59a28efa4773dd2bfe1b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 2,
+  "track_id": "2zyTP97uGsIc1C4KNNEkyn",
+  "track_name": "Across 110th Street",
+  "track_uri": "spotify:track:2zyTP97uGsIc1C4KNNEkyn",
+  "duration_ms": 230506,
+  "artists": [
+   {
+    "name": "Bobby Womack",
+    "id": "0vqkz1b2qBkoYrGMj2CUWq"
+   }
+  ],
+  "album_name": "Midnight Mover: The Bobby Womack Story",
+  "album_id": "7eVKCG0KD8FCvIlx8E1pBG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a70b89929f67316f0fa4426b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 3,
+  "track_id": "5O4erNlJ74PIF6kGol1ZrC",
+  "track_name": "Could You Be Loved",
+  "track_uri": "spotify:track:5O4erNlJ74PIF6kGol1ZrC",
+  "duration_ms": 237000,
+  "artists": [
+   {
+    "name": "Bob Marley & The Wailers",
+    "id": "2QsynagSdAqZj3U9HgDzjD"
+   }
+  ],
+  "album_name": "Uprising",
+  "album_id": "321q9p7PELvzcFAWxml7VX",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731c40418d1c37d727e8e91b04",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 4,
+  "track_id": "5le4sn0iMcnKU56bdmNzso",
+  "track_name": "Everybody Loves The Sunshine",
+  "track_uri": "spotify:track:5le4sn0iMcnKU56bdmNzso",
+  "duration_ms": 239666,
+  "artists": [
+   {
+    "name": "Roy Ayers Ubiquity",
+    "id": "3WbeZvDk1COiO2dEokZqn7"
+   }
+  ],
+  "album_name": "Everybody Loves The Sunshine (Reissue)",
+  "album_id": "5JehGpTedBPXzhUcwXoIlf",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273df636d19d4b1759a55490d43",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 5,
+  "track_id": "4gRA0i5sxx3jAhHaVjPnUN",
+  "track_name": "Use Me",
+  "track_uri": "spotify:track:4gRA0i5sxx3jAhHaVjPnUN",
+  "duration_ms": 228326,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Still Bill",
+  "album_id": "0sFuW4rH5mFZUjNKnckO3v",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27372641ed682401fc46c18ac12",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 6,
+  "track_id": "2cgHekIPyuKxEEcV72tuy4",
+  "track_name": "Live For You",
+  "track_uri": "spotify:track:2cgHekIPyuKxEEcV72tuy4",
+  "duration_ms": 210320,
+  "artists": [
+   {
+    "name": "Thee Sacred Souls",
+    "id": "0oK5D6uPhGu4Jk2dbZfodU"
+   }
+  ],
+  "album_name": "Got a Story to Tell",
+  "album_id": "6yvKcQNyd09wYCCp8O8mNB",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fb5ec1359ec0df1e284d7eb9",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 7,
+  "track_id": "1h2xVEoJORqrg71HocgqXd",
+  "track_name": "Superstition - Single Version",
+  "track_uri": "spotify:track:1h2xVEoJORqrg71HocgqXd",
+  "duration_ms": 245493,
+  "artists": [
+   {
+    "name": "Stevie Wonder",
+    "id": "7guDJrEfX3qb6FEbdPA5qi"
+   }
+  ],
+  "album_name": "The Definitive Collection",
+  "album_id": "4E1itnJOhTMRSATNaxh0Sq",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739e447b59bd3e2cbefaa31d91",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 8,
+  "track_id": "5LxvwujISqiB8vpRYv887S",
+  "track_name": "I Want You Back",
+  "track_uri": "spotify:track:5LxvwujISqiB8vpRYv887S",
+  "duration_ms": 176333,
+  "artists": [
+   {
+    "name": "The Jackson 5",
+    "id": "2iE18Oxc8YSumAU232n4rW"
+   }
+  ],
+  "album_name": "Diana Ross Presents The Jackson 5",
+  "album_id": "51uoKRa8vT5SULrlF8s2t1",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27316aaf05fe82237576a7d0e38",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 9,
+  "track_id": "5tmrnhMxx39jnu3kjopMdP",
+  "track_name": "Evil Ways",
+  "track_uri": "spotify:track:5tmrnhMxx39jnu3kjopMdP",
+  "duration_ms": 238266,
+  "artists": [
+   {
+    "name": "Santana",
+    "id": "6GI52t8N5F02MxU0g5U69P"
+   }
+  ],
+  "album_name": "Santana (Legacy Edition)",
+  "album_id": "2hQwyoPiM1G9iLWkXqC2Hu",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c894463d06b775f87d57361b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 10,
+  "track_id": "1k1Bqnv2R0uJXQN4u6LKYt",
+  "track_name": "Ain't No Sunshine",
+  "track_uri": "spotify:track:1k1Bqnv2R0uJXQN4u6LKYt",
+  "duration_ms": 126458,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Just As I Am",
+  "album_id": "6N8uPmDqbgXD3ztkCCfxoo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f64b9ea8a8a409c6af86134f",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 11,
+  "track_id": "6dGnYIeXmHdcikdzNNDMm2",
+  "track_name": "Here Comes The Sun - Remastered 2009",
+  "track_uri": "spotify:track:6dGnYIeXmHdcikdzNNDMm2",
+  "duration_ms": 185733,
+  "artists": [
+   {
+    "name": "The Beatles",
+    "id": "3WrFJ7ztbogyGnTHbHJFl2"
+   }
+  ],
+  "album_name": "Abbey Road (Remastered)",
+  "album_id": "0ETFjACtuP2ADo6LFhL6HN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 12,
+  "track_id": "2uMqG8w8oi09fB2YA2QLOm",
+  "track_name": "Summer Madness",
+  "track_uri": "spotify:track:2uMqG8w8oi09fB2YA2QLOm",
+  "duration_ms": 257866,
+  "artists": [
+   {
+    "name": "Kool & The Gang",
+    "id": "3VNITwohbvU5Wuy5PC6dsI"
+   }
+  ],
+  "album_name": "Light Of Worlds",
+  "album_id": "46kA6zL7Cga656urk1nJNo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d2eec6d3df2ed9bde807fd90",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 13,
+  "track_id": "41dDygR3r7e926oGUXfrLt",
+  "track_name": "I Can't Go for That (No Can Do)",
+  "track_uri": "spotify:track:41dDygR3r7e926oGUXfrLt",
+  "duration_ms": 307306,
+  "artists": [
+   {
+    "name": "Daryl Hall & John Oates",
+    "id": "77tT1kLj6mCWtFNqiOmP9H"
+   }
+  ],
+  "album_name": "Private Eyes (Expanded Edition)",
+  "album_id": "7rfpaXxmQG7dnFycZjLae0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c84b9bd63074979108c7c752",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 14,
+  "track_id": "3GIChxHmuLmBm5PTNZGDtj",
+  "track_name": "Jamming",
+  "track_uri": "spotify:track:3GIChxHmuLmBm5PTNZGDtj",
+  "duration_ms": 211000,
+  "artists": [
+   {
+    "name": "Bob Marley & The Wailers",
+    "id": "2QsynagSdAqZj3U9HgDzjD"
+   }
+  ],
+  "album_name": "Exodus",
+  "album_id": "655KljKIXl42fiNDMKivbY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d7f3e4d143c198d3542a775d",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 15,
+  "track_id": "262qk9k0LTyMXmjH9YT2xU",
+  "track_name": "Kissing My Love",
+  "track_uri": "spotify:track:262qk9k0LTyMXmjH9YT2xU",
+  "duration_ms": 231044,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Still Bill",
+  "album_id": "0sFuW4rH5mFZUjNKnckO3v",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27372641ed682401fc46c18ac12",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 16,
+  "track_id": "39eFFeKv7QaTBIukk7TYVu",
+  "track_name": "Summer In The City",
+  "track_uri": "spotify:track:39eFFeKv7QaTBIukk7TYVu",
+  "duration_ms": 244440,
+  "artists": [
+   {
+    "name": "Quincy Jones",
+    "id": "3rxIQc9kWT6Ueg4BhnOwRK"
+   }
+  ],
+  "album_name": "You've Got It Bad Girl",
+  "album_id": "4fbKwL6dBzBF07dOkc2yRB",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738eebdab9c507b776cfb0298b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 17,
+  "track_id": "6VnpKLtfNH4Dk09YSGPSyR",
+  "track_name": "It Ain't Over 'Til It's Over",
+  "track_uri": "spotify:track:6VnpKLtfNH4Dk09YSGPSyR",
+  "duration_ms": 242640,
+  "artists": [
+   {
+    "name": "Lenny Kravitz",
+    "id": "5gznATMVO85ZcLTkE9ULU7"
+   }
+  ],
+  "album_name": "Mama Said",
+  "album_id": "7A3LlV59lh4KljWa7I6Tks",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273bfc19627a4a3a604c0a195e5",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 18,
+  "track_id": "1tL5a9jowsWMtn3wkFYsG9",
+  "track_name": "Footsteps in the Dark, Pts. 1 & 2",
+  "track_uri": "spotify:track:1tL5a9jowsWMtn3wkFYsG9",
+  "duration_ms": 306422,
+  "artists": [
+   {
+    "name": "The Isley Brothers",
+    "id": "53QzNeFpzAaXYnrDBbDrIp"
+   }
+  ],
+  "album_name": "Go for Your Guns",
+  "album_id": "04nhRulMSOvcRCGRTa7I5l",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739d3cb0eff7ba768ff7aa1f3e",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 19,
+  "track_id": "4f3u4Oy0JqJRIhMmTqRcxj",
+  "track_name": "Family Affair - Single Version",
+  "track_uri": "spotify:track:4f3u4Oy0JqJRIhMmTqRcxj",
+  "duration_ms": 188506,
+  "artists": [
+   {
+    "name": "Sly & The Family Stone",
+    "id": "5m8H6zSadhu1j9Yi04VLqD"
+   }
+  ],
+  "album_name": "There's a Riot Goin' On",
+  "album_id": "29f2cOueckYE8Nc1pkJjrU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273de27ae35f785ac370120ab14",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 20,
+  "track_id": "0RTPZ8Yd44dsoR3uSkK9GT",
+  "track_name": "Ruby Lee",
+  "track_uri": "spotify:track:0RTPZ8Yd44dsoR3uSkK9GT",
+  "duration_ms": 198669,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "'Justments",
+  "album_id": "10jKkqtTI0cblOQjJfDUpt",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27334c5960e310bf44ef1f8cf41",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 21,
+  "track_id": "6aBUnkXuCEQQHAlTokv9or",
+  "track_name": "This Must Be the Place (Naive Melody) - 2005 Remaster",
+  "track_uri": "spotify:track:6aBUnkXuCEQQHAlTokv9or",
+  "duration_ms": 296146,
+  "artists": [
+   {
+    "name": "Talking Heads",
+    "id": "2x9SpqnPi8rlE9pjHBwmSC"
+   }
+  ],
+  "album_name": "Speaking in Tongues (Deluxe Version)",
+  "album_id": "4sLCQxMRfn3gAHrBNZtbTH",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e35e2e2a4bfa8a30a78fc532",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 22,
+  "track_id": "683b4ikwa62JevCjwrmfg6",
+  "track_name": "Moondance - 2013 Remaster",
+  "track_uri": "spotify:track:683b4ikwa62JevCjwrmfg6",
+  "duration_ms": 274040,
+  "artists": [
+   {
+    "name": "Van Morrison",
+    "id": "44NX2ffIYHr6D4n7RaZF7A"
+   }
+  ],
+  "album_name": "Moondance (Deluxe Edition)",
+  "album_id": "7diHYi0CglGJekoM3KaWBK",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732a1ffd75bb148e58ce2a6cac",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 23,
+  "track_id": "5u6y4u5EgDv0peILf60H5t",
+  "track_name": "Oye Como Va",
+  "track_uri": "spotify:track:5u6y4u5EgDv0peILf60H5t",
+  "duration_ms": 260229,
+  "artists": [
+   {
+    "name": "Santana",
+    "id": "6GI52t8N5F02MxU0g5U69P"
+   }
+  ],
+  "album_name": "Abraxas",
+  "album_id": "1CHUXwuge9A7L2KiA3vnR6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273283cccda1ee115b8f44f1c8b",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 24,
+  "track_id": "22XxTWCOfKxQj3BtJu7GnK",
+  "track_name": "Got To Give It Up - Pt. 1",
+  "track_uri": "spotify:track:22XxTWCOfKxQj3BtJu7GnK",
+  "duration_ms": 248321,
+  "artists": [
+   {
+    "name": "Marvin Gaye",
+    "id": "3koiLjNrgRTNbOwViDipeA"
+   }
+  ],
+  "album_name": "Marvin Gaye & A Distant Lover",
+  "album_id": "56hpn4sLHITCwL7euX1DXn",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736a815f278debe939f5a70e3a",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 25,
+  "track_id": "3oiVJNFAQQ77Yp3rXWGsVp",
+  "track_name": "Lonely Town, Lonely Street",
+  "track_uri": "spotify:track:3oiVJNFAQQ77Yp3rXWGsVp",
+  "duration_ms": 225149,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Still Bill",
+  "album_id": "0sFuW4rH5mFZUjNKnckO3v",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27372641ed682401fc46c18ac12",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 26,
+  "track_id": "09Nck1nvRcg1Y14SNfWwtJ",
+  "track_name": "Waiting In Vain",
+  "track_uri": "spotify:track:09Nck1nvRcg1Y14SNfWwtJ",
+  "duration_ms": 256239,
+  "artists": [
+   {
+    "name": "Bob Marley & The Wailers",
+    "id": "2QsynagSdAqZj3U9HgDzjD"
+   }
+  ],
+  "album_name": "Exodus",
+  "album_id": "655KljKIXl42fiNDMKivbY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d7f3e4d143c198d3542a775d",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 27,
+  "track_id": "6Dk5fHTvH897XrVzCO64Mx",
+  "track_name": "What You Won't Do for Love",
+  "track_uri": "spotify:track:6Dk5fHTvH897XrVzCO64Mx",
+  "duration_ms": 286493,
+  "artists": [
+   {
+    "name": "Bobby Caldwell",
+    "id": "4V4Z3qMCwYofWHtip6ePF6"
+   }
+  ],
+  "album_name": "What You Won't Do for Love",
+  "album_id": "4pBJRxtR5TQe8hfsUgZ1r2",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730f98789111606f77a27d6f67",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 28,
+  "track_id": "24ntSW3QVJzR79lHAAOTaY",
+  "track_name": "Texas Sun",
+  "track_uri": "spotify:track:24ntSW3QVJzR79lHAAOTaY",
+  "duration_ms": 252811,
+  "artists": [
+   {
+    "name": "Khruangbin",
+    "id": "2mVVjNmdjXZZDvhgQWiakk"
+   },
+   {
+    "name": "Leon Bridges",
+    "id": "3qnGvpP8Yth1AqSBMqON5x"
+   }
+  ],
+  "album_name": "Texas Sun",
+  "album_id": "4HFO9PDRxsdbcegkcNhxgz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ff26bd277274b27f249cc638",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 29,
+  "track_id": "1b7tZPt3S2UN6OrPUBqGCp",
+  "track_name": "Work to Do",
+  "track_uri": "spotify:track:1b7tZPt3S2UN6OrPUBqGCp",
+  "duration_ms": 194514,
+  "artists": [
+   {
+    "name": "The Isley Brothers",
+    "id": "53QzNeFpzAaXYnrDBbDrIp"
+   }
+  ],
+  "album_name": "Brother, Brother, Brother",
+  "album_id": "5gJBnLRkUtOjqsss6YA5XA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273909aebcb90706329a98b5819",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 30,
+  "track_id": "1qfDfZAvrkSAFrAR2FTQDv",
+  "track_name": "Grandma's Hands",
+  "track_uri": "spotify:track:1qfDfZAvrkSAFrAR2FTQDv",
+  "duration_ms": 122534,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Just As I Am",
+  "album_id": "6N8uPmDqbgXD3ztkCCfxoo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f64b9ea8a8a409c6af86134f",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 31,
+  "track_id": "6OKDxL7flqg9Rv7CbHaxmz",
+  "track_name": "Brothers On The Slide",
+  "track_uri": "spotify:track:6OKDxL7flqg9Rv7CbHaxmz",
+  "duration_ms": 251400,
+  "artists": [
+   {
+    "name": "Cymande",
+    "id": "4hfcSstwnyuBoek1dQwLkG"
+   }
+  ],
+  "album_name": "Promised Heights",
+  "album_id": "5MgSinqOBEYk9VFrtHU2bA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737cbbf85354cb200975313472",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 32,
+  "track_id": "7CH99b2i1TXS5P8UUyWtnM",
+  "track_name": "Them Changes",
+  "track_uri": "spotify:track:7CH99b2i1TXS5P8UUyWtnM",
+  "duration_ms": 188453,
+  "artists": [
+   {
+    "name": "Thundercat",
+    "id": "4frXpPxQQZwbCu3eTGnZEw"
+   }
+  ],
+  "album_name": "Drunk",
+  "album_id": "7vHBQDqwzB7uDvoE5bncMM",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27385c5e6c686ced3e43bae2748",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 33,
+  "track_id": "254bXAqt3zP6P50BdQvEsq",
+  "track_name": "Everywhere - 2017 Remaster",
+  "track_uri": "spotify:track:254bXAqt3zP6P50BdQvEsq",
+  "duration_ms": 226653,
+  "artists": [
+   {
+    "name": "Fleetwood Mac",
+    "id": "08GQAI4eElDnROBrJRGE0X"
+   }
+  ],
+  "album_name": "Tango In the Night (Deluxe Edition)",
+  "album_id": "4AsXQ17Arq1cUVoa9dKJ3F",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273aaba065944cd82a6f15c86b6",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 34,
+  "track_id": "0dMd4rilfd6gPbXaLpNYhu",
+  "track_name": "Higher Ground",
+  "track_uri": "spotify:track:0dMd4rilfd6gPbXaLpNYhu",
+  "duration_ms": 222600,
+  "artists": [
+   {
+    "name": "Stevie Wonder",
+    "id": "7guDJrEfX3qb6FEbdPA5qi"
+   }
+  ],
+  "album_name": "Innervisions",
+  "album_id": "5jgI8Eminx9MmLBontDWq8",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ea8ab1a548312b79ac955266",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 35,
+  "track_id": "1KywyxekfDEp3Ym7YP7S25",
+  "track_name": "Who Is He (And What Is He to You)?",
+  "track_uri": "spotify:track:1KywyxekfDEp3Ym7YP7S25",
+  "duration_ms": 194427,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Still Bill",
+  "album_id": "0sFuW4rH5mFZUjNKnckO3v",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27372641ed682401fc46c18ac12",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 36,
+  "track_id": "3IDc87lrpEHWFBASmgTgFV",
+  "track_name": "Mercy Mercy Me (The Ecology)",
+  "track_uri": "spotify:track:3IDc87lrpEHWFBASmgTgFV",
+  "duration_ms": 193573,
+  "artists": [
+   {
+    "name": "Marvin Gaye",
+    "id": "3koiLjNrgRTNbOwViDipeA"
+   }
+  ],
+  "album_name": "What's Going On",
+  "album_id": "2v6ANhWhZBUKkg6pJJBs3B",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 37,
+  "track_id": "6JRLFiX9NJSoRRKxowlBYr",
+  "track_name": "Is This Love",
+  "track_uri": "spotify:track:6JRLFiX9NJSoRRKxowlBYr",
+  "duration_ms": 232200,
+  "artists": [
+   {
+    "name": "Bob Marley & The Wailers",
+    "id": "2QsynagSdAqZj3U9HgDzjD"
+   }
+  ],
+  "album_name": "Kaya",
+  "album_id": "13dXX35pYjr8FqRla40K2a",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273387799441ba867649dfbb702",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 38,
+  "track_id": "4UQDZlZhGUDoYMohwrY28v",
+  "track_name": "Virtual Insanity - Remastered 2006",
+  "track_uri": "spotify:track:4UQDZlZhGUDoYMohwrY28v",
+  "duration_ms": 229360,
+  "artists": [
+   {
+    "name": "Jamiroquai",
+    "id": "6J7biCazzYhU3gM9j1wfid"
+   }
+  ],
+  "album_name": "Driving Songs",
+  "album_id": "0PZ6p6h37zPRCskVNqBRbw",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27343a58a3269fa18d1e4f8b5ca",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 39,
+  "track_id": "2fmXnPfzguSp3zKDibCBgv",
+  "track_name": "Mister Magic",
+  "track_uri": "spotify:track:2fmXnPfzguSp3zKDibCBgv",
+  "duration_ms": 541826,
+  "artists": [
+   {
+    "name": "Grover Washington, Jr.",
+    "id": "05YVYeV4HxYp5rrWalvuE1"
+   }
+  ],
+  "album_name": "Mister Magic",
+  "album_id": "3DnS9jBOXBVx6oPAbsQDGZ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273dd15e56df5c95b6bb1c8e1d5",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 40,
+  "track_id": "2MwjZo81ldYYAah74RNQ85",
+  "track_name": "Better off Dead",
+  "track_uri": "spotify:track:2MwjZo81ldYYAah74RNQ85",
+  "duration_ms": 134534,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "Just As I Am",
+  "album_id": "6N8uPmDqbgXD3ztkCCfxoo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f64b9ea8a8a409c6af86134f",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 41,
+  "track_id": "63xdwScd1Ai1GigAwQxE8y",
+  "track_name": "Let's Stay Together",
+  "track_uri": "spotify:track:63xdwScd1Ai1GigAwQxE8y",
+  "duration_ms": 199396,
+  "artists": [
+   {
+    "name": "Al Green",
+    "id": "3dkbV4qihUeMsqN4vBGg93"
+   }
+  ],
+  "album_name": "Let's Stay Together",
+  "album_id": "58eMx3QrTkiRmGGbSz2XL0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a1fc113a6858d0824d9aaf38",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 42,
+  "track_id": "6G7MHIvSDR3ehXPkuDFAlM",
+  "track_name": "California Dreamin'",
+  "track_uri": "spotify:track:6G7MHIvSDR3ehXPkuDFAlM",
+  "duration_ms": 200973,
+  "artists": [
+   {
+    "name": "Bobby Womack",
+    "id": "0vqkz1b2qBkoYrGMj2CUWq"
+   }
+  ],
+  "album_name": "Fly Me To The Moon",
+  "album_id": "1Kw0H84LL5YuP37Kh8lbzY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738521692e95d60d4ba9331fe9",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 43,
+  "track_id": "7MiLmLbwNoyf47xQ4TCVYp",
+  "track_name": "Papa Was A Rollin' Stone - Single Version",
+  "track_uri": "spotify:track:7MiLmLbwNoyf47xQ4TCVYp",
+  "duration_ms": 419640,
+  "artists": [
+   {
+    "name": "The Temptations",
+    "id": "3RwQ26hR2tJtA8F9p2n7jG"
+   }
+  ],
+  "album_name": "20th Century Masters: The Millennium Collection: Best Of The Temptations, Vol. 2 - The '70s, '80s, '90s",
+  "album_id": "2kzUxFepw1uLjbgqV537eP",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273dabb260cf41a2fbb2c842787",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 44,
+  "track_id": "4XCGfHpGVq8xw800o5cwWs",
+  "track_name": "Les Fleurs",
+  "track_uri": "spotify:track:4XCGfHpGVq8xw800o5cwWs",
+  "duration_ms": 199293,
+  "artists": [
+   {
+    "name": "Minnie Riperton",
+    "id": "2i1IdHG5w0wiSmJGoqAGlj"
+   }
+  ],
+  "album_name": "Come To My Garden",
+  "album_id": "3FuJjgDLCnwRgnRLfjjGPV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d85c957794c2a5b8b11de5f9",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 45,
+  "track_id": "0S5ZoKKZD3bllkvhEoPimZ",
+  "track_name": "Can We Pretend",
+  "track_uri": "spotify:track:0S5ZoKKZD3bllkvhEoPimZ",
+  "duration_ms": 229849,
+  "artists": [
+   {
+    "name": "Bill Withers",
+    "id": "1ThoqLcyIYvZn7iWbj8fsj"
+   }
+  ],
+  "album_name": "'Justments",
+  "album_id": "10jKkqtTI0cblOQjJfDUpt",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27334c5960e310bf44ef1f8cf41",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 46,
+  "track_id": "13toFl1UwJPsRxDiD9jgtn",
+  "track_name": "As",
+  "track_uri": "spotify:track:13toFl1UwJPsRxDiD9jgtn",
+  "duration_ms": 428222,
+  "artists": [
+   {
+    "name": "Stevie Wonder",
+    "id": "7guDJrEfX3qb6FEbdPA5qi"
+   }
+  ],
+  "album_name": "Songs In The Key Of Life",
+  "album_id": "6YUCc2RiXcEKS9ibuZxjt0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732fee61bfec596bb6f5447c50",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 47,
+  "track_id": "6Rqn2GFlmvmV4w9Ala0I1e",
+  "track_name": "Feeling Good",
+  "track_uri": "spotify:track:6Rqn2GFlmvmV4w9Ala0I1e",
+  "duration_ms": 174000,
+  "artists": [
+   {
+    "name": "Nina Simone",
+    "id": "7G1GBhoKtEPnP86X2PvEYO"
+   }
+  ],
+  "album_name": "I Put A Spell On You",
+  "album_id": "3ofZeSWPHZOE5WC2tNZDez",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273892abb1ade35b4863b29e051",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 48,
+  "track_id": "6Re2AwZUVlgBng04BZTauW",
+  "track_name": "Cool Cat - Remastered 2011",
+  "track_uri": "spotify:track:6Re2AwZUVlgBng04BZTauW",
+  "duration_ms": 209106,
+  "artists": [
+   {
+    "name": "Queen",
+    "id": "1dfeR4HaWDbWqFHLkxsg1d"
+   }
+  ],
+  "album_name": "Hot Space (Deluxe Remastered Version)",
+  "album_id": "0xc5IpJM39eEEYSKDrm5kf",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a1e05e1048e2cf2737adf742",
+  "added_at": "1970-01-01T00:00:00Z"
+ },
+ {
+  "position": 49,
+  "track_id": "35fC3Wq3slX4OBfyvBVmHm",
+  "track_name": "Samba Pa Ti",
+  "track_uri": "spotify:track:35fC3Wq3slX4OBfyvBVmHm",
+  "duration_ms": 289963,
+  "artists": [
+   {
+    "name": "Santana",
+    "id": "6GI52t8N5F02MxU0g5U69P"
+   }
+  ],
+  "album_name": "Abraxas",
+  "album_id": "1CHUXwuge9A7L2KiA3vnR6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273283cccda1ee115b8f44f1c8b",
+  "added_at": "1970-01-01T00:00:00Z"
+ }
+]

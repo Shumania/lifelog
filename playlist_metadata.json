@@ -60,18 +60,6 @@
   "last_modified": "2026-06-17T18:42:51Z"
  },
  {
-  "id": "5R6AiyMz1Ooy5kTnLIkXOS",
-  "name": "Eclectic Mashup Mix",
-  "description": "",
-  "owner": "Andrew Shuman",
-  "owner_id": "shuzamin",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0fb5b1801e26290a7d01bd910",
-  "followers_total": 0,
-  "tracks_total": 30,
-  "created_approx": "2025-07-26T23:48:37Z",
-  "last_modified": "2025-07-26T23:48:37Z"
- },
- {
   "id": "1Op9bj8FWA0uexSVHv9wOK",
   "name": "Trip-Hop Vibes",
   "description": "",
@@ -120,18 +108,6 @@
   "last_modified": "2025-12-22T04:37:34Z"
  },
  {
-  "id": "1yJMXZuky9KNFHodJBnFMR",
-  "name": "diamonds and 2018",
-  "description": "",
-  "owner": "Andrew Shuman",
-  "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021093b1a9528d6ac67479228bab67616d00001e02a3c44b7a278ab2140b49d81cab67616d00001e02c9f6a742f2337f938e89f599ab67616d00001e02dc30583ba717007b00cceb25",
-  "followers_total": 0,
-  "tracks_total": 98,
-  "created_approx": "2018-06-24T00:25:45Z",
-  "last_modified": "2018-06-24T19:51:56Z"
- },
- {
   "id": "66mA9a4So8KFR30ZtrZnhK",
   "name": "Late in 2025",
   "description": "",
@@ -144,18 +120,6 @@
   "last_modified": "2025-12-07T19:46:27Z"
  },
  {
-  "id": "3kM6gqROxfdcxzhQLtEGAd",
-  "name": "My own version of early alternative",
-  "description": "",
-  "owner": "Andrew Shuman",
-  "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02416cc99a089bbe8db8ac1311ab67616d00001e0246b017e0c96e4186e82df085ab67616d00001e02628103d0e62602f00408345dab67616d00001e02b1235c0092f6658466e96819",
-  "followers_total": 0,
-  "tracks_total": 75,
-  "created_approx": "2025-09-04T14:16:59Z",
-  "last_modified": "2025-09-04T14:16:59Z"
- },
- {
   "id": "3G2ZfespigPnM0m9M0kXcS",
   "name": "Gil Scott-Heron Mix",
   "description": "",
@@ -166,18 +130,6 @@
   "tracks_total": 30,
   "created_approx": "2025-10-04T16:00:40Z",
   "last_modified": "2025-10-04T16:00:40Z"
- },
- {
-  "id": "1wwNFPHekuR7aA40pLaA5J",
-  "name": "Jazz Piano Solos",
-  "description": "",
-  "owner": "Andrew Shuman",
-  "owner_id": "shuzamin",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab676d63000076a0347941f17f1b1f2bb4391900",
-  "followers_total": 0,
-  "tracks_total": 30,
-  "created_approx": "2025-07-28T14:31:15Z",
-  "last_modified": "2025-07-28T14:31:15Z"
  },
  {
   "id": "6WPX00PKkwYbayR5ztLiDv",
@@ -505,7 +457,7 @@
  },
  {
   "id": "3yEPDqNUAxQ8Mw1VXXm1vo",
-  "name": "New year's eve champagne - Thom Yorke",
+  "name": "New year\u2019s eve champagne - Thom Yorke\ud83e\udd42",
   "description": "Mix de Thom Yorke - r\u00e9veillon du 31 d\u00e9cembre 2023 - France Inter",
   "owner": "Julien Fu",
   "owner_id": "1158103913",
@@ -586,5 +538,65 @@
   "tracks_total": 29,
   "created_approx": "2025-08-07T14:18:33Z",
   "last_modified": "2026-07-06T18:22:18Z"
+ },
+ {
+  "id": "37i9dQZEVXcXHWVVT0lfDq",
+  "name": "Your Top Songs 2025",
+  "description": "",
+  "owner": "Spotify",
+  "owner_id": "spotify",
+  "image_url": "https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/wrapped25/yts/en",
+  "followers_total": 0,
+  "tracks_total": 100,
+  "created_approx": "",
+  "last_modified": ""
+ },
+ {
+  "id": "37i9dQZF1DX9PpnjmttPui",
+  "name": "Mixtape #13 Clairo \"Charming to Me\"",
+  "description": "",
+  "owner": "Spotify",
+  "owner_id": "spotify",
+  "image_url": "https://i.scdn.co/image/ab67706f00000002b6fe319bf2aad497f6b60b6a",
+  "followers_total": 0,
+  "tracks_total": 50,
+  "created_approx": "2024-08-23T04:00:00Z",
+  "last_modified": "2024-08-23T04:00:00Z"
+ },
+ {
+  "id": "37i9dQZF1E8DNc3B1aVj3N",
+  "name": "Stand on the Word - 1982 Version Radio",
+  "description": "",
+  "owner": "Spotify",
+  "owner_id": "spotify",
+  "image_url": "https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/track/6TOhXLevQUI4fjrxLL1nJE/en",
+  "followers_total": 0,
+  "tracks_total": 50,
+  "created_approx": "",
+  "last_modified": ""
+ },
+ {
+  "id": "37i9dQZF1E8QG93UBwZ2Aj",
+  "name": "Lovely Day Radio",
+  "description": "",
+  "owner": "Spotify",
+  "owner_id": "spotify",
+  "image_url": "https://pickasso.spotifycdn.com/image/ab67c0de0000deef/dt/v1/img/radio/track/0bRXwKfigvpKZUurwqAlEh/en",
+  "followers_total": 0,
+  "tracks_total": 50,
+  "created_approx": "",
+  "last_modified": ""
+ },
+ {
+  "id": "37i9dQZF1EIeNbDmYrgnbS",
+  "name": "Bangers Workout Mix",
+  "description": "",
+  "owner": "Spotify",
+  "owner_id": "spotify",
+  "image_url": "https://seed-mix-image.spotifycdn.com/v6/img/desc/Bangers%20Workout/en/default",
+  "followers_total": 0,
+  "tracks_total": 50,
+  "created_approx": "",
+  "last_modified": ""
  }
 ]
