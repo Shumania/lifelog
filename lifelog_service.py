@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.48.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -459,7 +459,7 @@ _error_ring_lock = threading.Lock()
 # transport errors like "ntfy stream error" and "ConnectionResetError", so they
 # never reached the error ring and were invisible to the watchdog audits.
 _ERROR_KEYWORDS  = ("error", "fail", "traceback", "exception", "critical", "crash", "upnp", "http 4", "http 5", "timed out", "refused", "unreachable")
-_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines")  # noise guards
+_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
 
 # Command results ring buffer — structured outcomes for agent-side correlation
 _CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the debounced heartbeat delivers them
