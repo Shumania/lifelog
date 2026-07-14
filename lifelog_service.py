@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.47.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.47.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -782,7 +782,11 @@ def _build_poll_snapshot(coordinators):
             try:
                 mutes[name] = bool(dev.mute)
             except Exception:
-                pass
+                # v2.47.2: carry over last known mute on transient read failure.
+                # A vanishing dict key made mute_states != last cycle's dict,
+                # firing a spurious status_update SSE every poll (idle chatter bug).
+                if name in _current_mute_states:
+                    mutes[name] = _current_mute_states[name]
             if state == "PLAYING":
                 # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
@@ -817,6 +821,10 @@ def _build_poll_snapshot(coordinators):
                 pass  # captured in states dict, used for rooms_paused below
         except Exception as e:
             states[name] = f"ERROR:{e}"
+            # v2.47.2: transport-info failure also skipped the mute read —
+            # carry over last known mute so the key doesn't flap out of the dict.
+            if name in _current_mute_states:
+                mutes[name] = _current_mute_states[name]
 
     _last_transport_states.clear()
     _last_transport_states.update(states)
@@ -3771,14 +3779,26 @@ def sonos_main_loop():
             global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states
             _sse_status_counter += 1
             rp = list(_poll_snapshot.get("rooms_playing", []))
+            ms = dict(_poll_snapshot.get("mute_states", {}))
             rooms_changed = (rp != _last_sse_rooms_playing)
-            mutes_changed = (dict(_poll_snapshot.get("mute_states", {})) != _last_sse_mute_states)
+            mutes_changed = (ms != _last_sse_mute_states)
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or mutes_changed or keepalive_due:
+                # v2.47.2: log WHY we're pushing — silent triggers made the
+                # idle-chatter bug (mute-key flap) invisible for weeks.
+                if rooms_changed:
+                    log(f"SSE trigger: rooms_changed {_last_sse_rooms_playing} -> {rp}")
+                if mutes_changed:
+                    added = sorted(k for k in ms if k not in _last_sse_mute_states)
+                    removed = sorted(k for k in _last_sse_mute_states if k not in ms)
+                    flipped = sorted(k for k in ms if k in _last_sse_mute_states and ms[k] != _last_sse_mute_states[k])
+                    log(f"SSE trigger: mutes_changed added={added} removed={removed} flipped={flipped}")
+                if keepalive_due and not (rooms_changed or mutes_changed):
+                    log("SSE trigger: 15-min keepalive")
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
-                _last_sse_mute_states = dict(_poll_snapshot.get("mute_states", {}))
+                _last_sse_mute_states = ms
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"
