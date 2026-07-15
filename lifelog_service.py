@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48.2"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.48.4"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -3572,6 +3572,16 @@ def execute_command(cmd, source="unknown"):
                     log(f"[refresh] State pushed after re-discovery")
                 except Exception as e2:
                     log(f"[refresh] State push failed: {e2}")
+                # v2.48.3: unconditional SSE confirmation. The page's 🔄 pending UX
+                # (p2.44 U-M12) waits for a status_update; the change-driven gate
+                # stays silent when a refresh finds nothing new (the usual case),
+                # which made the page falsely warn "client may be offline".
+                # A user-initiated refresh always deserves an explicit reply.
+                try:
+                    publish_ui_event("status_update", {})
+                    log("[refresh] status_update SSE pushed (UI confirmation)")
+                except Exception as e3:
+                    log(f"[refresh] SSE confirm push failed: {e3}")
                 result["success"] = True
                 result["message"] = f"Refreshed: {len(fresh)} speakers"
             except Exception as e:
