@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48.4"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.48.5"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -143,7 +143,7 @@ OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
-BUFFER_MAX_AGE_SECS        = 30    # (LEGACY — buffer_monitor_thread removed in v1.83; kept for reference)
+BUFFER_MAX_AGE_SECS        = 1800  # v2.48.5: flush when OLDEST buffered track is 30 min old (checked in heartbeat_thread). Guarantees plays reach the server within ~30 min even during long continuous sessions (fixes Roaming-label race with the Spotify backstop poll)
 STATE_PUSH_DEBOUNCE_S      = 5     # debounce window for state.json push
 STATE_RING_MAX             = 30    # max items in state file ring buffer
 
@@ -1517,6 +1517,23 @@ def _heartbeat_thread_inner():
     while True:
         time.sleep(60)  # check every minute
 
+        # v2.48.5: MAX-BUFFER-AGE FLUSH — if the OLDEST buffered track has been
+        # sitting > BUFFER_MAX_AGE_SECS (30 min), flush regardless of ongoing
+        # playback. Without this, a long continuous session (each new track
+        # resetting the trailing timer) could hold plays client-side for hours,
+        # letting the roaming Spotify backstop poll publish them first with a
+        # wrong "Roaming" location label. Runs BEFORE the quiet-hours gate so
+        # late-night listens also land within ~30 min (quiet loop = 30 min cadence).
+        try:
+            with pending_buffer_lock:
+                _oldest_ts = pending_buffer[0].get("_buffered_at", 0) if pending_buffer else None
+            if _oldest_ts and (time.time() - _oldest_ts) >= BUFFER_MAX_AGE_SECS:
+                log(f"* Heartbeat: max-buffer-age flush (oldest item {int((time.time()-_oldest_ts)//60)} min old)")
+                flush_buffer(reason="max-age")
+                last_post_ts = time.time()
+        except Exception as _ma_err:
+            log(f"* Heartbeat: max-age flush check failed: {_ma_err}")
+
         if not is_active_hours():
             # v2.45: flush once on entry into quiet hours so evening listens
             # don't sit buffered until 7 AM (S-M4). Lands within ~1 min of
@@ -1551,26 +1568,11 @@ def _heartbeat_thread_inner():
             last_post_ts = time.time()
         log(f"* Heartbeat: fallback fired (idle {int(since_last//60)} min) -- next check in 60s")
 
-# --- BUFFER MONITOR THREAD --------------------------------------------------
-def buffer_monitor_thread():
-    """Flush buffer on trailing-edge OR max-age timer.
-    Max-age (30s) ensures organic track changes relay to browser quickly via SSE relay.
-    Trailing-edge (30 min) is the safety net for long pauses."""
-    while True:
-        time.sleep(10)  # check every 10s (was 30s -- tighter for max-age relay)
-        with pending_buffer_lock:
-            count = len(pending_buffer)
-            oldest_age = (time.time() - pending_buffer[0].get("_buffered_at", time.time())) if pending_buffer else 0
-        if count == 0:
-            continue
-        # Max-age flush: oldest item has been buffered > 30s -> relay to browser ASAP
-        if oldest_age >= BUFFER_MAX_AGE_SECS:
-            flush_buffer(reason="max-age-relay")
-            continue
-        # Trailing-edge flush: nothing new added in 30 min
-        since_last_track = time.time() - last_track_added_ts
-        if since_last_track >= BATCH_TRAILING_SECS:
-            flush_buffer(reason="trailing-edge")
+# --- BUFFER MONITOR THREAD (REMOVED) -----------------------------------------
+# buffer_monitor_thread was unwired in v1.83 (direct SSE replaced the relay need)
+# but its dead body lingered here until v2.48.5 and misled debugging (it looked
+# like a live 30s max-age / 30-min trailing-edge flusher). Its useful job — the
+# max-age flush — now lives in heartbeat_thread above. Do not resurrect.
 
 # --- VERSION CHECK THREAD ---------------------------------------------------
 # [ROLLBACK-UNSAFE] Calls self_update_check() every 60 min. This is the periodic
@@ -2204,6 +2206,30 @@ def post_history(track, room, started_at, ended_at):
     if count >= BATCH_SIZE:
         flush_buffer(reason="count")
 
+# --- PLAY MODE: HOUSE RULE (v2.48.5) ------------------------------------------
+def _enforce_repeat_default(dev, cmd, room_label=""):
+    """House rule (Andrew, 2026-07-15): REPEAT OFF unless explicitly requested.
+    Called after every play-starting command so leftover REPEAT_ALL/REPEAT_ONE
+    from a previous session never silently loops the new playback.
+    - Preserves the speaker's current shuffle state unless cmd specifies 'shuffle'.
+    - Honors cmd['repeat'] (bool) if the sender explicitly wants repeat.
+    - Never raises: play succeeded already; a mode error must not fail the command."""
+    try:
+        repeat  = bool(cmd.get("repeat", False))
+        cur     = dev.play_mode
+        shuffle = cmd.get("shuffle")
+        if shuffle is None:  # not specified -> preserve current shuffle state
+            shuffle = cur in ("SHUFFLE", "SHUFFLE_NOREPEAT", "SHUFFLE_REPEAT_ONE")
+        if shuffle and repeat:   new_mode = "SHUFFLE"            # shuffle + repeat all
+        elif shuffle:            new_mode = "SHUFFLE_NOREPEAT"
+        elif repeat:             new_mode = "REPEAT_ALL"
+        else:                    new_mode = "NORMAL"
+        if new_mode != cur:
+            dev.play_mode = new_mode
+            log(f"[play-mode] {room_label or dev.player_name}: {cur} -> {new_mode} (house rule: repeat off unless requested)")
+    except Exception as e:
+        log(f"[play-mode] enforce failed ({room_label}): {e}")
+
 # --- SONOS: MULTI-MACHINE TARGETING -----------------------------------------
 def is_my_command(cmd):
     """
@@ -2660,6 +2686,7 @@ def execute_command(cmd, source="unknown"):
                     meta  = getattr(first, "to_didl_string", lambda: "")()
                     if uri:
                         dev.play_uri(uri, meta=meta, title=title)
+                        _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
                         result["success"] = True
                         result["message"] = f"Playing '{title}' ({svc_name}) in {room}"
                         result["data"]    = {"title":title,"uri":uri,"service":svc_name}
@@ -2693,6 +2720,7 @@ def execute_command(cmd, source="unknown"):
                         pos = dev.add_to_queue(first)
                         log(f"search_and_queue: add_to_queue returned position={pos}")
                         dev.play_from_queue(pos - 1)  # 0-indexed
+                        _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
                         result["success"] = True
                         result["message"] = f"Queued+playing '{title}' ({svc_name}) in {room} at pos {pos}"
                         result["data"] = {"title": title, "uri": uri, "service": svc_name, "item_class": item_class, "position": pos}
@@ -2890,6 +2918,9 @@ def execute_command(cmd, source="unknown"):
                                 pos = _enqueue()
                                 log(f"play_album: appended at position {pos}, playing from there")
                                 coordinator.play_from_queue(pos - 1)
+
+                        if not queue_only:
+                            _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
 
                         room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
@@ -3178,6 +3209,8 @@ def execute_command(cmd, source="unknown"):
                             # so this path fired and played leftover queue content.
                             log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
                             coordinator.play_from_queue(insert_pos - 1)
+                    _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
+
                     # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
                     # can recover title/artist when Sonos DIDL comes back empty.
                     if not is_spotify and (title or cmd_artist):
@@ -3284,7 +3317,11 @@ def execute_command(cmd, source="unknown"):
                     except Exception as e:
                         log(f"play_radio: failed to queue {uri}: {e}")
                 if added > 0:
-                    dev.play_mode = "NORMAL"
+                    # v2.48.5: was hardcoded NORMAL; helper also honors explicit
+                    # cmd['shuffle']/cmd['repeat'] (radio default: no shuffle, no repeat)
+                    if cmd.get("shuffle") is None:
+                        cmd["shuffle"] = False  # radio queues play in built order by default
+                    _enforce_repeat_default(dev, cmd, rooms[0] if rooms else "")
                     dev.play_from_queue(0)
                     result["success"] = True
                     # v2.44: was f"...in {room}" -- NameError ('room' undefined) corrupted
@@ -3313,6 +3350,7 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = "No URI provided"
             else:
                 dev.play_uri(uri, meta=meta, title=title)
+                _enforce_repeat_default(dev, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
                 # v2.37: Cache metadata so polling can recover it when DIDL is empty
                 if not uri.startswith("x-sonos-spotify:") and not uri.startswith("spotify:"):
                     _uri_metadata_cache[uri] = {
@@ -3517,6 +3555,56 @@ def execute_command(cmd, source="unknown"):
                     result["message"] = f"cycle_repeat error: {e}"
             else:
                 result["message"] = f"Room '{room}' not found"
+
+        elif action == "set_repeat":
+            # v2.48.5: DETERMINISTIC repeat control (cycle_repeat is a blind 3-way
+            # cycle — unusable for sweeps since you can't know the outcome without
+            # reading state first). set_repeat is idempotent and fleet-sweep safe.
+            # cmd: {"action":"set_repeat", "repeat": false|true|"one",
+            #       "rooms": ["Room A", ...] | "all"}   (default: all rooms)
+            # Preserves each group's shuffle state. Play mode is a GROUP property,
+            # so targets are resolved to coordinators and deduped.
+            rep = cmd.get("repeat", False)
+            rooms_arg = cmd.get("rooms", "all")
+            if isinstance(rooms_arg, str):
+                target_rooms = list(devices.keys()) if rooms_arg.lower() == "all" else [rooms_arg]
+            else:
+                target_rooms = list(rooms_arg) if rooms_arg else list(devices.keys())
+            coords, errors = {}, []
+            for rname in target_rooms:
+                d = devices.get(rname)
+                if not d:
+                    errors.append(f"{rname}: not found")
+                    continue
+                try:
+                    c = d.group.coordinator if d.group and d.group.coordinator else d
+                except Exception:
+                    c = d
+                coords[c.player_name] = c
+            changed, unchanged = [], []
+            for cname, c in coords.items():
+                try:
+                    cur = c.play_mode
+                    shuffled = cur in ("SHUFFLE", "SHUFFLE_NOREPEAT", "SHUFFLE_REPEAT_ONE")
+                    if rep == "one":
+                        new_mode = "SHUFFLE_REPEAT_ONE" if shuffled else "REPEAT_ONE"
+                    elif rep:
+                        new_mode = "SHUFFLE" if shuffled else "REPEAT_ALL"
+                    else:
+                        new_mode = "SHUFFLE_NOREPEAT" if shuffled else "NORMAL"
+                    if new_mode != cur:
+                        c.play_mode = new_mode
+                        changed.append(f"{cname}: {cur} -> {new_mode}")
+                    else:
+                        unchanged.append(cname)
+                except Exception as e:
+                    errors.append(f"{cname}: {e}")
+            result["success"] = not errors
+            result["message"] = (f"set_repeat({rep}): {len(changed)} changed, "
+                                 f"{len(unchanged)} already correct"
+                                 + (f", {len(errors)} errors" if errors else ""))
+            result["data"] = {"changed": changed, "unchanged": unchanged, "errors": errors}
+            log(f"set_repeat: {result['message']}" + (f" | {changed}" if changed else ""))
 
         elif action == "get_services":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
