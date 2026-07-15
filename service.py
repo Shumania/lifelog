@@ -34,6 +34,7 @@ import os
 import threading
 import subprocess
 import traceback
+import re  # v2.44: module-level -- get_container_context() used re without import (silent NameError)
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,12 +57,29 @@ _ensure("requests")
 import requests
 
 # --- CONSTANTS --------------------------------------------------------------
-# [ROLLBACK-UNSAFE] SERVICE_VERSION and all constants below are baked into the running
-# process. The old version's SERVICE_VERSION is compared against versions.json to decide
-# whether to self-update. Wrong GITHUB_API_BASE or WEBHOOK here = update can't download/report.
-# IMPORTANT: versions.json key MUST be "service_version" (not "service" or "version").
-# Mismatch = silent update failure. See v1.83 postmortem.
-SERVICE_VERSION = "2.28"
+# SERVICE_VERSION is read from the VERSION file in the same directory as this script.
+# The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
+# The same file on GitHub is fetched during update checks — no versions.json needed.
+# On update, both lifelog_service.py AND VERSION are downloaded together.
+_FALLBACK_VERSION = "2.48.3"  # Only used if VERSION file is missing (bootstrap)
+
+def _read_version():
+    """Read version from VERSION file next to this script."""
+    for base in (Path(sys.argv[0]).resolve().parent, Path(__file__).resolve().parent):
+        vf = base / "VERSION"
+        try:
+            if vf.exists():
+                ver = vf.read_text(encoding="utf-8").strip()
+                if ver:
+                    return ver
+        except Exception as exc:
+            print(f"[VERSION] Warning: could not read {vf}: {exc}")
+    # No VERSION file found — first install or file deleted
+    print(f"[VERSION] WARNING: VERSION file not found! Using fallback {_FALLBACK_VERSION}")
+    print(f"[VERSION] Searched: {Path(sys.argv[0]).resolve().parent} and {Path(__file__).resolve().parent}")
+    return _FALLBACK_VERSION
+SERVICE_VERSION = "2.34"  # Legacy anchor — v2.33 updater regex parses this line. Remove after all machines are on v2.34+.
+SERVICE_VERSION = _read_version()  # Real version from VERSION file (overwrites anchor above)
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
 WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
@@ -74,6 +92,9 @@ NTFY_TOPICS = {
     "caphill": "lifelog-cmd-caphill-4x8m",
     "vashon":  "lifelog-cmd-vashon-9k3p",
 }
+
+# ntfy auth token (Pro plan — higher rate limits, reserved topics)
+NTFY_TOKEN = "tk_lo3wjmt4yxkznzt4m3wxhfhspb93t"
 
 # ntfy topics for real-time UI push (browser SSE)
 NTFY_UI_TOPICS = {
@@ -112,7 +133,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 # CMD_POLL_EVERY removed in v2.24 — GitHub command polling retired (ntfy is sole transport)
-HEARTBEAT_FALLBACK_SECS    = 3600  # keepalive heartbeat every 60 min (only if no real POST)
+HEARTBEAT_FALLBACK_SECS    = 7200  # v2.48: keepalive every 2h when idle (was 60 min; only if no real POST)
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -209,6 +230,14 @@ _current_mute_states     = {}   # room -> bool (True=muted)
 speaker_failures         = {}
 speaker_offline_since    = {}
 
+# --- URI METADATA CACHE (v2.37) ----------------------------------------------
+# When play_next enqueues a non-Spotify track with known title/artist/album,
+# cache it keyed by URI. get_track_info() checks this cache before falling back
+# to synthetic titles like "Qobuz Track". Qobuz and Apple Music DIDL metadata
+# from Sonos is often empty even though we sent correct metadata when enqueuing.
+# Cache entries expire after 4 hours to avoid stale data buildup.
+_uri_metadata_cache      = {}   # uri -> {"title": str, "artist": str, "album": str, "ts": float}
+
 # --- POLL SNAPSHOT (v2.24) ---------------------------------------------------
 # Single-pass snapshot computed once per poll cycle. All downstream consumers
 # (SSE enrichment, state push, heartbeat, diagnostics) read from this instead
@@ -225,7 +254,9 @@ _poll_snapshot = {
 _offline_ips             = {}   # ip -> epoch timestamp; skip timed-out speakers
 # last_cmd_sha removed in v2.24 (GitHub command polling retired)
 executed_cmd_hashes      = {}   # hash -> timestamp (TTL-based dedup)
-CMD_DEDUP_TTL_SECONDS    = 60   # hashes expire after 60s -- covers ntfy replay window
+# v2.44: TTL raised 60s -> 360s. ntfy replays since=5m on reconnect; a 60s TTL
+# let already-executed commands re-execute after restarts/reconnects.
+CMD_DEDUP_TTL_SECONDS    = 360  # must exceed ntfy's since=5m replay window
 last_sonos_activity_ts   = 0.0  # updated when a track is buffered
 last_track_added_ts      = 0.0  # updated when a track is added to buffer
 last_post_ts             = 0.0  # updated whenever any POST succeeds
@@ -233,6 +264,17 @@ pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 STATE_RING_PATH          = INSTALL_DIR / "state_ring_buffer.json"
+# v2.44: persist executed command hashes across restarts so ntfy's since=5m
+# replay after a restart can't re-execute commands the old process already ran.
+EXECUTED_CMDS_PATH       = INSTALL_DIR / "executed_cmds.json"
+try:
+    if EXECUTED_CMDS_PATH.exists():
+        _loaded_hashes = json.loads(EXECUTED_CMDS_PATH.read_text(encoding="utf-8"))
+        _cutoff = time.time() - CMD_DEDUP_TTL_SECONDS
+        executed_cmd_hashes.update({h: ts for h, ts in _loaded_hashes.items() if ts > _cutoff})
+        print(f"[dedup] loaded {len(executed_cmd_hashes)} unexpired command hash(es) from disk")
+except Exception as _dh_err:
+    print(f"[dedup] WARNING: failed to load executed_cmds.json: {_dh_err}")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -272,6 +314,8 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         "service": track_info.get("service", ""),
         "uri": track_info.get("uri", ""),
         "timestamp": (started_at or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "didl_parent_id": track_info.get("didl_parent_id", ""),
+        "didl_album_art_uri": track_info.get("didl_album_art_uri", ""),
     }
     _state_ring_buffer.insert(0, entry)
     while len(_state_ring_buffer) > STATE_RING_MAX:
@@ -382,6 +426,7 @@ _commands_received_count = 0
 _track_changes           = []   # ring buffer of last 10 track changes [{room, at, track, commanded}]
 _ntfy_connected          = False
 _ntfy_reconnects         = 0
+_ntfy_last_event_ts      = 0.0    # monotonic ts of last ntfy stream event (keepalive or message)
 _last_transport_states   = {}   # room -> state string (updated by get_rooms_playing)
 _prev_diag_fingerprint   = ""   # for change detection
 
@@ -410,10 +455,14 @@ _log_ring_lock   = threading.Lock()
 _ERROR_RING_MAX  = 100
 _error_ring      = deque(maxlen=_ERROR_RING_MAX)
 _error_ring_lock = threading.Lock()
-_ERROR_KEYWORDS  = ("ERROR", "FAIL", "Traceback", "Exception", "CRITICAL", "crash", "UPnP", "HTTP 4", "HTTP 5", "timed out", "refused")
+# v2.48: matching is CASE-INSENSITIVE. The old case-sensitive filter missed
+# transport errors like "ntfy stream error" and "ConnectionResetError", so they
+# never reached the error ring and were invisible to the watchdog audits.
+_ERROR_KEYWORDS  = ("error", "fail", "traceback", "exception", "critical", "crash", "upnp", "http 4", "http 5", "timed out", "refused", "unreachable")
+_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
 
 # Command results ring buffer — structured outcomes for agent-side correlation
-_CMD_RESULTS_MAX = 20
+_CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the debounced heartbeat delivers them
 _command_results = deque(maxlen=_CMD_RESULTS_MAX)
 _command_results_lock = threading.Lock()
 
@@ -454,8 +503,12 @@ def log(msg):
     # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
     with _log_ring_lock:
         _log_ring.append(line)
-    # Also capture to error ring if line matches any error keyword
-    if any(kw in msg for kw in _ERROR_KEYWORDS):
+    # Also capture to error ring if line matches any error keyword (v2.48: case-insensitive)
+    # v2.48.1: skip [DIDL-*] debug dumps — the DIDL XML contains "xmlns:upnp", which
+    # matched the case-insensitive "upnp" keyword and flooded the error ring with
+    # metadata dumps that aren't errors.
+    _mlow = msg.lower()
+    if (not _mlow.startswith("[didl-")) and any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
         with _error_ring_lock:
             _error_ring.append(line)
     try:
@@ -551,21 +604,14 @@ def post_error(message, context="", module="service"):
 # new version. The v1.44 crash was caused by a non-ASCII arrow in a log() call here.
 # Rules: (1) 100% ASCII, (2) wrap in try/except, (3) test with OLD version in mind.
 def self_update_check():
-    """Check versions.json; download + restart if service_version changed."""
+    """Check VERSION file on GitHub; download + restart if version changed."""
     import ast as _ast
     try:
-        r = gh_get("versions.json", retries=1)
+        r = gh_get("VERSION", retries=1)
         if not r:
             log("Version check: GitHub unavailable (will retry next cycle)")
             return
-        versions = json.loads(gh_decode(r))
-        # KEY MUST BE "service_version" — not "service", not "version".
-        # If the key is missing, versions.json is malformed. Log a loud warning
-        # so silent fallback never hides a broken update again (v1.83 root cause).
-        if "service_version" not in versions:
-            log(f"[!] versions.json MISSING 'service_version' key! Keys found: {list(versions.keys())}. Update check SKIPPED.")
-            return
-        latest = versions["service_version"]
+        latest = gh_decode(r).strip()
         log(f"Version check: GitHub={latest} running={SERVICE_VERSION}")
         if latest == SERVICE_VERSION:
             # Clear any skip_version file if we are now running the target version
@@ -605,6 +651,9 @@ def self_update_check():
             return
         new_code = gh_decode(r2)
         # Sanity checks before overwriting
+        import hashlib as _hl
+        new_hash = _hl.sha256(new_code.encode("utf-8")).hexdigest()[:12]
+        log(f"Downloaded: {len(new_code)} bytes, sha256={new_hash}")
         if len(new_code) < 10_000:
             log(f"Update aborted: downloaded file too small ({len(new_code)} bytes) -- likely partial")
             post_error(f"Update v{latest} aborted: file too small ({len(new_code)} bytes)", module="update")
@@ -615,6 +664,18 @@ def self_update_check():
             log(f"Update aborted: syntax error in downloaded v{latest}: {se}")
             post_error(f"Update v{latest} aborted: syntax error: {se}", module="update")
             return
+        # No version-mismatch check needed: VERSION file IS the source of truth.
+        # The .py no longer contains a hardcoded version — it reads VERSION at startup.
+        # Compare with current file to detect no-op updates
+        try:
+            _cur_code = Path(sys.argv[0]).resolve().read_text(encoding="utf-8")
+            _cur_hash = _hl.sha256(_cur_code.encode("utf-8")).hexdigest()[:12]
+            if _cur_hash == new_hash:
+                log(f"[!] Downloaded code is IDENTICAL to running code (both {new_hash}). Possible wrong-file push or stale cache.")
+            else:
+                log(f"Code diff confirmed: running={_cur_hash} -> new={new_hash}")
+        except Exception:
+            pass  # non-fatal
         this_path = Path(sys.argv[0]).resolve()
         bak_path = this_path.with_suffix(".py.bak")
         tmp_path = this_path.with_suffix(".py.tmp")
@@ -632,7 +693,27 @@ def self_update_check():
         # Atomic write: write to .tmp then os.replace() -- no partial files
         tmp_path.write_text(new_code, encoding="utf-8")
         os.replace(str(tmp_path), str(this_path))
+        # Write VERSION file alongside the .py so the new process reads it at startup
+        ver_path = flag_dir / "VERSION"
+        ver_path.write_text(latest + "\n", encoding="utf-8")
+        log(f"Wrote VERSION file: {ver_path} = {latest}")
         log(f"Updated to v{latest} -- restarting in new window...")
+        # v2.44 CRITICAL FIX: flush buffered + in-flight history BEFORE handing off.
+        # Previously os._exit(0) discarded pending_buffer and the currently-playing
+        # room_state tracks -- guaranteed data loss on every self-update.
+        try:
+            _now = datetime.now(timezone.utc)
+            for _room, _st in list(room_state.items()):
+                try:
+                    if _st and _st.get("track_key") and _st.get("started_at"):
+                        log(f"[update] retiring in-flight track on {_room}: {_st['track_key'][:80]}")
+                        post_history(_st["track_info"], _room, _st["started_at"], _now)
+                except Exception as _rerr:
+                    log(f"[update] WARNING: retire failed for {_room}: {_rerr}")
+            flush_buffer("pre-update")
+            log("[update] pre-update history flush complete")
+        except Exception as _ferr:
+            log(f"[update] WARNING: pre-update flush failed: {_ferr}")
         # Release the single-instance mutex BEFORE spawning so the new process
         # can acquire it immediately (avoids race where new process starts fast,
         # sees ERROR_ALREADY_EXISTS, and exits with "another instance running").
@@ -709,7 +790,11 @@ def _build_poll_snapshot(coordinators):
             try:
                 mutes[name] = bool(dev.mute)
             except Exception:
-                pass
+                # v2.47.2: carry over last known mute on transient read failure.
+                # A vanishing dict key made mute_states != last cycle's dict,
+                # firing a spurious status_update SSE every poll (idle chatter bug).
+                if name in _current_mute_states:
+                    mutes[name] = _current_mute_states[name]
             if state == "PLAYING":
                 # Skip TV/line-in passthrough -- soundbars report PLAYING for external audio
                 try:
@@ -725,29 +810,29 @@ def _build_poll_snapshot(coordinators):
                     modes[name] = mode
                 except Exception:
                     pass
-                # Coordinator is playing -- add it and any genuinely grouped members.
+                # Coordinator is playing -- add it and all grouped members.
+                # v2.36: Simplified — use dev.group.members directly (same as get_track_info).
+                # Old IP-verification code silently dropped members when SoCo cache was stale.
                 playing.append(name)
                 if dev.group:
                     try:
-                        coord_ip = dev.ip_address
                         for member in dev.group.members:
                             mname = member.player_name
                             if mname == name:
                                 continue
-                            try:
-                                mc = member.group.coordinator if member.group else None
-                                if mc and mc.ip_address == coord_ip:
-                                    playing.append(mname)
-                                    if mname not in current_devices_by_name:
-                                        current_devices_by_name[mname] = member
-                            except Exception:
-                                pass
+                            playing.append(mname)
+                            if mname not in current_devices_by_name:
+                                current_devices_by_name[mname] = member
                     except Exception as e:
-                        log(f"[snapshot] group check error for {name}: {e}")
+                        log(f"[snapshot] group member enumeration error for {name}: {e}")
             elif state == "PAUSED_PLAYBACK":
                 pass  # captured in states dict, used for rooms_paused below
         except Exception as e:
             states[name] = f"ERROR:{e}"
+            # v2.47.2: transport-info failure also skipped the mute read —
+            # carry over last known mute so the key doesn't flap out of the dict.
+            if name in _current_mute_states:
+                mutes[name] = _current_mute_states[name]
 
     _last_transport_states.clear()
     _last_transport_states.update(states)
@@ -889,6 +974,8 @@ def build_status_snapshot():
         "ntfy": {
             "connected": _ntfy_connected,
             "reconnects": _ntfy_reconnects,
+            # v2.45: populate staleness age so the [STALE] diagnostic can actually fire
+            "last_event_age_s": int(time.time() - _ntfy_last_event_ts) if _ntfy_last_event_ts else None,
         },
         "track_changes": list(_track_changes[-5:]),
     }
@@ -994,9 +1081,16 @@ def format_status_log(snapshot):
     if offline:
         lines.append(f"  [WARN] Speakers offline: {', '.join(offline)}")
 
-    # ntfy health (only if disconnected)
+    # ntfy health — always show
     ntfy = snapshot.get("ntfy", {})
-    if not ntfy.get("connected"):
+    if ntfy.get("connected"):
+        age = ntfy.get("last_event_age_s")
+        age_str = _format_age(age) if age is not None else "?"
+        ntfy_str = f"  ntfy: connected | last event {age_str}"
+        if age is not None and age > 120:
+            ntfy_str += " [STALE]"
+        lines.append(ntfy_str)
+    else:
         lines.append(f"  [WARN] ntfy disconnected (reconnects: {ntfy.get('reconnects', 0)})")
 
     # skip_version warning
@@ -1097,10 +1191,35 @@ def heartbeat_fields():
     fields["command_results"] = get_command_results()
     return fields
 
+# v2.48: payload-light pure-idle heartbeats — state tracked between sends
+_last_hb_light_state = {"newest_err": "", "last_cmd_at": ""}
+
 def _send_heartbeat():
     sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
-    payload.update(heartbeat_fields())
+    fields = heartbeat_fields()
+    # v2.48: if nothing is playing AND no new errors AND no new command results
+    # since the last standalone heartbeat, trim the log payload (pure-idle diet).
+    # Full logs always remain available on demand via get_logs.
+    try:
+        _rp = fields.get("rooms_playing") or []
+        _errs = fields.get("recent_errors") or []
+        _newest_err = _errs[-1] if _errs else ""
+        _cmds = fields.get("command_results") or []
+        _last_cmd_at = _cmds[-1].get("at", "") if _cmds else ""
+        _pure_idle = (not _rp and not fields.get("now_playing_tracks")
+                      and _newest_err == _last_hb_light_state["newest_err"]
+                      and _last_cmd_at == _last_hb_light_state["last_cmd_at"])
+        if _pure_idle:
+            fields["recent_logs"] = (fields.get("recent_logs") or [])[-10:]
+            fields["recent_errors"] = _errs[-5:]
+            fields["hb_light"] = True
+            log("* Heartbeat: pure-idle -- payload-light (recent_logs trimmed to 10)")
+        _last_hb_light_state["newest_err"] = _newest_err
+        _last_hb_light_state["last_cmd_at"] = _last_cmd_at
+    except Exception as _le:
+        log(f"* Heartbeat: light-mode check failed ({_le}) -- sending full payload")
+    payload.update(fields)
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
@@ -1214,6 +1333,15 @@ def _sse_do_flush():
         payload = dict(_sse_bundle)
         _sse_bundle.clear()
     event_types = payload.pop("_event_types", [])
+    # v2.48: quiet-hours idle gate — during Seattle quiet hours (22:00-07:00)
+    # with nothing playing, drop pure status wiggles. Nobody is watching, and
+    # every SSE message carries full state, so dropped bundles lose nothing.
+    if not is_active_hours():
+        _rp_q = list(_poll_snapshot.get("rooms_playing", []))
+        _urgent = [et for et in event_types if et != "status_update"]
+        if not _rp_q and not _urgent:
+            log(f"SSE flush skipped: quiet hours + idle (dropped {event_types})")
+            return
     # Enrich with full state snapshot
     try:
         _sse_enrich_state(payload)
@@ -1225,8 +1353,9 @@ def _sse_do_flush():
     # POST as plain text body (JSON string) -- browser does JSON.parse(event.data)
     url = f"https://ntfy.sh/{ntfy_ui_topic}"
     body = json.dumps(payload)
+    ntfy_headers = {"Authorization": f"Bearer {NTFY_TOKEN}"} if NTFY_TOKEN else {}
     try:
-        r = requests.post(url, data=body.encode("utf-8"), timeout=10)
+        r = requests.post(url, data=body.encode("utf-8"), headers=ntfy_headers, timeout=10)
         if r.status_code == 429:
             _sse_consecutive_429 += 1
             step = min(_sse_consecutive_429 - 1, len(SSE_BACKOFF_STEPS) - 1)
@@ -1315,12 +1444,53 @@ def flush_buffer(reason=""):
         r = requests.post(WEBHOOK, json=payload, timeout=20)
         log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
         last_post_ts = time.time()
-        try: PENDING_PATH.unlink(missing_ok=True)
+        # v2.48: don't blind-unlink -- a track added during the POST window would
+        # vanish from disk. Rewrite the file with whatever is currently buffered.
+        try:
+            with pending_buffer_lock:
+                _leftover = list(pending_buffer)
+            if _leftover:
+                PENDING_PATH.write_text(json.dumps(_leftover), encoding="utf-8")
+            else:
+                PENDING_PATH.unlink(missing_ok=True)
         except: pass
     except Exception as e:
         log(f"[FAIL] Flush failed [{reason}]: {e} -- restoring {len(items)} item(s) to buffer")
         with pending_buffer_lock:
             pending_buffer[:0] = items  # prepend back
+
+# --- DEBOUNCED STATE HEARTBEAT (v2.48) ---------------------------------------
+# After ANY state-changing command (silent or not), schedule ONE heartbeat POST
+# ~75s later. New commands in the burst reset the timer -> one agent run per
+# interaction burst. Refreshes the agent-side mirror (client_status, now_playing)
+# and delivers command_results promptly. Per-command acks stay rejected (v1.57).
+_debounce_hb_timer = None
+_debounce_hb_lock  = threading.Lock()
+DEBOUNCE_HB_DELAY_S = 75
+
+def _schedule_debounced_heartbeat(action):
+    global _debounce_hb_timer
+    with _debounce_hb_lock:
+        if _debounce_hb_timer:
+            _debounce_hb_timer.cancel()
+        _debounce_hb_timer = threading.Timer(DEBOUNCE_HB_DELAY_S, _fire_debounced_heartbeat)
+        _debounce_hb_timer.daemon = True
+        _debounce_hb_timer.start()
+    log(f"[debounce-hb] state heartbeat in {DEBOUNCE_HB_DELAY_S}s (after '{action}'; new commands reset timer)")
+
+def _fire_debounced_heartbeat():
+    global last_post_ts
+    log("[debounce-hb] firing post-command state heartbeat")
+    try:
+        with pending_buffer_lock:
+            _has_pending = len(pending_buffer) > 0
+        if _has_pending:
+            flush_buffer(reason="debounce-post-command")
+        else:
+            _send_heartbeat()
+        last_post_ts = time.time()
+    except Exception as _e:
+        log(f"[debounce-hb] FAILED: {_e}")
 
 # --- HEARTBEAT THREAD -------------------------------------------------------
 def heartbeat_thread():
@@ -1338,17 +1508,34 @@ def heartbeat_thread():
 def _heartbeat_thread_inner():
     global last_post_ts
 
-    # Always send on startup so status shows online immediately
-    _send_heartbeat()
+    # v2.45: no startup send here -- the ready heartbeat (sent after Sonos
+    # discovery, ~3s after boot) is the single startup heartbeat. Sending
+    # here too made every boot cost 2-3 redundant webhook runs.
     last_post_ts = time.time()
 
+    _quiet_entry_flushed = False
     while True:
         time.sleep(60)  # check every minute
 
         if not is_active_hours():
+            # v2.45: flush once on entry into quiet hours so evening listens
+            # don't sit buffered until 7 AM (S-M4). Lands within ~1 min of
+            # 22:00, inside the wellness-check grace window.
+            if not _quiet_entry_flushed:
+                _quiet_entry_flushed = True
+                with pending_buffer_lock:
+                    has_pending = len(pending_buffer) > 0
+                if has_pending:
+                    log("* Heartbeat: quiet-hours entry -- flushing pending buffer before pause")
+                    try:
+                        flush_buffer(reason="quiet-hours-entry")
+                        last_post_ts = time.time()
+                    except Exception as e:
+                        log(f"* Heartbeat: quiet-hours entry flush failed: {e}")
             log(f"* Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) -- paused")
             time.sleep(HEARTBEAT_QUIET_SLEEP)
             continue
+        _quiet_entry_flushed = False
 
         since_last = time.time() - last_post_ts
         if since_last < HEARTBEAT_FALLBACK_SECS:
@@ -1572,7 +1759,7 @@ def _jit_discover(room_name):
     global current_devices_by_name
     try:
         import soco
-        log(f"[JIT] Room '{room_name}' not in cache — running one-shot discovery")
+        log(f"[JIT] Room '{room_name}' not in cache -- running one-shot discovery")
         devices = soco.discover(timeout=3)
         if not devices:
             log(f"[JIT] Discovery found no devices")
@@ -1690,7 +1877,10 @@ def get_container_context(device):
             "container_type": container_type,
             "spotify_context": spotify_context,
         }
-    except Exception:
+    except Exception as _cc_err:
+        # v2.44: was a silent `return None` -- it hid a NameError (missing import re)
+        # for months, nulling container context on every track. Never swallow silently.
+        log(f"[container] get_container_context failed: {type(_cc_err).__name__}: {_cc_err}")
         return None
 
 
@@ -1711,6 +1901,7 @@ def get_track_info(device):
             state = cached_state
         else:
             state = device.get_current_transport_info().get("current_transport_state", "STOPPED")
+            log(f"[diag] get_track_info: cache miss for '{name}', live query returned '{state}'")
         if state not in ("PLAYING", "TRANSITIONING"):
             speaker_failures[name] = 0
             return None
@@ -1727,6 +1918,172 @@ def get_track_info(device):
         _JUNK_TITLES = ("ZPSTR_CONNECTING", "ZPSTR_BUFFERING", "NOT_IMPLEMENTED", "x-sonosapi-stream:")
         if title.upper() in (j.upper() for j in _JUNK_TITLES):
             title = ""
+        # v2.37: Enhanced DIDL metadata extraction with raw AVTransport fallback
+        artist_raw = info.get("artist", "").strip()
+        album_raw  = info.get("album", "").strip()
+        import re as _re
+        from html import unescape as _html_unescape
+        # v2.39: Capture album identifiers from DIDL for album-level replay
+        didl_parent_id = ""
+        didl_album_art_uri = ""
+
+        # --- Phase 1: Try SoCo's metadata field (TrackMetaData from GetPositionInfo) ---
+        if metadata and (not artist_raw or not album_raw or not title):
+            try:
+                if not title or not artist_raw:
+                    log(f"[DIDL-debug] SoCo metadata for {name} ({len(metadata)}b): {metadata[:500]}")
+                # Try with and without HTML entity decoding
+                for _src in [metadata, _html_unescape(metadata)]:
+                    if not title:
+                        _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', _src)
+                        if _dc:
+                            title = _dc.group(1).strip()
+                            log(f"[DIDL-fallback] Recovered title from DIDL XML: '{title}' for {name}")
+                    if not artist_raw:
+                        _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', _src)
+                        if _cr:
+                            artist_raw = _cr.group(1).strip()
+                            log(f"[DIDL-fallback] Recovered artist from DIDL XML: '{artist_raw}' for {name}")
+                    if not album_raw:
+                        _al = _re.search(r'<upnp:album>([^<]+)</upnp:album>', _src)
+                        if _al:
+                            album_raw = _al.group(1).strip()
+                    # v2.39: Extract parentID (album container) and albumArtURI
+                    if not didl_parent_id:
+                        _pid = _re.search(r'parentID="([^"]*)"', _src)
+                        if _pid:
+                            didl_parent_id = _pid.group(1).strip()
+                    if not didl_album_art_uri:
+                        _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', _src)
+                        if _aau:
+                            didl_album_art_uri = _aau.group(1).strip()
+                    if title and artist_raw:
+                        break  # Got what we need
+            except Exception as _e:
+                log(f"[DIDL-fallback] Parse error: {_e}")
+
+        # --- Phase 2: If still missing, try raw AVTransport GetPositionInfo ---
+        if not title or not artist_raw:
+            try:
+                _raw = device.avTransport.GetPositionInfo(InstanceID=0)
+                _raw_meta = _raw.get("TrackMetaData", "")
+                _enq_meta = _raw.get("EnqueuedTransportURIMetaData", "")
+                # Log raw fields for diagnostics
+                log(f"[DIDL-raw] GetPositionInfo for {name}:")
+                log(f"[DIDL-raw]   TrackURI: {_raw.get('TrackURI', '')[:120]}")
+                log(f"[DIDL-raw]   TrackMetaData type={type(_raw_meta).__name__} len={len(str(_raw_meta))}")
+                if _raw_meta and isinstance(_raw_meta, str) and len(_raw_meta) > 10:
+                    log(f"[DIDL-raw]   TrackMetaData: {str(_raw_meta)[:500]}")
+                elif not isinstance(_raw_meta, str) and hasattr(_raw_meta, 'title'):
+                    # SoCo may parse it into a DidlObject (but not a plain str — str.title is a method!)
+                    log(f"[DIDL-raw]   TrackMetaData is DidlObject: title='{getattr(_raw_meta, 'title', '')}' creator='{getattr(_raw_meta, 'creator', '')}'")
+                    if not title and getattr(_raw_meta, 'title', ''):
+                        _t = _raw_meta.title
+                        if isinstance(_t, str):
+                            title = _t
+                        log(f"[DIDL-raw] Recovered title from DidlObject: '{title}'")
+                    if not artist_raw and getattr(_raw_meta, 'creator', ''):
+                        artist_raw = _raw_meta.creator
+                        log(f"[DIDL-raw] Recovered artist from DidlObject: '{artist_raw}'")
+                    if not album_raw and getattr(_raw_meta, 'album', ''):
+                        album_raw = getattr(_raw_meta, 'album', '')
+                    # v2.39: Extract album identifiers from DidlObject
+                    if not didl_parent_id and getattr(_raw_meta, 'parent_id', ''):
+                        didl_parent_id = str(getattr(_raw_meta, 'parent_id', ''))
+                    if not didl_album_art_uri and getattr(_raw_meta, 'album_art_uri', ''):
+                        didl_album_art_uri = str(getattr(_raw_meta, 'album_art_uri', ''))
+                else:
+                    log(f"[DIDL-raw]   TrackMetaData: {repr(str(_raw_meta))[:200]}")
+                    # v2.39: Try regex on raw string for parentID/albumArtURI
+                    if not didl_parent_id:
+                        _pid = _re.search(r'parentID="([^"]*)"', str(_raw_meta))
+                        if _pid:
+                            didl_parent_id = _pid.group(1).strip()
+                    if not didl_album_art_uri:
+                        _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', str(_raw_meta))
+                        if _aau:
+                            didl_album_art_uri = _aau.group(1).strip()
+                # Also try EnqueuedTransportURIMetaData
+                if (_enq_meta and isinstance(_enq_meta, str) and len(_enq_meta) > 10
+                        and (not title or not artist_raw)):
+                    log(f"[DIDL-raw]   EnqueuedMeta: {str(_enq_meta)[:500]}")
+                    for _src in [_enq_meta, _html_unescape(_enq_meta)]:
+                        if not title:
+                            _dc = _re.search(r'<dc:title>([^<]+)</dc:title>', _src)
+                            if _dc:
+                                title = _dc.group(1).strip()
+                                log(f"[DIDL-raw] Recovered title from EnqueuedMeta: '{title}'")
+                        if not artist_raw:
+                            _cr = _re.search(r'<dc:creator>([^<]+)</dc:creator>', _src)
+                            if _cr:
+                                artist_raw = _cr.group(1).strip()
+                                log(f"[DIDL-raw] Recovered artist from EnqueuedMeta: '{artist_raw}'")
+                elif not isinstance(_enq_meta, str) and hasattr(_enq_meta, 'title'):
+                    log(f"[DIDL-raw]   EnqueuedMeta is DidlObject: title='{getattr(_enq_meta, 'title', '')}'")
+                    if not title and getattr(_enq_meta, 'title', ''):
+                        _t = _enq_meta.title
+                        if isinstance(_t, str):
+                            title = _t
+            except Exception as _e:
+                log(f"[DIDL-raw] GetPositionInfo fallback error: {_e}")
+
+        # v2.39: Extract album identifiers unconditionally from metadata string
+        # (Phase 1/2 are gated on missing title/artist, but we need parentID/albumArtURI
+        #  even when SoCo already gives us title/artist/album)
+        if metadata and not didl_parent_id:
+            try:
+                _pid = _re.search(r'parentID="([^"]*)"', metadata)
+                if _pid:
+                    didl_parent_id = _pid.group(1).strip()
+                if not didl_parent_id:
+                    _pid = _re.search(r'parentID="([^"]*)"', _html_unescape(metadata))
+                    if _pid:
+                        didl_parent_id = _pid.group(1).strip()
+            except Exception as _e:
+                log(f"[DIDL-album] parentID parse error: {_e}")
+        if metadata and not didl_album_art_uri:
+            try:
+                _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', metadata)
+                if _aau:
+                    didl_album_art_uri = _aau.group(1).strip()
+                if not didl_album_art_uri:
+                    _aau = _re.search(r'<upnp:albumArtURI>([^<]+)</upnp:albumArtURI>', _html_unescape(metadata))
+                    if _aau:
+                        didl_album_art_uri = _aau.group(1).strip()
+            except Exception as _e:
+                log(f"[DIDL-album] albumArtURI parse error: {_e}")
+        # Also try the raw DidlObject attributes if metadata is a parsed object
+        if metadata and (not didl_parent_id or not didl_album_art_uri):
+            try:
+                if not isinstance(metadata, str) and not didl_parent_id and getattr(metadata, 'parent_id', ''):
+                    didl_parent_id = str(getattr(metadata, 'parent_id', ''))
+                if not isinstance(metadata, str) and not didl_album_art_uri and getattr(metadata, 'album_art_uri', ''):
+                    didl_album_art_uri = str(getattr(metadata, 'album_art_uri', ''))
+            except Exception:
+                pass
+
+        # v2.41: DIDL fields (parentID, albumArtURI) flow silently into ring buffer.
+        # Per-poll logging removed — parentID is -1 for all services (Spotify/Qobuz/Apple Music).
+
+        # --- Phase 3 (v2.37): URI metadata cache from play_next commands ---
+        # Qobuz/Apple Music DIDL from Sonos is often empty. If we played the track
+        # via play_next, we cached the metadata then. Look it up now.
+        _URI_CACHE_TTL = 4 * 3600  # 4 hours
+        if uri and (not title or not artist_raw) and uri in _uri_metadata_cache:
+            _cached = _uri_metadata_cache[uri]
+            if time.time() - _cached["ts"] < _URI_CACHE_TTL:
+                if not title and _cached["title"]:
+                    title = _cached["title"]
+                    log(f"[DIDL-cache] Recovered title from play_next cache: '{title}' for {name}")
+                if not artist_raw and _cached["artist"]:
+                    artist_raw = _cached["artist"]
+                    log(f"[DIDL-cache] Recovered artist from play_next cache: '{artist_raw}' for {name}")
+                if not album_raw and _cached["album"]:
+                    album_raw = _cached["album"]
+                    log(f"[DIDL-cache] Recovered album from play_next cache: '{album_raw}' for {name}")
+            else:
+                del _uri_metadata_cache[uri]  # expired
+
         if not title:
             if _is_radio_stream:
                 # Derive a synthetic title from the URI
@@ -1738,8 +2095,17 @@ def get_track_info(device):
                 else:
                     title = "Radio Stream"
             else:
-                speaker_failures[name] = 0
-                return None
+                # v2.35: Last resort — use service name so Now Playing still fires
+                _svc = detect_service(uri, metadata)
+                if _svc and _svc not in ("unknown",):
+                    _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
+                    title = f"{_svc_label} Track"
+                    log(f"[DIDL-fallback] Using synthetic title '{title}' for {uri[:80]} on {name}")
+                    log(f"[DIDL-fallback] Raw info keys: title='{info.get('title','')}' artist='{info.get('artist','')}' uri='{uri[:80]}' meta_len={len(metadata)}")
+                else:
+                    log(f"[now-playing] Dropping empty-title track on {name}: uri={uri[:80]} meta_len={len(metadata)}")
+                    speaker_failures[name] = 0
+                    return None
         dur_str  = info.get("duration", "0:00:00")
         dur_secs = 0
         try:
@@ -1747,16 +2113,34 @@ def get_track_info(device):
             if len(p) == 3:
                 dur_secs = int(p[0])*3600 + int(p[1])*60 + int(p[2])
         except Exception: pass
-        try:    members = [m.player_name for m in device.group.members]
+        try:    members = list(dict.fromkeys(m.player_name for m in device.group.members))  # v2.36: deduplicate (SoCo sometimes returns coordinator twice)
         except: members = [device.player_name]
         speaker_failures[name] = 0
+        # v2.38: Safety net — ensure title/artist/album are plain strings (never method refs)
+        for _field_name, _field_val in [("title", title), ("artist", artist_raw), ("album", album_raw)]:
+            if _field_val and not isinstance(_field_val, str):
+                log(f"[DIDL-safety] Non-string {_field_name} detected: {type(_field_val).__name__} = {repr(_field_val)[:100]} -- clearing")
+                if _field_name == "title": title = None
+                elif _field_name == "artist": artist_raw = None
+                elif _field_name == "album": album_raw = None
+        if not title:
+            _svc = detect_service(uri, metadata)
+            if _svc and _svc not in ("unknown",):
+                _svc_label = _svc.replace("sonos_", "").replace("_", " ").title()
+                title = f"{_svc_label} Track"
+                log(f"[DIDL-safety] Used synthetic title '{title}' after clearing non-string")
+            else:
+                log(f"[DIDL-safety] No valid title after clearing non-string on {name}")
+                return None
         ctx = get_container_context(device)
-        return {"title": title, "artist": info.get("artist","").strip(),
-                "album": info.get("album","").strip(), "uri": uri,
+        return {"title": title, "artist": artist_raw,
+                "album": album_raw, "uri": uri,
                 "service": detect_service(uri, metadata),
                 "duration_seconds": dur_secs, "rooms": members,
                 "coordinator": device.player_name,
-                "container": ctx}
+                "container": ctx,
+                "didl_parent_id": didl_parent_id,
+                "didl_album_art_uri": didl_album_art_uri}
     except Exception as e:
         failures = speaker_failures.get(name, 0) + 1
         speaker_failures[name] = failures
@@ -1790,6 +2174,8 @@ def post_history(track, room, started_at, ended_at):
         "duration_played_seconds": duration_played,
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
+        "didl_parent_id": track.get("didl_parent_id", ""),
+        "didl_album_art_uri": track.get("didl_album_art_uri", ""),
     }
     # Add container context (playlist/album/station) if available
     container = track.get("container")
@@ -1800,10 +2186,20 @@ def post_history(track, room, started_at, ended_at):
         if container.get("spotify_context"):
             item["spotify_context"] = container["spotify_context"]
     item["_buffered_at"] = time.time()  # for max-age relay flush
+    _persist_err = None
     with pending_buffer_lock:
         pending_buffer.append(item)
         last_track_added_ts = time.time()
         count = len(pending_buffer)
+        # v2.48: persist buffer on EVERY add (crash safety between flushes).
+        # Previously items only hit disk at flush time -- a crash mid-session
+        # lost everything buffered since the last flush.
+        try:
+            PENDING_PATH.write_text(json.dumps(list(pending_buffer)), encoding="utf-8")
+        except Exception as _pe:
+            _persist_err = str(_pe)
+    if _persist_err:
+        log(f"[buffer] WARNING: persist-on-add failed: {_persist_err}")
     log(f'+ Buffered: "{track["title"]}" - {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
     if count >= BATCH_SIZE:
         flush_buffer(reason="count")
@@ -1847,6 +2243,12 @@ def _mark_executed(cmd):
         expired = [h for h, ts in executed_cmd_hashes.items() if ts < cutoff]
         for h in expired:
             del executed_cmd_hashes[h]
+    # v2.44: write-through to disk so a restart + ntfy since=5m replay
+    # can't re-execute commands this process already ran.
+    try:
+        EXECUTED_CMDS_PATH.write_text(json.dumps(executed_cmd_hashes), encoding="utf-8")
+    except Exception as _we:
+        log(f"[dedup] WARNING: failed to persist executed_cmds.json: {_we}")
 
 def _already_executed(cmd):
     h = _cmd_hash(cmd)
@@ -1856,6 +2258,8 @@ def _already_executed(cmd):
     if time.time() - ts > CMD_DEDUP_TTL_SECONDS:
         del executed_cmd_hashes[h]
         return False
+    # v2.44: verbose dedup decision -- silent rejections are undebuggable remotely
+    log(f"[dedup] REJECTED replayed command (hash={h[:12]}, age={int(time.time()-ts)}s, action={cmd.get('action','?')})")
     return True
 
 # --- SONOS: EXECUTE COMMAND -------------------------------------------------
@@ -1964,9 +2368,9 @@ def _setup_rooms(cmd, devices):
         if joined or to_remove:
             time.sleep(1)
         if joined:
-            log(f"_setup_rooms: incremental group update — {primary} + {joined} (removed: {list(to_remove)})")
+            log(f"_setup_rooms: incremental group update -- {primary} + {joined} (removed: {list(to_remove)})")
         else:
-            log(f"_setup_rooms: group adjusted — removed {list(to_remove)}")
+            log(f"_setup_rooms: group adjusted -- removed {list(to_remove)}")
     else:
         # Single room: should be solo
         if len(current_members) == 1:
@@ -1997,7 +2401,9 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "get_volume", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
+# v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
+NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -2049,6 +2455,42 @@ def execute_command(cmd, source="unknown"):
             result["message"] = f"Running update check (v{SERVICE_VERSION})"
             def _do(): time.sleep(2); self_update_check()
             threading.Thread(target=_do, daemon=True).start()
+
+        elif action == "restart":
+            # v2.45: real remote restart. Post result first (2s delay in thread),
+            # flush history buffer, then respawn a fresh process and exit.
+            result["success"] = True
+            result["message"] = f"Restarting service (v{SERVICE_VERSION})"
+            def _do_restart():
+                global _mutex_handle
+                time.sleep(2)
+                try:
+                    flush_buffer(reason="pre-restart")
+                except Exception as e:
+                    log(f"[restart] pre-restart flush failed: {e}")
+                try:
+                    _persist_state_ring_buffer()
+                except Exception as e:
+                    log(f"[restart] ring buffer persist failed: {e}")
+                log("[restart] Respawning new process...")
+                if _mutex_handle is not None:
+                    try:
+                        import ctypes as _ct
+                        _ct.windll.kernel32.CloseHandle(_mutex_handle)
+                        _mutex_handle = None
+                    except Exception as e:
+                        log(f"[restart] mutex release failed: {e}")
+                try:
+                    _rst_script = Path(sys.argv[0]).resolve()
+                    subprocess.Popen(
+                        [sys.executable, str(_rst_script)] + sys.argv[1:],
+                        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+                    )
+                except Exception as e:
+                    log(f"[restart] RESPAWN FAILED: {e} -- NOT exiting (service stays up)")
+                    return
+                os._exit(0)
+            threading.Thread(target=_do_restart, daemon=True).start()
 
         elif action == "flush":
             # DESIGN NOTE: Flush is a silent action that drains pending_buffer and
@@ -2151,6 +2593,31 @@ def execute_command(cmd, source="unknown"):
             else:
                 result["message"] = f"Room '{room}' not found"
 
+        elif action == "sync_rooms":
+            rooms = cmd.get("rooms", [])
+            if isinstance(rooms, str): rooms = [rooms]
+            if not rooms:
+                result["message"] = "No rooms specified"
+            else:
+                log(f"sync_rooms: requested rooms={rooms}")
+                # Re-discover devices for a fresh view of the topology
+                try:
+                    import soco as _soco_mod
+                    fresh = {d.player_name: d for d in _soco_mod.discover(timeout=3) or []}
+                    if fresh:
+                        devices.update(fresh)
+                        log(f"sync_rooms: refreshed topology, {len(fresh)} devices")
+                except Exception as e:
+                    log(f"sync_rooms: topology refresh failed (using cached): {e}")
+                dev, final_rooms, was_grouped = _setup_rooms(cmd, devices)
+                if dev:
+                    result["success"] = True
+                    result["message"] = f"Synced: {', '.join(final_rooms)}"
+                    if was_grouped:
+                        result["message"] += f" (removed: {', '.join(was_grouped)})"
+                else:
+                    result["message"] = f"Room '{rooms[0]}' not found"
+
         elif action == "search":
             from soco.music_services import MusicService
             svc_name    = cmd.get("service", "Qobuz")
@@ -2199,6 +2666,254 @@ def execute_command(cmd, source="unknown"):
                     else:
                         result["message"] = f"Found '{title}' but no URI"
 
+        elif action == "search_and_queue":
+            # Like search_and_play but uses add_to_queue(DidlObject) instead of play_uri
+            from soco.music_services import MusicService
+            room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            svc_name    = cmd.get("service", "Qobuz")
+            query       = cmd.get("query", "")
+            search_type = cmd.get("search_type", "albums")
+            dev = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found"
+            elif not query:
+                result["message"] = "No query provided"
+            else:
+                items = list(MusicService(svc_name).search(search_type, query, 0, 5))
+                if not items:
+                    result["message"] = f"No {search_type} for '{query}' on {svc_name}"
+                else:
+                    first = items[0]
+                    title = getattr(first, "title", str(first))
+                    uri   = getattr(first, "uri", None)
+                    item_class = type(first).__name__
+                    log(f"search_and_queue: item type={item_class} title='{title}' uri={uri}")
+                    log(f"search_and_queue: item attrs: {[a for a in dir(first) if not a.startswith('_')]}")
+                    try:
+                        pos = dev.add_to_queue(first)
+                        log(f"search_and_queue: add_to_queue returned position={pos}")
+                        dev.play_from_queue(pos - 1)  # 0-indexed
+                        result["success"] = True
+                        result["message"] = f"Queued+playing '{title}' ({svc_name}) in {room} at pos {pos}"
+                        result["data"] = {"title": title, "uri": uri, "service": svc_name, "item_class": item_class, "position": pos}
+                    except Exception as eq:
+                        log(f"search_and_queue: add_to_queue failed: {eq}")
+                        # Fallback: log the DIDL for debugging
+                        meta = getattr(first, "to_didl_string", lambda: "n/a")()
+                        log(f"search_and_queue: DIDL metadata: {meta[:500]}")
+                        result["message"] = f"add_to_queue failed: {eq}"
+
+        elif action == "play_album":
+            # [v2.43] Play a full album natively (Qobuz). [v2.47] Apple Music branch.
+            # Shared design: resolve the album to a native MusicService DidlObject
+            # (per-service resolution below), then add_to_queue() -- Sonos expands
+            # the container into individual tracks. queue_only inserts after the
+            # current track without interrupting playback; otherwise we insert
+            # after current and skip to it (preserves the rest of the queue).
+            from soco.music_services import MusicService
+            import urllib.parse
+            QOBUZ_APP_ID = "712109809"
+            album_title = cmd.get("title", "")
+            album_artist = cmd.get("artist", "")
+            svc_name    = cmd.get("service", "Qobuz")
+            queue_only  = cmd.get("queue_only", False)
+            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            if not dev:
+                result["message"] = f"Room '{(cmd.get('rooms') or ['?'])[0]}' not found. Available: {list(devices.keys())}"
+            elif not album_title:
+                result["message"] = "No album title provided"
+            else:
+                coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                query_str = f"{album_title} {album_artist}".strip()
+
+                # Per-service resolution fills these. album_item stays None on
+                # failure -- the failing branch MUST set result["message"].
+                # [v2.47.1] Apple resolves to apple_share_url (ShareLink) instead
+                # of a DidlObject; the shared queue step dispatches on it.
+                album_item = None
+                apple_share_url = None
+                chosen_title, chosen_artist = album_title, album_artist
+                chosen_tracks, chosen_id = 0, ""
+
+                if "apple" in svc_name.lower():
+                    # === APPLE MUSIC (v2.47) ===
+                    # Step 1: iTunes Search API (public, keyless) to disambiguate
+                    # singles vs full albums via trackCount + get canonical naming.
+                    log(f"play_album: searching iTunes API for '{query_str}'")
+                    try:
+                        api_url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query_str)}&entity=album&limit=10"
+                        resp = requests.get(api_url, timeout=10)
+                        resp.raise_for_status()
+                        api_albums = resp.json().get("results", [])
+                    except Exception as api_err:
+                        log(f"play_album: iTunes API search failed: {api_err}")
+                        api_albums = []
+
+                    if api_albums:
+                        log(f"play_album: iTunes API returned {len(api_albums)} albums:")
+                        for i, a in enumerate(api_albums):
+                            log(f"  [{i}] id={a.get('collectionId','?')} tracks={a.get('trackCount',0)} '{a.get('collectionName','?')}' by {a.get('artistName','?')}")
+                        def _norm(s):
+                            return "".join(ch for ch in str(s).casefold() if ch.isalnum() or ch == " ").strip()
+                        full_albums = [a for a in api_albums if a.get("trackCount", 0) > 1]
+                        if not full_albums:
+                            log(f"play_album: all iTunes results are singles, using first result")
+                            chosen = api_albums[0]
+                        else:
+                            # [v2.47.1] Prefer exact normalized title match, then substring,
+                            # then iTunes relevance order. (max-trackCount wrongly picked
+                            # 35-track 'Decade' over the requested 'Harvest'.)
+                            want = _norm(album_title)
+                            exact = [a for a in full_albums if _norm(a.get("collectionName", "")) == want]
+                            sub   = [a for a in full_albums if want and want in _norm(a.get("collectionName", ""))]
+                            chosen = (exact or sub or full_albums)[0]
+                            match_kind = "exact" if exact else ("substring" if sub else "first-full")
+                            log(f"play_album: iTunes title match={match_kind} for '{album_title}'")
+                        chosen_title  = chosen.get("collectionName", album_title)
+                        chosen_artist = chosen.get("artistName", album_artist)
+                        chosen_tracks = chosen.get("trackCount", 0)
+                        chosen_id     = str(chosen.get("collectionId", ""))
+                        log(f"play_album: iTunes selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
+                    else:
+                        log(f"play_album: iTunes API gave no results for '{query_str}'")
+
+                    # Step 2 [v2.47.1]: Build an Apple Music share link from the iTunes
+                    # collectionId and let ShareLinkPlugin queue the album container.
+                    # Apple's SMAPI search endpoint rejects soco search() calls with
+                    # SOAP-ENV:Server faults, so we bypass SMAPI entirely -- the iTunes
+                    # collectionId IS the native Apple Music album ID.
+                    if chosen_id:
+                        apple_share_url = f"https://music.apple.com/us/album/a/{chosen_id}"
+                        log(f"play_album: Apple share link: {apple_share_url} ('{chosen_title}' by {chosen_artist}, {chosen_tracks} tracks)")
+                    else:
+                        result["message"] = f"No album found via iTunes search for '{query_str}'"
+
+                else:
+                    # === QOBUZ (v2.43) ===
+                    # Two-step: Qobuz API search to find the right album (disambiguate
+                    # singles vs full albums via tracks_count), then MusicService search
+                    # by album ID to get the native DidlObject.
+                    log(f"play_album: searching Qobuz API for '{query_str}'")
+                    try:
+                        api_url = f"https://www.qobuz.com/api.json/0.2/catalog/search?query={urllib.parse.quote(query_str)}&app_id={QOBUZ_APP_ID}&limit=10&type=albums"
+                        resp = requests.get(api_url, timeout=10)
+                        resp.raise_for_status()
+                        api_data = resp.json()
+                        api_albums = api_data.get("albums", {}).get("items", [])
+                    except Exception as api_err:
+                        log(f"play_album: Qobuz API search failed: {api_err}")
+                        api_albums = []
+
+                    if not api_albums:
+                        log(f"play_album: no albums found via Qobuz API for '{query_str}'")
+                        result["message"] = f"No albums found on Qobuz for '{query_str}'"
+                    else:
+                        # Log ALL results for visibility
+                        log(f"play_album: Qobuz API returned {len(api_albums)} albums:")
+                        for i, a in enumerate(api_albums):
+                            a_title = a.get("title", "?")
+                            a_artist = a.get("artist", {}).get("name", "?")
+                            a_tracks = a.get("tracks_count", 0)
+                            a_id = a.get("id", "?")
+                            a_qid = a.get("qobuz_id", "?")
+                            log(f"  [{i}] id={a_id} qobuz_id={a_qid} tracks={a_tracks} '{a_title}' by {a_artist}")
+
+                        # Pick the album with the most tracks (skip singles)
+                        full_albums = [a for a in api_albums if a.get("tracks_count", 0) > 1]
+                        if not full_albums:
+                            log(f"play_album: all results are singles, using first result")
+                            chosen = api_albums[0]
+                        else:
+                            chosen = max(full_albums, key=lambda a: a.get("tracks_count", 0))
+
+                        chosen_id = chosen.get("id", "")
+                        chosen_title = chosen.get("title", "?")
+                        chosen_artist = chosen.get("artist", {}).get("name", "?")
+                        chosen_tracks = chosen.get("tracks_count", 0)
+                        log(f"play_album: selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
+
+                        # MusicService search by album ID to get native DidlObject
+                        try:
+                            ms_items = list(MusicService(svc_name).search("albums", str(chosen_id), 0, 5))
+                            log(f"play_album: MusicService search for '{chosen_id}' returned {len(ms_items)} items")
+                            for j, msi in enumerate(ms_items):
+                                log(f"  MS[{j}] type={type(msi).__name__} title='{getattr(msi, 'title', '?')}' uri={getattr(msi, 'uri', '?')}")
+                        except Exception as ms_err:
+                            log(f"play_album: MusicService search failed: {ms_err}")
+                            ms_items = []
+
+                        if not ms_items:
+                            result["message"] = f"Found album '{chosen_title}' ({chosen_tracks} tracks) on Qobuz API but MusicService search failed"
+                        else:
+                            album_item = ms_items[0]
+
+                # === SHARED QUEUE STEP (all services) ===
+                if album_item is not None or apple_share_url:
+                    from soco.plugins.sharelink import ShareLinkPlugin
+
+                    def _enqueue(position=None):
+                        # [v2.47.1] Dispatch: Apple via ShareLinkPlugin (share URL),
+                        # everything else via native DidlObject add_to_queue.
+                        if apple_share_url:
+                            sl = ShareLinkPlugin(coordinator)
+                            if position:
+                                return sl.add_share_link_to_queue(apple_share_url, position=position, dc_title=chosen_title)
+                            return sl.add_share_link_to_queue(apple_share_url, dc_title=chosen_title)
+                        if position:
+                            return coordinator.add_to_queue(album_item, position=position)
+                        return coordinator.add_to_queue(album_item)
+
+                    album_item_title = chosen_title if apple_share_url else getattr(album_item, "title", str(album_item))
+                    log(f"play_album: queueing '{album_item_title}' via {'ShareLink' if apple_share_url else type(album_item).__name__}")
+                    try:
+                        if queue_only:
+                            # Insert after current track without interrupting playback
+                            try:
+                                info = coordinator.get_current_track_info()
+                                current_pos = int(info.get('playlist_position', 0))
+                                insert_pos = current_pos + 1
+                                pos = _enqueue(insert_pos)
+                                log(f"play_album: queued (queue_only) at position {pos}")
+                            except Exception:
+                                pos = _enqueue()
+                                log(f"play_album: queued (queue_only, append) at position {pos}")
+                        else:
+                            # Play now: insert after current, then skip to it
+                            try:
+                                info = coordinator.get_current_track_info()
+                                current_pos = int(info.get('playlist_position', 0))
+                                insert_pos = current_pos + 1
+                                pos = _enqueue(insert_pos)
+                                log(f"play_album: inserted at position {pos}, skipping to it")
+                                coordinator.play_from_queue(pos - 1)  # 0-indexed
+                            except Exception:
+                                pos = _enqueue()
+                                log(f"play_album: appended at position {pos}, playing from there")
+                                coordinator.play_from_queue(pos - 1)
+
+                        room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
+                        grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
+                        mode = "Queued" if queue_only else "Playing"
+                        tracks_note = f" ({chosen_tracks} tracks)" if chosen_tracks else ""
+                        result["success"] = True
+                        result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist}{tracks_note} in {room_label}{grp_note}"
+                        result["data"] = {
+                            "title": chosen_title,
+                            "artist": chosen_artist,
+                            "tracks_count": chosen_tracks,
+                            "album_id": chosen_id,
+                            "service": svc_name,
+                            "room": rooms[0],
+                            "rooms": rooms,
+                            "queue_only": queue_only,
+                            "position": pos,
+                        }
+                    except Exception as q_err:
+                        log(f"play_album: add_to_queue failed: {q_err}")
+                        meta = getattr(album_item, "to_didl_string", lambda: "n/a")()
+                        log(f"play_album: DIDL: {meta[:500]}")
+                        result["message"] = f"add_to_queue failed for '{chosen_title}': {q_err}"
+
         elif action == "play_spotify_uri":
             from soco.plugins.sharelink import ShareLinkPlugin
             spotify_uri = cmd.get("uri", "")
@@ -2218,7 +2933,7 @@ def execute_command(cmd, source="unknown"):
                 dev.play_from_queue(0)
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
-                repeat = cmd.get("repeat", True)  # default True for backward compat
+                repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
                 if shuffle and repeat:
                     dev.play_mode = "SHUFFLE"           # shuffle + repeat all
                 elif shuffle and not repeat:
@@ -2244,6 +2959,7 @@ def execute_command(cmd, source="unknown"):
             room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
+            q_artist    = cmd.get("artist", "")
             dev = devices.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
@@ -2285,6 +3001,8 @@ def execute_command(cmd, source="unknown"):
                             from xml.sax.saxutils import escape as xml_escape
                             safe_title = xml_escape(title or "Unknown Track")
                             safe_uri = xml_escape(track_uri)
+                            safe_artist = xml_escape(q_artist) if q_artist else ""
+                            creator_tag = ('<dc:creator>' + safe_artist + '</dc:creator>') if safe_artist else ''
                             meta = (
                                 '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
                                 'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
@@ -2292,11 +3010,12 @@ def execute_command(cmd, source="unknown"):
                                 'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
                                 '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
                                 '<dc:title>' + safe_title + '</dc:title>'
+                                + creator_tag +
                                 '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
                                 '<res protocolInfo="*:*:*:*">' + safe_uri + '</res>'
                                 '</item></DIDL-Lite>'
                             )
-                            log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={q_artist}")
                             if pos is not None:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             elif next_flag:
@@ -2351,6 +3070,7 @@ def execute_command(cmd, source="unknown"):
             from xml.sax.saxutils import escape as xml_escape
             track_uri   = cmd.get("uri", "")
             title       = cmd.get("title", track_uri)
+            cmd_artist  = cmd.get("artist", "")
             # Group rooms before playing — ensures all selected rooms play together.
             # _setup_rooms is incremental: no-op if already correct.
             dev, rooms, was_grouped = _setup_rooms(cmd, devices)
@@ -2371,9 +3091,10 @@ def execute_command(cmd, source="unknown"):
                 else:
                     share_url = None  # Raw Sonos URI -- no share link needed
 
-                def _build_didl_meta(t, u):
+                def _build_didl_meta(t, u, a=""):
                     """Build DIDL-Lite XML metadata for non-Spotify URIs.
-                    Uses proper item IDs (R:0/0/0) so Sonos displays title correctly."""
+                    Uses proper item IDs (R:0/0/0) so Sonos displays title/artist correctly."""
+                    creator = ('<dc:creator>' + xml_escape(a) + '</dc:creator>') if a else ''
                     return (
                         '<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
                         'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
@@ -2381,6 +3102,7 @@ def execute_command(cmd, source="unknown"):
                         'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
                         '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
                         '<dc:title>' + xml_escape(t or "Unknown Track") + '</dc:title>'
+                        + creator +
                         '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
                         '<res protocolInfo="*:*:*:*">' + xml_escape(u) + '</res>'
                         '</item></DIDL-Lite>'
@@ -2410,8 +3132,8 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 plugin.add_share_link_to_queue(share_url)
                         else:
-                            meta = _build_didl_meta(title, track_uri)
-                            log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]}")
+                            meta = _build_didl_meta(title, track_uri, cmd_artist)
+                            log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={cmd_artist}")
                             if pos is not None:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             else:
@@ -2428,8 +3150,8 @@ def execute_command(cmd, source="unknown"):
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
                             # (v1.87 fix: DIDL queue approach showed "Song [1/1]" with no audio)
-                            meta = _build_didl_meta(title, track_uri)
-                            log(f"play_next: using play_uri() for non-Spotify stream replacement")
+                            meta = _build_didl_meta(title, track_uri, cmd_artist)
+                            log(f"play_next: using play_uri() for non-Spotify stream replacement artist={cmd_artist}")
                             coordinator.play_uri(track_uri, meta, title=title or '')
                     else:
                         # Queue-based source -- insert at next position and skip
@@ -2449,9 +3171,24 @@ def execute_command(cmd, source="unknown"):
                                 log(f"play_next: after next(), state={state} -> forcing play_from_queue({insert_pos - 1})")
                                 coordinator.play_from_queue(insert_pos - 1)
                         except Exception as skip_err:
-                            # Any next() failure -- just play directly
-                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue(0)")
-                            coordinator.play_from_queue(0)
+                            # Any next() failure -- play the track we just inserted.
+                            # v2.46 fix: was play_from_queue(0), which played the HEAD of
+                            # the existing (possibly stale/foreign) queue instead of the
+                            # inserted track. Cold speakers reject next() with UPnP 701,
+                            # so this path fired and played leftover queue content.
+                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
+                            coordinator.play_from_queue(insert_pos - 1)
+                    # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
+                    # can recover title/artist when Sonos DIDL comes back empty.
+                    if not is_spotify and (title or cmd_artist):
+                        _uri_metadata_cache[track_uri] = {
+                            "title": title or "",
+                            "artist": cmd_artist or "",
+                            "album": cmd.get("album", "") or "",
+                            "ts": time.time(),
+                        }
+                        log(f"play_next: cached metadata for {track_uri[:80]}: '{title}' - {cmd_artist}")
+
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
@@ -2497,6 +3234,16 @@ def execute_command(cmd, source="unknown"):
                         coord_name = coordinator.player_name
                         coord_key = f"{title}|{artist}|{track_uri}"
                         _last_ui_track[coord_name] = coord_key
+                        # v2.44 CRITICAL FIX: retire the previously-playing track to history
+                        # BEFORE overwriting room_state. Previously every commanded track
+                        # change silently dropped one history row.
+                        try:
+                            _prev = room_state.get(coord_name)
+                            if _prev and _prev.get("track_key") and _prev.get("started_at") and _prev["track_key"] != coord_key:
+                                log(f"[history] play_next retiring previous track on {coord_name}: {_prev['track_key'][:80]}")
+                                post_history(_prev["track_info"], coord_name, _prev["started_at"], datetime.now(timezone.utc))
+                        except Exception as _re_err:
+                            log(f"[history] WARNING: play_next retire failed: {_re_err}")
                         # Also inject into room_state so status_update SSE has correct data
                         room_state[coord_name] = {
                             "track_key": coord_key,
@@ -2540,8 +3287,11 @@ def execute_command(cmd, source="unknown"):
                     dev.play_mode = "NORMAL"
                     dev.play_from_queue(0)
                     result["success"] = True
-                    result["message"] = f"Playing radio ({added} tracks) in {room}: {title}"
-                    result["data"] = {"title": title, "queued": added}
+                    # v2.44: was f"...in {room}" -- NameError ('room' undefined) corrupted
+                    # every play_radio result message and fired post_error despite success.
+                    radio_room_label = " + ".join(rooms) if rooms else dev.player_name
+                    result["message"] = f"Playing radio ({added} tracks) in {radio_room_label}: {title}"
+                    result["data"] = {"title": title, "queued": added, "room": rooms[0] if rooms else dev.player_name, "rooms": rooms}
                 else:
                     result["message"] = "Failed to queue any tracks"
 
@@ -2563,29 +3313,45 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = "No URI provided"
             else:
                 dev.play_uri(uri, meta=meta, title=title)
+                # v2.37: Cache metadata so polling can recover it when DIDL is empty
+                if not uri.startswith("x-sonos-spotify:") and not uri.startswith("spotify:"):
+                    _uri_metadata_cache[uri] = {
+                        "title": title or "",
+                        "artist": cmd.get("artist", "") or "",
+                        "album": cmd.get("album", "") or "",
+                        "ts": time.time(),
+                    }
+                    log(f"play_uri: cached metadata for {uri[:80]}: '{title}'")
                 result["success"] = True
                 room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                 result["message"] = f"Playing '{title}' in {room_label}"
                 result["data"] = {"title": title, "uri": uri, "room": rooms[0], "rooms": rooms}
 
         elif action == "stop":
-            rooms = cmd.get("rooms", list(devices.keys()))
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else list(devices.keys()))
             if isinstance(rooms, str): rooms = [rooms]
             stopped = []
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
                     try: dev.stop(); stopped.append(r)
-                    except: pass
-            result["success"] = True
-            result["message"] = f"Stopped: {', '.join(stopped)}"
+                    except Exception as e: log(f"stop failed in {r}: {e}")
+            if stopped:
+                result["success"] = True
+                result["message"] = f"Stopped: {', '.join(stopped)}"
+            else:
+                result["success"] = False
+                result["message"] = f"stop: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action == "pause":
-            rooms = cmd.get("rooms", [])
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else [])
             if isinstance(rooms, str): rooms = [rooms]
             # Deduplicate by coordinator — one call per group, not per room
             seen_coords = set()
             paused = []
+            idle_skips = []  # v2.48.1: rooms where pause() raised (nothing playing)
             for r in rooms:
                 dev = devices.get(r)
                 if dev:
@@ -2593,14 +3359,28 @@ def execute_command(cmd, source="unknown"):
                     if coord.player_name not in seen_coords:
                         seen_coords.add(coord.player_name)
                         try: coord.pause(); paused.append(r)
-                        except: pass
+                        except Exception as e:
+                            # UPnP "transition not available" = nothing playing; benign
+                            idle_skips.append(r)
+                            log(f"pause: {r} had nothing to pause (benign no-op): {e}")
                     else:
                         paused.append(r)
-            result["success"] = True
-            result["message"] = f"Paused: {', '.join(paused)}"
+            if paused:
+                result["success"] = True
+                result["message"] = f"Paused: {', '.join(paused)}"
+            elif idle_skips:
+                # v2.48.1: pausing an idle room is a successful no-op, not an error.
+                # The old "no rooms matched" message was misleading (the room WAS known)
+                # and tripped watchdog failed-command audits for a non-problem.
+                result["success"] = True
+                result["message"] = f"pause: nothing was playing in {', '.join(idle_skips)} — already idle (no-op)"
+            else:
+                result["success"] = False
+                result["message"] = f"pause: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action in ("resume", "play_resume"):
-            rooms = cmd.get("rooms", [])
+            # v2.45: accept "room" (singular) alias
+            rooms = cmd.get("rooms") or ([cmd.get("room")] if cmd.get("room") else [])
             if isinstance(rooms, str): rooms = [rooms]
             # Deduplicate by coordinator — one call per group, not per room
             seen_coords = set()
@@ -2615,8 +3395,12 @@ def execute_command(cmd, source="unknown"):
                         except: pass
                     else:
                         resumed.append(r)
-            result["success"] = True
-            result["message"] = f"Resumed: {', '.join(resumed)}"
+            if resumed:
+                result["success"] = True
+                result["message"] = f"Resumed: {', '.join(resumed)}"
+            else:
+                result["success"] = False
+                result["message"] = f"resume: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
 
         elif action == "next":
             rooms = cmd.get("rooms", [])
@@ -2788,6 +3572,16 @@ def execute_command(cmd, source="unknown"):
                     log(f"[refresh] State pushed after re-discovery")
                 except Exception as e2:
                     log(f"[refresh] State push failed: {e2}")
+                # v2.48.3: unconditional SSE confirmation. The page's 🔄 pending UX
+                # (p2.44 U-M12) waits for a status_update; the change-driven gate
+                # stays silent when a refresh finds nothing new (the usual case),
+                # which made the page falsely warn "client may be offline".
+                # A user-initiated refresh always deserves an explicit reply.
+                try:
+                    publish_ui_event("status_update", {})
+                    log("[refresh] status_update SSE pushed (UI confirmation)")
+                except Exception as e3:
+                    log(f"[refresh] SSE confirm push failed: {e3}")
                 result["success"] = True
                 result["message"] = f"Refreshed: {len(fresh)} speakers"
             except Exception as e:
@@ -2865,13 +3659,6 @@ def execute_command(cmd, source="unknown"):
             rp.append(cmd_room)
             result["heartbeat"]["rooms_playing"] = sorted(rp)
             log(f"[sonos] Injected {cmd_room} into rooms_playing (post-play)")
-    with pending_buffer_lock:
-        if pending_buffer:
-            result["pending_history"] = list(pending_buffer)
-            pending_buffer.clear()
-    if result.get("pending_history"):
-        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
-        except: pass
     result["t_result_sent"] = now_iso()
 
     # Record structured command outcome (ALL commands, silent or not)
@@ -2883,10 +3670,31 @@ def execute_command(cmd, source="unknown"):
         detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
     )
 
+    # v2.48: debounced state heartbeat -- ANY state-changing command (silent or
+    # not) schedules one heartbeat ~75s out; new commands reset the timer.
+    if action not in NON_STATE_ACTIONS:
+        try:
+            _schedule_debounced_heartbeat(action)
+        except Exception as _de:
+            log(f"[debounce-hb] scheduling failed: {_de}")
+
     # Silent actions (volume, etc.) -- log locally, skip webhook POST entirely
+    # v2.44 CRITICAL FIX: buffer drain moved BELOW this early-return. Previously
+    # silent commands drained pending_buffer into a result that was never POSTed,
+    # then the next flush_buffer() overwrote PENDING_PATH -- permanent history loss.
     if is_silent:
         log(f"Command (silent): {result['message']}")
         return
+
+    # Piggyback buffered history on this (non-silent) command result
+    with pending_buffer_lock:
+        if pending_buffer:
+            log(f"[buffer] piggyback drain: {len(pending_buffer)} pending item(s) attached to '{action}' result")
+            result["pending_history"] = list(pending_buffer)
+            pending_buffer.clear()
+    if result.get("pending_history"):
+        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
+        except Exception as pe: log(f"[buffer] WARNING: PENDING_PATH write failed: {pe}")
 
     # Include SSE relay data for server-side relay to ntfy
     sse_relay = build_sse_relay_payload()
@@ -2916,17 +3724,21 @@ def execute_command(cmd, source="unknown"):
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
 # execute_command() -> self_update_check(). The old version's parsing + dispatch runs here.
 def ntfy_listener_thread():
-    global _ntfy_connected, _ntfy_reconnects
+    global _ntfy_connected, _ntfy_reconnects, _ntfy_last_event_ts
     log(f"ntfy listener: topic={ntfy_topic}")
     while True:
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
         # In-memory dedup (_already_executed) prevents double-execution within same process.
         url   = f"https://ntfy.sh/{ntfy_topic}/json?since=5m"
+        ntfy_headers = {"Authorization": f"Bearer {NTFY_TOKEN}"} if NTFY_TOKEN else {}
         log(f"ntfy connecting: {url}")
         try:
-            with requests.get(url, stream=True, timeout=90) as r:
+            with requests.get(url, stream=True, headers=ntfy_headers, timeout=90) as r:
                 _ntfy_connected = True
+                _ntfy_last_event_ts = time.time()
                 for line in r.iter_lines():
+                    # Track every stream event (keepalive or message) for health monitoring
+                    _ntfy_last_event_ts = time.time()
                     if not line: continue
                     try:    msg = json.loads(line)
                     except: continue
@@ -2934,7 +3746,16 @@ def ntfy_listener_thread():
                     raw = msg.get("message", "")
                     log(f"[!] ntfy: {raw[:120]}")
                     try:
-                        cmd    = json.loads(raw)
+                        try:
+                            cmd = json.loads(raw)
+                        except (json.JSONDecodeError, ValueError):
+                            # v2.38: Support plain-text commands like "update_check" or "get_logs"
+                            _plain = raw.strip()
+                            if _plain and _plain.isidentifier():
+                                cmd = {"action": _plain}
+                                log(f"ntfy: parsed plain-text command as action='{_plain}'")
+                            else:
+                                raise
                         # Use ntfy server timestamp (always correct, in seconds)
                         ntfy_ts = msg.get("time", 0)
                         age     = time.time() - ntfy_ts if ntfy_ts else 0
@@ -3081,14 +3902,33 @@ def sonos_main_loop():
             global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states
             _sse_status_counter += 1
             rp = list(_poll_snapshot.get("rooms_playing", []))
+            ms = dict(_poll_snapshot.get("mute_states", {}))
             rooms_changed = (rp != _last_sse_rooms_playing)
-            mutes_changed = (dict(_poll_snapshot.get("mute_states", {})) != _last_sse_mute_states)
+            # v2.48.1: topology-churn gate. Discovery timeouts make speakers vanish
+            # from / reappear in the mute dict every few minutes; plain dict
+            # inequality treated that KEY churn as a mute event and pushed SSE.
+            # Only genuine value flips on keys present in BOTH snapshots count now.
+            _m_added   = sorted(k for k in ms if k not in _last_sse_mute_states)
+            _m_removed = sorted(k for k in _last_sse_mute_states if k not in ms)
+            _m_flipped = sorted(k for k in ms if k in _last_sse_mute_states and ms[k] != _last_sse_mute_states[k])
+            mutes_changed = bool(_m_flipped)
+            if (_m_added or _m_removed) and not _m_flipped:
+                log(f"SSE suppressed: topology churn added={_m_added} removed={_m_removed} (no mute flip, no push)")
+            # Baseline updates every cycle so churn never accumulates into a false flip
+            _last_sse_mute_states = ms
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
             if rooms_changed or mutes_changed or keepalive_due:
+                # v2.47.2: log WHY we're pushing — silent triggers made the
+                # idle-chatter bug (mute-key flap) invisible for weeks.
+                if rooms_changed:
+                    log(f"SSE trigger: rooms_changed {_last_sse_rooms_playing} -> {rp}")
+                if mutes_changed:
+                    log(f"SSE trigger: mutes_changed flipped={_m_flipped} (added={_m_added} removed={_m_removed})")
+                if keepalive_due and not (rooms_changed or mutes_changed):
+                    log("SSE trigger: 15-min keepalive")
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {})
                 _last_sse_rooms_playing = rp
-                _last_sse_mute_states = dict(_poll_snapshot.get("mute_states", {}))
 
         except Exception as e:
             msg = f"Sonos loop error: {e}"
@@ -3261,17 +4101,13 @@ def main():
         flag_in_progress.unlink(missing_ok=True)
         bak_path.unlink(missing_ok=True)
 
-    # -- Startup "boot" heartbeat -- immediate visibility after upgrade --------
-    try:
-        log("Sending startup boot heartbeat...")
-        payload = {"type": "heartbeat", "startup_phase": "boot"}
-        payload.update(heartbeat_fields())
-        requests.post(WEBHOOK, json=payload, timeout=10)
-        log("Boot heartbeat sent")
-    except Exception as e:
-        log(f"Boot heartbeat failed: {e}")
+    # -- Startup "boot" phase: LOG ONLY (v2.45) --------------------------------
+    # The ready heartbeat (sent right after Sonos discovery, ~3s later) is the
+    # single startup heartbeat. Boot+standalone+ready used to send 3 webhook
+    # POSTs within 3 seconds, each spawning a redundant agent run.
+    log(f"Boot phase reached (v{SERVICE_VERSION}) -- heartbeat deferred to ready phase")
 
-    log(f"=== v{SERVICE_VERSION} init complete — entering main loop ===")
+    log(f"=== v{SERVICE_VERSION} init complete -- entering main loop ===")
 
     # Sonos runs on main thread (visible activity in console)
     if "sonos" in modules:
@@ -3303,10 +4139,35 @@ if __name__ == "__main__":
         print("[LifeLog] Stopped by Ctrl+C.")
     except Exception as e:
         msg = f"[FATAL] main() crashed: {e}"
+        tb = traceback.format_exc()
         print(msg)
-        print(traceback.format_exc())
-        try: log(msg); log(traceback.format_exc())
+        print(tb)
+        try: log(msg); log(tb)
         except: pass
-        try: post_error(msg, context=traceback.format_exc()[:500], module="main")
+        try: post_error(msg, context=tb[:500], module="main")
         except: pass
+        # --- Crash heartbeat: send traceback so Tasklet can see what happened ---
+        try:
+            import requests as _rq
+            _crash_payload = {
+                "type": "heartbeat",
+                "startup_phase": "crash",
+                "client_id": globals().get("client_id", "unknown"),
+                "client_type": "lifelog_service",
+                "house": globals().get("house", "unknown"),
+                "version": SERVICE_VERSION,
+                "computer": globals().get("computer", "unknown"),
+                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "crash_error": str(e),
+                "crash_traceback": tb[-2000:],  # last 2000 chars of traceback
+                # v2.45: use the real ring buffers (were undefined globals -> always empty)
+                "recent_logs": list(globals().get("_log_ring", []))[-30:],
+                "recent_errors": list(globals().get("_error_ring", []))[-10:],
+            }
+            _wh = globals().get("WEBHOOK")
+            if _wh:
+                _rq.post(_wh, json=_crash_payload, timeout=10)
+                print("[LifeLog] Crash heartbeat sent to webhook")
+        except Exception as _ce:
+            print(f"[LifeLog] Could not send crash heartbeat: {_ce}")
         input("Press Enter to exit...")
