@@ -662,7 +662,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.44';
+const PAGE_VERSION = 'p2.45';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2326,8 +2326,8 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
       <span class="at-num">${num}</span>
       <span class="at-name">${esc(tName)}</span>
       <div class="sugg-actions">
-        ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play','${tUri}','${tLbl}')">▶</button>
-        <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue','${tUri}','${tLbl}')">+</button>` : ''}
+        ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
+        <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
       </div>
     </div>`;
   }
