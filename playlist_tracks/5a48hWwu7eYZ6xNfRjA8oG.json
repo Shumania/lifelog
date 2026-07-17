@@ -625,22 +625,5 @@
   "album_id": "2REeWomKOO96sIlsrwKjZb",
   "album_image_url": "https://i.scdn.co/image/ab67616d0000b273389d0667bf852727cf108e3e",
   "added_at": "2026-07-10T08:13:47Z"
- },
- {
-  "position": 35,
-  "track_id": "7wXJyWtRktzx7shORVNX5B",
-  "track_name": "Strange Overtones",
-  "track_uri": "spotify:track:7wXJyWtRktzx7shORVNX5B",
-  "duration_ms": 256493,
-  "artists": [
-   {
-    "name": "David Byrne",
-    "id": "20vuBdFblWUo2FCOvUzusB"
-   }
-  ],
-  "album_name": "Everything That Happens Will Happen Today",
-  "album_id": "0mqvus9jydETK3A63iIG09",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27382dd34c5535050c6b4b37295",
-  "added_at": "2026-07-17T16:50:41Z"
  }
 ]
