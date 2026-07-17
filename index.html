@@ -370,6 +370,9 @@
   }
   .at-num { width: 20px; text-align: right; font-size: 11px; color: var(--text-dim); opacity: 0.6; flex-shrink: 0; }
   .at-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  /* p2.47: Phase 4 — Liked Songs ♥ badge (main = red, teenbloods = blue) */
+  .liked-heart { color: #e25563; font-size: 11px; vertical-align: 1px; }
+  .liked-heart.tb { color: #7aa2f7; }
   .album-tracks-loading { padding: 8px 0; font-size: 12px; color: var(--text-dim); }
 
   /* Empty/loading states */
@@ -662,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.46';
+const PAGE_VERSION = 'p2.47';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2054,7 +2057,7 @@ function renderRadioSession(item) {
       tracksHtml += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;">
         ${t.album_image ? `<img src="${esc(t.album_image)}" style="width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0;">` : '<div style="width:28px;height:28px;border-radius:4px;background:var(--surface);flex-shrink:0;"></div>'}
         <div style="min-width:0;flex:1;">
-          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)} · <span style="color:var(--text-dim);">${esc(t.artist)}</span></div>
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.title)}${likedBadge(t.uri)} · <span style="color:var(--text-dim);">${esc(t.artist)}</span></div>
           ${t.album && t.album !== 'KCRW' && t.album !== 'KEXP' ? `<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.album)}</div>` : ''}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;">
@@ -2325,7 +2328,7 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(tName)}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
       <div class="sugg-actions">
         ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
@@ -3313,6 +3316,41 @@ document.addEventListener('visibilitychange', () => {
 // PLAYLISTS TAB
 // ══════════════════════════════════════════════════════════════════════════════
 let _playlists = [];
+// ── p2.47: Phase 4 — Liked Songs ♥ ─────────────────────────────────────────
+// One compact asset fetched once; Set lookups → zero per-row cost.
+let _likedMain = new Set(), _likedTeen = new Set();
+const LIKED_URL = 'https://shumania.github.io/lifelog/liked.json';
+async function loadLikedData() {
+  try {
+    const r = await fetch(LIKED_URL + '?t=' + (Date.now()>>16));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _likedMain = new Set(d.main || []);
+    _likedTeen = new Set(d.teenbloods || []);
+    console.log('[liked] loaded ' + _likedMain.size + ' main + ' + _likedTeen.size + ' teenbloods liked track ids (generated ' + (d.generated_at || '?') + ')');
+    // Re-render views that may already be on screen (badges appear once data lands)
+    try {
+      renderHistory();
+      if (!document.getElementById('tab-playlists').hidden) renderPlaylists();
+    } catch(e) { console.warn('[liked] post-load re-render failed:', e && e.message); }
+  } catch(e) {
+    console.error('[liked] Failed to load liked.json:', e);
+  }
+}
+// Accepts a spotify:track: URI, a bare 22-char ID, or an https open.spotify.com track URL.
+function likedBadge(uriOrId) {
+  if (!uriOrId) return '';
+  const s = String(uriOrId);
+  // Only Spotify track identities can be liked — never badge Apple/Qobuz/radio URIs
+  let m = s.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/);
+  if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s]; // bare 22-char track ID
+  const id = m ? m[1] : null;
+  if (!id) return '';
+  if (_likedMain.has(id)) return ' <span class="liked-heart" title="Liked Song">♥</span>';
+  if (_likedTeen.has(id)) return ' <span class="liked-heart tb" title="Liked Song (teenbloods)">♥</span>';
+  return '';
+}
+
 let _plTrackCache = {};  // id → track array
 let _plTrackLoading = new Set();
 let _plTrackError = new Set();
@@ -3514,7 +3552,7 @@ function renderPlaylists() {
         card += '<div class="track-row">';
         card += '<span class="tr-num">' + (t.position + 1) + '</span>';
         card += artImg;
-        card += '<div class="tr-info"><div class="tr-name">' + esc(t.track_name) + '</div>';
+        card += '<div class="tr-info"><div class="tr-name">' + esc(t.track_name) + likedBadge(t.track_uri || t.track_id) + '</div>';
         var addedStr = ''; // p2.46: show when the track was added to the playlist
         if (t.added_at) {
           var ad = new Date(t.added_at);
@@ -3572,6 +3610,7 @@ function handleDeepLink() {
   const didAuth = await handleSpotifyCallback();
   setHouse(house);
   connectSSE();
+  loadLikedData();  // p2.47: fire-and-forget — badges pop in when the asset lands
   await loadData(true);
   if (!didAuth) handleDeepLink();
   // Auto-refresh head every 60s
