@@ -2173,7 +2173,7 @@ function renderHistory() {
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
       <div class="hi-info">
         <div class="hi-line1">
-          <span class="hi-track">${esc(item.title)}</span>
+          <span class="hi-track">${esc(item.title)}${likedBadge(item.track_id || item.uri)}</span>
           ${item.album ? '<span class="hi-sep">·</span><span class="hi-album">' + esc(item.album) + '</span>' : ''}
           ${item.artist ? '<span class="hi-sep">·</span><span class="hi-artist">' + esc(item.artist) + '</span>' : ''}
         </div>
@@ -3342,7 +3342,7 @@ function likedBadge(uriOrId) {
   if (!uriOrId) return '';
   const s = String(uriOrId);
   // Only Spotify track identities can be liked — never badge Apple/Qobuz/radio URIs
-  let m = s.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/);
+  let m = s.match(/(?:spotify:track:|spotify%3[Aa]track%3[Aa]|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/);
   if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s]; // bare 22-char track ID
   const id = m ? m[1] : null;
   if (!id) return '';
