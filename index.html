@@ -644,8 +644,8 @@
     <div class="playlist-controls">
       <input type="search" class="playlist-search" id="pl-search" placeholder="Search playlists…" oninput="renderPlaylists()">
       <select class="sort-select" id="pl-sort" onchange="renderPlaylists()">
+        <option value="recent" selected>Recently Listened</option>
         <option value="alpha">A–Z</option>
-        <option value="recent">Recently Listened</option>
         <option value="created">Created Date</option>
       </select>
       <span class="playlist-stat" id="pl-stat"></span>
@@ -662,7 +662,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.45';
+const PAGE_VERSION = 'p2.46';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1150,6 +1150,7 @@ async function postNtfy(payload) {
   if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); showToast('⚡ Too fast — try again', true); return false; }
   _lastNtfyTime = now;
   if (!payload.t_requested) payload.t_requested = new Date().toISOString();
+  if (!payload.cmd_ts) payload.cmd_ts = new Date().toISOString(); // p2.46: Rule 22 — every command carries a fresh cmd_ts (fixes dedup + ledger reconciliation)
   payload.source_house = house;
   const body = JSON.stringify(payload);
   console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
@@ -3319,14 +3320,20 @@ let _plOpenIds = new Set();
 let _plLastListened = {};  // playlist_id → ISO timestamp of last listen
 let _plAccountOwnerId = null;  // p2.43: modal owner_id across playlists = account owner
 
-const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlist_metadata.json';
+const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlists.json'; // p2.46: Phase 3 cutover — new-schema asset (both accounts, owned+followed, server recency)
 const PL_TRACKS_BASE  = 'https://shumania.github.io/lifelog/playlist_tracks/';
 
 async function loadPlaylistData() {
   try {
     const r = await fetch(PL_METADATA_URL + '?t=' + (Date.now()>>16));
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    _playlists = await r.json();
+    const _plData = await r.json();
+    // p2.46: new asset wraps list in {playlists:[…]}; alias new column names to legacy field names
+    _playlists = (_plData.playlists || _plData).map(function(p) {
+      p.image_url = p.image_url || p.art_url;
+      if (p.tracks_total == null) p.tracks_total = p.track_count;
+      return p;
+    });
     // p2.43 minor: derive the account owner (modal owner_id) instead of hardcoding a
     // display name — "shared" badges survive display-name changes this way
     const ownerCounts = {};
@@ -3421,7 +3428,14 @@ function renderPlaylists() {
   }
 
   const q = (searchEl ? searchEl.value : '').toLowerCase();
-  const sortKey = sortEl ? sortEl.value : 'alpha';
+  const sortKey = sortEl ? sortEl.value : 'recent'; // p2.46: recency is the default sort
+
+  // p2.46: recency = max(server last_played from track-level join, client context-play signal)
+  function plLastAny(p) {
+    var c = _plLastListened[p.id] || '';
+    var s = p.last_played || '';
+    return s > c ? s : c;
+  }
 
   let filtered = _playlists.filter(function(p) {
     return p.name.toLowerCase().includes(q) || (p.owner && p.owner.toLowerCase().includes(q));
@@ -3430,11 +3444,12 @@ function renderPlaylists() {
   filtered.sort(function(a, b) {
     if (sortKey === 'alpha') return a.name.localeCompare(b.name);
     if (sortKey === 'recent') {
-      var aT = _plLastListened[a.id] || '';
-      var bT = _plLastListened[b.id] || '';
+      var aT = plLastAny(a);
+      var bT = plLastAny(b);
       if (aT && !bT) return -1;
       if (!aT && bT) return 1;
-      return bT.localeCompare(aT);
+      if (aT !== bT) return bT.localeCompare(aT);
+      return (b.last_modified || '').localeCompare(a.last_modified || ''); // never-played tie-break: most recently edited first
     }
     if (sortKey === 'created') return (b.created_approx || '').localeCompare(a.created_approx || '');
     return 0;
@@ -3452,18 +3467,20 @@ function renderPlaylists() {
   for (var fi = 0; fi < filtered.length; fi++) {
     var p = filtered[fi];
     var isOpen = _plOpenIds.has(p.id);
-    var isShared = p.owner_id ? (_plAccountOwnerId && p.owner_id !== _plAccountOwnerId) : false; // p2.43 minor: was hardcoded display name
+    // p2.46: is_followed comes straight from the API (owner differs from account user); fall back to old heuristic for stale assets
+    var isShared = (p.is_followed != null) ? !!p.is_followed : (p.owner_id ? (_plAccountOwnerId && p.owner_id !== _plAccountOwnerId) : false);
 
     var meta = (p.tracks_total || 0) + ' tracks';
     if (p.created_approx) {
       var d = new Date(p.created_approx);
       meta += ' \u00b7 ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     }
-    var lastTs = _plLastListened[p.id];
+    var lastTs = plLastAny(p);
     if (lastTs && sortKey === 'recent') {
       meta += ' \u00b7 last played ' + fmtRelative(new Date(lastTs));
     }
     var ownerBadge = isShared ? ' <span class="pc-owner-badge">' + esc(p.owner) + '</span>' : '';
+    if (p.account === 'teenbloods') ownerBadge += ' <span class="pc-owner-badge" title="teenbloods account">🏝 TB</span>'; // p2.46: account badge
 
     var artHtml = p.image_url
       ? '<img class="pc-art" src="' + esc(p.image_url) + '" alt="">'
@@ -3498,7 +3515,12 @@ function renderPlaylists() {
         card += '<span class="tr-num">' + (t.position + 1) + '</span>';
         card += artImg;
         card += '<div class="tr-info"><div class="tr-name">' + esc(t.track_name) + '</div>';
-        card += '<div class="tr-detail">' + esc(artistStr) + ' \u00b7 ' + esc(t.album_name || '') + '</div></div>';
+        var addedStr = ''; // p2.46: show when the track was added to the playlist
+        if (t.added_at) {
+          var ad = new Date(t.added_at);
+          if (!isNaN(ad) && ad.getFullYear() > 1971) addedStr = ' \u00b7 <span style="opacity:0.55" title="Added to playlist">+' + ad.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</span>';
+        }
+        card += '<div class="tr-detail">' + esc(artistStr) + ' \u00b7 ' + esc(t.album_name || '') + addedStr + '</div></div>';
         card += '<span class="tr-duration">' + fmtPlDur(t.duration_ms) + '</span>';
         card += '<div class="tr-actions">';
         card += '<button class="tr-btn" onclick="playPlTrack(\'play\',' + ti + ',\'' + p.id + '\')" title="Play">\u25b6</button>';
