@@ -1,0 +1,773 @@
+[
+ {
+  "position": 0,
+  "track_id": "1CbxG199T0fzfUV5EO7aPV",
+  "track_name": "Eternal Light",
+  "track_uri": "spotify:track:1CbxG199T0fzfUV5EO7aPV",
+  "duration_ms": 193740,
+  "artists": [
+   {
+    "name": "Free Nationals",
+    "id": "4596e2d3KmYzAeVenjCxfj"
+   },
+   {
+    "name": "Chronixx",
+    "id": "2oZcMYiKpjaA2Et5mU3RPP"
+   }
+  ],
+  "album_name": "Free Nationals",
+  "album_id": "53oqFs4q8sfqH6IPiyleEN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d93501aba7bc1140aac628c6",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 1,
+  "track_id": "4DvepWnbBJzTb0jZZTqgPG",
+  "track_name": "GOOD DAY",
+  "track_uri": "spotify:track:4DvepWnbBJzTb0jZZTqgPG",
+  "duration_ms": 244950,
+  "artists": [
+   {
+    "name": "Theo Croker",
+    "id": "7iUF39q93Xixo33E6IvNYm"
+   },
+   {
+    "name": "Ego Ella May",
+    "id": "7ANeFdhioipksT9lqg0Ay6"
+   },
+   {
+    "name": "D'LEAU",
+    "id": "33ZK4nYxwuvdVW7vmepMYk"
+   }
+  ],
+  "album_name": "BY THE WAY",
+  "album_id": "66QY3NzmyFrugwv8fBwAVe",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d5a5575844e5e083b039fa18",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 2,
+  "track_id": "253Sq7utuR9vchbNWyjyE4",
+  "track_name": "Bloom",
+  "track_uri": "spotify:track:253Sq7utuR9vchbNWyjyE4",
+  "duration_ms": 302000,
+  "artists": [
+   {
+    "name": "bLAck pARty",
+    "id": "4C9Tvlt8v7d8R6h98FgdUy"
+   }
+  ],
+  "album_name": "Mango",
+  "album_id": "3N9piIqnt2BHomjXpg4BEe",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731e833673e0b4bf5c08b56c0c",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 3,
+  "track_id": "5Z7nnfbbPeGAsaoWmsnrlr",
+  "track_name": "Good Time",
+  "track_uri": "spotify:track:5Z7nnfbbPeGAsaoWmsnrlr",
+  "duration_ms": 196129,
+  "artists": [
+   {
+    "name": "Lady Donli",
+    "id": "5joHzVrVQzu41KFBlZQDvG"
+   },
+   {
+    "name": "Tems",
+    "id": "687cZJR45JO7jhk1LHIbgq"
+   }
+  ],
+  "album_name": "Enjoy Your Life",
+  "album_id": "0w9eny2YNRw2bU9x1t4nM5",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27320e72f1bf802f5ce1d917e2e",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 4,
+  "track_id": "52y4KhkcAbYcogFg2u7UVP",
+  "track_name": "Point and Kill",
+  "track_uri": "spotify:track:52y4KhkcAbYcogFg2u7UVP",
+  "duration_ms": 185600,
+  "artists": [
+   {
+    "name": "Little Simz",
+    "id": "6eXZu6O7nAUA5z6vLV8NKI"
+   },
+   {
+    "name": "Obongjayar",
+    "id": "6l7R1jntPahGxwJt7Tky8h"
+   }
+  ],
+  "album_name": "Sometimes I Might Be Introvert",
+  "album_id": "4nOym5RKE8Opauf3rMxPAW",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273aede85ed28c2237a33b63dba",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 5,
+  "track_id": "6xWbJ9AyTNLFQurE2itHcH",
+  "track_name": "More Than A Hustler (feat. Novelist)",
+  "track_uri": "spotify:track:6xWbJ9AyTNLFQurE2itHcH",
+  "duration_ms": 157613,
+  "artists": [
+   {
+    "name": "Ezra Collective",
+    "id": "5BRAUN0yN8557PLRZIr02W"
+   },
+   {
+    "name": "Novelist",
+    "id": "4OPTZC24954HYBeHKeoLSc"
+   }
+  ],
+  "album_name": "More Than A Hustler",
+  "album_id": "7DT75rrMoivVsOJOt6BMld",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730204f32b254a0cfbdab8ffe2",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 6,
+  "track_id": "2E25yFTkFXLwtWPMqftlbZ",
+  "track_name": "Lucky Me",
+  "track_uri": "spotify:track:2E25yFTkFXLwtWPMqftlbZ",
+  "duration_ms": 222857,
+  "artists": [
+   {
+    "name": "Flwr Chyld",
+    "id": "33luNNaeHIJ5KfjW56aleZ"
+   },
+   {
+    "name": "Sebastian Mikael",
+    "id": "4hknFHNFp3UMm2Rbc6Ansf"
+   }
+  ],
+  "album_name": "Luv N Chaos",
+  "album_id": "0H28jSSR9L1HMmvk47xtXg",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27373b23e1c1ec9d3404144d511",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 7,
+  "track_id": "57tg0m3Iu8YzWyaDfFfDtR",
+  "track_name": "Step 2 Me",
+  "track_uri": "spotify:track:57tg0m3Iu8YzWyaDfFfDtR",
+  "duration_ms": 110400,
+  "artists": [
+   {
+    "name": "PHABO",
+    "id": "5FdZDr2bMbEcnsEKRgO3rn"
+   },
+   {
+    "name": "Soulection",
+    "id": "5zFe5aBvWzEfIz1PJ1Zpft"
+   }
+  ],
+  "album_name": "Soulection Takeover: 2K23 Edition",
+  "album_id": "1hhPj4G4CvN32Wo1fQzjb1",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27388601135236d765b16e7602a",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 8,
+  "track_id": "6kmXHLDDK7RQXTjHooTCzH",
+  "track_name": "Iced Tea",
+  "track_uri": "spotify:track:6kmXHLDDK7RQXTjHooTCzH",
+  "duration_ms": 205384,
+  "artists": [
+   {
+    "name": "Joyce Wrice",
+    "id": "24Cf1irKt7kcewb9OOkPum"
+   },
+   {
+    "name": "KAYTRANADA",
+    "id": "6qgnBH6iDM91ipVXv28OMu"
+   }
+  ],
+  "album_name": "Iced Tea",
+  "album_id": "56Z5er1cgYmXDuG49B953d",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c5fc4f2f65d0dc1b2432a777",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 9,
+  "track_id": "08vlprFBmwh9TQnjXUtZDG",
+  "track_name": "FAMJAM4000",
+  "track_uri": "spotify:track:08vlprFBmwh9TQnjXUtZDG",
+  "duration_ms": 158133,
+  "artists": [
+   {
+    "name": "Jordan Ward",
+    "id": "3DGlTwdM5Dim9XQipb3jMf"
+   }
+  ],
+  "album_name": "FORWARD",
+  "album_id": "367frJ4GG9UMlXlMrVanYL",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27317696caf00b6e0ac16cbbba4",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 10,
+  "track_id": "5PGop05az1aIQsb10YW5Ex",
+  "track_name": "Falling Higher",
+  "track_uri": "spotify:track:5PGop05az1aIQsb10YW5Ex",
+  "duration_ms": 198137,
+  "artists": [
+   {
+    "name": "Gaidaa",
+    "id": "5aLDWFw5qUmTWnEuevuhYG"
+   }
+  ],
+  "album_name": "Overture",
+  "album_id": "7k4SVvaEm2QbqE5d8jgw2L",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d6ea0bb5dadbb83440479dfd",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 11,
+  "track_id": "28EL5veTZtx38TqxIZwFyQ",
+  "track_name": "Golden",
+  "track_uri": "spotify:track:28EL5veTZtx38TqxIZwFyQ",
+  "duration_ms": 231560,
+  "artists": [
+   {
+    "name": "Jill Scott",
+    "id": "6AVLthptCPhfrxlHadOBJD"
+   }
+  ],
+  "album_name": "Beautifully Human: Words and Sounds Vol. 2",
+  "album_id": "2w9BYQcL8keWGjEHSJRwa9",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27336dc9ea817eb078d10d0fa1c",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 12,
+  "track_id": "4O9OqRpTCXz6fB3BDEAbKz",
+  "track_name": "I Got It",
+  "track_uri": "spotify:track:4O9OqRpTCXz6fB3BDEAbKz",
+  "duration_ms": 207200,
+  "artists": [
+   {
+    "name": "Ogi",
+    "id": "60nDKjd690Luygtd3Fm0Cu"
+   }
+  ],
+  "album_name": "Monologues",
+  "album_id": "6DCJRFuE8JFtrOdSKSweaE",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737190d635c1486286ff9f89db",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 13,
+  "track_id": "3TZaeEmGv6HsdARIAwvdIs",
+  "track_name": "Ready For It",
+  "track_uri": "spotify:track:3TZaeEmGv6HsdARIAwvdIs",
+  "duration_ms": 147394,
+  "artists": [
+   {
+    "name": "Kevin Ross",
+    "id": "5ae3MM8dgOn3QPHzqFDJlY"
+   },
+   {
+    "name": "Eric Bellinger",
+    "id": "7ibAWtDtmEfaVhc1FJ3Vl9"
+   }
+  ],
+  "album_name": "Ready For It",
+  "album_id": "42fWXOdXkh3M5872YHc9zS",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c3ec27aae4df979381b53f2e",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 14,
+  "track_id": "062Rdh9HljFXTg2YdFMIu1",
+  "track_name": "Faith",
+  "track_uri": "spotify:track:062Rdh9HljFXTg2YdFMIu1",
+  "duration_ms": 243074,
+  "artists": [
+   {
+    "name": "SAULT",
+    "id": "1uRxRKC7d9zwYGSRflTKDR"
+   }
+  ],
+  "album_name": "Untitled (God)",
+  "album_id": "106QT3POAohZwyjbesTK5L",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736c0dcddfb81d02957ad9a9d2",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 15,
+  "track_id": "6l4TNbfPtNAOOlGIfceSaO",
+  "track_name": "Ascension (Don't Ever Wonder) - Remastered 2021",
+  "track_uri": "spotify:track:6l4TNbfPtNAOOlGIfceSaO",
+  "duration_ms": 345975,
+  "artists": [
+   {
+    "name": "Maxwell",
+    "id": "2AOt5htsbtyaHd5Eq3kl3j"
+   }
+  ],
+  "album_name": "Maxwell's Urban Hang Suite",
+  "album_id": "2k5YAxjmAD3DmYtmlrY64p",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273392bdde515ac094982c73b98",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 16,
+  "track_id": "4UpBPaIMx7OoFpjeNdXfMn",
+  "track_name": "Young Love",
+  "track_uri": "spotify:track:4UpBPaIMx7OoFpjeNdXfMn",
+  "duration_ms": 264710,
+  "artists": [
+   {
+    "name": "Cleo Sol",
+    "id": "3ETLPQkcEd7z4k3IbZmXMq"
+   }
+  ],
+  "album_name": "Rose in the Dark",
+  "album_id": "4o5dzQHDzmBBc4Z3jSWVR9",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734090a5cf4a046710a3e5f577",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 17,
+  "track_id": "60lNUvQVzMnORIJvDEZG8Z",
+  "track_name": "TOO SWEET (feat. Unknown Mortal Orchestra)",
+  "track_uri": "spotify:track:60lNUvQVzMnORIJvDEZG8Z",
+  "duration_ms": 226065,
+  "artists": [
+   {
+    "name": "India Shawn",
+    "id": "7g0SC4F149FUX5rKFuSpqL"
+   },
+   {
+    "name": "Unknown Mortal Orchestra",
+    "id": "1LeVJ5GPeYDOVUjxx1y7Rp"
+   }
+  ],
+  "album_name": "BEFORE WE GO",
+  "album_id": "1MnOpmiIDEfloQektuOGkr",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27383773d1907ed98d20f1e316c",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 18,
+  "track_id": "1VAKnb1btGrQXcVZVSRkPe",
+  "track_name": "Good & Plenty",
+  "track_uri": "spotify:track:1VAKnb1btGrQXcVZVSRkPe",
+  "duration_ms": 204705,
+  "artists": [
+   {
+    "name": "Alex Isley",
+    "id": "7E2ioKxoxI2J94tUkIx6As"
+   },
+   {
+    "name": "Masego",
+    "id": "3ycxRkcZ67ALN3GQJ57Vig"
+   },
+   {
+    "name": "Jack Dine",
+    "id": "2NWuUOptHRTogSZghYspAE"
+   }
+  ],
+  "album_name": "Good & Plenty",
+  "album_id": "53FhNZMrcBim6Ec9mp8ifl",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d577928f641005ea1f9b44f5",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 19,
+  "track_id": "6pHo3k15lbYuljy5GyZsV2",
+  "track_name": "Sun, Moon & Herbs",
+  "track_uri": "spotify:track:6pHo3k15lbYuljy5GyZsV2",
+  "duration_ms": 252053,
+  "artists": [
+   {
+    "name": "Venna",
+    "id": "7qKJMpPZfyGHHwPgsjgFCP"
+   },
+   {
+    "name": "JVCK JAMES",
+    "id": "0hhGFNFQrdE34ZYR1CaBYN"
+   }
+  ],
+  "album_name": "VENOLOGY",
+  "album_id": "1s8xKntAE2o35KgQnkSKje",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273869d8bd0ab5bd8ab316f2e98",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 20,
+  "track_id": "344MYybqGBtYOEI97tb0f5",
+  "track_name": "MOVIN'",
+  "track_uri": "spotify:track:344MYybqGBtYOEI97tb0f5",
+  "duration_ms": 153028,
+  "artists": [
+   {
+    "name": "Bluestaeb",
+    "id": "67pW04a6jpdQR2yWqjcfxs"
+   },
+   {
+    "name": "Mick Jenkins",
+    "id": "1FvjvACFvko2Z91IvDljrx"
+   },
+   {
+    "name": "Ar\u00e9na",
+    "id": "7tVzCaZxXnF83cqVVcJ15j"
+   }
+  ],
+  "album_name": "GISEKE",
+  "album_id": "3EVhMsdzVzTUe1I67viGDv",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738a0401c57cf7409a3bb8b1b8",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 21,
+  "track_id": "4eRQ0iaCuuojLwKDZJQdc9",
+  "track_name": "Undone",
+  "track_uri": "spotify:track:4eRQ0iaCuuojLwKDZJQdc9",
+  "duration_ms": 200000,
+  "artists": [
+   {
+    "name": "Ego Ella May",
+    "id": "7ANeFdhioipksT9lqg0Ay6"
+   }
+  ],
+  "album_name": "Undone",
+  "album_id": "4BodxSF9ZOF3mvkvn319In",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e1a256606d96e79d1fd5e684",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 22,
+  "track_id": "5jGU0JtXfPQKn4JA3p6yHG",
+  "track_name": "New Phone, Who Dis?",
+  "track_uri": "spotify:track:5jGU0JtXfPQKn4JA3p6yHG",
+  "duration_ms": 230452,
+  "artists": [
+   {
+    "name": "Cyanca",
+    "id": "5wRYRfmB2dsgDnNvdoDxTO"
+   }
+  ],
+  "album_name": "Late 2 the Party",
+  "album_id": "4Rpth8xm91DvIxTvf4YNqX",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733a436071d920d1ea26f75dd0",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 23,
+  "track_id": "2GN469XHgUjuDYEc3kN5Pl",
+  "track_name": "Morning Dew",
+  "track_uri": "spotify:track:2GN469XHgUjuDYEc3kN5Pl",
+  "duration_ms": 81000,
+  "artists": [
+   {
+    "name": "Flwr Chyld",
+    "id": "33luNNaeHIJ5KfjW56aleZ"
+   },
+   {
+    "name": "MIA GLADSTONE",
+    "id": "6XoXNsXj8wck0oVUNwxcmF"
+   }
+  ],
+  "album_name": "Flow",
+  "album_id": "6o0ZkDbaOMv3COTod6ENLC",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27391a69b2cf07b6ff9fb092c0a",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 24,
+  "track_id": "44Gmc28OqMon8yhJfo3Nze",
+  "track_name": "The Better Benediction (pt.2) (feat. Lisa Knowles-Smith, Le'Andria Johnson, KeKe Wyatt, Kierra Sheard & Tasha Cobbs Leonard)",
+  "track_uri": "spotify:track:44Gmc28OqMon8yhJfo3Nze",
+  "duration_ms": 271807,
+  "artists": [
+   {
+    "name": "PJ Morton",
+    "id": "2FMOHE79X98yptp4RpPrt7"
+   },
+   {
+    "name": "Lisa Knowles-Smith",
+    "id": "000UmiuzgqlUjKHpvIWmAo"
+   },
+   {
+    "name": "Le'Andria Johnson",
+    "id": "5gpgMHIDzhdGccwJniIXrh"
+   },
+   {
+    "name": "KeKe Wyatt",
+    "id": "0KWcq2E8ejxp78jdfpCd4K"
+   },
+   {
+    "name": "Kierra Sheard",
+    "id": "4x3CdMQ3YjnPn4Evhyni5y"
+   },
+   {
+    "name": "Tasha Cobbs Leonard",
+    "id": "5YxebzzreNswbtYC1td4cx"
+   }
+  ],
+  "album_name": "Watch The Sun (Deluxe)",
+  "album_id": "0AbnTdKhHNa7K7h5KBPox3",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b7b71b39dd041ca540520906",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 25,
+  "track_id": "74lvlS9NqFVDJvRjI3dAGz",
+  "track_name": "Reason to Smile (feat. Tiana Major9)",
+  "track_uri": "spotify:track:74lvlS9NqFVDJvRjI3dAGz",
+  "duration_ms": 183720,
+  "artists": [
+   {
+    "name": "Kojey Radical",
+    "id": "1HMhQzj2QXxR40zGDdaK6y"
+   },
+   {
+    "name": "Tiana Major9",
+    "id": "1Naqgo0HMRoumRP0e2MXD9"
+   }
+  ],
+  "album_name": "Reason to Smile",
+  "album_id": "0RkFiGprYwfyALDs4tQLMC",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27345c71ad3dbdbf1cb2c5c98b1",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 26,
+  "track_id": "7iEKaA9Kkn9JfqyKb9HEvR",
+  "track_name": "Shine",
+  "track_uri": "spotify:track:7iEKaA9Kkn9JfqyKb9HEvR",
+  "duration_ms": 226118,
+  "artists": [
+   {
+    "name": "Cleo Sol",
+    "id": "3ETLPQkcEd7z4k3IbZmXMq"
+   }
+  ],
+  "album_name": "Shine",
+  "album_id": "3OPE2L2uPwzQlmmndQHLxb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e22f19f503501f42317d3779",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 27,
+  "track_id": "57s2fT1A0hOxscqF2Jipd5",
+  "track_name": "Spirit 2.0",
+  "track_uri": "spotify:track:57s2fT1A0hOxscqF2Jipd5",
+  "duration_ms": 289962,
+  "artists": [
+   {
+    "name": "Sampha",
+    "id": "2WoVwexZuODvclzULjPQtm"
+   }
+  ],
+  "album_name": "Lahai",
+  "album_id": "5GuWww4OaildzkmTTlfMN3",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27365fa072296480cea19a38cd0",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 28,
+  "track_id": "2mzM4Y0Rnx2BDZqRnhQ5Q6",
+  "track_name": "Free Mind",
+  "track_uri": "spotify:track:2mzM4Y0Rnx2BDZqRnhQ5Q6",
+  "duration_ms": 247578,
+  "artists": [
+   {
+    "name": "Tems",
+    "id": "687cZJR45JO7jhk1LHIbgq"
+   }
+  ],
+  "album_name": "For Broken Ears",
+  "album_id": "2sU8ByeYc5BOBFNDr58CGV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ab4d3e1c0b5c5e453287a4c",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 29,
+  "track_id": "3HTYEITdijUoi0lB6oNVSc",
+  "track_name": "Alive",
+  "track_uri": "spotify:track:3HTYEITdijUoi0lB6oNVSc",
+  "duration_ms": 347617,
+  "artists": [
+   {
+    "name": "The KTNA",
+    "id": "4ClCPFCSoK2JUTEpiHnKuG"
+   }
+  ],
+  "album_name": "Resurgence",
+  "album_id": "6J8V2B20JJ9MCYj3avamnT",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b4d591eccacec90864731875",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 30,
+  "track_id": "5ti0Fa5weiVe7idv0PEUtA",
+  "track_name": "Lush Life",
+  "track_uri": "spotify:track:5ti0Fa5weiVe7idv0PEUtA",
+  "duration_ms": 143626,
+  "artists": [
+   {
+    "name": "Col3trane",
+    "id": "4hTL3jOgvZwOqegEZTOrCc"
+   }
+  ],
+  "album_name": "Lush Life",
+  "album_id": "4Z3clJrBFpORXTaP6D5t2v",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736d807ac2f4d353ad55edac78",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 31,
+  "track_id": "4iaaEAAyCWrQdYT5tRnyDb",
+  "track_name": "Free",
+  "track_uri": "spotify:track:4iaaEAAyCWrQdYT5tRnyDb",
+  "duration_ms": 305829,
+  "artists": [
+   {
+    "name": "SAULT",
+    "id": "1uRxRKC7d9zwYGSRflTKDR"
+   }
+  ],
+  "album_name": "Untitled (Rise)",
+  "album_id": "0K8jX7CLwxJaML5iXdxveF",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734a08d9f639f2bb1054f357de",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 32,
+  "track_id": "0pSIOwm8Jz5iMj3nR2rllq",
+  "track_name": "Know Better (feat. CKay, Seun Kuti & Egypt 80)",
+  "track_uri": "spotify:track:0pSIOwm8Jz5iMj3nR2rllq",
+  "duration_ms": 169986,
+  "artists": [
+   {
+    "name": "Janelle Mon\u00e1e",
+    "id": "6ueGR6SWhUJfvEhqkvMsVs"
+   },
+   {
+    "name": "CKay",
+    "id": "048LktY5zMnakWq7PTtFrz"
+   },
+   {
+    "name": "Seun Kuti",
+    "id": "1GQur7dDvAWhKT9u9YwBJZ"
+   },
+   {
+    "name": "Egypt 80",
+    "id": "6L71LxY17w8Yzh1zUphpiW"
+   }
+  ],
+  "album_name": "The Age of Pleasure",
+  "album_id": "3440hCSfwYXxJcbQ0j3jAJ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273016302cf58c074b0f4caf26b",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 33,
+  "track_id": "1NHNnN4m39qq0v33BBaib8",
+  "track_name": "Golden Child (Jealous)",
+  "track_uri": "spotify:track:1NHNnN4m39qq0v33BBaib8",
+  "duration_ms": 207239,
+  "artists": [
+   {
+    "name": "Cleo Sol",
+    "id": "3ETLPQkcEd7z4k3IbZmXMq"
+   }
+  ],
+  "album_name": "Heaven",
+  "album_id": "6aWsHOGYXoEY1kxnxGMLwU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f97706f582c39b541fb0ce21",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 34,
+  "track_id": "4p9Crog9A2t8kw9mW28vWO",
+  "track_name": "105",
+  "track_uri": "spotify:track:4p9Crog9A2t8kw9mW28vWO",
+  "duration_ms": 241276,
+  "artists": [
+   {
+    "name": "Alex Isley",
+    "id": "7E2ioKxoxI2J94tUkIx6As"
+   },
+   {
+    "name": "Jack Dine",
+    "id": "2NWuUOptHRTogSZghYspAE"
+   }
+  ],
+  "album_name": "Marigold",
+  "album_id": "5hMEASKNPus4JjSIO5BCqz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731103338f04a8ed58b7c5f0e8",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 35,
+  "track_id": "3s3xMjzpkacG8DT07L7EdT",
+  "track_name": "Landing Soft",
+  "track_uri": "spotify:track:3s3xMjzpkacG8DT07L7EdT",
+  "duration_ms": 218389,
+  "artists": [
+   {
+    "name": "Latanya Alberto",
+    "id": "2gOETMfjAos2JU0cxHp357"
+   }
+  ],
+  "album_name": "Landing Soft",
+  "album_id": "2sloXrWOoeQEYvqyj2YiVo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e103af0b7a61dc67a8e52cdc",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 36,
+  "track_id": "7gJruWMFWYCsOtWVpdUnYH",
+  "track_name": "Morning Matters",
+  "track_uri": "spotify:track:7gJruWMFWYCsOtWVpdUnYH",
+  "duration_ms": 246800,
+  "artists": [
+   {
+    "name": "Yazmin Lacey",
+    "id": "2datC2OML2YxykP6vnDRmg"
+   }
+  ],
+  "album_name": "Morning Matters",
+  "album_id": "0NsiyVH1KVp6MhCyeJWIKJ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f1177c4602cf65b8f7473722",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 37,
+  "track_id": "7IMH2ITlILmprZFaHrUbVt",
+  "track_name": "Higher Self",
+  "track_uri": "spotify:track:7IMH2ITlILmprZFaHrUbVt",
+  "duration_ms": 241395,
+  "artists": [
+   {
+    "name": "Ego Ella May",
+    "id": "7ANeFdhioipksT9lqg0Ay6"
+   }
+  ],
+  "album_name": "FIELDNOTES PT III",
+  "album_id": "1mN1K7R6kn8FqBP2OY613q",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27330d575a5e6ae21343fa26ab3",
+  "added_at": "2024-01-10T16:17:22Z"
+ },
+ {
+  "position": 38,
+  "track_id": "2QdSb68BzZGMgCbsrFmSLc",
+  "track_name": "Higher",
+  "track_uri": "spotify:track:2QdSb68BzZGMgCbsrFmSLc",
+  "duration_ms": 196204,
+  "artists": [
+   {
+    "name": "Tems",
+    "id": "687cZJR45JO7jhk1LHIbgq"
+   }
+  ],
+  "album_name": "For Broken Ears",
+  "album_id": "2sU8ByeYc5BOBFNDr58CGV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ab4d3e1c0b5c5e453287a4c",
+  "added_at": "2024-01-10T16:17:22Z"
+ }
+]

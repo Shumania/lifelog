@@ -1,1285 +1,1285 @@
 [
-  {
-    "position": 0,
-    "track_id": "1tzXnPndBrd2G5GXrOBc1c",
-    "track_name": "Vitamin C - 2004 Remastered Version",
-    "track_uri": "spotify:track:1tzXnPndBrd2G5GXrOBc1c",
-    "duration_ms": 214066,
-    "artists": [
-      {
-        "name": "CAN",
-        "id": "4l8xPGtl6DHR2uvunqrl8r"
-      }
-    ],
-    "album_name": "Ege Bamyasi (Remastered Version)",
-    "album_id": "3Qa2CdymyGvXkqoqIZykmT",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273416cc99a089bbe8db8ac1311",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 1,
-    "track_id": "6ITuEsxEy2qPhqMowdDAeI",
-    "track_name": "Train in Vain (Stand by Me) - Remastered",
-    "track_uri": "spotify:track:6ITuEsxEy2qPhqMowdDAeI",
-    "duration_ms": 192454,
-    "artists": [
-      {
-        "name": "The Clash",
-        "id": "3RGLhK1IP9jnYFH4BRFJBS"
-      }
-    ],
-    "album_name": "London Calling (Remastered)",
-    "album_id": "6FCzvataOZh68j8OKzOt9a",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273628103d0e62602f00408345d",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 2,
-    "track_id": "3uCkIqD0VzQUijbs8WIizs",
-    "track_name": "These Days",
-    "track_uri": "spotify:track:3uCkIqD0VzQUijbs8WIizs",
-    "duration_ms": 210653,
-    "artists": [
-      {
-        "name": "Nico",
-        "id": "0IwlY33zbBXN7zlS9DP2Cj"
-      }
-    ],
-    "album_name": "Chelsea Girl",
-    "album_id": "6O62Cqi0YqOytEbFmeLyjU",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b1235c0092f6658466e96819",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 3,
-    "track_id": "1FvDJ9KGxcqwv1utyPL3JZ",
-    "track_name": "This Charming Man - 2011 Remaster",
-    "track_uri": "spotify:track:1FvDJ9KGxcqwv1utyPL3JZ",
-    "duration_ms": 162920,
-    "artists": [
-      {
-        "name": "The Smiths",
-        "id": "3yY2gUcIsjMr8hjo51PoJ8"
-      }
-    ],
-    "album_name": "The Smiths",
-    "album_id": "6cI1XoZsOhkyrCwtuI70CN",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27346b017e0c96e4186e82df085",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 4,
-    "track_id": "19Qi2Cymjh7HDQESDrDBzs",
-    "track_name": "Autumn Sweater",
-    "track_uri": "spotify:track:19Qi2Cymjh7HDQESDrDBzs",
-    "duration_ms": 318373,
-    "artists": [
-      {
-        "name": "Yo La Tengo",
-        "id": "5hAhrnb0Ch4ODwWu4tsbpi"
-      }
-    ],
-    "album_name": "I Can Hear The Heart Beating As One",
-    "album_id": "3V18DIKvRuwdxc2LE4wuac",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273df717b85d7277f9bcf91ef62",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 5,
-    "track_id": "6hHc7Pks7wtBIW8Z6A0iFq",
-    "track_name": "Blue Monday",
-    "track_uri": "spotify:track:6hHc7Pks7wtBIW8Z6A0iFq",
-    "duration_ms": 449160,
-    "artists": [
-      {
-        "name": "New Order",
-        "id": "0yNLKJebCb8Aueb54LYya3"
-      }
-    ],
-    "album_name": "Substance",
-    "album_id": "6iHuSGy6pq4tNGFV3ZVPtl",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733c182241fcd86aeca2c68a63",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 6,
-    "track_id": "70WSr32oW4jC1na5I0j0D6",
-    "track_name": "Anemone",
-    "track_uri": "spotify:track:70WSr32oW4jC1na5I0j0D6",
-    "duration_ms": 334466,
-    "artists": [
-      {
-        "name": "The Brian Jonestown Massacre",
-        "id": "30uiS1n3uIGXJEYFR1GVDy"
-      }
-    ],
-    "album_name": "Their Satanic Majesties' Second Request",
-    "album_id": "4kXc4XcGYOpHpXRlWq1RFi",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732557f5ed1ca07d5111d49b93",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 7,
-    "track_id": "15049rGLXHwrWtE4euUb5C",
-    "track_name": "The Killing Moon",
-    "track_uri": "spotify:track:15049rGLXHwrWtE4euUb5C",
-    "duration_ms": 346280,
-    "artists": [
-      {
-        "name": "Echo & the Bunnymen",
-        "id": "0fgYKF9Avljex0L9Wt5b8Z"
-      }
-    ],
-    "album_name": "Songs to Learn & Sing",
-    "album_id": "0VYyqjM5H2sXj6z8ocAyjb",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738c3bd313f076150e2d9299c2",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 8,
-    "track_id": "0Z2fQ0Avroujey7uTEmMTP",
-    "track_name": "Cosmic Dancer",
-    "track_uri": "spotify:track:0Z2fQ0Avroujey7uTEmMTP",
-    "duration_ms": 270146,
-    "artists": [
-      {
-        "name": "T. Rex",
-        "id": "3dBVyJ7JuOMt4GE9607Qin"
-      }
-    ],
-    "album_name": "Electric Warrior",
-    "album_id": "4Yw5uS8at8GkWmH2gZmLY0",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273eaf232c7a3e9c9acb9acd51c",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 9,
-    "track_id": "5p3JunprHCxClJjOmcLV8G",
-    "track_name": "Walk On the Wild Side",
-    "track_uri": "spotify:track:5p3JunprHCxClJjOmcLV8G",
-    "duration_ms": 255875,
-    "artists": [
-      {
-        "name": "Lou Reed",
-        "id": "42TFhl7WlMRXiNqzSrnzPL"
-      }
-    ],
-    "album_name": "Transformer",
-    "album_id": "5SqbMEyAt8332ISGiLX0St",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe5213edd4f8550a8030efcf",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 10,
-    "track_id": "37pKTyMwalomKCZjxTc2QZ",
-    "track_name": "Cherry-coloured Funk",
-    "track_uri": "spotify:track:37pKTyMwalomKCZjxTc2QZ",
-    "duration_ms": 192466,
-    "artists": [
-      {
-        "name": "Cocteau Twins",
-        "id": "5Wabl1lPdNOeIn0SQ5A1mp"
-      }
-    ],
-    "album_name": "Heaven or Las Vegas",
-    "album_id": "5lEphbceIgaK1XxWeSrC9E",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe6211303e796f3d5b7a0e02",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 11,
-    "track_id": "1De66xUavye2fNqhCwtgyo",
-    "track_name": "Lullaby",
-    "track_uri": "spotify:track:1De66xUavye2fNqhCwtgyo",
-    "duration_ms": 589106,
-    "artists": [
-      {
-        "name": "Low",
-        "id": "0wz0jO9anccPzH04N7FLBH"
-      }
-    ],
-    "album_name": "I Could Live In Hope",
-    "album_id": "61dByu8oBt4qdym9Rkz39w",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738b7a5660aeb00a285ca66ffe",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 12,
-    "track_id": "3PG7BAJG9WkmNOJOlc4uAo",
-    "track_name": "Femme Fatale",
-    "track_uri": "spotify:track:3PG7BAJG9WkmNOJOlc4uAo",
-    "duration_ms": 159000,
-    "artists": [
-      {
-        "name": "The Velvet Underground",
-        "id": "1nJvji2KIlWSseXRSlNYsC"
-      },
-      {
-        "name": "Nico",
-        "id": "0IwlY33zbBXN7zlS9DP2Cj"
-      }
-    ],
-    "album_name": "The Velvet Underground & Nico 45th Anniversary",
-    "album_id": "4xwx0x7k6c5VuThz5qVqmV",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398260c528e6eec9dd431c1d7",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 13,
-    "track_id": "55MEbqyxZphjB0beZ7YT0f",
-    "track_name": "Birthday",
-    "track_uri": "spotify:track:55MEbqyxZphjB0beZ7YT0f",
-    "duration_ms": 239533,
-    "artists": [
-      {
-        "name": "The Sugarcubes",
-        "id": "1G0Xwj8mza6b03iYkVdzDP"
-      }
-    ],
-    "album_name": "Life's Too Good",
-    "album_id": "0UQGKhImc5hgh2SxYAA3Jp",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c406b6ff703fc07c16296633",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 14,
-    "track_id": "7y4CtoXHFbs8VgcqbaYb9P",
-    "track_name": "Rip It Up",
-    "track_uri": "spotify:track:7y4CtoXHFbs8VgcqbaYb9P",
-    "duration_ms": 320413,
-    "artists": [
-      {
-        "name": "Orange Juice",
-        "id": "2u7xZP39dtED9EuRX9MUwu"
-      }
-    ],
-    "album_name": "Rip It Up",
-    "album_id": "0kyKdRPKFDn8cATzWkFAsO",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273724b90c41ed526df80d2ddd4",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 15,
-    "track_id": "67Tp0vRSc3yJU0z1UQMD7B",
-    "track_name": "Here's Where The Story Ends",
-    "track_uri": "spotify:track:67Tp0vRSc3yJU0z1UQMD7B",
-    "duration_ms": 234927,
-    "artists": [
-      {
-        "name": "The Sundays",
-        "id": "4nlqDmbzFzbNITaqjJv7D7"
-      }
-    ],
-    "album_name": "Reading, Writing And Arithmetic",
-    "album_id": "6Gym0ls2Eqkh1BtCOhBplN",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273441242b353fc7449f60599c6",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 16,
-    "track_id": "38Ngied9rBORlAbLYNCl4k",
-    "track_name": "Once in a Lifetime - 2005 Remaster",
-    "track_uri": "spotify:track:38Ngied9rBORlAbLYNCl4k",
-    "duration_ms": 259906,
-    "artists": [
-      {
-        "name": "Talking Heads",
-        "id": "2x9SpqnPi8rlE9pjHBwmSC"
-      }
-    ],
-    "album_name": "Remain in Light (Deluxe Version)",
-    "album_id": "3AQgdwMNCiN7awXch5fAaG",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e56fa8c916dc6ce419dcf557",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 17,
-    "track_id": "1o6DclZHw0HomxXEQR1ijX",
-    "track_name": "Rock & Roll - Full Length Version; 2015 Remaster",
-    "track_uri": "spotify:track:1o6DclZHw0HomxXEQR1ijX",
-    "duration_ms": 283000,
-    "artists": [
-      {
-        "name": "The Velvet Underground",
-        "id": "1nJvji2KIlWSseXRSlNYsC"
-      }
-    ],
-    "album_name": "Loaded: Re-Loaded 45th Anniversary Edition",
-    "album_id": "2ny1rPsLOoKNFZhMLubMrs",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a6d589272dca67a07a00c8a8",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 18,
-    "track_id": "2EEinN4Zk8MUv4OQuLsTBj",
-    "track_name": "Age of Consent - 2015 Remaster",
-    "track_uri": "spotify:track:2EEinN4Zk8MUv4OQuLsTBj",
-    "duration_ms": 315333,
-    "artists": [
-      {
-        "name": "New Order",
-        "id": "0yNLKJebCb8Aueb54LYya3"
-      }
-    ],
-    "album_name": "Power Corruption and Lies",
-    "album_id": "6NTrwu1XJ56jBPx7HMksbZ",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a0bb93884823982d57cb2004",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 19,
-    "track_id": "1CapNlKgeOWlBEE54CRamd",
-    "track_name": "Just Like Honey",
-    "track_uri": "spotify:track:1CapNlKgeOWlBEE54CRamd",
-    "duration_ms": 181746,
-    "artists": [
-      {
-        "name": "The Jesus and Mary Chain",
-        "id": "4rjlerN21ygkIhmUv55irs"
-      }
-    ],
-    "album_name": "Psychocandy",
-    "album_id": "0PnzJO3D4i85ALVJPaDpru",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b65ec494e85bf34cd6df1e21",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 20,
-    "track_id": "3vS2tjkjD5GSt1ZHOWkQq8",
-    "track_name": "Cavern",
-    "track_uri": "spotify:track:3vS2tjkjD5GSt1ZHOWkQq8",
-    "duration_ms": 323493,
-    "artists": [
-      {
-        "name": "Liquid Liquid",
-        "id": "4LIRWeEa6WgyAzH1mjYAPx"
-      }
-    ],
-    "album_name": "Slip In And Out Of Phenomenon",
-    "album_id": "37ecsp8BcvEzPmMkZet7rP",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27392fb983b0f6f75c145d7c82f",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 21,
-    "track_id": "4TOMI010Sd4ZAX4aZ5TS85",
-    "track_name": "Perfect Day",
-    "track_uri": "spotify:track:4TOMI010Sd4ZAX4aZ5TS85",
-    "duration_ms": 226509,
-    "artists": [
-      {
-        "name": "Lou Reed",
-        "id": "42TFhl7WlMRXiNqzSrnzPL"
-      }
-    ],
-    "album_name": "Transformer",
-    "album_id": "5SqbMEyAt8332ISGiLX0St",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe5213edd4f8550a8030efcf",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 22,
-    "track_id": "3EEd6ldsPat620GVYMEhOP",
-    "track_name": "Goo Goo Muck",
-    "track_uri": "spotify:track:3EEd6ldsPat620GVYMEhOP",
-    "duration_ms": 186038,
-    "artists": [
-      {
-        "name": "The Cramps",
-        "id": "4lYtGx5NZQJHsMyhHc5iz3"
-      }
-    ],
-    "album_name": "Psychedelic Jungle",
-    "album_id": "111E8uRgwGQo9YJJBvpALn",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273133d663963bdaa99891a5cee",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 23,
-    "track_id": "37CRPk0L5ZpfPeePEPwE0t",
-    "track_name": "Ashes to Ashes - 2017 Remaster",
-    "track_uri": "spotify:track:37CRPk0L5ZpfPeePEPwE0t",
-    "duration_ms": 266160,
-    "artists": [
-      {
-        "name": "David Bowie",
-        "id": "0oSGxfWSnnOXhD2fKuz2Gy"
-      }
-    ],
-    "album_name": "Scary Monsters (And Super Creeps) [2017 Remaster]",
-    "album_id": "5fxvWHvIDPIALfTfRiwyB0",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b62b49cec67e610f6f3d1221",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 24,
-    "track_id": "5by3w3NXvwDpV9FBSOR35u",
-    "track_name": "Heroin",
-    "track_uri": "spotify:track:5by3w3NXvwDpV9FBSOR35u",
-    "duration_ms": 433573,
-    "artists": [
-      {
-        "name": "The Velvet Underground",
-        "id": "1nJvji2KIlWSseXRSlNYsC"
-      },
-      {
-        "name": "Nico",
-        "id": "0IwlY33zbBXN7zlS9DP2Cj"
-      }
-    ],
-    "album_name": "The Velvet Underground & Nico 45th Anniversary",
-    "album_id": "4xwx0x7k6c5VuThz5qVqmV",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398260c528e6eec9dd431c1d7",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 25,
-    "track_id": "6UBQONiLH8kNmmB8UrV2Ef",
-    "track_name": "Genius of Love",
-    "track_uri": "spotify:track:6UBQONiLH8kNmmB8UrV2Ef",
-    "duration_ms": 334360,
-    "artists": [
-      {
-        "name": "Tom Tom Club",
-        "id": "1m24736Bdew1oQVxTePOCo"
-      }
-    ],
-    "album_name": "Tom Tom Club",
-    "album_id": "5WKUL88usO5Y8cfbh2EQdu",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27340f5a8e88ef8bf4782eaa595",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 26,
-    "track_id": "2SSBJhvMsujY94GK5JAtKs",
-    "track_name": "Buena",
-    "track_uri": "spotify:track:2SSBJhvMsujY94GK5JAtKs",
-    "duration_ms": 199666,
-    "artists": [
-      {
-        "name": "Morphine",
-        "id": "3QgSmABpItIdj908ek80n5"
-      }
-    ],
-    "album_name": "Cure for Pain",
-    "album_id": "0FocpOyE7RnaNsiaEhSbp6",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c52a14dd96e9cf009d04f75e",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 27,
-    "track_id": "3MWdMCAIFPzcIUdiEi8Pao",
-    "track_name": "Marquee Moon - 2003 Remaster",
-    "track_uri": "spotify:track:3MWdMCAIFPzcIUdiEi8Pao",
-    "duration_ms": 645000,
-    "artists": [
-      {
-        "name": "Television",
-        "id": "0S7Zur2g8YhqlzqtlYStli"
-      }
-    ],
-    "album_name": "Marquee Moon / Adventure / Live at the Waldorf: The Complete Elektra Recordings Plus Liner Notes",
-    "album_id": "2tdeBxBeTVOl95UqS5vV9P",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d7ead923cb1e483604a1ac1b",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 28,
-    "track_id": "6TNNMVpOgn8K5NoDC7alG6",
-    "track_name": "Ooh La La - 2004 Remaster",
-    "track_uri": "spotify:track:6TNNMVpOgn8K5NoDC7alG6",
-    "duration_ms": 214960,
-    "artists": [
-      {
-        "name": "Faces",
-        "id": "3v4feUQnU3VEUqFrjmtekL"
-      }
-    ],
-    "album_name": "The Best of Faces: Good Boys When They're Asleep",
-    "album_id": "375DYMUVvk7xXyKq5IaUTR",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737afedd0d305b4a793e4dcad1",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 29,
-    "track_id": "1XT5kxg6Tk0ukCO2vBQN4v",
-    "track_name": "Making Plans For Nigel",
-    "track_uri": "spotify:track:1XT5kxg6Tk0ukCO2vBQN4v",
-    "duration_ms": 253800,
-    "artists": [
-      {
-        "name": "XTC",
-        "id": "2qT62DYO8Ajb276vUJmvhz"
-      }
-    ],
-    "album_name": "Drums And Wires",
-    "album_id": "4S6y2iTYbGONSlNJHYyrVl",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27324110c456fe319f691e1a320",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 30,
-    "track_id": "5Vx3e9PipiEceifVyBzCdj",
-    "track_name": "Movin' on Up",
-    "track_uri": "spotify:track:5Vx3e9PipiEceifVyBzCdj",
-    "duration_ms": 230533,
-    "artists": [
-      {
-        "name": "Primal Scream",
-        "id": "3wury2nd8idV4GecUg5xze"
-      }
-    ],
-    "album_name": "Screamadelica",
-    "album_id": "4TECsw2dFHZ1ULrT7OA3OL",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734bd22ff5ca55d5fdab3345eb",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 31,
-    "track_id": "4049hr5UsNQEFInx9HpMI4",
-    "track_name": "Paris 1919 - Remastered 2024",
-    "track_uri": "spotify:track:4049hr5UsNQEFInx9HpMI4",
-    "duration_ms": 243706,
-    "artists": [
-      {
-        "name": "John Cale",
-        "id": "5MWBg16f5UYiaSlyVhzlIW"
-      }
-    ],
-    "album_name": "Paris 1919 (Deluxe Edition)",
-    "album_id": "6oNqOeW4FADs5D8fEXOT2n",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736203ecb2863d44223da36613",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 32,
-    "track_id": "14bdkfiD8UAYJalXKFwcwb",
-    "track_name": "Thirteen",
-    "track_uri": "spotify:track:14bdkfiD8UAYJalXKFwcwb",
-    "duration_ms": 154480,
-    "artists": [
-      {
-        "name": "Big Star",
-        "id": "3UvcmAOZt64oKpP95f6MMM"
-      }
-    ],
-    "album_name": "#1 Record/Radio City",
-    "album_id": "4lZSX0E1dcg1bi5T4BzWf0",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e227327478c8831fd12bfb84",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 33,
-    "track_id": "34Rt8Ti2OAsA8s39rLgyML",
-    "track_name": "Love Is The Drug",
-    "track_uri": "spotify:track:34Rt8Ti2OAsA8s39rLgyML",
-    "duration_ms": 248645,
-    "artists": [
-      {
-        "name": "Roxy Music",
-        "id": "3fhOTtm0LBJ3Ojn4hIljLo"
-      }
-    ],
-    "album_name": "Roxy Music Collection",
-    "album_id": "6VQZ6NNyt8E6Nj93mkoi0y",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d5abf16cc43eb695e58439cf",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 34,
-    "track_id": "1KdwPeY1WRWQGHCmRJTveb",
-    "track_name": "Cannonball",
-    "track_uri": "spotify:track:1KdwPeY1WRWQGHCmRJTveb",
-    "duration_ms": 213693,
-    "artists": [
-      {
-        "name": "The Breeders",
-        "id": "1xgFexIwrf2QjbU0buCNnp"
-      }
-    ],
-    "album_name": "Last Splash",
-    "album_id": "57F44c0MTziVzHPEuJtH9A",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fbf772eed6abce36ddf9233c",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 35,
-    "track_id": "0p5eZCY0R7uNCZS1YDtIYI",
-    "track_name": "Hey",
-    "track_uri": "spotify:track:0p5eZCY0R7uNCZS1YDtIYI",
-    "duration_ms": 210906,
-    "artists": [
-      {
-        "name": "Pixies",
-        "id": "6zvul52xwTWzilBZl6BUbT"
-      }
-    ],
-    "album_name": "Doolittle",
-    "album_id": "0DQyTVcDhK9wm0f6RaErWO",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ab3c2a306c614fae36ff1d6",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 36,
-    "track_id": "758wEKVqfYopJIHYWdLVd4",
-    "track_name": "I Wanna Be Adored - Remastered 2009",
-    "track_uri": "spotify:track:758wEKVqfYopJIHYWdLVd4",
-    "duration_ms": 292800,
-    "artists": [
-      {
-        "name": "The Stone Roses",
-        "id": "1lYT0A0LV5DUfxr6doRP3d"
-      }
-    ],
-    "album_name": "The Stone Roses",
-    "album_id": "0um9FI6BLBldL5POP4D4Cw",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cf1f6466a493eb73d6d9d280",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 37,
-    "track_id": "7jQD3oqlzWzs2ZwKoeTvVX",
-    "track_name": "Save It for Later - 2012 Remaster",
-    "track_uri": "spotify:track:7jQD3oqlzWzs2ZwKoeTvVX",
-    "duration_ms": 213946,
-    "artists": [
-      {
-        "name": "The English Beat",
-        "id": "1eVEVL20zNLcGrPDOR691N"
-      }
-    ],
-    "album_name": "Special Beat Service (Expanded) [2012 Remaster]",
-    "album_id": "6DXcK83yIv2QP8Kaz8E8yX",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27315012e4d503feb8c123138d6",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 38,
-    "track_id": "3cw3Z7mS55gd3NUjh4k0bL",
-    "track_name": "Sweet Jane - Full Length Version; 2015 Remaster",
-    "track_uri": "spotify:track:3cw3Z7mS55gd3NUjh4k0bL",
-    "duration_ms": 246306,
-    "artists": [
-      {
-        "name": "The Velvet Underground",
-        "id": "1nJvji2KIlWSseXRSlNYsC"
-      }
-    ],
-    "album_name": "Loaded: Re-Loaded 45th Anniversary Edition",
-    "album_id": "2ny1rPsLOoKNFZhMLubMrs",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a6d589272dca67a07a00c8a8",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 39,
-    "track_id": "0qRSrdDK4xj1doRViNPYwM",
-    "track_name": "Roadrunner (Alternative Version)",
-    "track_uri": "spotify:track:0qRSrdDK4xj1doRViNPYwM",
-    "duration_ms": 295013,
-    "artists": [
-      {
-        "name": "The Modern Lovers",
-        "id": "2eRdPaLHWAL4d1WcNUO9Vz"
-      }
-    ],
-    "album_name": "The Modern Lovers (Expanded Version)",
-    "album_id": "7ro1W6lc4tuTaRyA8rnVm1",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b44ebe6e50148bca8bce584d",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 40,
-    "track_id": "0WIbzDVEpmOyBnqqdtqIL9",
-    "track_name": "Teen Age Riot (Album Version)",
-    "track_uri": "spotify:track:0WIbzDVEpmOyBnqqdtqIL9",
-    "duration_ms": 417800,
-    "artists": [
-      {
-        "name": "Sonic Youth",
-        "id": "5UqTO8smerMvxHYA5xsXb6"
-      }
-    ],
-    "album_name": "Daydream Nation (Deluxe Edition)",
-    "album_id": "23O4F21GDWiGd33tFN3ZgI",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27320f51363b9e2cbd207f158ba",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 41,
-    "track_id": "2CdS3DRqWR5LAhy4hM5X9W",
-    "track_name": "Laid",
-    "track_uri": "spotify:track:2CdS3DRqWR5LAhy4hM5X9W",
-    "duration_ms": 156666,
-    "artists": [
-      {
-        "name": "James",
-        "id": "0qLNsNKm8bQcMoRFkR8Hmh"
-      }
-    ],
-    "album_name": "Laid",
-    "album_id": "5pALyxshOPc8LLKggzNvQe",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b67dbb84e0c1f82be886c8ea",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 42,
-    "track_id": "7jIAttgQTpLDoNtykIQXjH",
-    "track_name": "Blister In The Sun",
-    "track_uri": "spotify:track:7jIAttgQTpLDoNtykIQXjH",
-    "duration_ms": 145706,
-    "artists": [
-      {
-        "name": "Violent Femmes",
-        "id": "0rpMdBzQXf7aYRnu5fDBJy"
-      }
-    ],
-    "album_name": "Violent Femmes",
-    "album_id": "0Ojio25IPzIrw1rUmgrhrG",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27354096a7f898de0233d76f626",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 43,
-    "track_id": "1LzNfuep1bnAUR9skqdHCK",
-    "track_name": "Fade Into You",
-    "track_uri": "spotify:track:1LzNfuep1bnAUR9skqdHCK",
-    "duration_ms": 295600,
-    "artists": [
-      {
-        "name": "Mazzy Star",
-        "id": "37w38cCSGgKLdayTRjna4W"
-      }
-    ],
-    "album_name": "So Tonight That I Might See",
-    "album_id": "5K18gTgac0q6Jma5HkV1vA",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27389a392107ebd79818022b3ea",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 44,
-    "track_id": "4Q3vc39QZjLpGG7cS33kiC",
-    "track_name": "Wuthering Heights - 2018 Remaster",
-    "track_uri": "spotify:track:4Q3vc39QZjLpGG7cS33kiC",
-    "duration_ms": 268933,
-    "artists": [
-      {
-        "name": "Kate Bush",
-        "id": "1aSxMhuvixZ8h9dK9jIDwL"
-      }
-    ],
-    "album_name": "The Kick Inside (2018 Remaster)",
-    "album_id": "0ld04FI3tfuxefSbNwCJSc",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27335538744db9802cea0559756",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 45,
-    "track_id": "3HMOMdRPywfouYx5B4PvaH",
-    "track_name": "Carry the Zero",
-    "track_uri": "spotify:track:3HMOMdRPywfouYx5B4PvaH",
-    "duration_ms": 343893,
-    "artists": [
-      {
-        "name": "Built To Spill",
-        "id": "3kbBWco9PZ5eSQsNScwG6U"
-      }
-    ],
-    "album_name": "Keep It like a Secret",
-    "album_id": "2PKZhfPrgMmK5zug2pqdHA",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730c8cece24badfb7bfce2f38d",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 46,
-    "track_id": "6ewN9MaFbi78oDLT9wYDgn",
-    "track_name": "Ghost Town",
-    "track_uri": "spotify:track:6ewN9MaFbi78oDLT9wYDgn",
-    "duration_ms": 219306,
-    "artists": [
-      {
-        "name": "The Specials",
-        "id": "6xnvNmSzmeOE1bLKnYXKW3"
-      }
-    ],
-    "album_name": "Stereo-Typical: A's, B's & Rarities",
-    "album_id": "0EKaJQaxiszKS8DBUDhbtz",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f994274f989e9faa4f26cbcd",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 47,
-    "track_id": "2fXKyAyPrEa24c6PJyqznF",
-    "track_name": "Common People - Full Length Version",
-    "track_uri": "spotify:track:2fXKyAyPrEa24c6PJyqznF",
-    "duration_ms": 351626,
-    "artists": [
-      {
-        "name": "Pulp",
-        "id": "36E7oYfz3LLRto6l2WmDcD"
-      }
-    ],
-    "album_name": "Different Class",
-    "album_id": "3ly9T2L4pqTZijFgQssd3x",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fd952bece8f049dbcd7df93f",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 48,
-    "track_id": "2xTk109VtSva8rmQvb2Esn",
-    "track_name": "Mystery Achievement - 2006 Remaster",
-    "track_uri": "spotify:track:2xTk109VtSva8rmQvb2Esn",
-    "duration_ms": 322906,
-    "artists": [
-      {
-        "name": "Pretenders",
-        "id": "0GByy3DcfbQwDvXGCWmzv9"
-      }
-    ],
-    "album_name": "Pretenders",
-    "album_id": "6AFFu3ilmlEDz1I9ZaNOZw",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733bfd0d4e205f83b591600e43",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 49,
-    "track_id": "17GMg1ZyQJtm3HkXQFZ31f",
-    "track_name": "Lola",
-    "track_uri": "spotify:track:17GMg1ZyQJtm3HkXQFZ31f",
-    "duration_ms": 243506,
-    "artists": [
-      {
-        "name": "The Raincoats",
-        "id": "4t7bXPFEPe0pu1ozhdDLOp"
-      }
-    ],
-    "album_name": "The Raincoats",
-    "album_id": "190Tx9jPHndq0qUlq79BJJ",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398b6d9a4e006f7e7bbe23769",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 50,
-    "track_id": "0Nn4RrvVfwSSLDvkhdRc1n",
-    "track_name": "Damaged Goods",
-    "track_uri": "spotify:track:0Nn4RrvVfwSSLDvkhdRc1n",
-    "duration_ms": 206786,
-    "artists": [
-      {
-        "name": "Gang Of Four",
-        "id": "3AmWjMXXtBJOmNGpUFSOAl"
-      }
-    ],
-    "album_name": "Entertainment!",
-    "album_id": "7LMOo068Ndv0wjTGUDtYqK",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730bc24b6400fb40a0a034e215",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 51,
-    "track_id": "21YxK0klhpfLW8budkJaMF",
-    "track_name": "Lust For Life",
-    "track_uri": "spotify:track:21YxK0klhpfLW8budkJaMF",
-    "duration_ms": 313925,
-    "artists": [
-      {
-        "name": "Iggy Pop",
-        "id": "33EUXrFKGjpUSGacqEHhU4"
-      }
-    ],
-    "album_name": "Lust For Life",
-    "album_id": "2jnV6ytZOmt71iEC5xHEYz",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734aa5f679427e35409a06f225",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 52,
-    "track_id": "35ickeV5eBqwfjvMZoOb3d",
-    "track_name": "Cheree (2019 - Remaster)",
-    "track_uri": "spotify:track:35ickeV5eBqwfjvMZoOb3d",
-    "duration_ms": 222306,
-    "artists": [
-      {
-        "name": "Suicide",
-        "id": "6uVeWolwyRDrT84lLsaZyW"
-      }
-    ],
-    "album_name": "Suicide (2019 - Remaster)",
-    "album_id": "46kw5FsFdJhNRL8wfHM9Bp",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739707d3e2f2406aab2282cf9e",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 53,
-    "track_id": "6xUMt58RCX98m7g0KcMwAS",
-    "track_name": "Feel the Pain",
-    "track_uri": "spotify:track:6xUMt58RCX98m7g0KcMwAS",
-    "duration_ms": 258066,
-    "artists": [
-      {
-        "name": "Dinosaur Jr.",
-        "id": "267VY6GX5LyU5c9M85ECZQ"
-      }
-    ],
-    "album_name": "Without a Sound",
-    "album_id": "07m9cMgG70Pznj6M02qvGN",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273612e30fdaa4c9d5f758dac6c",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 54,
-    "track_id": "5r2z0FHOoFI06GZEVGDjzM",
-    "track_name": "Tempted",
-    "track_uri": "spotify:track:5r2z0FHOoFI06GZEVGDjzM",
-    "duration_ms": 240333,
-    "artists": [
-      {
-        "name": "Squeeze",
-        "id": "6Jrj26oAY96EEC2lqC6fua"
-      }
-    ],
-    "album_name": "East Side Story",
-    "album_id": "4178w40uOpDld2RnR1ifCy",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27343ae2fd11f668545104e026b",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 55,
-    "track_id": "6m7fhJkK6TbuGDFhBNpgyn",
-    "track_name": "It's My Life",
-    "track_uri": "spotify:track:6m7fhJkK6TbuGDFhBNpgyn",
-    "duration_ms": 232280,
-    "artists": [
-      {
-        "name": "Talk Talk",
-        "id": "7Fo8TAyGJr4VmhE68QamMf"
-      }
-    ],
-    "album_name": "The Very Best Of",
-    "album_id": "2sVePugUVnYAPEyIlGP6Hx",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737a616b8c9c5aecc570f7f332",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 56,
-    "track_id": "0KrYPz4S4mKHeBjCwYJp0s",
-    "track_name": "Watching The Detectives - Single Version",
-    "track_uri": "spotify:track:0KrYPz4S4mKHeBjCwYJp0s",
-    "duration_ms": 226040,
-    "artists": [
-      {
-        "name": "Elvis Costello",
-        "id": "2BGRfQgtzikz1pzAD0kaEn"
-      }
-    ],
-    "album_name": "My Aim Is True",
-    "album_id": "1aucGNKimhgARC7iO2xLt2",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273008a93d976cfd5a76ba06b9b",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 57,
-    "track_id": "1dJuteDIOkGfDSN7zPkzNv",
-    "track_name": "She Don't Use Jelly",
-    "track_uri": "spotify:track:1dJuteDIOkGfDSN7zPkzNv",
-    "duration_ms": 222278,
-    "artists": [
-      {
-        "name": "The Flaming Lips",
-        "id": "16eRpMNXSQ15wuJoeqguaB"
-      }
-    ],
-    "album_name": "Transmissions From the Satellite Heart",
-    "album_id": "0rr668ZzoNDQa1yxhSpBAw",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736a80217584484a9372d95b66",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 58,
-    "track_id": "5fbQCQt91LsVgXusFS0CCD",
-    "track_name": "Disorder - 2007 Remaster",
-    "track_uri": "spotify:track:5fbQCQt91LsVgXusFS0CCD",
-    "duration_ms": 209039,
-    "artists": [
-      {
-        "name": "Joy Division",
-        "id": "432R46LaYsJZV2Gmc4jUV5"
-      }
-    ],
-    "album_name": "Unknown Pleasures (Collector's Edition)",
-    "album_id": "33qkK1brpt6t8unIpeM2Oy",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27316eb1e685e6bd37ab3228de6",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 59,
-    "track_id": "6nFdjV1Ko66O111x74K2kn",
-    "track_name": "Dear God - Remastered 2001",
-    "track_uri": "spotify:track:6nFdjV1Ko66O111x74K2kn",
-    "duration_ms": 219506,
-    "artists": [
-      {
-        "name": "XTC",
-        "id": "2qT62DYO8Ajb276vUJmvhz"
-      }
-    ],
-    "album_name": "Skylarking",
-    "album_id": "3FVsJiQMI7dp0RfTBdWtMW",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fc44899bcbe64d27e5977512",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 60,
-    "track_id": "4alHo6RGd0D3OUbTPExTHN",
-    "track_name": "Just What I Needed",
-    "track_uri": "spotify:track:4alHo6RGd0D3OUbTPExTHN",
-    "duration_ms": 225626,
-    "artists": [
-      {
-        "name": "The Cars",
-        "id": "6DCIj8jNaNpBz8e5oKFPtp"
-      }
-    ],
-    "album_name": "The Cars",
-    "album_id": "4tJPWT4r4FSKwy784Qs1Fq",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f725bc7907dcf15aa2c6e7b7",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 61,
-    "track_id": "5rzr3lYGJiw3OXEg8imWgH",
-    "track_name": "The Lovecats",
-    "track_uri": "spotify:track:5rzr3lYGJiw3OXEg8imWgH",
-    "duration_ms": 220093,
-    "artists": [
-      {
-        "name": "The Cure",
-        "id": "7bu3H8JO7d0UbMoVzbo70s"
-      }
-    ],
-    "album_name": "Japanese Whispers",
-    "album_id": "6fFTxlpJPGQbO3CbVz9MOS",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b27354cff06df14254eb6ea2dacb",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 62,
-    "track_id": "0xzn2U71zNWLeJbE4Zat4C",
-    "track_name": "Space Age Love Song",
-    "track_uri": "spotify:track:0xzn2U71zNWLeJbE4Zat4C",
-    "duration_ms": 227866,
-    "artists": [
-      {
-        "name": "A Flock Of Seagulls",
-        "id": "0uAjBatvB4ubpd4kCfjmNt"
-      }
-    ],
-    "album_name": "A Flock Of Seagulls",
-    "album_id": "1hwPP3qgnV7PQrMSy6qFw8",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734d38e04627b3843ed3db042c",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 63,
-    "track_id": "1r8oPEXqnhUVgkUkJNqEuF",
-    "track_name": "Love Will Tear Us Apart - 2010 Remaster",
-    "track_uri": "spotify:track:1r8oPEXqnhUVgkUkJNqEuF",
-    "duration_ms": 204621,
-    "artists": [
-      {
-        "name": "Joy Division",
-        "id": "432R46LaYsJZV2Gmc4jUV5"
-      }
-    ],
-    "album_name": "Substance",
-    "album_id": "2KPhpTUihx9KRWRwBtpTeJ",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a1d7fb161ce10fbd09b08183",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 64,
-    "track_id": "0gdmDP6xy3ZV7JNoHWAN9k",
-    "track_name": "Town Called Malice",
-    "track_uri": "spotify:track:0gdmDP6xy3ZV7JNoHWAN9k",
-    "duration_ms": 173320,
-    "artists": [
-      {
-        "name": "The Jam",
-        "id": "2P560DaOMNDUACoH8ZhOCR"
-      }
-    ],
-    "album_name": "The Gift",
-    "album_id": "71OyKSCFX7DGsJc6qAhhQG",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733cb7b96b66eeb42c6a74ebb3",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 65,
-    "track_id": "672N8DGGTOLCOgWe0koX5g",
-    "track_name": "I Wanna Be Your Dog",
-    "track_uri": "spotify:track:672N8DGGTOLCOgWe0koX5g",
-    "duration_ms": 188560,
-    "artists": [
-      {
-        "name": "The Stooges",
-        "id": "4BFMTELQyWJU1SwqcXMBm3"
-      }
-    ],
-    "album_name": "The Stooges",
-    "album_id": "3MANoCcmaHWeXSuWiO3iVo",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a7d2baa04a56c87de579db69",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 66,
-    "track_id": "1A3OA6zON5HHueFm4ejrRF",
-    "track_name": "Because the Night",
-    "track_uri": "spotify:track:1A3OA6zON5HHueFm4ejrRF",
-    "duration_ms": 202866,
-    "artists": [
-      {
-        "name": "Patti Smith",
-        "id": "0vYkHhJ48Bs3jWcvZXvOrP"
-      }
-    ],
-    "album_name": "Outside Society",
-    "album_id": "00tuL4qPxBs3w8S1BaG3Zv",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273abf8af618e2e433d9a912515",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 67,
-    "track_id": "1Cl1J4Ai7NkuhLdaDHthTh",
-    "track_name": "Pretty In Pink",
-    "track_uri": "spotify:track:1Cl1J4Ai7NkuhLdaDHthTh",
-    "duration_ms": 239960,
-    "artists": [
-      {
-        "name": "The Psychedelic Furs",
-        "id": "0O0lrN34wrcuBenkqlEDZe"
-      }
-    ],
-    "album_name": "The Psychedelic Furs Superhits",
-    "album_id": "4sdhLZRcO9DQmrs889H0tl",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273adaf7bcb316b31cdcf10bc30",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 68,
-    "track_id": "3oyc1mIdCBGaU55wX7otqM",
-    "track_name": "Pump It Up - 2021 Remaster",
-    "track_uri": "spotify:track:3oyc1mIdCBGaU55wX7otqM",
-    "duration_ms": 196680,
-    "artists": [
-      {
-        "name": "Elvis Costello & The Attractions",
-        "id": "4qmHkMxr6pTWh5Zo74odpH"
-      }
-    ],
-    "album_name": "This Year's Model (2021 Remaster)",
-    "album_id": "4RLIesiAVONV4fOUlOSmr4",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c39aa62b10cea6cd2c2c1ed8",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 69,
-    "track_id": "4EFkvOhgAmlHEfDfvfSoh5",
-    "track_name": "Girls on Film - 2010 Remaster",
-    "track_uri": "spotify:track:4EFkvOhgAmlHEfDfvfSoh5",
-    "duration_ms": 212853,
-    "artists": [
-      {
-        "name": "Duran Duran",
-        "id": "0lZoBs4Pzo7R89JM9lxwoT"
-      }
-    ],
-    "album_name": "Duran Duran (Deluxe Edition)",
-    "album_id": "2Tc7ILGF89w1PWOhzuZlqB",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730fc83f41d5f0bd27105e5048",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 70,
-    "track_id": "3fnL2JDgy4QD04araOl0eY",
-    "track_name": "Androgynous",
-    "track_uri": "spotify:track:3fnL2JDgy4QD04araOl0eY",
-    "duration_ms": 190853,
-    "artists": [
-      {
-        "name": "The Replacements",
-        "id": "4WPY0N74T3KUja57xMQTZ3"
-      }
-    ],
-    "album_name": "Let It Be (Expanded)",
-    "album_id": "4LwFCUyV4wM6SEg84PaLuL",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273008cfa8fb96ef0befcbc615a",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 71,
-    "track_id": "2DBlfjL5chsdeULzhTp5K8",
-    "track_name": "Waiting Room",
-    "track_uri": "spotify:track:2DBlfjL5chsdeULzhTp5K8",
-    "duration_ms": 173266,
-    "artists": [
-      {
-        "name": "Fugazi",
-        "id": "62sC6lUEWRjbFqXpMmOk4G"
-      }
-    ],
-    "album_name": "13 Songs",
-    "album_id": "1FcRwT7uoNdO8L9wbYsfAY",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f18ce5dc5f6b0843d3acb3a1",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 72,
-    "track_id": "33HRECrmuelZxOpid6XTNX",
-    "track_name": "Alison",
-    "track_uri": "spotify:track:33HRECrmuelZxOpid6XTNX",
-    "duration_ms": 230986,
-    "artists": [
-      {
-        "name": "Slowdive",
-        "id": "72X6FHxaShda0XeQw3vbeF"
-      }
-    ],
-    "album_name": "Souvlaki",
-    "album_id": "53eHm1f3sFiSzWMaKOl98Z",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f6e31941d10e4819d290af41",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 73,
-    "track_id": "7ITRNB9OckYIp2SW2iXU8U",
-    "track_name": "Soon",
-    "track_uri": "spotify:track:7ITRNB9OckYIp2SW2iXU8U",
-    "duration_ms": 418706,
-    "artists": [
-      {
-        "name": "my bloody valentine",
-        "id": "3G3Gdm0ZRAOxLrbyjfhii5"
-      }
-    ],
-    "album_name": "Loveless",
-    "album_id": "3GH4IiI6jQAIvnHVdb5FB6",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ede770070357575bc050511",
-    "added_at": "2025-09-04T14:16:59Z"
-  },
-  {
-    "position": 74,
-    "track_id": "6bEjOYezTuD2gYq5X7tGlP",
-    "track_name": "Mind Your Own Business",
-    "track_uri": "spotify:track:6bEjOYezTuD2gYq5X7tGlP",
-    "duration_ms": 193373,
-    "artists": [
-      {
-        "name": "Delta 5",
-        "id": "2qe52cWdi4IRtgg14CLInb"
-      }
-    ],
-    "album_name": "Singles and Sessions 1979-1981",
-    "album_id": "7dyzbiN0P6EfoxdRIgk6lL",
-    "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b3a18ce7493529a2f964b487",
-    "added_at": "2025-09-04T14:16:59Z"
-  }
+ {
+  "position": 0,
+  "track_id": "1tzXnPndBrd2G5GXrOBc1c",
+  "track_name": "Vitamin C - 2004 Remastered Version",
+  "track_uri": "spotify:track:1tzXnPndBrd2G5GXrOBc1c",
+  "duration_ms": 214066,
+  "artists": [
+   {
+    "name": "CAN",
+    "id": "4l8xPGtl6DHR2uvunqrl8r"
+   }
+  ],
+  "album_name": "Ege Bamyasi (Remastered Version)",
+  "album_id": "3Qa2CdymyGvXkqoqIZykmT",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273416cc99a089bbe8db8ac1311",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 1,
+  "track_id": "6ITuEsxEy2qPhqMowdDAeI",
+  "track_name": "Train in Vain (Stand by Me) - Remastered",
+  "track_uri": "spotify:track:6ITuEsxEy2qPhqMowdDAeI",
+  "duration_ms": 192454,
+  "artists": [
+   {
+    "name": "The Clash",
+    "id": "3RGLhK1IP9jnYFH4BRFJBS"
+   }
+  ],
+  "album_name": "London Calling (Remastered)",
+  "album_id": "6FCzvataOZh68j8OKzOt9a",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273628103d0e62602f00408345d",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 2,
+  "track_id": "3uCkIqD0VzQUijbs8WIizs",
+  "track_name": "These Days",
+  "track_uri": "spotify:track:3uCkIqD0VzQUijbs8WIizs",
+  "duration_ms": 210653,
+  "artists": [
+   {
+    "name": "Nico",
+    "id": "0IwlY33zbBXN7zlS9DP2Cj"
+   }
+  ],
+  "album_name": "Chelsea Girl",
+  "album_id": "6O62Cqi0YqOytEbFmeLyjU",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b1235c0092f6658466e96819",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 3,
+  "track_id": "1FvDJ9KGxcqwv1utyPL3JZ",
+  "track_name": "This Charming Man - 2011 Remaster",
+  "track_uri": "spotify:track:1FvDJ9KGxcqwv1utyPL3JZ",
+  "duration_ms": 162920,
+  "artists": [
+   {
+    "name": "The Smiths",
+    "id": "3yY2gUcIsjMr8hjo51PoJ8"
+   }
+  ],
+  "album_name": "The Smiths",
+  "album_id": "6cI1XoZsOhkyrCwtuI70CN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27346b017e0c96e4186e82df085",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 4,
+  "track_id": "19Qi2Cymjh7HDQESDrDBzs",
+  "track_name": "Autumn Sweater",
+  "track_uri": "spotify:track:19Qi2Cymjh7HDQESDrDBzs",
+  "duration_ms": 318373,
+  "artists": [
+   {
+    "name": "Yo La Tengo",
+    "id": "5hAhrnb0Ch4ODwWu4tsbpi"
+   }
+  ],
+  "album_name": "I Can Hear The Heart Beating As One",
+  "album_id": "3V18DIKvRuwdxc2LE4wuac",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273df717b85d7277f9bcf91ef62",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 5,
+  "track_id": "6hHc7Pks7wtBIW8Z6A0iFq",
+  "track_name": "Blue Monday",
+  "track_uri": "spotify:track:6hHc7Pks7wtBIW8Z6A0iFq",
+  "duration_ms": 449160,
+  "artists": [
+   {
+    "name": "New Order",
+    "id": "0yNLKJebCb8Aueb54LYya3"
+   }
+  ],
+  "album_name": "Substance",
+  "album_id": "6iHuSGy6pq4tNGFV3ZVPtl",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733c182241fcd86aeca2c68a63",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 6,
+  "track_id": "70WSr32oW4jC1na5I0j0D6",
+  "track_name": "Anemone",
+  "track_uri": "spotify:track:70WSr32oW4jC1na5I0j0D6",
+  "duration_ms": 334466,
+  "artists": [
+   {
+    "name": "The Brian Jonestown Massacre",
+    "id": "30uiS1n3uIGXJEYFR1GVDy"
+   }
+  ],
+  "album_name": "Their Satanic Majesties' Second Request",
+  "album_id": "4kXc4XcGYOpHpXRlWq1RFi",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2732557f5ed1ca07d5111d49b93",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 7,
+  "track_id": "15049rGLXHwrWtE4euUb5C",
+  "track_name": "The Killing Moon",
+  "track_uri": "spotify:track:15049rGLXHwrWtE4euUb5C",
+  "duration_ms": 346280,
+  "artists": [
+   {
+    "name": "Echo & the Bunnymen",
+    "id": "0fgYKF9Avljex0L9Wt5b8Z"
+   }
+  ],
+  "album_name": "Songs to Learn & Sing",
+  "album_id": "0VYyqjM5H2sXj6z8ocAyjb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738c3bd313f076150e2d9299c2",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 8,
+  "track_id": "0Z2fQ0Avroujey7uTEmMTP",
+  "track_name": "Cosmic Dancer",
+  "track_uri": "spotify:track:0Z2fQ0Avroujey7uTEmMTP",
+  "duration_ms": 270146,
+  "artists": [
+   {
+    "name": "T. Rex",
+    "id": "3dBVyJ7JuOMt4GE9607Qin"
+   }
+  ],
+  "album_name": "Electric Warrior",
+  "album_id": "4Yw5uS8at8GkWmH2gZmLY0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273eaf232c7a3e9c9acb9acd51c",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 9,
+  "track_id": "5p3JunprHCxClJjOmcLV8G",
+  "track_name": "Walk On the Wild Side",
+  "track_uri": "spotify:track:5p3JunprHCxClJjOmcLV8G",
+  "duration_ms": 255875,
+  "artists": [
+   {
+    "name": "Lou Reed",
+    "id": "42TFhl7WlMRXiNqzSrnzPL"
+   }
+  ],
+  "album_name": "Transformer",
+  "album_id": "5SqbMEyAt8332ISGiLX0St",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe5213edd4f8550a8030efcf",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 10,
+  "track_id": "37pKTyMwalomKCZjxTc2QZ",
+  "track_name": "Cherry-coloured Funk",
+  "track_uri": "spotify:track:37pKTyMwalomKCZjxTc2QZ",
+  "duration_ms": 192466,
+  "artists": [
+   {
+    "name": "Cocteau Twins",
+    "id": "5Wabl1lPdNOeIn0SQ5A1mp"
+   }
+  ],
+  "album_name": "Heaven or Las Vegas",
+  "album_id": "5lEphbceIgaK1XxWeSrC9E",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe6211303e796f3d5b7a0e02",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 11,
+  "track_id": "1De66xUavye2fNqhCwtgyo",
+  "track_name": "Lullaby",
+  "track_uri": "spotify:track:1De66xUavye2fNqhCwtgyo",
+  "duration_ms": 589106,
+  "artists": [
+   {
+    "name": "Low",
+    "id": "0wz0jO9anccPzH04N7FLBH"
+   }
+  ],
+  "album_name": "I Could Live In Hope",
+  "album_id": "61dByu8oBt4qdym9Rkz39w",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2738b7a5660aeb00a285ca66ffe",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 12,
+  "track_id": "3PG7BAJG9WkmNOJOlc4uAo",
+  "track_name": "Femme Fatale",
+  "track_uri": "spotify:track:3PG7BAJG9WkmNOJOlc4uAo",
+  "duration_ms": 159000,
+  "artists": [
+   {
+    "name": "The Velvet Underground",
+    "id": "1nJvji2KIlWSseXRSlNYsC"
+   },
+   {
+    "name": "Nico",
+    "id": "0IwlY33zbBXN7zlS9DP2Cj"
+   }
+  ],
+  "album_name": "The Velvet Underground & Nico 45th Anniversary",
+  "album_id": "4xwx0x7k6c5VuThz5qVqmV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398260c528e6eec9dd431c1d7",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 13,
+  "track_id": "55MEbqyxZphjB0beZ7YT0f",
+  "track_name": "Birthday",
+  "track_uri": "spotify:track:55MEbqyxZphjB0beZ7YT0f",
+  "duration_ms": 239533,
+  "artists": [
+   {
+    "name": "The Sugarcubes",
+    "id": "1G0Xwj8mza6b03iYkVdzDP"
+   }
+  ],
+  "album_name": "Life's Too Good",
+  "album_id": "0UQGKhImc5hgh2SxYAA3Jp",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c406b6ff703fc07c16296633",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 14,
+  "track_id": "7y4CtoXHFbs8VgcqbaYb9P",
+  "track_name": "Rip It Up",
+  "track_uri": "spotify:track:7y4CtoXHFbs8VgcqbaYb9P",
+  "duration_ms": 320413,
+  "artists": [
+   {
+    "name": "Orange Juice",
+    "id": "2u7xZP39dtED9EuRX9MUwu"
+   }
+  ],
+  "album_name": "Rip It Up",
+  "album_id": "0kyKdRPKFDn8cATzWkFAsO",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273724b90c41ed526df80d2ddd4",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 15,
+  "track_id": "67Tp0vRSc3yJU0z1UQMD7B",
+  "track_name": "Here's Where The Story Ends",
+  "track_uri": "spotify:track:67Tp0vRSc3yJU0z1UQMD7B",
+  "duration_ms": 234927,
+  "artists": [
+   {
+    "name": "The Sundays",
+    "id": "4nlqDmbzFzbNITaqjJv7D7"
+   }
+  ],
+  "album_name": "Reading, Writing And Arithmetic",
+  "album_id": "6Gym0ls2Eqkh1BtCOhBplN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273441242b353fc7449f60599c6",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 16,
+  "track_id": "38Ngied9rBORlAbLYNCl4k",
+  "track_name": "Once in a Lifetime - 2005 Remaster",
+  "track_uri": "spotify:track:38Ngied9rBORlAbLYNCl4k",
+  "duration_ms": 259906,
+  "artists": [
+   {
+    "name": "Talking Heads",
+    "id": "2x9SpqnPi8rlE9pjHBwmSC"
+   }
+  ],
+  "album_name": "Remain in Light (Deluxe Version)",
+  "album_id": "3AQgdwMNCiN7awXch5fAaG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e56fa8c916dc6ce419dcf557",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 17,
+  "track_id": "1o6DclZHw0HomxXEQR1ijX",
+  "track_name": "Rock & Roll - Full Length Version; 2015 Remaster",
+  "track_uri": "spotify:track:1o6DclZHw0HomxXEQR1ijX",
+  "duration_ms": 283000,
+  "artists": [
+   {
+    "name": "The Velvet Underground",
+    "id": "1nJvji2KIlWSseXRSlNYsC"
+   }
+  ],
+  "album_name": "Loaded: Re-Loaded 45th Anniversary Edition",
+  "album_id": "2ny1rPsLOoKNFZhMLubMrs",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a6d589272dca67a07a00c8a8",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 18,
+  "track_id": "2EEinN4Zk8MUv4OQuLsTBj",
+  "track_name": "Age of Consent - 2015 Remaster",
+  "track_uri": "spotify:track:2EEinN4Zk8MUv4OQuLsTBj",
+  "duration_ms": 315333,
+  "artists": [
+   {
+    "name": "New Order",
+    "id": "0yNLKJebCb8Aueb54LYya3"
+   }
+  ],
+  "album_name": "Power Corruption and Lies",
+  "album_id": "6NTrwu1XJ56jBPx7HMksbZ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a0bb93884823982d57cb2004",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 19,
+  "track_id": "1CapNlKgeOWlBEE54CRamd",
+  "track_name": "Just Like Honey",
+  "track_uri": "spotify:track:1CapNlKgeOWlBEE54CRamd",
+  "duration_ms": 181746,
+  "artists": [
+   {
+    "name": "The Jesus and Mary Chain",
+    "id": "4rjlerN21ygkIhmUv55irs"
+   }
+  ],
+  "album_name": "Psychocandy",
+  "album_id": "0PnzJO3D4i85ALVJPaDpru",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b65ec494e85bf34cd6df1e21",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 20,
+  "track_id": "3vS2tjkjD5GSt1ZHOWkQq8",
+  "track_name": "Cavern",
+  "track_uri": "spotify:track:3vS2tjkjD5GSt1ZHOWkQq8",
+  "duration_ms": 323493,
+  "artists": [
+   {
+    "name": "Liquid Liquid",
+    "id": "4LIRWeEa6WgyAzH1mjYAPx"
+   }
+  ],
+  "album_name": "Slip In And Out Of Phenomenon",
+  "album_id": "37ecsp8BcvEzPmMkZet7rP",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27392fb983b0f6f75c145d7c82f",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 21,
+  "track_id": "4TOMI010Sd4ZAX4aZ5TS85",
+  "track_name": "Perfect Day",
+  "track_uri": "spotify:track:4TOMI010Sd4ZAX4aZ5TS85",
+  "duration_ms": 226509,
+  "artists": [
+   {
+    "name": "Lou Reed",
+    "id": "42TFhl7WlMRXiNqzSrnzPL"
+   }
+  ],
+  "album_name": "Transformer",
+  "album_id": "5SqbMEyAt8332ISGiLX0St",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fe5213edd4f8550a8030efcf",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 22,
+  "track_id": "3EEd6ldsPat620GVYMEhOP",
+  "track_name": "Goo Goo Muck",
+  "track_uri": "spotify:track:3EEd6ldsPat620GVYMEhOP",
+  "duration_ms": 186038,
+  "artists": [
+   {
+    "name": "The Cramps",
+    "id": "4lYtGx5NZQJHsMyhHc5iz3"
+   }
+  ],
+  "album_name": "Psychedelic Jungle",
+  "album_id": "111E8uRgwGQo9YJJBvpALn",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273133d663963bdaa99891a5cee",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 23,
+  "track_id": "37CRPk0L5ZpfPeePEPwE0t",
+  "track_name": "Ashes to Ashes - 2017 Remaster",
+  "track_uri": "spotify:track:37CRPk0L5ZpfPeePEPwE0t",
+  "duration_ms": 266160,
+  "artists": [
+   {
+    "name": "David Bowie",
+    "id": "0oSGxfWSnnOXhD2fKuz2Gy"
+   }
+  ],
+  "album_name": "Scary Monsters (And Super Creeps) [2017 Remaster]",
+  "album_id": "5fxvWHvIDPIALfTfRiwyB0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b62b49cec67e610f6f3d1221",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 24,
+  "track_id": "5by3w3NXvwDpV9FBSOR35u",
+  "track_name": "Heroin",
+  "track_uri": "spotify:track:5by3w3NXvwDpV9FBSOR35u",
+  "duration_ms": 433573,
+  "artists": [
+   {
+    "name": "The Velvet Underground",
+    "id": "1nJvji2KIlWSseXRSlNYsC"
+   },
+   {
+    "name": "Nico",
+    "id": "0IwlY33zbBXN7zlS9DP2Cj"
+   }
+  ],
+  "album_name": "The Velvet Underground & Nico 45th Anniversary",
+  "album_id": "4xwx0x7k6c5VuThz5qVqmV",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398260c528e6eec9dd431c1d7",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 25,
+  "track_id": "6UBQONiLH8kNmmB8UrV2Ef",
+  "track_name": "Genius of Love",
+  "track_uri": "spotify:track:6UBQONiLH8kNmmB8UrV2Ef",
+  "duration_ms": 334360,
+  "artists": [
+   {
+    "name": "Tom Tom Club",
+    "id": "1m24736Bdew1oQVxTePOCo"
+   }
+  ],
+  "album_name": "Tom Tom Club",
+  "album_id": "5WKUL88usO5Y8cfbh2EQdu",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27340f5a8e88ef8bf4782eaa595",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 26,
+  "track_id": "2SSBJhvMsujY94GK5JAtKs",
+  "track_name": "Buena",
+  "track_uri": "spotify:track:2SSBJhvMsujY94GK5JAtKs",
+  "duration_ms": 199666,
+  "artists": [
+   {
+    "name": "Morphine",
+    "id": "3QgSmABpItIdj908ek80n5"
+   }
+  ],
+  "album_name": "Cure for Pain",
+  "album_id": "0FocpOyE7RnaNsiaEhSbp6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c52a14dd96e9cf009d04f75e",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 27,
+  "track_id": "3MWdMCAIFPzcIUdiEi8Pao",
+  "track_name": "Marquee Moon - 2003 Remaster",
+  "track_uri": "spotify:track:3MWdMCAIFPzcIUdiEi8Pao",
+  "duration_ms": 645000,
+  "artists": [
+   {
+    "name": "Television",
+    "id": "0S7Zur2g8YhqlzqtlYStli"
+   }
+  ],
+  "album_name": "Marquee Moon / Adventure / Live at the Waldorf: The Complete Elektra Recordings Plus Liner Notes",
+  "album_id": "2tdeBxBeTVOl95UqS5vV9P",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d7ead923cb1e483604a1ac1b",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 28,
+  "track_id": "6TNNMVpOgn8K5NoDC7alG6",
+  "track_name": "Ooh La La - 2004 Remaster",
+  "track_uri": "spotify:track:6TNNMVpOgn8K5NoDC7alG6",
+  "duration_ms": 214960,
+  "artists": [
+   {
+    "name": "Faces",
+    "id": "3v4feUQnU3VEUqFrjmtekL"
+   }
+  ],
+  "album_name": "The Best of Faces: Good Boys When They're Asleep",
+  "album_id": "375DYMUVvk7xXyKq5IaUTR",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737afedd0d305b4a793e4dcad1",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 29,
+  "track_id": "1XT5kxg6Tk0ukCO2vBQN4v",
+  "track_name": "Making Plans For Nigel",
+  "track_uri": "spotify:track:1XT5kxg6Tk0ukCO2vBQN4v",
+  "duration_ms": 253800,
+  "artists": [
+   {
+    "name": "XTC",
+    "id": "2qT62DYO8Ajb276vUJmvhz"
+   }
+  ],
+  "album_name": "Drums And Wires",
+  "album_id": "4S6y2iTYbGONSlNJHYyrVl",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27324110c456fe319f691e1a320",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 30,
+  "track_id": "5Vx3e9PipiEceifVyBzCdj",
+  "track_name": "Movin' on Up",
+  "track_uri": "spotify:track:5Vx3e9PipiEceifVyBzCdj",
+  "duration_ms": 230533,
+  "artists": [
+   {
+    "name": "Primal Scream",
+    "id": "3wury2nd8idV4GecUg5xze"
+   }
+  ],
+  "album_name": "Screamadelica",
+  "album_id": "4TECsw2dFHZ1ULrT7OA3OL",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734bd22ff5ca55d5fdab3345eb",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 31,
+  "track_id": "4049hr5UsNQEFInx9HpMI4",
+  "track_name": "Paris 1919 - Remastered 2024",
+  "track_uri": "spotify:track:4049hr5UsNQEFInx9HpMI4",
+  "duration_ms": 243706,
+  "artists": [
+   {
+    "name": "John Cale",
+    "id": "5MWBg16f5UYiaSlyVhzlIW"
+   }
+  ],
+  "album_name": "Paris 1919 (Deluxe Edition)",
+  "album_id": "6oNqOeW4FADs5D8fEXOT2n",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736203ecb2863d44223da36613",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 32,
+  "track_id": "14bdkfiD8UAYJalXKFwcwb",
+  "track_name": "Thirteen",
+  "track_uri": "spotify:track:14bdkfiD8UAYJalXKFwcwb",
+  "duration_ms": 154480,
+  "artists": [
+   {
+    "name": "Big Star",
+    "id": "3UvcmAOZt64oKpP95f6MMM"
+   }
+  ],
+  "album_name": "#1 Record/Radio City",
+  "album_id": "4lZSX0E1dcg1bi5T4BzWf0",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e227327478c8831fd12bfb84",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 33,
+  "track_id": "34Rt8Ti2OAsA8s39rLgyML",
+  "track_name": "Love Is The Drug",
+  "track_uri": "spotify:track:34Rt8Ti2OAsA8s39rLgyML",
+  "duration_ms": 248645,
+  "artists": [
+   {
+    "name": "Roxy Music",
+    "id": "3fhOTtm0LBJ3Ojn4hIljLo"
+   }
+  ],
+  "album_name": "Roxy Music Collection",
+  "album_id": "6VQZ6NNyt8E6Nj93mkoi0y",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d5abf16cc43eb695e58439cf",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 34,
+  "track_id": "1KdwPeY1WRWQGHCmRJTveb",
+  "track_name": "Cannonball",
+  "track_uri": "spotify:track:1KdwPeY1WRWQGHCmRJTveb",
+  "duration_ms": 213693,
+  "artists": [
+   {
+    "name": "The Breeders",
+    "id": "1xgFexIwrf2QjbU0buCNnp"
+   }
+  ],
+  "album_name": "Last Splash",
+  "album_id": "57F44c0MTziVzHPEuJtH9A",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fbf772eed6abce36ddf9233c",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 35,
+  "track_id": "0p5eZCY0R7uNCZS1YDtIYI",
+  "track_name": "Hey",
+  "track_uri": "spotify:track:0p5eZCY0R7uNCZS1YDtIYI",
+  "duration_ms": 210906,
+  "artists": [
+   {
+    "name": "Pixies",
+    "id": "6zvul52xwTWzilBZl6BUbT"
+   }
+  ],
+  "album_name": "Doolittle",
+  "album_id": "0DQyTVcDhK9wm0f6RaErWO",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730ab3c2a306c614fae36ff1d6",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 36,
+  "track_id": "758wEKVqfYopJIHYWdLVd4",
+  "track_name": "I Wanna Be Adored - Remastered 2009",
+  "track_uri": "spotify:track:758wEKVqfYopJIHYWdLVd4",
+  "duration_ms": 292800,
+  "artists": [
+   {
+    "name": "The Stone Roses",
+    "id": "1lYT0A0LV5DUfxr6doRP3d"
+   }
+  ],
+  "album_name": "The Stone Roses",
+  "album_id": "0um9FI6BLBldL5POP4D4Cw",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cf1f6466a493eb73d6d9d280",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 37,
+  "track_id": "7jQD3oqlzWzs2ZwKoeTvVX",
+  "track_name": "Save It for Later - 2012 Remaster",
+  "track_uri": "spotify:track:7jQD3oqlzWzs2ZwKoeTvVX",
+  "duration_ms": 213946,
+  "artists": [
+   {
+    "name": "The English Beat",
+    "id": "1eVEVL20zNLcGrPDOR691N"
+   }
+  ],
+  "album_name": "Special Beat Service (Expanded) [2012 Remaster]",
+  "album_id": "6DXcK83yIv2QP8Kaz8E8yX",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27315012e4d503feb8c123138d6",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 38,
+  "track_id": "3cw3Z7mS55gd3NUjh4k0bL",
+  "track_name": "Sweet Jane - Full Length Version; 2015 Remaster",
+  "track_uri": "spotify:track:3cw3Z7mS55gd3NUjh4k0bL",
+  "duration_ms": 246306,
+  "artists": [
+   {
+    "name": "The Velvet Underground",
+    "id": "1nJvji2KIlWSseXRSlNYsC"
+   }
+  ],
+  "album_name": "Loaded: Re-Loaded 45th Anniversary Edition",
+  "album_id": "2ny1rPsLOoKNFZhMLubMrs",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a6d589272dca67a07a00c8a8",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 39,
+  "track_id": "0qRSrdDK4xj1doRViNPYwM",
+  "track_name": "Roadrunner (Alternative Version)",
+  "track_uri": "spotify:track:0qRSrdDK4xj1doRViNPYwM",
+  "duration_ms": 295013,
+  "artists": [
+   {
+    "name": "The Modern Lovers",
+    "id": "2eRdPaLHWAL4d1WcNUO9Vz"
+   }
+  ],
+  "album_name": "The Modern Lovers (Expanded Version)",
+  "album_id": "7ro1W6lc4tuTaRyA8rnVm1",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b44ebe6e50148bca8bce584d",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 40,
+  "track_id": "0WIbzDVEpmOyBnqqdtqIL9",
+  "track_name": "Teen Age Riot (Album Version)",
+  "track_uri": "spotify:track:0WIbzDVEpmOyBnqqdtqIL9",
+  "duration_ms": 417800,
+  "artists": [
+   {
+    "name": "Sonic Youth",
+    "id": "5UqTO8smerMvxHYA5xsXb6"
+   }
+  ],
+  "album_name": "Daydream Nation (Deluxe Edition)",
+  "album_id": "23O4F21GDWiGd33tFN3ZgI",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27320f51363b9e2cbd207f158ba",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 41,
+  "track_id": "2CdS3DRqWR5LAhy4hM5X9W",
+  "track_name": "Laid",
+  "track_uri": "spotify:track:2CdS3DRqWR5LAhy4hM5X9W",
+  "duration_ms": 156666,
+  "artists": [
+   {
+    "name": "James",
+    "id": "0qLNsNKm8bQcMoRFkR8Hmh"
+   }
+  ],
+  "album_name": "Laid",
+  "album_id": "5pALyxshOPc8LLKggzNvQe",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b67dbb84e0c1f82be886c8ea",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 42,
+  "track_id": "7jIAttgQTpLDoNtykIQXjH",
+  "track_name": "Blister In The Sun",
+  "track_uri": "spotify:track:7jIAttgQTpLDoNtykIQXjH",
+  "duration_ms": 145706,
+  "artists": [
+   {
+    "name": "Violent Femmes",
+    "id": "0rpMdBzQXf7aYRnu5fDBJy"
+   }
+  ],
+  "album_name": "Violent Femmes",
+  "album_id": "0Ojio25IPzIrw1rUmgrhrG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27354096a7f898de0233d76f626",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 43,
+  "track_id": "1LzNfuep1bnAUR9skqdHCK",
+  "track_name": "Fade Into You",
+  "track_uri": "spotify:track:1LzNfuep1bnAUR9skqdHCK",
+  "duration_ms": 295600,
+  "artists": [
+   {
+    "name": "Mazzy Star",
+    "id": "37w38cCSGgKLdayTRjna4W"
+   }
+  ],
+  "album_name": "So Tonight That I Might See",
+  "album_id": "5K18gTgac0q6Jma5HkV1vA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27389a392107ebd79818022b3ea",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 44,
+  "track_id": "4Q3vc39QZjLpGG7cS33kiC",
+  "track_name": "Wuthering Heights - 2018 Remaster",
+  "track_uri": "spotify:track:4Q3vc39QZjLpGG7cS33kiC",
+  "duration_ms": 268933,
+  "artists": [
+   {
+    "name": "Kate Bush",
+    "id": "1aSxMhuvixZ8h9dK9jIDwL"
+   }
+  ],
+  "album_name": "The Kick Inside (2018 Remaster)",
+  "album_id": "0ld04FI3tfuxefSbNwCJSc",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27335538744db9802cea0559756",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 45,
+  "track_id": "3HMOMdRPywfouYx5B4PvaH",
+  "track_name": "Carry the Zero",
+  "track_uri": "spotify:track:3HMOMdRPywfouYx5B4PvaH",
+  "duration_ms": 343893,
+  "artists": [
+   {
+    "name": "Built To Spill",
+    "id": "3kbBWco9PZ5eSQsNScwG6U"
+   }
+  ],
+  "album_name": "Keep It like a Secret",
+  "album_id": "2PKZhfPrgMmK5zug2pqdHA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730c8cece24badfb7bfce2f38d",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 46,
+  "track_id": "6ewN9MaFbi78oDLT9wYDgn",
+  "track_name": "Ghost Town",
+  "track_uri": "spotify:track:6ewN9MaFbi78oDLT9wYDgn",
+  "duration_ms": 219306,
+  "artists": [
+   {
+    "name": "The Specials",
+    "id": "6xnvNmSzmeOE1bLKnYXKW3"
+   }
+  ],
+  "album_name": "Stereo-Typical: A's, B's & Rarities",
+  "album_id": "0EKaJQaxiszKS8DBUDhbtz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f994274f989e9faa4f26cbcd",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 47,
+  "track_id": "2fXKyAyPrEa24c6PJyqznF",
+  "track_name": "Common People - Full Length Version",
+  "track_uri": "spotify:track:2fXKyAyPrEa24c6PJyqznF",
+  "duration_ms": 351626,
+  "artists": [
+   {
+    "name": "Pulp",
+    "id": "36E7oYfz3LLRto6l2WmDcD"
+   }
+  ],
+  "album_name": "Different Class",
+  "album_id": "3ly9T2L4pqTZijFgQssd3x",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fd952bece8f049dbcd7df93f",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 48,
+  "track_id": "2xTk109VtSva8rmQvb2Esn",
+  "track_name": "Mystery Achievement - 2006 Remaster",
+  "track_uri": "spotify:track:2xTk109VtSva8rmQvb2Esn",
+  "duration_ms": 322906,
+  "artists": [
+   {
+    "name": "Pretenders",
+    "id": "0GByy3DcfbQwDvXGCWmzv9"
+   }
+  ],
+  "album_name": "Pretenders",
+  "album_id": "6AFFu3ilmlEDz1I9ZaNOZw",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733bfd0d4e205f83b591600e43",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 49,
+  "track_id": "17GMg1ZyQJtm3HkXQFZ31f",
+  "track_name": "Lola",
+  "track_uri": "spotify:track:17GMg1ZyQJtm3HkXQFZ31f",
+  "duration_ms": 243506,
+  "artists": [
+   {
+    "name": "The Raincoats",
+    "id": "4t7bXPFEPe0pu1ozhdDLOp"
+   }
+  ],
+  "album_name": "The Raincoats",
+  "album_id": "190Tx9jPHndq0qUlq79BJJ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27398b6d9a4e006f7e7bbe23769",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 50,
+  "track_id": "0Nn4RrvVfwSSLDvkhdRc1n",
+  "track_name": "Damaged Goods",
+  "track_uri": "spotify:track:0Nn4RrvVfwSSLDvkhdRc1n",
+  "duration_ms": 206786,
+  "artists": [
+   {
+    "name": "Gang Of Four",
+    "id": "3AmWjMXXtBJOmNGpUFSOAl"
+   }
+  ],
+  "album_name": "Entertainment!",
+  "album_id": "7LMOo068Ndv0wjTGUDtYqK",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730bc24b6400fb40a0a034e215",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 51,
+  "track_id": "21YxK0klhpfLW8budkJaMF",
+  "track_name": "Lust For Life",
+  "track_uri": "spotify:track:21YxK0klhpfLW8budkJaMF",
+  "duration_ms": 313925,
+  "artists": [
+   {
+    "name": "Iggy Pop",
+    "id": "33EUXrFKGjpUSGacqEHhU4"
+   }
+  ],
+  "album_name": "Lust For Life",
+  "album_id": "2jnV6ytZOmt71iEC5xHEYz",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734aa5f679427e35409a06f225",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 52,
+  "track_id": "35ickeV5eBqwfjvMZoOb3d",
+  "track_name": "Cheree (2019 - Remaster)",
+  "track_uri": "spotify:track:35ickeV5eBqwfjvMZoOb3d",
+  "duration_ms": 222306,
+  "artists": [
+   {
+    "name": "Suicide",
+    "id": "6uVeWolwyRDrT84lLsaZyW"
+   }
+  ],
+  "album_name": "Suicide (2019 - Remaster)",
+  "album_id": "46kw5FsFdJhNRL8wfHM9Bp",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739707d3e2f2406aab2282cf9e",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 53,
+  "track_id": "6xUMt58RCX98m7g0KcMwAS",
+  "track_name": "Feel the Pain",
+  "track_uri": "spotify:track:6xUMt58RCX98m7g0KcMwAS",
+  "duration_ms": 258066,
+  "artists": [
+   {
+    "name": "Dinosaur Jr.",
+    "id": "267VY6GX5LyU5c9M85ECZQ"
+   }
+  ],
+  "album_name": "Without a Sound",
+  "album_id": "07m9cMgG70Pznj6M02qvGN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273612e30fdaa4c9d5f758dac6c",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 54,
+  "track_id": "5r2z0FHOoFI06GZEVGDjzM",
+  "track_name": "Tempted",
+  "track_uri": "spotify:track:5r2z0FHOoFI06GZEVGDjzM",
+  "duration_ms": 240333,
+  "artists": [
+   {
+    "name": "Squeeze",
+    "id": "6Jrj26oAY96EEC2lqC6fua"
+   }
+  ],
+  "album_name": "East Side Story",
+  "album_id": "4178w40uOpDld2RnR1ifCy",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27343ae2fd11f668545104e026b",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 55,
+  "track_id": "6m7fhJkK6TbuGDFhBNpgyn",
+  "track_name": "It's My Life",
+  "track_uri": "spotify:track:6m7fhJkK6TbuGDFhBNpgyn",
+  "duration_ms": 232280,
+  "artists": [
+   {
+    "name": "Talk Talk",
+    "id": "7Fo8TAyGJr4VmhE68QamMf"
+   }
+  ],
+  "album_name": "The Very Best Of",
+  "album_id": "2sVePugUVnYAPEyIlGP6Hx",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737a616b8c9c5aecc570f7f332",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 56,
+  "track_id": "0KrYPz4S4mKHeBjCwYJp0s",
+  "track_name": "Watching The Detectives - Single Version",
+  "track_uri": "spotify:track:0KrYPz4S4mKHeBjCwYJp0s",
+  "duration_ms": 226040,
+  "artists": [
+   {
+    "name": "Elvis Costello",
+    "id": "2BGRfQgtzikz1pzAD0kaEn"
+   }
+  ],
+  "album_name": "My Aim Is True",
+  "album_id": "1aucGNKimhgARC7iO2xLt2",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273008a93d976cfd5a76ba06b9b",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 57,
+  "track_id": "1dJuteDIOkGfDSN7zPkzNv",
+  "track_name": "She Don't Use Jelly",
+  "track_uri": "spotify:track:1dJuteDIOkGfDSN7zPkzNv",
+  "duration_ms": 222278,
+  "artists": [
+   {
+    "name": "The Flaming Lips",
+    "id": "16eRpMNXSQ15wuJoeqguaB"
+   }
+  ],
+  "album_name": "Transmissions From the Satellite Heart",
+  "album_id": "0rr668ZzoNDQa1yxhSpBAw",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736a80217584484a9372d95b66",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 58,
+  "track_id": "5fbQCQt91LsVgXusFS0CCD",
+  "track_name": "Disorder - 2007 Remaster",
+  "track_uri": "spotify:track:5fbQCQt91LsVgXusFS0CCD",
+  "duration_ms": 209039,
+  "artists": [
+   {
+    "name": "Joy Division",
+    "id": "432R46LaYsJZV2Gmc4jUV5"
+   }
+  ],
+  "album_name": "Unknown Pleasures (Collector's Edition)",
+  "album_id": "33qkK1brpt6t8unIpeM2Oy",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27316eb1e685e6bd37ab3228de6",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 59,
+  "track_id": "6nFdjV1Ko66O111x74K2kn",
+  "track_name": "Dear God - Remastered 2001",
+  "track_uri": "spotify:track:6nFdjV1Ko66O111x74K2kn",
+  "duration_ms": 219506,
+  "artists": [
+   {
+    "name": "XTC",
+    "id": "2qT62DYO8Ajb276vUJmvhz"
+   }
+  ],
+  "album_name": "Skylarking",
+  "album_id": "3FVsJiQMI7dp0RfTBdWtMW",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273fc44899bcbe64d27e5977512",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 60,
+  "track_id": "4alHo6RGd0D3OUbTPExTHN",
+  "track_name": "Just What I Needed",
+  "track_uri": "spotify:track:4alHo6RGd0D3OUbTPExTHN",
+  "duration_ms": 225626,
+  "artists": [
+   {
+    "name": "The Cars",
+    "id": "6DCIj8jNaNpBz8e5oKFPtp"
+   }
+  ],
+  "album_name": "The Cars",
+  "album_id": "4tJPWT4r4FSKwy784Qs1Fq",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f725bc7907dcf15aa2c6e7b7",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 61,
+  "track_id": "5rzr3lYGJiw3OXEg8imWgH",
+  "track_name": "The Lovecats",
+  "track_uri": "spotify:track:5rzr3lYGJiw3OXEg8imWgH",
+  "duration_ms": 220093,
+  "artists": [
+   {
+    "name": "The Cure",
+    "id": "7bu3H8JO7d0UbMoVzbo70s"
+   }
+  ],
+  "album_name": "Japanese Whispers",
+  "album_id": "6fFTxlpJPGQbO3CbVz9MOS",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27354cff06df14254eb6ea2dacb",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 62,
+  "track_id": "0xzn2U71zNWLeJbE4Zat4C",
+  "track_name": "Space Age Love Song",
+  "track_uri": "spotify:track:0xzn2U71zNWLeJbE4Zat4C",
+  "duration_ms": 227866,
+  "artists": [
+   {
+    "name": "A Flock Of Seagulls",
+    "id": "0uAjBatvB4ubpd4kCfjmNt"
+   }
+  ],
+  "album_name": "A Flock Of Seagulls",
+  "album_id": "1hwPP3qgnV7PQrMSy6qFw8",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734d38e04627b3843ed3db042c",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 63,
+  "track_id": "1r8oPEXqnhUVgkUkJNqEuF",
+  "track_name": "Love Will Tear Us Apart - 2010 Remaster",
+  "track_uri": "spotify:track:1r8oPEXqnhUVgkUkJNqEuF",
+  "duration_ms": 204621,
+  "artists": [
+   {
+    "name": "Joy Division",
+    "id": "432R46LaYsJZV2Gmc4jUV5"
+   }
+  ],
+  "album_name": "Substance",
+  "album_id": "2KPhpTUihx9KRWRwBtpTeJ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a1d7fb161ce10fbd09b08183",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 64,
+  "track_id": "0gdmDP6xy3ZV7JNoHWAN9k",
+  "track_name": "Town Called Malice",
+  "track_uri": "spotify:track:0gdmDP6xy3ZV7JNoHWAN9k",
+  "duration_ms": 173320,
+  "artists": [
+   {
+    "name": "The Jam",
+    "id": "2P560DaOMNDUACoH8ZhOCR"
+   }
+  ],
+  "album_name": "The Gift",
+  "album_id": "71OyKSCFX7DGsJc6qAhhQG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733cb7b96b66eeb42c6a74ebb3",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 65,
+  "track_id": "672N8DGGTOLCOgWe0koX5g",
+  "track_name": "I Wanna Be Your Dog",
+  "track_uri": "spotify:track:672N8DGGTOLCOgWe0koX5g",
+  "duration_ms": 188560,
+  "artists": [
+   {
+    "name": "The Stooges",
+    "id": "4BFMTELQyWJU1SwqcXMBm3"
+   }
+  ],
+  "album_name": "The Stooges",
+  "album_id": "3MANoCcmaHWeXSuWiO3iVo",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a7d2baa04a56c87de579db69",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 66,
+  "track_id": "1A3OA6zON5HHueFm4ejrRF",
+  "track_name": "Because the Night",
+  "track_uri": "spotify:track:1A3OA6zON5HHueFm4ejrRF",
+  "duration_ms": 202866,
+  "artists": [
+   {
+    "name": "Patti Smith",
+    "id": "0vYkHhJ48Bs3jWcvZXvOrP"
+   }
+  ],
+  "album_name": "Outside Society",
+  "album_id": "00tuL4qPxBs3w8S1BaG3Zv",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273abf8af618e2e433d9a912515",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 67,
+  "track_id": "1Cl1J4Ai7NkuhLdaDHthTh",
+  "track_name": "Pretty In Pink",
+  "track_uri": "spotify:track:1Cl1J4Ai7NkuhLdaDHthTh",
+  "duration_ms": 239960,
+  "artists": [
+   {
+    "name": "The Psychedelic Furs",
+    "id": "0O0lrN34wrcuBenkqlEDZe"
+   }
+  ],
+  "album_name": "The Psychedelic Furs Superhits",
+  "album_id": "4sdhLZRcO9DQmrs889H0tl",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273adaf7bcb316b31cdcf10bc30",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 68,
+  "track_id": "3oyc1mIdCBGaU55wX7otqM",
+  "track_name": "Pump It Up - 2021 Remaster",
+  "track_uri": "spotify:track:3oyc1mIdCBGaU55wX7otqM",
+  "duration_ms": 196680,
+  "artists": [
+   {
+    "name": "Elvis Costello & The Attractions",
+    "id": "4qmHkMxr6pTWh5Zo74odpH"
+   }
+  ],
+  "album_name": "This Year's Model (2021 Remaster)",
+  "album_id": "4RLIesiAVONV4fOUlOSmr4",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c39aa62b10cea6cd2c2c1ed8",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 69,
+  "track_id": "4EFkvOhgAmlHEfDfvfSoh5",
+  "track_name": "Girls on Film - 2010 Remaster",
+  "track_uri": "spotify:track:4EFkvOhgAmlHEfDfvfSoh5",
+  "duration_ms": 212853,
+  "artists": [
+   {
+    "name": "Duran Duran",
+    "id": "0lZoBs4Pzo7R89JM9lxwoT"
+   }
+  ],
+  "album_name": "Duran Duran (Deluxe Edition)",
+  "album_id": "2Tc7ILGF89w1PWOhzuZlqB",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2730fc83f41d5f0bd27105e5048",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 70,
+  "track_id": "3fnL2JDgy4QD04araOl0eY",
+  "track_name": "Androgynous",
+  "track_uri": "spotify:track:3fnL2JDgy4QD04araOl0eY",
+  "duration_ms": 190853,
+  "artists": [
+   {
+    "name": "The Replacements",
+    "id": "4WPY0N74T3KUja57xMQTZ3"
+   }
+  ],
+  "album_name": "Let It Be (Expanded)",
+  "album_id": "4LwFCUyV4wM6SEg84PaLuL",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273008cfa8fb96ef0befcbc615a",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 71,
+  "track_id": "2DBlfjL5chsdeULzhTp5K8",
+  "track_name": "Waiting Room",
+  "track_uri": "spotify:track:2DBlfjL5chsdeULzhTp5K8",
+  "duration_ms": 173266,
+  "artists": [
+   {
+    "name": "Fugazi",
+    "id": "62sC6lUEWRjbFqXpMmOk4G"
+   }
+  ],
+  "album_name": "13 Songs",
+  "album_id": "1FcRwT7uoNdO8L9wbYsfAY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f18ce5dc5f6b0843d3acb3a1",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 72,
+  "track_id": "33HRECrmuelZxOpid6XTNX",
+  "track_name": "Alison",
+  "track_uri": "spotify:track:33HRECrmuelZxOpid6XTNX",
+  "duration_ms": 230986,
+  "artists": [
+   {
+    "name": "Slowdive",
+    "id": "72X6FHxaShda0XeQw3vbeF"
+   }
+  ],
+  "album_name": "Souvlaki",
+  "album_id": "53eHm1f3sFiSzWMaKOl98Z",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f6e31941d10e4819d290af41",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 73,
+  "track_id": "7ITRNB9OckYIp2SW2iXU8U",
+  "track_name": "Soon",
+  "track_uri": "spotify:track:7ITRNB9OckYIp2SW2iXU8U",
+  "duration_ms": 418706,
+  "artists": [
+   {
+    "name": "my bloody valentine",
+    "id": "3G3Gdm0ZRAOxLrbyjfhii5"
+   }
+  ],
+  "album_name": "Loveless",
+  "album_id": "3GH4IiI6jQAIvnHVdb5FB6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27345d60424109af911a1a2b1ef",
+  "added_at": "2025-09-04T14:16:59Z"
+ },
+ {
+  "position": 74,
+  "track_id": "6bEjOYezTuD2gYq5X7tGlP",
+  "track_name": "Mind Your Own Business",
+  "track_uri": "spotify:track:6bEjOYezTuD2gYq5X7tGlP",
+  "duration_ms": 193373,
+  "artists": [
+   {
+    "name": "Delta 5",
+    "id": "2qe52cWdi4IRtgg14CLInb"
+   }
+  ],
+  "album_name": "Singles and Sessions 1979-1981",
+  "album_id": "7dyzbiN0P6EfoxdRIgk6lL",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b3a18ce7493529a2f964b487",
+  "added_at": "2025-09-04T14:16:59Z"
+ }
 ]
