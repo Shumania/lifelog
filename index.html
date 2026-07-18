@@ -665,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.47';
+const PAGE_VERSION = 'p2.48';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2167,7 +2167,7 @@ function renderHistory() {
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
     const ctxId = 'ctx-' + (item.timestamp||'').replace(/\W/g,'');
     // Has album or context → show expand button
-    const hasCtx = item.album || item.context_uri;
+    const hasCtx = item.album || item.context_uri || item.album_id;
 
     html += `<div class="history-item">
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
@@ -2187,7 +2187,7 @@ function renderHistory() {
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         ${exploreButton(item.artist, exploreData)}
-        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
+        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
     </div>
     ${hasCtx ? `<div class="ctx-panel" id="${ctxId}"></div>` : ''}`;
@@ -2599,6 +2599,78 @@ async function loadPlaylistIndex() {
   return _playlistIndex;
 }
 
+// Phase 6 (p2.48): universal History album expansion via immutable per-album chunks.
+// Fetches albums/{album_id}.json (write-once, cached forever). Works for Spotify,
+// Qobuz, and Apple Music history rows alike — expanded tracks play via resolved
+// Spotify URIs through the standard command transport (playDiscovery).
+const _histAlbumChunkCache = {};
+async function toggleHistAlbumTracks(panelId, albumId, btn) {
+  const box = document.getElementById(panelId + '-alb');
+  if (!box) { console.warn('[histAlb] no container for', panelId); return; }
+  if (box.style.display !== 'none') {
+    box.style.display = 'none';
+    btn.textContent = '▾';
+    return;
+  }
+  box.style.display = 'block';
+  btn.textContent = '▴';
+  if (box.dataset.loaded === '1') return;
+  box.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracklist…</div>';
+
+  let chunk = _histAlbumChunkCache[albumId];
+  if (!chunk) {
+    try {
+      const resp = await fetch('albums/' + albumId + '.json');
+      if (resp.ok) {
+        chunk = await resp.json();
+        _histAlbumChunkCache[albumId] = chunk;
+      } else if (resp.status === 404) {
+        console.log('[histAlb] chunk 404 for', albumId, '— firing self-heal webhook');
+        box.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Fetching tracklist… (first request for this album, ~30–60s)</div>';
+        try {
+          await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ action: 'fetch_album_chunk', album_id: albumId }) });
+        } catch(e) { console.warn('[histAlb] self-heal webhook failed:', e && e.message); }
+        // Poll for the chunk: every 10s, up to 12 tries (~2 min)
+        for (let i = 0; i < 12 && !chunk; i++) {
+          await new Promise(r => setTimeout(r, 10000));
+          try {
+            const rr = await fetch('albums/' + albumId + '.json?v=' + Date.now());
+            if (rr.ok) { chunk = await rr.json(); _histAlbumChunkCache[albumId] = chunk; }
+          } catch(e) { /* keep polling */ }
+        }
+      }
+    } catch(e) {
+      console.warn('[histAlb] fetch error:', e && e.message);
+    }
+  }
+
+  if (!chunk || !chunk.tracks || chunk.tracks.length === 0) {
+    box.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.6">Tracklist not available yet — try again in a minute</div>';
+    return;
+  }
+
+  let html = '';
+  for (const t of chunk.tracks) {
+    const tName = t.t || '';
+    const tUriVal = t.u || '';
+    const tUri = encodeURIComponent(tUriVal).replace(/'/g, '%27');
+    const tLbl = encodeURIComponent(tName + (chunk.artist ? ' — ' + chunk.artist : '')).replace(/'/g, '%27');
+    const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
+    html += `<div class="album-track-item">
+      <span class="at-num">${num}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
+      <div class="sugg-actions">
+        ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
+        <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
+      </div>
+    </div>`;
+  }
+  box.innerHTML = html;
+  box.dataset.loaded = '1';
+}
+
 function toggleCtxPanel(panelId, btn, encodedInfo) {
   const panel = document.getElementById(panelId);
   if (!panel) return;
@@ -2653,8 +2725,10 @@ async function populateCtxPanel(panelId, info) {
       <span class="ctx-actions">
         <button class="action-btn" onclick="playContext('play','${albumData}')" title="Play Album">▶</button>
         <button class="action-btn" onclick="playContext('queue','${albumData}')" title="Queue Album">+</button>
+        ${info.album_id ? `<button class="action-btn hist-alb-toggle" onclick="toggleHistAlbumTracks('${panelId}','${info.album_id}',this)" title="Show tracklist">▾</button>` : ''}
       </span>
     </div>`;
+    if (info.album_id) rows += `<div class="hist-album-tracks" id="${panelId}-alb" style="display:none"></div>`;
   }
 
   // --- Context playlist row (from tagged data) ---

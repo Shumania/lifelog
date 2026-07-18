@@ -1,14 +1,14 @@
 {
-  "service_version": "2.48.5",
-  "clients": {
-    "lifelog_mind": {
-      "house": "vashon",
-      "sonos_commander": true
-    },
-    "lifelog_shumaframe": {
-      "house": "caphill",
-      "sonos_commander": true
-    }
+ "service_version": "2.48.5",
+ "clients": {
+  "lifelog_mind": {
+   "house": "vashon",
+   "sonos_commander": true
   },
-  "page_version": "p2.47"
+  "lifelog_shumaframe": {
+   "house": "caphill",
+   "sonos_commander": true
+  }
+ },
+ "page_version": "p2.48"
 }
