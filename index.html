@@ -2703,8 +2703,8 @@ async function populateCtxPanel(panelId, info) {
   // Build rows: album first, then playlists
   let rows = '';
 
-  // --- Album row ---
-  if (info.album) {
+  // --- Album row (p2.48: album_id alone is enough — Qobuz/Apple rows may lack a name) ---
+  if (info.album || info.album_id) {
     let albumUri = '';
     // Use context_uri if it's an album
     if (info.context_type === 'album' && info.context_uri) {
@@ -2721,10 +2721,10 @@ async function populateCtxPanel(panelId, info) {
 
     rows += `<div class="ctx-row">
       <span class="ctx-icon">💿</span>
-      <span class="ctx-label"><span class="ctx-type">Album</span>${esc(info.album)}</span>
+      <span class="ctx-label"><span class="ctx-type">Album</span>${esc(info.album || 'Tracklist')}</span>
       <span class="ctx-actions">
-        <button class="action-btn" onclick="playContext('play','${albumData}')" title="Play Album">▶</button>
-        <button class="action-btn" onclick="playContext('queue','${albumData}')" title="Queue Album">+</button>
+        ${info.album ? `<button class="action-btn" onclick="playContext('play','${albumData}')" title="Play Album">▶</button>
+        <button class="action-btn" onclick="playContext('queue','${albumData}')" title="Queue Album">+</button>` : ''}
         ${info.album_id ? `<button class="action-btn hist-alb-toggle" onclick="toggleHistAlbumTracks('${panelId}','${info.album_id}',this)" title="Show tracklist">▾</button>` : ''}
       </span>
     </div>`;
