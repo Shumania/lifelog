@@ -665,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.48';
+const PAGE_VERSION = 'p2.49';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3160,7 +3160,8 @@ function setSubTab(sub) {
 // ══════════════════════════════════════════════════════════════════════════════
 function connectSSE() {
   if (_sseSource) { try { _sseSource.close(); } catch(e) {} }
-  const sseAuth = NTFY_TOKEN ? '&auth=Bearer%20' + NTFY_TOKEN : '';
+  // ntfy requires query-param auth to be base64("Bearer <token>") with padding stripped (p2.49 fix — plaintext form got HTTP 500, SSE dead on arrival)
+  const sseAuth = NTFY_TOKEN ? '&auth=' + btoa('Bearer ' + NTFY_TOKEN).replace(/=+$/, '') : '';
   _sseSource = new EventSource(NTFY_UI_SSE + '?since=16m' + sseAuth);
   _sseLastMsg = Date.now();
   _sseSource.addEventListener('message', (e) => {
