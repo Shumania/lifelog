@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48.5"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.49.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -133,7 +133,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 # CMD_POLL_EVERY removed in v2.24 — GitHub command polling retired (ntfy is sole transport)
-HEARTBEAT_FALLBACK_SECS    = 7200  # v2.48: keepalive every 2h when idle (was 60 min; only if no real POST)
+HEARTBEAT_FALLBACK_SECS    = 14400  # v2.49: keepalive every 4h when idle (was 2h; only if no real POST). Liveness signal only — delta payloads make it near-empty anyway.
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -480,11 +480,104 @@ def record_command_result(action, success, message, cmd_ts=None, detail=None):
         entry["detail"] = detail
     with _command_results_lock:
         _command_results.append(entry)
+    # v2.49 delta delivery: count every appended result
+    global _cmd_total
+    with _delta_lock:
+        _cmd_total += 1
 
 def get_command_results():
     """Return recent command results for embedding in heartbeats."""
     with _command_results_lock:
         return list(_command_results)
+
+# --- DELTA DELIVERY (v2.49) ---------------------------------------------------
+# DESIGN NOTE: deliver-once piggyback payloads. Before v2.49 every webhook POST
+# re-shipped 100 log lines + 50 errors + 50 command results (the same ones, over
+# and over) — ~64% of every payload was duplicate piggyback. Now each ring has a
+# monotonic "total appended" counter and a "delivered" high-water mark; POSTs
+# carry only lines/results the agent has NOT yet seen (capped), and the mark
+# advances ONLY after an HTTP 2xx (failed POSTs lose nothing — items re-ship on
+# the next attempt). Boot/ready heartbeats are exempt for logs (standing rule:
+# raw console visibility on boot). get_logs full dump is untouched.
+_delta_lock      = threading.Lock()
+_log_total       = 0   # incremented in log() for every ring append
+_err_total       = 0   # incremented in log() for every error-ring append
+_cmd_total       = 0   # incremented in record_command_result()
+_log_delivered   = 0
+_err_delivered   = 0
+_cmd_delivered   = 0
+_LOG_DELTA_MAX   = 60  # cap per POST; overflow reported via delta.logs_suppressed
+_ERR_DELTA_MAX   = 10
+_CMD_DELTA_MAX   = 10
+_BOOT_LOG_LINES  = 50  # boot/ready heartbeats always carry last 50 lines (standing rule)
+_delta_boot_logged = False
+
+def build_delta_fields(boot=False):
+    """Return (fields, snap): piggyback fields containing only undelivered
+    log lines / errors / command results, plus a snapshot to pass to
+    _delta_commit() after the POST succeeds (HTTP 2xx). If boot=True, logs are
+    the last _BOOT_LOG_LINES lines regardless of delivery state."""
+    global _delta_boot_logged
+    if not _delta_boot_logged:
+        _delta_boot_logged = True
+        # NOTE: wording avoids _ERROR_KEYWORDS substrings ("err" not "errors")
+        # so this info line never lands in the error ring as a false positive.
+        log(f"[delta] deliver-once payloads active (caps: logs {_LOG_DELTA_MAX} / err {_ERR_DELTA_MAX} / cmd {_CMD_DELTA_MAX}; boot exempt {_BOOT_LOG_LINES} lines)")
+    with _delta_lock:
+        lt, et, ct = _log_total, _err_total, _cmd_total
+        ld, ed, cd = _log_delivered, _err_delivered, _cmd_delivered
+    fields = {}
+    delta_meta = {}
+    # Logs
+    log_new = max(0, lt - ld)
+    if boot:
+        fields["recent_logs"] = get_recent_logs(_BOOT_LOG_LINES)
+        delta_meta["logs_new"] = log_new
+        delta_meta["boot_full_logs"] = True
+    else:
+        ship = min(log_new, _LOG_DELTA_MAX)
+        fields["recent_logs"] = get_recent_logs(ship) if ship else []
+        delta_meta["logs_new"] = log_new
+        if log_new > ship:
+            delta_meta["logs_suppressed"] = log_new - ship  # evicted or over cap; get_logs has the ring
+    # Errors
+    err_new = max(0, et - ed)
+    eship = min(err_new, _ERR_DELTA_MAX)
+    fields["recent_errors"] = get_recent_errors(eship) if eship else []
+    delta_meta["errors_new"] = err_new
+    if err_new > eship:
+        delta_meta["errors_suppressed"] = err_new - eship
+    # Command results
+    cmd_new = max(0, ct - cd)
+    cship = min(cmd_new, _CMD_DELTA_MAX)
+    all_cmds = get_command_results()
+    fields["command_results"] = all_cmds[-cship:] if cship else []
+    delta_meta["cmds_new"] = cmd_new
+    if cmd_new > cship:
+        delta_meta["cmds_suppressed"] = cmd_new - cship
+    fields["delta"] = delta_meta
+    return fields, (lt, et, ct)
+
+def _delta_commit(snap):
+    """Advance delivered high-water marks after a successful (2xx) POST.
+    Monotonic (max) so out-of-order commits can never move marks backward."""
+    global _log_delivered, _err_delivered, _cmd_delivered
+    if not snap:
+        return
+    try:
+        lt, et, ct = snap
+        with _delta_lock:
+            _log_delivered = max(_log_delivered, lt)
+            _err_delivered = max(_err_delivered, et)
+            _cmd_delivered = max(_cmd_delivered, ct)
+    except Exception as _dc_err:
+        log(f"[delta] commit failed (payloads will re-ship, no data lost): {_dc_err}")
+
+def delta_pending_counts():
+    """Return (undelivered_cmds, undelivered_errors) — used by the purposeful
+    debounced-heartbeat gate (v2.49): no undelivered payload = no POST."""
+    with _delta_lock:
+        return max(0, _cmd_total - _cmd_delivered), max(0, _err_total - _err_delivered)
 
 def _rotate_log_if_needed():
     """Trim log file to last 800 lines if it exceeds 500 KB."""
@@ -496,13 +589,16 @@ def _rotate_log_if_needed():
         pass
 
 def log(msg):
-    global _log_write_count
+    global _log_write_count, _log_total, _err_total
     line = f"[{now_iso()}] {msg}"
     print(line, flush=True)
     # Append to in-memory ring buffer (lock-free deque is thread-safe for appends,
     # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
     with _log_ring_lock:
         _log_ring.append(line)
+    # v2.49 delta delivery: count every ring append
+    with _delta_lock:
+        _log_total += 1
     # Also capture to error ring if line matches any error keyword (v2.48: case-insensitive)
     # v2.48.1: skip [DIDL-*] debug dumps — the DIDL XML contains "xmlns:upnp", which
     # matched the case-insensitive "upnp" keyword and flooded the error ring with
@@ -511,6 +607,9 @@ def log(msg):
     if (not _mlow.startswith("[didl-")) and any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
         with _error_ring_lock:
             _error_ring.append(line)
+        # v2.49 delta delivery: count every error-ring append
+        with _delta_lock:
+            _err_total += 1
     try:
         with _log_lock:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -588,8 +687,10 @@ def post_error(message, context="", module="service"):
         "module":   module,
         "version":  SERVICE_VERSION,
         "timestamp": now_iso(),
-        "recent_logs": get_recent_logs(100),
-        "recent_errors": get_recent_errors(50),
+        # v2.49: trimmed 100->30 / 50->15. Error posts stay OUTSIDE delta
+        # accounting on purpose — error context deserves redundant delivery.
+        "recent_logs": get_recent_logs(30),
+        "recent_errors": get_recent_errors(15),
     }
     try:
         requests.post(WEBHOOK, json=payload, timeout=10)
@@ -1139,7 +1240,7 @@ def _log_diagnostic_status():
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
 _just_commanded_room = None
 
-def heartbeat_fields():
+def heartbeat_fields(boot=False):
     """Return standard heartbeat dict to embed in any outbound payload."""
     boot_iso = datetime.fromtimestamp(_service_start_ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fields = {
@@ -1183,48 +1284,39 @@ def heartbeat_fields():
             })
     if np_tracks:
         fields["now_playing_tracks"] = np_tracks
-    # Recent log lines — ride along on every POST for visibility
-    fields["recent_logs"] = get_recent_logs(100)
-    # Dedicated error buffer — persists longer than general logs
-    fields["recent_errors"] = get_recent_errors(50)
-    # Structured command outcomes — for agent-side confirmation/debugging
-    fields["command_results"] = get_command_results()
+    # v2.49: piggyback payloads are DELTAS — only lines/results the agent hasn't
+    # seen yet ride along (boot=True ships last 50 log lines per standing rule).
+    # POST sites must pop fields["_delta_snap"] before sending and pass it to
+    # _delta_commit() after HTTP 2xx; skipping the commit only means re-shipping.
+    _dfields, _dsnap = build_delta_fields(boot=boot)
+    fields.update(_dfields)
+    fields["_delta_snap"] = list(_dsnap)
     return fields
 
-# v2.48: payload-light pure-idle heartbeats — state tracked between sends
-_last_hb_light_state = {"newest_err": "", "last_cmd_at": ""}
+# v2.49: the v2.48 pure-idle trimming state is gone — delta delivery makes every
+# idle payload near-empty by construction. hb_light survives as a flag only.
 
 def _send_heartbeat():
     sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
     fields = heartbeat_fields()
-    # v2.48: if nothing is playing AND no new errors AND no new command results
-    # since the last standalone heartbeat, trim the log payload (pure-idle diet).
-    # Full logs always remain available on demand via get_logs.
+    snap = fields.pop("_delta_snap", None)  # v2.49: never ship the snapshot
     try:
-        _rp = fields.get("rooms_playing") or []
-        _errs = fields.get("recent_errors") or []
-        _newest_err = _errs[-1] if _errs else ""
-        _cmds = fields.get("command_results") or []
-        _last_cmd_at = _cmds[-1].get("at", "") if _cmds else ""
-        _pure_idle = (not _rp and not fields.get("now_playing_tracks")
-                      and _newest_err == _last_hb_light_state["newest_err"]
-                      and _last_cmd_at == _last_hb_light_state["last_cmd_at"])
-        if _pure_idle:
-            fields["recent_logs"] = (fields.get("recent_logs") or [])[-10:]
-            fields["recent_errors"] = _errs[-5:]
+        _pend_cmds, _pend_errs = delta_pending_counts()
+        if (not (fields.get("rooms_playing") or []) and not fields.get("now_playing_tracks")
+                and _pend_cmds == 0 and _pend_errs == 0):
             fields["hb_light"] = True
-            log("* Heartbeat: pure-idle -- payload-light (recent_logs trimmed to 10)")
-        _last_hb_light_state["newest_err"] = _newest_err
-        _last_hb_light_state["last_cmd_at"] = _last_cmd_at
+            log("* Heartbeat: pure-idle (delta payload near-empty)")
     except Exception as _le:
-        log(f"* Heartbeat: light-mode check failed ({_le}) -- sending full payload")
+        log(f"* Heartbeat: light-flag check failed ({_le}) -- sending anyway")
     payload.update(fields)
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=10)
         log(f"* Heartbeat (standalone) -> HTTP {r.status_code}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(snap)  # v2.49: mark piggyback delivered
     except Exception as e:
         log(f"Heartbeat failed: {e}")
 
@@ -1431,18 +1523,22 @@ def flush_buffer(reason=""):
         log(f"Warning: couldn't persist buffer: {e}")
 
     sse_relay = build_sse_relay_payload()
+    _hb = heartbeat_fields()
+    _snap = _hb.pop("_delta_snap", None)  # v2.49: never ship the snapshot
     payload = {
         "type":      "sonos_history_batch",
         "flush_reason": reason or "unknown",
         "house":     house,
         "items":     items,
-        "heartbeat": heartbeat_fields(),
+        "heartbeat": _hb,
     }
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=20)
         log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
         # v2.48: don't blind-unlink -- a track added during the POST window would
         # vanish from disk. Rewrite the file with whatever is currently buffered.
@@ -1480,14 +1576,28 @@ def _schedule_debounced_heartbeat(action):
 
 def _fire_debounced_heartbeat():
     global last_post_ts
-    log("[debounce-hb] firing post-command state heartbeat")
     try:
         with pending_buffer_lock:
             _has_pending = len(pending_buffer) > 0
         if _has_pending:
+            log("[debounce-hb] firing post-command state heartbeat (history pending)")
             flush_buffer(reason="debounce-post-command")
-        else:
-            _send_heartbeat()
+            last_post_ts = time.time()
+            return
+        # v2.49 PURPOSEFUL GATE: only POST if the agent has something to collect —
+        # undelivered command results (e.g. silent commands never POST their own
+        # result) or undelivered errors. Non-silent commands POST + commit their
+        # result immediately, so this debounce firing 75s later would be a pure
+        # duplicate agent run. Browser state needs no POST either way (direct SSE).
+        # Gate self-expires by definition (Rule 11): any new result/error makes
+        # counts non-zero and the next debounce fires normally.
+        _pend_cmds, _pend_errs = delta_pending_counts()
+        if _pend_cmds == 0 and _pend_errs == 0:
+            log("[debounce-hb] skipped -- nothing undelivered (purposeful gate, v2.49); SSE carries state (benign no-op)")
+            return
+        # NOTE: "err-delta" wording avoids the "error" keyword -> error-ring false positive
+        log(f"[debounce-hb] firing post-command state heartbeat ({_pend_cmds} result(s), {_pend_errs} err-delta undelivered)")
+        _send_heartbeat()
         last_post_ts = time.time()
     except Exception as _e:
         log(f"[debounce-hb] FAILED: {_e}")
@@ -2535,10 +2645,13 @@ def execute_command(cmd, source="unknown"):
             if sse_relay:
                 result["sse_relay"] = sse_relay
             result["heartbeat"] = heartbeat_fields()
+            _fl_snap = result["heartbeat"].pop("_delta_snap", None)  # v2.49
             result["t_result_sent"] = now_iso()
             try:
                 r = requests.post(WEBHOOK, json=result, timeout=15)
                 log(f"Flush result -> HTTP {r.status_code}: {result['message']}")
+                if 200 <= r.status_code < 300:
+                    _delta_commit(_fl_snap)  # v2.49: mark piggyback delivered
                 last_post_ts = time.time()
             except Exception as e:
                 log(f"Failed to post flush result: {e}")
@@ -3789,10 +3902,13 @@ def execute_command(cmd, source="unknown"):
     if sse_relay:
         result["sse_relay"] = sse_relay
     result["heartbeat"] = heartbeat_fields()
+    _cr_snap = result["heartbeat"].pop("_delta_snap", None)  # v2.49
 
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result -> HTTP {r.status_code}: {result['message']}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(_cr_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
         if result.get("pending_history"):
             try: PENDING_PATH.unlink(missing_ok=True)
@@ -3898,9 +4014,14 @@ def sonos_main_loop():
                 try:
                     log("Sending startup ready heartbeat...")
                     rdy_payload = {"type": "heartbeat", "startup_phase": "ready"}
-                    rdy_payload.update(heartbeat_fields())
-                    requests.post(WEBHOOK, json=rdy_payload, timeout=10)
-                    log("Ready heartbeat sent")
+                    # v2.49: boot=True — ready heartbeats always carry the last 50
+                    # raw console lines (standing rule), exempt from delta trimming
+                    rdy_payload.update(heartbeat_fields(boot=True))
+                    _rdy_snap = rdy_payload.pop("_delta_snap", None)
+                    _rdy_r = requests.post(WEBHOOK, json=rdy_payload, timeout=10)
+                    if 200 <= _rdy_r.status_code < 300:
+                        _delta_commit(_rdy_snap)
+                    log(f"Ready heartbeat sent (HTTP {_rdy_r.status_code}, v2.49 delta baseline committed)")
                     # Send SSE status_update so browser status bar goes green immediately
                     publish_ui_event("status_update", {})
                     log("Startup SSE status_update sent")
