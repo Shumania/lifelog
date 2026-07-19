@@ -665,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.49';
+const PAGE_VERSION = 'p2.50';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1140,6 +1140,8 @@ async function sendCmd(action) {
   if (action === 'volume_up') showToast('🔊 Volume up · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
   if (action === 'volume_down') showToast('🔉 Volume down · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
   const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
+  // p2.50: finer volume steps — service default is ±10/tap, way too coarse vs native Sonos app; send explicit step
+  if (action === 'volume_up' || action === 'volume_down') payload.step = 3;
   await postNtfy(payload);
 }
 
@@ -1205,7 +1207,7 @@ async function spotifyCmd(action) {
       case 'prev': await spotifyApi('POST', '/me/player/previous' + dp); break;
       case 'volume_up': case 'volume_down': {
         const cur = spotifyDevices.find(d => d.is_active)?.volume_percent || 50;
-        const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 10 : -10)));
+        const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 5 : -5))); // p2.50: ±5 (was ±10)
         await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
         showToast((action === 'volume_up' ? '🔊' : '🔉') + ' Volume ' + vol + '%');
         break;
