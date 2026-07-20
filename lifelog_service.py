@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.49.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.50.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -322,6 +322,22 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         _state_ring_buffer.pop()
     _persist_state_ring_buffer()
 
+def _update_state_ring_rooms(track_info, started_str, rooms_list):
+    """v2.50: when a grouped room coalesces into an existing buffered play, grow
+    the matching ring entry's rooms string in place (match on title+artist+ts).
+    NEVER raises — ring maintenance must not break history buffering."""
+    try:
+        for entry in _state_ring_buffer:
+            if (entry.get("title") == track_info.get("title", "")
+                    and entry.get("artist") == track_info.get("artist", "")
+                    and entry.get("timestamp") == started_str):
+                entry["rooms"] = ", ".join(rooms_list)
+                _persist_state_ring_buffer()
+                return
+        log(f"[state-ring] coalesce update: no matching entry for '{track_info.get('title','')}' @ {started_str} (benign no-op)")
+    except Exception as e:
+        log(f"[state-ring] coalesce update failed: {e}")
+
 def _build_state_payload():
     """Build the state-{house}.json payload from current live state.
     v2.24: Reads from _poll_snapshot instead of calling get_rooms_playing()."""
@@ -459,7 +475,14 @@ _error_ring_lock = threading.Lock()
 # transport errors like "ntfy stream error" and "ConnectionResetError", so they
 # never reached the error ring and were invisible to the watchdog audits.
 _ERROR_KEYWORDS  = ("error", "fail", "traceback", "exception", "critical", "crash", "upnp", "http 4", "http 5", "timed out", "refused", "unreachable")
-_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
+_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)",
+                    # v2.50: crash-RECOVERY lines are informational successes, not errors --
+                    # "Recovering N buffered track(s) from crash" and "[OK] Flushed ... [crash-recovery]"
+                    # matched the "crash" keyword and polluted the error ring for days.
+                    # NOTE: deliberately NO blanket "[ok]" token -- "[OK] Flushed ... -> HTTP 500"
+                    # is a real error and must still reach the ring. "-> http 200" makes any
+                    # success-status line benign regardless of other keyword matches.
+                    "recovering ", "-> http 200")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
 
 # Command results ring buffer — structured outcomes for agent-side correlation
 _CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the debounced heartbeat delivers them
@@ -1525,18 +1548,23 @@ def flush_buffer(reason=""):
     sse_relay = build_sse_relay_payload()
     _hb = heartbeat_fields()
     _snap = _hb.pop("_delta_snap", None)  # v2.49: never ship the snapshot
+    # v2.50: strip internal coalesce bookkeeping fields from the wire copy
+    # (the persisted buffer file KEEPS them so a crash-restore can still coalesce).
+    wire_items = [{k: v for k, v in it.items() if not k.startswith("_")} for it in items]
     payload = {
         "type":      "sonos_history_batch",
+        "format":    2,   # v2.50 room-factored items (rooms lists, roomless dedup keys)
         "flush_reason": reason or "unknown",
         "house":     house,
-        "items":     items,
+        "items":     wire_items,
         "heartbeat": _hb,
     }
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=20)
-        log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
+        _room_plays = sum(len(it.get("rooms") or [1]) for it in items)
+        log(f"[OK] Flushed {len(items)} play(s) ({_room_plays} room-plays, format 2) [{reason}] -> HTTP {r.status_code}")
         if 200 <= r.status_code < 300:
             _delta_commit(_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
@@ -2271,23 +2299,64 @@ def post_history(track, room, started_at, ended_at):
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
     last_sonos_activity_ts = time.time()
-    # Add to state ring buffer for cross-device state.json
-    _retire_to_state_ring(track, track.get("rooms", [room]), started_at)
+    # v2.50: state-ring retire moved BELOW the coalesce check — grouped rooms now
+    # produce ONE ring entry whose rooms string grows as rooms coalesce, instead
+    # of N duplicate entries (one per room) as in <=2.49.
     uri_or_title = track["uri"] or f"{track['title']}|{track['artist']}"
     fp           = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     bucket       = int(started_at.timestamp() // 60)
-    dedup_key    = f"sonos_{house}_{room.lower().replace(' ','_')}_{fp}_{bucket}"
+    started_str  = started_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    ended_epoch  = ended_at.timestamp()
+    # v2.50 room factoring (format 2): grouped rooms retire in the SAME event-loop
+    # pass with an IDENTICAL started_at/ended_at (single `now` per pass), so instead
+    # of buffering one near-identical ~700B item per room, coalesce them into one
+    # item carrying a rooms LIST. Match = same content fingerprint + exact
+    # started_at + ended_at within 5s. A room leaving the group mid-track retires
+    # in a LATER pass (different ended_at) and correctly stays a separate item.
+    # The server ingest already merges by content identity, so this is a pure
+    # wire-format optimization — DB rows are unchanged (T1 golden parity proven).
+    _matched_rooms = None
+    with pending_buffer_lock:
+        for _it in pending_buffer:
+            if (_it.get("_fp") == fp and _it.get("started_at") == started_str
+                    and abs(_it.get("_ended_epoch", 0) - ended_epoch) <= 5):
+                if room not in _it["rooms"]:
+                    _it["rooms"].append(room)
+                _matched_rooms = list(_it["rooms"])
+                _buf_n = len(pending_buffer)
+                try:
+                    PENDING_PATH.write_text(json.dumps(list(pending_buffer)), encoding="utf-8")
+                    _persist_note = ""
+                except Exception as _pe:
+                    _persist_note = f" (persist FAILED: {_pe})"
+                break
+    if _matched_rooms is not None:
+        # Keep the state ring in step: grow the existing entry's rooms string
+        # instead of inserting a duplicate entry (one ring entry per play).
+        _update_state_ring_rooms(track, started_str, _matched_rooms)
+        log(f'+ Coalesced: "{track["title"]}" - {track["artist"]} | +{room} '
+            f'(rooms: {len(_matched_rooms)}) [buffer: {_buf_n}]{_persist_note}')
+        return
+    # New play — one ring entry, rooms list grows via coalesce above
+    _retire_to_state_ring(track, [room], started_at)
+    # No coalesce match — build a fresh format-2 item (rooms list; dedup key has
+    # NO room segment — the server DB key is content-based and room-agnostic).
+    dedup_key    = f"sonos_{house}_{fp}_{bucket}"
     item = {
-        "type": "sonos_history", "house": house, "room": room,
+        "type": "sonos_history", "house": house,
+        "rooms": [room],          # format 2: list of rooms that played this together
+        "room": room,             # legacy alias (= rooms[0]) for transition safety
         "title": track["title"], "artist": track["artist"], "album": track["album"],
         "uri": track["uri"], "service": track["service"],
-        "started_at":  started_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "started_at":  started_str,
         "ended_at":    ended_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "duration_played_seconds": duration_played,
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
         "didl_parent_id": track.get("didl_parent_id", ""),
         "didl_album_art_uri": track.get("didl_album_art_uri", ""),
+        "_fp": fp,                # coalesce match key (internal; server ignores)
+        "_ended_epoch": ended_epoch,  # coalesce tolerance check (internal)
     }
     # Add container context (playlist/album/station) if available
     container = track.get("container")
@@ -3888,13 +3957,18 @@ def execute_command(cmd, source="unknown"):
         return
 
     # Piggyback buffered history on this (non-silent) command result
+    # v2.50: wire copy strips internal coalesce fields (_fp etc.); _pig_originals
+    # keeps them for buffer-restore on POST failure so crash-coalesce still works.
+    _pig_originals = None
     with pending_buffer_lock:
         if pending_buffer:
             log(f"[buffer] piggyback drain: {len(pending_buffer)} pending item(s) attached to '{action}' result")
-            result["pending_history"] = list(pending_buffer)
+            _pig_originals = list(pending_buffer)
+            result["pending_history"] = [{k: v for k, v in it.items() if not k.startswith("_")} for it in _pig_originals]
+            result["format"] = 2  # v2.50 room-factored items
             pending_buffer.clear()
-    if result.get("pending_history"):
-        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
+    if _pig_originals:
+        try: PENDING_PATH.write_text(json.dumps(_pig_originals), encoding="utf-8")
         except Exception as pe: log(f"[buffer] WARNING: PENDING_PATH write failed: {pe}")
 
     # Include SSE relay data for server-side relay to ntfy
@@ -3915,10 +3989,11 @@ def execute_command(cmd, source="unknown"):
             except: pass
     except Exception as e:
         log(f"Failed to post command result: {e}")
-        # Restore piggybacked history to buffer on failure
-        if result.get("pending_history"):
+        # Restore piggybacked history to buffer on failure (v2.50: restore the
+        # ORIGINALS with internal coalesce fields, not the stripped wire copies)
+        if _pig_originals:
             with pending_buffer_lock:
-                pending_buffer[:0] = result["pending_history"]
+                pending_buffer[:0] = _pig_originals
 
 # --- SONOS: GITHUB CMD FALLBACK (removed in v2.24) --------------------------
 # poll_commands() and _clear_github_cmd() removed. ntfy is sole command transport.
