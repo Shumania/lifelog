@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.52.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.52.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -3355,8 +3355,13 @@ def execute_command(cmd, source="unknown"):
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
                     # Check if current source is a stream (no queue to insert into)
+                    # v2.52.1: x-sonos-vli = live session source (Spotify Connect / AirPlay).
+                    # Queue inserts are invisible on it and next() skips the PHONE's session
+                    # instead of our queue (2026-07-20: played Walking On The Moon instead of
+                    # 2 Klaxons). Treat it as a stream -> full play takes the transport back.
                     stream_prefixes = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
-                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:")
+                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:",
+                                       "x-sonos-vli:")
                     is_stream = False
                     try:
                         media_info = coordinator.avTransport.GetMediaInfo([('InstanceID', 0)])
