@@ -665,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.51';
+const PAGE_VERSION = 'p2.52';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2272,7 +2272,10 @@ function renderSuggRow(s, explorationId) {
 async function toggleAlbumTracks(explorationId, albumUri, btn) {
   const albumId = albumUri.split(':').pop();
   const panelId = 'at-' + explorationId + '-' + albumId;
-  const panel = document.getElementById(panelId);
+  // p2.52: prefer the DOM-local panel (source-track card can share an album with the
+  // source_album suggestion row — duplicate-id lookups would toggle the wrong panel)
+  const panel = (btn && btn.closest && btn.closest('.sugg-with-tracks')?.querySelector('.album-tracks-panel'))
+             || document.getElementById(panelId);
   if (!panel) return;
 
   const savedAlbums = getExpandedAlbums();
@@ -2280,14 +2283,14 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     panel.classList.remove('show');
     btn.classList.remove('open');
     btn.textContent = '▾';
-    savedAlbums.delete(panelId);
+    savedAlbums.delete(panel.id || panelId); // p2.52: key on real panel id
     saveExpandedAlbums(savedAlbums);
     return;
   }
 
   btn.classList.add('open');
   btn.textContent = '▴';
-  savedAlbums.add(panelId);
+  savedAlbums.add(panel.id || panelId); // p2.52: key on real panel id
   saveExpandedAlbums(savedAlbums);
 
   // Already loaded content?
@@ -2384,6 +2387,15 @@ function renderDiscovery() {
     if (sourceTrack) {
       const stUri = (sourceTrack.uri || '').replace(/'/g, "\\'");
       const stLbl = (sourceTrack.label || '').replace(/'/g, "\\'");
+      // p2.52: album expand on the source track — album_uri flattened from metadata by build_data.
+      // If the source itself IS an album (classical explores), fall back to its own uri.
+      const stAlbumUriRaw = sourceTrack.album_uri ||
+        ((sourceTrack.uri || '').startsWith('spotify:album:') ? sourceTrack.uri : '');
+      const hasExpl2 = cmd.exploration_id !== undefined && cmd.exploration_id !== null;
+      const stCanExpand = !!(stAlbumUriRaw && hasExpl2);
+      const stAlbumUri = stAlbumUriRaw.replace(/'/g, "\\'");
+      const stAlbumId = stCanExpand ? stAlbumUriRaw.split(':').pop() : '';
+      if (stCanExpand) html += '<div class="sugg-with-tracks">';
       html += `<div class="disc-source-track">
         <div class="disc-source-icon">🎵</div>
         <div class="disc-source-info">
@@ -2393,8 +2405,10 @@ function renderDiscovery() {
         <div class="sugg-actions">
           ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">▶</button>
           <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">+</button>` : ''}
+          ${stCanExpand ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${cmd.exploration_id},decodeURIComponent('${stAlbumUri}'),this)">▾</button>` : ''}
         </div>
       </div>`;
+      if (stCanExpand) html += `<div class="album-tracks-panel" id="at-${cmd.exploration_id}s-${stAlbumId}"></div></div>`;
     }
 
     if (cmd.narrative) {
