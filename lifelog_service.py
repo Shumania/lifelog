@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.50.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.51.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -360,8 +360,17 @@ def _build_state_payload():
             }
             break  # first active coordinator
 
+    # v2.51: version + boot_time stamp. state-{house}.json is pushed by the
+    # client DIRECTLY to GitHub (bypassing webhooks), so it is the agent's only
+    # true PULL channel while a session is open (standing rule 25: webhook
+    # events queue behind open sessions). These two fields let the agent verify
+    # a fleet update mid-session without waiting for a queued heartbeat.
+    _boot_iso = (datetime.fromtimestamp(_service_start_ts, tz=timezone.utc)
+                 .strftime("%Y-%m-%dT%H:%M:%SZ")) if _service_start_ts else None
     return {
         "house": house,
+        "version": SERVICE_VERSION,
+        "boot_time": _boot_iso,
         "last_updated": now_iso(),
         "now_playing": np,
         "rooms_playing": rp,
@@ -4102,6 +4111,21 @@ def sonos_main_loop():
                     log("Startup SSE status_update sent")
                 except Exception as e:
                     log(f"Ready heartbeat failed: {e}")
+                # v2.51: ONE unconditional state push at boot (standing rule 25
+                # companion). Normally state-{house}.json only pushes on track
+                # changes, so an idle machine's file could be days stale -- useless
+                # for verifying an update mid-session. This boot push stamps the
+                # fresh version + boot_time into the agent's webhook-free pull
+                # channel within seconds of startup. Deliberately OUTSIDE the
+                # heartbeat try-block so a heartbeat failure can't skip it.
+                try:
+                    if gh_token:
+                        log(f"[state] Boot state push (v{SERVICE_VERSION}, rule-25 verify channel)...")
+                        _do_state_push()
+                    else:
+                        log("[state] Boot state push SKIPPED: no GitHub token configured")
+                except Exception as e:
+                    log(f"[state] Boot state push failed: {e}")
 
             now = datetime.now(timezone.utc)
 
