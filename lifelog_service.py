@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.52.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.52.3"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -3171,10 +3171,27 @@ def execute_command(cmd, source="unknown"):
                 uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
                 uri_id    = spotify_uri.split(":")[-1]
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
-                dev.clear_queue()
+                # v2.52.2: this heavy container insert needs the same armor as play_next:
+                # 30s mutation timeout + verify-after-timeout (Shed Arc timed out at 5s).
+                with _queue_mutation_timeout():
+                    dev.clear_queue()
                 plugin    = ShareLinkPlugin(dev)
-                plugin.add_share_link_to_queue(share_url)
-                dev.play_from_queue(0)
+                try:
+                    with _queue_mutation_timeout():
+                        plugin.add_share_link_to_queue(share_url)
+                except Exception as add_err:
+                    log(f"play_spotify_uri: add raised ({add_err}); verifying whether insert landed...")
+                    time.sleep(2.0)
+                    try:
+                        q_after = int(dev.queue_size)
+                    except Exception:
+                        q_after = 0
+                    if q_after > 0:
+                        log(f"play_spotify_uri: verify OK -- queue has {q_after} items after timeout; continuing")
+                    else:
+                        raise
+                with _queue_mutation_timeout():
+                    dev.play_from_queue(0)
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
                 repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
