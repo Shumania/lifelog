@@ -104,6 +104,21 @@
   .repeat-btn { width: 36px; height: 36px; font-size: 16px; opacity: 0.4; }
   .repeat-btn.active { opacity: 1; color: var(--accent); }
   .vol-label { font-size: 11px; color: var(--text-dim); min-width: 28px; text-align: center; }
+  /* p2.54: play-controls settings (⚙) popover */
+  .settings-btn { width: 36px; height: 36px; font-size: 16px; opacity: 0.6; }
+  .settings-btn:hover { opacity: 1; }
+  .ctrl-settings-pop {
+    margin: 6px 0 2px auto; padding: 6px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; gap: 4px; width: max-content;
+  }
+  .ctrl-settings-pop[hidden] { display: none; }  /* p2.54: hidden attr must beat display:flex */
+  .ctrl-settings-item {
+    border: none; background: transparent; color: var(--text);
+    font-size: 13px; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+    text-align: left; transition: background 0.15s;
+  }
+  .ctrl-settings-item:hover { background: var(--surface2); }
 
   .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
   .room-chip {
@@ -538,6 +553,10 @@
         <button class="ctrl-btn mute-btn" id="mute-btn-caphill" onclick="sendCmd('toggle_mute')" title="Toggle mute"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/><path d="M14 7.97v8.06c1.48-.73 2.5-2.25 2.5-4.03S15.48 8.7 14 7.97z"/></svg></button>
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
+      <button class="ctrl-btn settings-btn" id="settings-btn-caphill" onclick="toggleCtrlSettings('caphill')" title="Playback settings">⚙</button>
+    </div>
+    <div class="ctrl-settings-pop" id="ctrl-settings-caphill" hidden>
+      <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
     <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Speakers synced</button>
@@ -564,6 +583,10 @@
         <button class="ctrl-btn mute-btn" id="mute-btn-vashon" onclick="sendCmd('toggle_mute')" title="Toggle mute"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/><path d="M14 7.97v8.06c1.48-.73 2.5-2.25 2.5-4.03S15.48 8.7 14 7.97z"/></svg></button>
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_up')">+</button>
       </div>
+      <button class="ctrl-btn settings-btn" id="settings-btn-vashon" onclick="toggleCtrlSettings('vashon')" title="Playback settings">⚙</button>
+    </div>
+    <div class="ctrl-settings-pop" id="ctrl-settings-vashon" hidden>
+      <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
     <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Speakers synced</button>
@@ -665,7 +688,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.53';
+const PAGE_VERSION = 'p2.54';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -719,6 +742,7 @@ let _sseNowPlayingGlobal = null;  // latest across all houses
 let _trackEndedTimer = null;  // debounce timer for track_ended clear
 // U-M2 (p2.43): rooms state keyed by house — single globals cross-contaminated house panels
 let _roomsPlayingByHouse = {};  // house -> rooms currently playing (SSE status_update / state files)
+let _lastCmdErrKey = '';        // p2.54: dedup for command_error red toasts (SSE replays)
 let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
 function _rpPausedGet(h) { return _roomsPausedByHouse[h || house] || []; }
@@ -1144,6 +1168,24 @@ async function sendCmd(action) {
   // p2.50: finer volume steps — service default is ±10/tap, way too coarse vs native Sonos app; send explicit step
   if (action === 'volume_up' || action === 'volume_down') payload.step = 3;
   await postNtfy(payload);
+}
+
+// p2.54: play-controls settings popover (⚙) — currently holds Clear Queue
+function toggleCtrlSettings(h) {
+  const pop = document.getElementById('ctrl-settings-' + h);
+  if (pop) pop.hidden = !pop.hidden;
+}
+
+async function sendClearQueue(h) {
+  const pop = document.getElementById('ctrl-settings-' + h);
+  if (pop) pop.hidden = true;
+  const rawRooms = (selectedRooms[h] || []).length > 0 ? selectedRooms[h] : inferActiveRooms();
+  const rooms = filterOfflineRooms(rawRooms, h);
+  if (!rooms.length) { showToast('No room selected — pick a speaker first', true); return; }
+  const room = rooms[0];
+  if (!confirm('Clear the Sonos queue for ' + room + '?\nIf the queue is currently playing, playback will stop.')) return;
+  showToast('🗑 Clearing queue · ' + room);
+  await postNtfy({ action: 'clear_queue', room, rooms: [room], target_client_id: commanderId, t_requested: new Date().toISOString() });
 }
 
 let _lastNtfyTime = 0;
@@ -3242,6 +3284,18 @@ function connectSSE() {
 
       // v1.70 bundled SSE: messages have "events" array (new) or "event" string (old)
       const events = msg.events || (msg.event ? [msg.event] : []);
+
+      // p2.54: red error toast — a command failed on the client. Green send-toasts
+      // only confirm delivery; this is the truth channel. Guards: skip ntfy replays
+      // (>2 min old) and dedup by originating cmd_ts.
+      if (events.includes('command_error') && evtAge < 120000) {
+        const errKey = (msg.cmd_action || '') + '|' + (msg.cmd_err_ts || '');
+        if (errKey !== _lastCmdErrKey) {
+          _lastCmdErrKey = errKey;
+          showToast('✗ ' + (msg.cmd_action || 'command') + ' failed: ' + (msg.cmd_message || 'unknown error'), true);
+          console.error('[sse] command_error:', msg.cmd_action, msg.cmd_message);
+        }
+      }
 
       // p2.44 (U-M12): confirm an in-flight hard refresh — any fresh status_update from
       // the awaited house proves the client is alive and has re-discovered topology

@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.51.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.52.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -2615,6 +2615,28 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
+# v2.52: queue mutations (add playlist/track, clear) can legitimately take >5s on
+# large queues — Sonos re-indexes every entry behind the insert point. Root cause of
+# the 2026-07-20 Garage silent failure: playlist insert at pos 2 of a 1,670-track
+# queue took >5s, SoCo timed out, play step never ran. Mutations get 30s; the 5s
+# global stays for polling reads so a dead speaker can't stall the poll loop.
+QUEUE_MUTATION_TIMEOUT_S = 30
+
+from contextlib import contextmanager
+
+@contextmanager
+def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
+    """Temporarily raise SoCo's global request timeout for queue-mutation calls.
+    NOTE: soco.config.REQUEST_TIMEOUT is global — a concurrent poll inside this
+    window inherits the longer timeout. Acceptable: worst case one slow poll."""
+    import soco as _soco_cm
+    prev = _soco_cm.config.REQUEST_TIMEOUT
+    _soco_cm.config.REQUEST_TIMEOUT = seconds
+    try:
+        yield
+    finally:
+        _soco_cm.config.REQUEST_TIMEOUT = prev
+
 SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
@@ -3361,12 +3383,51 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
 
-                    if is_stream:
+                    def _add_with_verify(coord, pos=None, before_size=None):
+                        """v2.52: run the queue add under the 30s mutation timeout; if it
+                        still raises, VERIFY whether the insert actually landed before
+                        declaring failure (2026-07-20 Garage postmortem: the insert
+                        succeeded server-side after our 5s hangup — silence + green toast).
+                        Returns normally if the add landed; re-raises otherwise."""
+                        try:
+                            with _queue_mutation_timeout():
+                                _add_to_queue(coord, pos)
+                            return
+                        except Exception as add_err:
+                            log(f"play_next: add raised ({add_err}); verifying whether insert landed...")
+                            time.sleep(2)
+                            try:
+                                after = coord.queue_size
+                            except Exception as qs_err:
+                                log(f"play_next: queue_size verify failed ({qs_err}); re-raising original error")
+                                raise add_err
+                            if before_size is not None and after > before_size:
+                                log(f"play_next: insert VERIFIED landed (queue {before_size} -> {after}); continuing to play")
+                                return
+                            log(f"play_next: insert NOT found (queue {before_size} -> {after}); re-raising")
+                            raise add_err
+
+                    # v2.52: whole-playlist play REPLACES the queue (user decision 2026-07-20).
+                    # Avoids multi-second re-index inserts into huge queues and endless queue bloat.
+                    is_playlist_container = is_spotify and uri_type == "playlist"
+
+                    if is_playlist_container:
+                        try:
+                            _q_before = coordinator.queue_size
+                        except Exception:
+                            _q_before = "?"
+                        log(f"play_next: playlist container -> REPLACE queue (was {_q_before} tracks)")
+                        with _queue_mutation_timeout():
+                            coordinator.clear_queue()
+                        _add_with_verify(coordinator, before_size=0)
+                        coordinator.play_from_queue(0)
+                    elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
                             # Spotify: clear queue + add via ShareLinkPlugin + play from queue
-                            coordinator.clear_queue()
-                            _add_to_queue(coordinator)
+                            with _queue_mutation_timeout():
+                                coordinator.clear_queue()
+                            _add_with_verify(coordinator, before_size=0)
                             coordinator.play_from_queue(0)
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
@@ -3380,8 +3441,12 @@ def execute_command(cmd, source="unknown"):
                         info = coordinator.get_current_track_info()
                         current_pos = int(info.get('playlist_position', 0))
                         insert_pos = current_pos + 1
-                        log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
-                        _add_to_queue(coordinator, pos=insert_pos)
+                        try:
+                            _q_before = coordinator.queue_size
+                        except Exception:
+                            _q_before = None
+                        log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
+                        _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
                         try:
                             coordinator.next()
                             # DESIGN NOTE: next() on a STOPPED speaker advances queue pointer
@@ -3416,7 +3481,7 @@ def execute_command(cmd, source="unknown"):
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
-                    mode_note = "full play (was stream)" if is_stream else "queue insert"
+                    mode_note = "queue replace (playlist)" if is_playlist_container else ("full play (was stream)" if is_stream else "queue insert")
                     svc_note = "spotify" if is_spotify else "native"
 
                     # DESIGN NOTE: If title is still a raw URI (e.g. "spotify:track:xxx"),
@@ -3866,6 +3931,33 @@ def execute_command(cmd, source="unknown"):
             except Exception as e:
                 result["message"] = f"refresh error: {e}"
 
+        elif action == "clear_queue":
+            # v2.52: UI settings button — wipe the target room's Sonos queue.
+            # If the queue is the active source, Sonos stops playback (expected).
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            else:
+                try:
+                    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    try:
+                        _q_before = coordinator.queue_size
+                    except Exception:
+                        _q_before = "?"
+                    with _queue_mutation_timeout():
+                        coordinator.clear_queue()
+                    log(f"clear_queue: {coordinator.player_name} queue cleared ({_q_before} tracks removed)")
+                    result["success"] = True
+                    result["message"] = f"Queue cleared in {room} ({_q_before} tracks removed)"
+                    result["data"] = {"room": room, "coordinator": coordinator.player_name, "tracks_removed": _q_before}
+                    try:
+                        publish_ui_event("status_update", {})
+                    except Exception as _cq_sse:
+                        log(f"clear_queue: SSE push failed: {_cq_sse}")
+                except Exception as e:
+                    result["message"] = f"clear_queue error: {e}"
+
         elif action == "get_queue":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
@@ -3948,6 +4040,21 @@ def execute_command(cmd, source="unknown"):
         cmd_ts=cmd.get("cmd_ts"),
         detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
     )
+
+    # v2.52: push command FAILURES to the UI over SSE so the page can show a red
+    # toast. Root cause of "green never lies" work: silent play_next failures left
+    # the user with a success toast and no music (2026-07-20 Garage incident).
+    # Meta/read actions excluded — their failures don't affect playback UX.
+    _ERR_TOAST_EXCLUDE = ("update_check", "get_logs", "get_state", "flush", "get_volume", "get_queue")
+    if not result.get("success") and action not in _ERR_TOAST_EXCLUDE:
+        try:
+            publish_ui_event("command_error", {
+                "cmd_action": action,
+                "cmd_message": (result.get("message") or "unknown error")[:200],
+                "cmd_err_ts": cmd.get("cmd_ts") or now_iso(),
+            })
+        except Exception as _ce_err:
+            log(f"[sse] command_error publish failed: {_ce_err}")
 
     # v2.48: debounced state heartbeat -- ANY state-changing command (silent or
     # not) schedules one heartbeat ~75s out; new commands reset the timer.
