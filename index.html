@@ -665,7 +665,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.52';
+const PAGE_VERSION = 'p2.53';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -707,6 +707,7 @@ let _initialRoomSeedDone = {};  // per-house: true after first state-file seed (
 let data = null;  // data-head.json
 let archiveItems = [];
 let archiveLoaded = false;
+let _archiveFetchedAt = 0;  // p2.53: wall-clock of last data.json fetch (6h re-fetch)
 let allItems = [];  // merged head + archive
 let commanderId = null;
 
@@ -1718,6 +1719,12 @@ function _hrReload() {
 // ══════════════════════════════════════════════════════════════════════════════
 // DATA LOADING
 // ══════════════════════════════════════════════════════════════════════════════
+// p2.53: merged list must be explicitly sorted — it was previously implicit in
+// concatenation order, which broke once we started preserving in-session items.
+function sortItemsDesc(items) {
+  return items.slice().sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+}
+
 function mergeItems(head, archive) {
   if (!archive.length) return head;
   const keys = new Set(head.map(i => (i.timestamp||'') + '|' + (i.title||'').toLowerCase()));
@@ -1943,7 +1950,12 @@ async function loadData(loadArchive) {
     let headItems = data.items || [];
     // Merge state file tracks into head items
     headItems = mergeStateIntoItems(headItems, stateFiles);
-    allItems = mergeItems(headItems, archiveItems);
+    // p2.53 BUGFIX: was mergeItems(headItems, archiveItems) — in a long-lived page
+    // session (iPad Safari keeps tabs alive for days) the archive is fetched once,
+    // so every 60s tick rebuilt allItems from a ~75-item head + a stale archive.
+    // Tracks older than the head window but newer than the archive snapshot were
+    // silently dropped → multi-day "gaps" in History. Keep previously merged items.
+    allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
     // Auto-select tab based on active speakers
     autoSelectTab(stateFiles);
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
@@ -1957,17 +1969,22 @@ async function loadData(loadArchive) {
     }
   }
 
-  if (loadArchive || !archiveLoaded) {
+  // p2.53: re-fetch the archive every 6h in long-lived sessions (iPad Safari tabs
+  // survive for days) so the archive snapshot can't drift a week behind the head.
+  const archiveStale = archiveLoaded && (Date.now() - _archiveFetchedAt > 6 * 3600 * 1000);
+  if (loadArchive || !archiveLoaded || archiveStale) {
     try {
+      if (archiveStale) console.log('[loadData] archive snapshot >6h old — re-fetching data.json');
       const r2 = await fetch(DATA_FULL_URL + '?t=' + Date.now());
       const full = await r2.json();
       archiveItems = full.items || [];
       archiveLoaded = true;
+      _archiveFetchedAt = Date.now();
       const headItems = data ? (data.items || []) : [];
       // p2.41: also merge current allItems — the old code rebuilt from raw head+archive
       // only, silently dropping fresher tracks merged in after a Sync (they vanished
       // from History until the next full publish).
-      allItems = mergeItems(mergeItems(headItems, allItems), archiveItems);
+      allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
       renderHistory();
       updateCounts();
     } catch(e) {
