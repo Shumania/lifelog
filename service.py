@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.48.3"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.52.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -133,7 +133,7 @@ def detect_house_from_wifi():
 
 POLL_INTERVAL              = 15    # Sonos poll (s)
 # CMD_POLL_EVERY removed in v2.24 — GitHub command polling retired (ntfy is sole transport)
-HEARTBEAT_FALLBACK_SECS    = 7200  # v2.48: keepalive every 2h when idle (was 60 min; only if no real POST)
+HEARTBEAT_FALLBACK_SECS    = 14400  # v2.49: keepalive every 4h when idle (was 2h; only if no real POST). Liveness signal only — delta payloads make it near-empty anyway.
 HEARTBEAT_QUIET_SLEEP      = 1800  # 30 min retry during quiet hours
 ACTIVITY_WINDOW            = 7200  # "active" if Sonos track in last 2h
 VERSION_CHECK_INTERVAL     = 3600  # 60 min
@@ -143,7 +143,7 @@ OFFLINE_THRESHOLD          = 3
 OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
-BUFFER_MAX_AGE_SECS        = 30    # (LEGACY — buffer_monitor_thread removed in v1.83; kept for reference)
+BUFFER_MAX_AGE_SECS        = 1800  # v2.48.5: flush when OLDEST buffered track is 30 min old (checked in heartbeat_thread). Guarantees plays reach the server within ~30 min even during long continuous sessions (fixes Roaming-label race with the Spotify backstop poll)
 STATE_PUSH_DEBOUNCE_S      = 5     # debounce window for state.json push
 STATE_RING_MAX             = 30    # max items in state file ring buffer
 
@@ -322,6 +322,22 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         _state_ring_buffer.pop()
     _persist_state_ring_buffer()
 
+def _update_state_ring_rooms(track_info, started_str, rooms_list):
+    """v2.50: when a grouped room coalesces into an existing buffered play, grow
+    the matching ring entry's rooms string in place (match on title+artist+ts).
+    NEVER raises — ring maintenance must not break history buffering."""
+    try:
+        for entry in _state_ring_buffer:
+            if (entry.get("title") == track_info.get("title", "")
+                    and entry.get("artist") == track_info.get("artist", "")
+                    and entry.get("timestamp") == started_str):
+                entry["rooms"] = ", ".join(rooms_list)
+                _persist_state_ring_buffer()
+                return
+        log(f"[state-ring] coalesce update: no matching entry for '{track_info.get('title','')}' @ {started_str} (benign no-op)")
+    except Exception as e:
+        log(f"[state-ring] coalesce update failed: {e}")
+
 def _build_state_payload():
     """Build the state-{house}.json payload from current live state.
     v2.24: Reads from _poll_snapshot instead of calling get_rooms_playing()."""
@@ -344,8 +360,17 @@ def _build_state_payload():
             }
             break  # first active coordinator
 
+    # v2.51: version + boot_time stamp. state-{house}.json is pushed by the
+    # client DIRECTLY to GitHub (bypassing webhooks), so it is the agent's only
+    # true PULL channel while a session is open (standing rule 25: webhook
+    # events queue behind open sessions). These two fields let the agent verify
+    # a fleet update mid-session without waiting for a queued heartbeat.
+    _boot_iso = (datetime.fromtimestamp(_service_start_ts, tz=timezone.utc)
+                 .strftime("%Y-%m-%dT%H:%M:%SZ")) if _service_start_ts else None
     return {
         "house": house,
+        "version": SERVICE_VERSION,
+        "boot_time": _boot_iso,
         "last_updated": now_iso(),
         "now_playing": np,
         "rooms_playing": rp,
@@ -459,7 +484,14 @@ _error_ring_lock = threading.Lock()
 # transport errors like "ntfy stream error" and "ConnectionResetError", so they
 # never reached the error ring and were invisible to the watchdog audits.
 _ERROR_KEYWORDS  = ("error", "fail", "traceback", "exception", "critical", "crash", "upnp", "http 4", "http 5", "timed out", "refused", "unreachable")
-_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
+_ERROR_BENIGN    = ("errors: 0", "0 error", "no error", "recent_errors", "error_lines", "(benign no-op)",
+                    # v2.50: crash-RECOVERY lines are informational successes, not errors --
+                    # "Recovering N buffered track(s) from crash" and "[OK] Flushed ... [crash-recovery]"
+                    # matched the "crash" keyword and polluted the error ring for days.
+                    # NOTE: deliberately NO blanket "[ok]" token -- "[OK] Flushed ... -> HTTP 500"
+                    # is a real error and must still reach the ring. "-> http 200" makes any
+                    # success-status line benign regardless of other keyword matches.
+                    "recovering ", "-> http 200")  # noise guards; v2.48.2: lines tagged '(benign no-op)' are deliberate non-events, never errors
 
 # Command results ring buffer — structured outcomes for agent-side correlation
 _CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the debounced heartbeat delivers them
@@ -480,11 +512,104 @@ def record_command_result(action, success, message, cmd_ts=None, detail=None):
         entry["detail"] = detail
     with _command_results_lock:
         _command_results.append(entry)
+    # v2.49 delta delivery: count every appended result
+    global _cmd_total
+    with _delta_lock:
+        _cmd_total += 1
 
 def get_command_results():
     """Return recent command results for embedding in heartbeats."""
     with _command_results_lock:
         return list(_command_results)
+
+# --- DELTA DELIVERY (v2.49) ---------------------------------------------------
+# DESIGN NOTE: deliver-once piggyback payloads. Before v2.49 every webhook POST
+# re-shipped 100 log lines + 50 errors + 50 command results (the same ones, over
+# and over) — ~64% of every payload was duplicate piggyback. Now each ring has a
+# monotonic "total appended" counter and a "delivered" high-water mark; POSTs
+# carry only lines/results the agent has NOT yet seen (capped), and the mark
+# advances ONLY after an HTTP 2xx (failed POSTs lose nothing — items re-ship on
+# the next attempt). Boot/ready heartbeats are exempt for logs (standing rule:
+# raw console visibility on boot). get_logs full dump is untouched.
+_delta_lock      = threading.Lock()
+_log_total       = 0   # incremented in log() for every ring append
+_err_total       = 0   # incremented in log() for every error-ring append
+_cmd_total       = 0   # incremented in record_command_result()
+_log_delivered   = 0
+_err_delivered   = 0
+_cmd_delivered   = 0
+_LOG_DELTA_MAX   = 60  # cap per POST; overflow reported via delta.logs_suppressed
+_ERR_DELTA_MAX   = 10
+_CMD_DELTA_MAX   = 10
+_BOOT_LOG_LINES  = 50  # boot/ready heartbeats always carry last 50 lines (standing rule)
+_delta_boot_logged = False
+
+def build_delta_fields(boot=False):
+    """Return (fields, snap): piggyback fields containing only undelivered
+    log lines / errors / command results, plus a snapshot to pass to
+    _delta_commit() after the POST succeeds (HTTP 2xx). If boot=True, logs are
+    the last _BOOT_LOG_LINES lines regardless of delivery state."""
+    global _delta_boot_logged
+    if not _delta_boot_logged:
+        _delta_boot_logged = True
+        # NOTE: wording avoids _ERROR_KEYWORDS substrings ("err" not "errors")
+        # so this info line never lands in the error ring as a false positive.
+        log(f"[delta] deliver-once payloads active (caps: logs {_LOG_DELTA_MAX} / err {_ERR_DELTA_MAX} / cmd {_CMD_DELTA_MAX}; boot exempt {_BOOT_LOG_LINES} lines)")
+    with _delta_lock:
+        lt, et, ct = _log_total, _err_total, _cmd_total
+        ld, ed, cd = _log_delivered, _err_delivered, _cmd_delivered
+    fields = {}
+    delta_meta = {}
+    # Logs
+    log_new = max(0, lt - ld)
+    if boot:
+        fields["recent_logs"] = get_recent_logs(_BOOT_LOG_LINES)
+        delta_meta["logs_new"] = log_new
+        delta_meta["boot_full_logs"] = True
+    else:
+        ship = min(log_new, _LOG_DELTA_MAX)
+        fields["recent_logs"] = get_recent_logs(ship) if ship else []
+        delta_meta["logs_new"] = log_new
+        if log_new > ship:
+            delta_meta["logs_suppressed"] = log_new - ship  # evicted or over cap; get_logs has the ring
+    # Errors
+    err_new = max(0, et - ed)
+    eship = min(err_new, _ERR_DELTA_MAX)
+    fields["recent_errors"] = get_recent_errors(eship) if eship else []
+    delta_meta["errors_new"] = err_new
+    if err_new > eship:
+        delta_meta["errors_suppressed"] = err_new - eship
+    # Command results
+    cmd_new = max(0, ct - cd)
+    cship = min(cmd_new, _CMD_DELTA_MAX)
+    all_cmds = get_command_results()
+    fields["command_results"] = all_cmds[-cship:] if cship else []
+    delta_meta["cmds_new"] = cmd_new
+    if cmd_new > cship:
+        delta_meta["cmds_suppressed"] = cmd_new - cship
+    fields["delta"] = delta_meta
+    return fields, (lt, et, ct)
+
+def _delta_commit(snap):
+    """Advance delivered high-water marks after a successful (2xx) POST.
+    Monotonic (max) so out-of-order commits can never move marks backward."""
+    global _log_delivered, _err_delivered, _cmd_delivered
+    if not snap:
+        return
+    try:
+        lt, et, ct = snap
+        with _delta_lock:
+            _log_delivered = max(_log_delivered, lt)
+            _err_delivered = max(_err_delivered, et)
+            _cmd_delivered = max(_cmd_delivered, ct)
+    except Exception as _dc_err:
+        log(f"[delta] commit failed (payloads will re-ship, no data lost): {_dc_err}")
+
+def delta_pending_counts():
+    """Return (undelivered_cmds, undelivered_errors) — used by the purposeful
+    debounced-heartbeat gate (v2.49): no undelivered payload = no POST."""
+    with _delta_lock:
+        return max(0, _cmd_total - _cmd_delivered), max(0, _err_total - _err_delivered)
 
 def _rotate_log_if_needed():
     """Trim log file to last 800 lines if it exceeds 500 KB."""
@@ -496,13 +621,16 @@ def _rotate_log_if_needed():
         pass
 
 def log(msg):
-    global _log_write_count
+    global _log_write_count, _log_total, _err_total
     line = f"[{now_iso()}] {msg}"
     print(line, flush=True)
     # Append to in-memory ring buffer (lock-free deque is thread-safe for appends,
     # but we use a lock for the snapshot reads in get_recent_logs/get_full_logs)
     with _log_ring_lock:
         _log_ring.append(line)
+    # v2.49 delta delivery: count every ring append
+    with _delta_lock:
+        _log_total += 1
     # Also capture to error ring if line matches any error keyword (v2.48: case-insensitive)
     # v2.48.1: skip [DIDL-*] debug dumps — the DIDL XML contains "xmlns:upnp", which
     # matched the case-insensitive "upnp" keyword and flooded the error ring with
@@ -511,6 +639,9 @@ def log(msg):
     if (not _mlow.startswith("[didl-")) and any(kw in _mlow for kw in _ERROR_KEYWORDS) and not any(b in _mlow for b in _ERROR_BENIGN):
         with _error_ring_lock:
             _error_ring.append(line)
+        # v2.49 delta delivery: count every error-ring append
+        with _delta_lock:
+            _err_total += 1
     try:
         with _log_lock:
             with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -588,8 +719,10 @@ def post_error(message, context="", module="service"):
         "module":   module,
         "version":  SERVICE_VERSION,
         "timestamp": now_iso(),
-        "recent_logs": get_recent_logs(100),
-        "recent_errors": get_recent_errors(50),
+        # v2.49: trimmed 100->30 / 50->15. Error posts stay OUTSIDE delta
+        # accounting on purpose — error context deserves redundant delivery.
+        "recent_logs": get_recent_logs(30),
+        "recent_errors": get_recent_errors(15),
     }
     try:
         requests.post(WEBHOOK, json=payload, timeout=10)
@@ -1139,7 +1272,7 @@ def _log_diagnostic_status():
 # Module-level var: room that was just commanded (set by play handler, cleared after heartbeat)
 _just_commanded_room = None
 
-def heartbeat_fields():
+def heartbeat_fields(boot=False):
     """Return standard heartbeat dict to embed in any outbound payload."""
     boot_iso = datetime.fromtimestamp(_service_start_ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     fields = {
@@ -1183,48 +1316,39 @@ def heartbeat_fields():
             })
     if np_tracks:
         fields["now_playing_tracks"] = np_tracks
-    # Recent log lines — ride along on every POST for visibility
-    fields["recent_logs"] = get_recent_logs(100)
-    # Dedicated error buffer — persists longer than general logs
-    fields["recent_errors"] = get_recent_errors(50)
-    # Structured command outcomes — for agent-side confirmation/debugging
-    fields["command_results"] = get_command_results()
+    # v2.49: piggyback payloads are DELTAS — only lines/results the agent hasn't
+    # seen yet ride along (boot=True ships last 50 log lines per standing rule).
+    # POST sites must pop fields["_delta_snap"] before sending and pass it to
+    # _delta_commit() after HTTP 2xx; skipping the commit only means re-shipping.
+    _dfields, _dsnap = build_delta_fields(boot=boot)
+    fields.update(_dfields)
+    fields["_delta_snap"] = list(_dsnap)
     return fields
 
-# v2.48: payload-light pure-idle heartbeats — state tracked between sends
-_last_hb_light_state = {"newest_err": "", "last_cmd_at": ""}
+# v2.49: the v2.48 pure-idle trimming state is gone — delta delivery makes every
+# idle payload near-empty by construction. hb_light survives as a flag only.
 
 def _send_heartbeat():
     sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
     fields = heartbeat_fields()
-    # v2.48: if nothing is playing AND no new errors AND no new command results
-    # since the last standalone heartbeat, trim the log payload (pure-idle diet).
-    # Full logs always remain available on demand via get_logs.
+    snap = fields.pop("_delta_snap", None)  # v2.49: never ship the snapshot
     try:
-        _rp = fields.get("rooms_playing") or []
-        _errs = fields.get("recent_errors") or []
-        _newest_err = _errs[-1] if _errs else ""
-        _cmds = fields.get("command_results") or []
-        _last_cmd_at = _cmds[-1].get("at", "") if _cmds else ""
-        _pure_idle = (not _rp and not fields.get("now_playing_tracks")
-                      and _newest_err == _last_hb_light_state["newest_err"]
-                      and _last_cmd_at == _last_hb_light_state["last_cmd_at"])
-        if _pure_idle:
-            fields["recent_logs"] = (fields.get("recent_logs") or [])[-10:]
-            fields["recent_errors"] = _errs[-5:]
+        _pend_cmds, _pend_errs = delta_pending_counts()
+        if (not (fields.get("rooms_playing") or []) and not fields.get("now_playing_tracks")
+                and _pend_cmds == 0 and _pend_errs == 0):
             fields["hb_light"] = True
-            log("* Heartbeat: pure-idle -- payload-light (recent_logs trimmed to 10)")
-        _last_hb_light_state["newest_err"] = _newest_err
-        _last_hb_light_state["last_cmd_at"] = _last_cmd_at
+            log("* Heartbeat: pure-idle (delta payload near-empty)")
     except Exception as _le:
-        log(f"* Heartbeat: light-mode check failed ({_le}) -- sending full payload")
+        log(f"* Heartbeat: light-flag check failed ({_le}) -- sending anyway")
     payload.update(fields)
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=10)
         log(f"* Heartbeat (standalone) -> HTTP {r.status_code}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(snap)  # v2.49: mark piggyback delivered
     except Exception as e:
         log(f"Heartbeat failed: {e}")
 
@@ -1431,18 +1555,27 @@ def flush_buffer(reason=""):
         log(f"Warning: couldn't persist buffer: {e}")
 
     sse_relay = build_sse_relay_payload()
+    _hb = heartbeat_fields()
+    _snap = _hb.pop("_delta_snap", None)  # v2.49: never ship the snapshot
+    # v2.50: strip internal coalesce bookkeeping fields from the wire copy
+    # (the persisted buffer file KEEPS them so a crash-restore can still coalesce).
+    wire_items = [{k: v for k, v in it.items() if not k.startswith("_")} for it in items]
     payload = {
         "type":      "sonos_history_batch",
+        "format":    2,   # v2.50 room-factored items (rooms lists, roomless dedup keys)
         "flush_reason": reason or "unknown",
         "house":     house,
-        "items":     items,
-        "heartbeat": heartbeat_fields(),
+        "items":     wire_items,
+        "heartbeat": _hb,
     }
     if sse_relay:
         payload["sse_relay"] = sse_relay
     try:
         r = requests.post(WEBHOOK, json=payload, timeout=20)
-        log(f"[OK] Flushed {len(items)} track(s) [{reason}] -> HTTP {r.status_code}")
+        _room_plays = sum(len(it.get("rooms") or [1]) for it in items)
+        log(f"[OK] Flushed {len(items)} play(s) ({_room_plays} room-plays, format 2) [{reason}] -> HTTP {r.status_code}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
         # v2.48: don't blind-unlink -- a track added during the POST window would
         # vanish from disk. Rewrite the file with whatever is currently buffered.
@@ -1480,14 +1613,28 @@ def _schedule_debounced_heartbeat(action):
 
 def _fire_debounced_heartbeat():
     global last_post_ts
-    log("[debounce-hb] firing post-command state heartbeat")
     try:
         with pending_buffer_lock:
             _has_pending = len(pending_buffer) > 0
         if _has_pending:
+            log("[debounce-hb] firing post-command state heartbeat (history pending)")
             flush_buffer(reason="debounce-post-command")
-        else:
-            _send_heartbeat()
+            last_post_ts = time.time()
+            return
+        # v2.49 PURPOSEFUL GATE: only POST if the agent has something to collect —
+        # undelivered command results (e.g. silent commands never POST their own
+        # result) or undelivered errors. Non-silent commands POST + commit their
+        # result immediately, so this debounce firing 75s later would be a pure
+        # duplicate agent run. Browser state needs no POST either way (direct SSE).
+        # Gate self-expires by definition (Rule 11): any new result/error makes
+        # counts non-zero and the next debounce fires normally.
+        _pend_cmds, _pend_errs = delta_pending_counts()
+        if _pend_cmds == 0 and _pend_errs == 0:
+            log("[debounce-hb] skipped -- nothing undelivered (purposeful gate, v2.49); SSE carries state (benign no-op)")
+            return
+        # NOTE: "err-delta" wording avoids the "error" keyword -> error-ring false positive
+        log(f"[debounce-hb] firing post-command state heartbeat ({_pend_cmds} result(s), {_pend_errs} err-delta undelivered)")
+        _send_heartbeat()
         last_post_ts = time.time()
     except Exception as _e:
         log(f"[debounce-hb] FAILED: {_e}")
@@ -1516,6 +1663,23 @@ def _heartbeat_thread_inner():
     _quiet_entry_flushed = False
     while True:
         time.sleep(60)  # check every minute
+
+        # v2.48.5: MAX-BUFFER-AGE FLUSH — if the OLDEST buffered track has been
+        # sitting > BUFFER_MAX_AGE_SECS (30 min), flush regardless of ongoing
+        # playback. Without this, a long continuous session (each new track
+        # resetting the trailing timer) could hold plays client-side for hours,
+        # letting the roaming Spotify backstop poll publish them first with a
+        # wrong "Roaming" location label. Runs BEFORE the quiet-hours gate so
+        # late-night listens also land within ~30 min (quiet loop = 30 min cadence).
+        try:
+            with pending_buffer_lock:
+                _oldest_ts = pending_buffer[0].get("_buffered_at", 0) if pending_buffer else None
+            if _oldest_ts and (time.time() - _oldest_ts) >= BUFFER_MAX_AGE_SECS:
+                log(f"* Heartbeat: max-buffer-age flush (oldest item {int((time.time()-_oldest_ts)//60)} min old)")
+                flush_buffer(reason="max-age")
+                last_post_ts = time.time()
+        except Exception as _ma_err:
+            log(f"* Heartbeat: max-age flush check failed: {_ma_err}")
 
         if not is_active_hours():
             # v2.45: flush once on entry into quiet hours so evening listens
@@ -1551,26 +1715,11 @@ def _heartbeat_thread_inner():
             last_post_ts = time.time()
         log(f"* Heartbeat: fallback fired (idle {int(since_last//60)} min) -- next check in 60s")
 
-# --- BUFFER MONITOR THREAD --------------------------------------------------
-def buffer_monitor_thread():
-    """Flush buffer on trailing-edge OR max-age timer.
-    Max-age (30s) ensures organic track changes relay to browser quickly via SSE relay.
-    Trailing-edge (30 min) is the safety net for long pauses."""
-    while True:
-        time.sleep(10)  # check every 10s (was 30s -- tighter for max-age relay)
-        with pending_buffer_lock:
-            count = len(pending_buffer)
-            oldest_age = (time.time() - pending_buffer[0].get("_buffered_at", time.time())) if pending_buffer else 0
-        if count == 0:
-            continue
-        # Max-age flush: oldest item has been buffered > 30s -> relay to browser ASAP
-        if oldest_age >= BUFFER_MAX_AGE_SECS:
-            flush_buffer(reason="max-age-relay")
-            continue
-        # Trailing-edge flush: nothing new added in 30 min
-        since_last_track = time.time() - last_track_added_ts
-        if since_last_track >= BATCH_TRAILING_SECS:
-            flush_buffer(reason="trailing-edge")
+# --- BUFFER MONITOR THREAD (REMOVED) -----------------------------------------
+# buffer_monitor_thread was unwired in v1.83 (direct SSE replaced the relay need)
+# but its dead body lingered here until v2.48.5 and misled debugging (it looked
+# like a live 30s max-age / 30-min trailing-edge flusher). Its useful job — the
+# max-age flush — now lives in heartbeat_thread above. Do not resurrect.
 
 # --- VERSION CHECK THREAD ---------------------------------------------------
 # [ROLLBACK-UNSAFE] Calls self_update_check() every 60 min. This is the periodic
@@ -2159,23 +2308,64 @@ def post_history(track, room, started_at, ended_at):
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
     last_sonos_activity_ts = time.time()
-    # Add to state ring buffer for cross-device state.json
-    _retire_to_state_ring(track, track.get("rooms", [room]), started_at)
+    # v2.50: state-ring retire moved BELOW the coalesce check — grouped rooms now
+    # produce ONE ring entry whose rooms string grows as rooms coalesce, instead
+    # of N duplicate entries (one per room) as in <=2.49.
     uri_or_title = track["uri"] or f"{track['title']}|{track['artist']}"
     fp           = hashlib.md5(uri_or_title.encode()).hexdigest()[:12]
     bucket       = int(started_at.timestamp() // 60)
-    dedup_key    = f"sonos_{house}_{room.lower().replace(' ','_')}_{fp}_{bucket}"
+    started_str  = started_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    ended_epoch  = ended_at.timestamp()
+    # v2.50 room factoring (format 2): grouped rooms retire in the SAME event-loop
+    # pass with an IDENTICAL started_at/ended_at (single `now` per pass), so instead
+    # of buffering one near-identical ~700B item per room, coalesce them into one
+    # item carrying a rooms LIST. Match = same content fingerprint + exact
+    # started_at + ended_at within 5s. A room leaving the group mid-track retires
+    # in a LATER pass (different ended_at) and correctly stays a separate item.
+    # The server ingest already merges by content identity, so this is a pure
+    # wire-format optimization — DB rows are unchanged (T1 golden parity proven).
+    _matched_rooms = None
+    with pending_buffer_lock:
+        for _it in pending_buffer:
+            if (_it.get("_fp") == fp and _it.get("started_at") == started_str
+                    and abs(_it.get("_ended_epoch", 0) - ended_epoch) <= 5):
+                if room not in _it["rooms"]:
+                    _it["rooms"].append(room)
+                _matched_rooms = list(_it["rooms"])
+                _buf_n = len(pending_buffer)
+                try:
+                    PENDING_PATH.write_text(json.dumps(list(pending_buffer)), encoding="utf-8")
+                    _persist_note = ""
+                except Exception as _pe:
+                    _persist_note = f" (persist FAILED: {_pe})"
+                break
+    if _matched_rooms is not None:
+        # Keep the state ring in step: grow the existing entry's rooms string
+        # instead of inserting a duplicate entry (one ring entry per play).
+        _update_state_ring_rooms(track, started_str, _matched_rooms)
+        log(f'+ Coalesced: "{track["title"]}" - {track["artist"]} | +{room} '
+            f'(rooms: {len(_matched_rooms)}) [buffer: {_buf_n}]{_persist_note}')
+        return
+    # New play — one ring entry, rooms list grows via coalesce above
+    _retire_to_state_ring(track, [room], started_at)
+    # No coalesce match — build a fresh format-2 item (rooms list; dedup key has
+    # NO room segment — the server DB key is content-based and room-agnostic).
+    dedup_key    = f"sonos_{house}_{fp}_{bucket}"
     item = {
-        "type": "sonos_history", "house": house, "room": room,
+        "type": "sonos_history", "house": house,
+        "rooms": [room],          # format 2: list of rooms that played this together
+        "room": room,             # legacy alias (= rooms[0]) for transition safety
         "title": track["title"], "artist": track["artist"], "album": track["album"],
         "uri": track["uri"], "service": track["service"],
-        "started_at":  started_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "started_at":  started_str,
         "ended_at":    ended_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "duration_played_seconds": duration_played,
         "track_duration_seconds":  track.get("duration_seconds", 0),
         "dedup_key": dedup_key,
         "didl_parent_id": track.get("didl_parent_id", ""),
         "didl_album_art_uri": track.get("didl_album_art_uri", ""),
+        "_fp": fp,                # coalesce match key (internal; server ignores)
+        "_ended_epoch": ended_epoch,  # coalesce tolerance check (internal)
     }
     # Add container context (playlist/album/station) if available
     container = track.get("container")
@@ -2203,6 +2393,30 @@ def post_history(track, room, started_at, ended_at):
     log(f'+ Buffered: "{track["title"]}" - {track["artist"]} | {room} ({duration_played}s) [buffer: {count}]')
     if count >= BATCH_SIZE:
         flush_buffer(reason="count")
+
+# --- PLAY MODE: HOUSE RULE (v2.48.5) ------------------------------------------
+def _enforce_repeat_default(dev, cmd, room_label=""):
+    """House rule (Andrew, 2026-07-15): REPEAT OFF unless explicitly requested.
+    Called after every play-starting command so leftover REPEAT_ALL/REPEAT_ONE
+    from a previous session never silently loops the new playback.
+    - Preserves the speaker's current shuffle state unless cmd specifies 'shuffle'.
+    - Honors cmd['repeat'] (bool) if the sender explicitly wants repeat.
+    - Never raises: play succeeded already; a mode error must not fail the command."""
+    try:
+        repeat  = bool(cmd.get("repeat", False))
+        cur     = dev.play_mode
+        shuffle = cmd.get("shuffle")
+        if shuffle is None:  # not specified -> preserve current shuffle state
+            shuffle = cur in ("SHUFFLE", "SHUFFLE_NOREPEAT", "SHUFFLE_REPEAT_ONE")
+        if shuffle and repeat:   new_mode = "SHUFFLE"            # shuffle + repeat all
+        elif shuffle:            new_mode = "SHUFFLE_NOREPEAT"
+        elif repeat:             new_mode = "REPEAT_ALL"
+        else:                    new_mode = "NORMAL"
+        if new_mode != cur:
+            dev.play_mode = new_mode
+            log(f"[play-mode] {room_label or dev.player_name}: {cur} -> {new_mode} (house rule: repeat off unless requested)")
+    except Exception as e:
+        log(f"[play-mode] enforce failed ({room_label}): {e}")
 
 # --- SONOS: MULTI-MACHINE TARGETING -----------------------------------------
 def is_my_command(cmd):
@@ -2401,6 +2615,28 @@ def _setup_rooms(cmd, devices):
 
 # Actions that execute locally without any webhook POST (ack or result).
 # Avoids unnecessary agent invocations for high-frequency, low-value commands.
+# v2.52: queue mutations (add playlist/track, clear) can legitimately take >5s on
+# large queues — Sonos re-indexes every entry behind the insert point. Root cause of
+# the 2026-07-20 Garage silent failure: playlist insert at pos 2 of a 1,670-track
+# queue took >5s, SoCo timed out, play step never ran. Mutations get 30s; the 5s
+# global stays for polling reads so a dead speaker can't stall the poll loop.
+QUEUE_MUTATION_TIMEOUT_S = 30
+
+from contextlib import contextmanager
+
+@contextmanager
+def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
+    """Temporarily raise SoCo's global request timeout for queue-mutation calls.
+    NOTE: soco.config.REQUEST_TIMEOUT is global — a concurrent poll inside this
+    window inherits the longer timeout. Acceptable: worst case one slow poll."""
+    import soco as _soco_cm
+    prev = _soco_cm.config.REQUEST_TIMEOUT
+    _soco_cm.config.REQUEST_TIMEOUT = seconds
+    try:
+        yield
+    finally:
+        _soco_cm.config.REQUEST_TIMEOUT = prev
+
 SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
@@ -2509,10 +2745,13 @@ def execute_command(cmd, source="unknown"):
             if sse_relay:
                 result["sse_relay"] = sse_relay
             result["heartbeat"] = heartbeat_fields()
+            _fl_snap = result["heartbeat"].pop("_delta_snap", None)  # v2.49
             result["t_result_sent"] = now_iso()
             try:
                 r = requests.post(WEBHOOK, json=result, timeout=15)
                 log(f"Flush result -> HTTP {r.status_code}: {result['message']}")
+                if 200 <= r.status_code < 300:
+                    _delta_commit(_fl_snap)  # v2.49: mark piggyback delivered
                 last_post_ts = time.time()
             except Exception as e:
                 log(f"Failed to post flush result: {e}")
@@ -2660,6 +2899,7 @@ def execute_command(cmd, source="unknown"):
                     meta  = getattr(first, "to_didl_string", lambda: "")()
                     if uri:
                         dev.play_uri(uri, meta=meta, title=title)
+                        _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
                         result["success"] = True
                         result["message"] = f"Playing '{title}' ({svc_name}) in {room}"
                         result["data"]    = {"title":title,"uri":uri,"service":svc_name}
@@ -2693,6 +2933,7 @@ def execute_command(cmd, source="unknown"):
                         pos = dev.add_to_queue(first)
                         log(f"search_and_queue: add_to_queue returned position={pos}")
                         dev.play_from_queue(pos - 1)  # 0-indexed
+                        _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
                         result["success"] = True
                         result["message"] = f"Queued+playing '{title}' ({svc_name}) in {room} at pos {pos}"
                         result["data"] = {"title": title, "uri": uri, "service": svc_name, "item_class": item_class, "position": pos}
@@ -2891,6 +3132,9 @@ def execute_command(cmd, source="unknown"):
                                 log(f"play_album: appended at position {pos}, playing from there")
                                 coordinator.play_from_queue(pos - 1)
 
+                        if not queue_only:
+                            _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
+
                         room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                         mode = "Queued" if queue_only else "Playing"
@@ -2927,10 +3171,27 @@ def execute_command(cmd, source="unknown"):
                 uri_type  = "track" if ":track:" in spotify_uri else "album" if ":album:" in spotify_uri else "playlist"
                 uri_id    = spotify_uri.split(":")[-1]
                 share_url = f"https://open.spotify.com/{uri_type}/{uri_id}"
-                dev.clear_queue()
+                # v2.52.2: this heavy container insert needs the same armor as play_next:
+                # 30s mutation timeout + verify-after-timeout (Shed Arc timed out at 5s).
+                with _queue_mutation_timeout():
+                    dev.clear_queue()
                 plugin    = ShareLinkPlugin(dev)
-                plugin.add_share_link_to_queue(share_url)
-                dev.play_from_queue(0)
+                try:
+                    with _queue_mutation_timeout():
+                        plugin.add_share_link_to_queue(share_url)
+                except Exception as add_err:
+                    log(f"play_spotify_uri: add raised ({add_err}); verifying whether insert landed...")
+                    time.sleep(2.0)
+                    try:
+                        q_after = int(dev.queue_size)
+                    except Exception:
+                        q_after = 0
+                    if q_after > 0:
+                        log(f"play_spotify_uri: verify OK -- queue has {q_after} items after timeout; continuing")
+                    else:
+                        raise
+                with _queue_mutation_timeout():
+                    dev.play_from_queue(0)
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
                 repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
@@ -3111,8 +3372,13 @@ def execute_command(cmd, source="unknown"):
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
                     # Check if current source is a stream (no queue to insert into)
+                    # v2.52.1: x-sonos-vli = live session source (Spotify Connect / AirPlay).
+                    # Queue inserts are invisible on it and next() skips the PHONE's session
+                    # instead of our queue (2026-07-20: played Walking On The Moon instead of
+                    # 2 Klaxons). Treat it as a stream -> full play takes the transport back.
                     stream_prefixes = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
-                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:")
+                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:",
+                                       "x-sonos-vli:")
                     is_stream = False
                     try:
                         media_info = coordinator.avTransport.GetMediaInfo([('InstanceID', 0)])
@@ -3139,12 +3405,51 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
 
-                    if is_stream:
+                    def _add_with_verify(coord, pos=None, before_size=None):
+                        """v2.52: run the queue add under the 30s mutation timeout; if it
+                        still raises, VERIFY whether the insert actually landed before
+                        declaring failure (2026-07-20 Garage postmortem: the insert
+                        succeeded server-side after our 5s hangup — silence + green toast).
+                        Returns normally if the add landed; re-raises otherwise."""
+                        try:
+                            with _queue_mutation_timeout():
+                                _add_to_queue(coord, pos)
+                            return
+                        except Exception as add_err:
+                            log(f"play_next: add raised ({add_err}); verifying whether insert landed...")
+                            time.sleep(2)
+                            try:
+                                after = coord.queue_size
+                            except Exception as qs_err:
+                                log(f"play_next: queue_size verify failed ({qs_err}); re-raising original error")
+                                raise add_err
+                            if before_size is not None and after > before_size:
+                                log(f"play_next: insert VERIFIED landed (queue {before_size} -> {after}); continuing to play")
+                                return
+                            log(f"play_next: insert NOT found (queue {before_size} -> {after}); re-raising")
+                            raise add_err
+
+                    # v2.52: whole-playlist play REPLACES the queue (user decision 2026-07-20).
+                    # Avoids multi-second re-index inserts into huge queues and endless queue bloat.
+                    is_playlist_container = is_spotify and uri_type == "playlist"
+
+                    if is_playlist_container:
+                        try:
+                            _q_before = coordinator.queue_size
+                        except Exception:
+                            _q_before = "?"
+                        log(f"play_next: playlist container -> REPLACE queue (was {_q_before} tracks)")
+                        with _queue_mutation_timeout():
+                            coordinator.clear_queue()
+                        _add_with_verify(coordinator, before_size=0)
+                        coordinator.play_from_queue(0)
+                    elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
                             # Spotify: clear queue + add via ShareLinkPlugin + play from queue
-                            coordinator.clear_queue()
-                            _add_to_queue(coordinator)
+                            with _queue_mutation_timeout():
+                                coordinator.clear_queue()
+                            _add_with_verify(coordinator, before_size=0)
                             coordinator.play_from_queue(0)
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
@@ -3158,8 +3463,12 @@ def execute_command(cmd, source="unknown"):
                         info = coordinator.get_current_track_info()
                         current_pos = int(info.get('playlist_position', 0))
                         insert_pos = current_pos + 1
-                        log(f"play_next: inserting at position {insert_pos} (current={current_pos})")
-                        _add_to_queue(coordinator, pos=insert_pos)
+                        try:
+                            _q_before = coordinator.queue_size
+                        except Exception:
+                            _q_before = None
+                        log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
+                        _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
                         try:
                             coordinator.next()
                             # DESIGN NOTE: next() on a STOPPED speaker advances queue pointer
@@ -3178,6 +3487,8 @@ def execute_command(cmd, source="unknown"):
                             # so this path fired and played leftover queue content.
                             log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
                             coordinator.play_from_queue(insert_pos - 1)
+                    _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
+
                     # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
                     # can recover title/artist when Sonos DIDL comes back empty.
                     if not is_spotify and (title or cmd_artist):
@@ -3192,7 +3503,7 @@ def execute_command(cmd, source="unknown"):
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
-                    mode_note = "full play (was stream)" if is_stream else "queue insert"
+                    mode_note = "queue replace (playlist)" if is_playlist_container else ("full play (was stream)" if is_stream else "queue insert")
                     svc_note = "spotify" if is_spotify else "native"
 
                     # DESIGN NOTE: If title is still a raw URI (e.g. "spotify:track:xxx"),
@@ -3284,7 +3595,11 @@ def execute_command(cmd, source="unknown"):
                     except Exception as e:
                         log(f"play_radio: failed to queue {uri}: {e}")
                 if added > 0:
-                    dev.play_mode = "NORMAL"
+                    # v2.48.5: was hardcoded NORMAL; helper also honors explicit
+                    # cmd['shuffle']/cmd['repeat'] (radio default: no shuffle, no repeat)
+                    if cmd.get("shuffle") is None:
+                        cmd["shuffle"] = False  # radio queues play in built order by default
+                    _enforce_repeat_default(dev, cmd, rooms[0] if rooms else "")
                     dev.play_from_queue(0)
                     result["success"] = True
                     # v2.44: was f"...in {room}" -- NameError ('room' undefined) corrupted
@@ -3313,6 +3628,7 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = "No URI provided"
             else:
                 dev.play_uri(uri, meta=meta, title=title)
+                _enforce_repeat_default(dev, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
                 # v2.37: Cache metadata so polling can recover it when DIDL is empty
                 if not uri.startswith("x-sonos-spotify:") and not uri.startswith("spotify:"):
                     _uri_metadata_cache[uri] = {
@@ -3518,6 +3834,56 @@ def execute_command(cmd, source="unknown"):
             else:
                 result["message"] = f"Room '{room}' not found"
 
+        elif action == "set_repeat":
+            # v2.48.5: DETERMINISTIC repeat control (cycle_repeat is a blind 3-way
+            # cycle — unusable for sweeps since you can't know the outcome without
+            # reading state first). set_repeat is idempotent and fleet-sweep safe.
+            # cmd: {"action":"set_repeat", "repeat": false|true|"one",
+            #       "rooms": ["Room A", ...] | "all"}   (default: all rooms)
+            # Preserves each group's shuffle state. Play mode is a GROUP property,
+            # so targets are resolved to coordinators and deduped.
+            rep = cmd.get("repeat", False)
+            rooms_arg = cmd.get("rooms", "all")
+            if isinstance(rooms_arg, str):
+                target_rooms = list(devices.keys()) if rooms_arg.lower() == "all" else [rooms_arg]
+            else:
+                target_rooms = list(rooms_arg) if rooms_arg else list(devices.keys())
+            coords, errors = {}, []
+            for rname in target_rooms:
+                d = devices.get(rname)
+                if not d:
+                    errors.append(f"{rname}: not found")
+                    continue
+                try:
+                    c = d.group.coordinator if d.group and d.group.coordinator else d
+                except Exception:
+                    c = d
+                coords[c.player_name] = c
+            changed, unchanged = [], []
+            for cname, c in coords.items():
+                try:
+                    cur = c.play_mode
+                    shuffled = cur in ("SHUFFLE", "SHUFFLE_NOREPEAT", "SHUFFLE_REPEAT_ONE")
+                    if rep == "one":
+                        new_mode = "SHUFFLE_REPEAT_ONE" if shuffled else "REPEAT_ONE"
+                    elif rep:
+                        new_mode = "SHUFFLE" if shuffled else "REPEAT_ALL"
+                    else:
+                        new_mode = "SHUFFLE_NOREPEAT" if shuffled else "NORMAL"
+                    if new_mode != cur:
+                        c.play_mode = new_mode
+                        changed.append(f"{cname}: {cur} -> {new_mode}")
+                    else:
+                        unchanged.append(cname)
+                except Exception as e:
+                    errors.append(f"{cname}: {e}")
+            result["success"] = not errors
+            result["message"] = (f"set_repeat({rep}): {len(changed)} changed, "
+                                 f"{len(unchanged)} already correct"
+                                 + (f", {len(errors)} errors" if errors else ""))
+            result["data"] = {"changed": changed, "unchanged": unchanged, "errors": errors}
+            log(f"set_repeat: {result['message']}" + (f" | {changed}" if changed else ""))
+
         elif action == "get_services":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room) if room else next(iter(devices.values()), None)
@@ -3586,6 +3952,33 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = f"Refreshed: {len(fresh)} speakers"
             except Exception as e:
                 result["message"] = f"refresh error: {e}"
+
+        elif action == "clear_queue":
+            # v2.52: UI settings button — wipe the target room's Sonos queue.
+            # If the queue is the active source, Sonos stops playback (expected).
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            else:
+                try:
+                    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    try:
+                        _q_before = coordinator.queue_size
+                    except Exception:
+                        _q_before = "?"
+                    with _queue_mutation_timeout():
+                        coordinator.clear_queue()
+                    log(f"clear_queue: {coordinator.player_name} queue cleared ({_q_before} tracks removed)")
+                    result["success"] = True
+                    result["message"] = f"Queue cleared in {room} ({_q_before} tracks removed)"
+                    result["data"] = {"room": room, "coordinator": coordinator.player_name, "tracks_removed": _q_before}
+                    try:
+                        publish_ui_event("status_update", {})
+                    except Exception as _cq_sse:
+                        log(f"clear_queue: SSE push failed: {_cq_sse}")
+                except Exception as e:
+                    result["message"] = f"clear_queue error: {e}"
 
         elif action == "get_queue":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
@@ -3670,6 +4063,21 @@ def execute_command(cmd, source="unknown"):
         detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
     )
 
+    # v2.52: push command FAILURES to the UI over SSE so the page can show a red
+    # toast. Root cause of "green never lies" work: silent play_next failures left
+    # the user with a success toast and no music (2026-07-20 Garage incident).
+    # Meta/read actions excluded — their failures don't affect playback UX.
+    _ERR_TOAST_EXCLUDE = ("update_check", "get_logs", "get_state", "flush", "get_volume", "get_queue")
+    if not result.get("success") and action not in _ERR_TOAST_EXCLUDE:
+        try:
+            publish_ui_event("command_error", {
+                "cmd_action": action,
+                "cmd_message": (result.get("message") or "unknown error")[:200],
+                "cmd_err_ts": cmd.get("cmd_ts") or now_iso(),
+            })
+        except Exception as _ce_err:
+            log(f"[sse] command_error publish failed: {_ce_err}")
+
     # v2.48: debounced state heartbeat -- ANY state-changing command (silent or
     # not) schedules one heartbeat ~75s out; new commands reset the timer.
     if action not in NON_STATE_ACTIONS:
@@ -3687,13 +4095,18 @@ def execute_command(cmd, source="unknown"):
         return
 
     # Piggyback buffered history on this (non-silent) command result
+    # v2.50: wire copy strips internal coalesce fields (_fp etc.); _pig_originals
+    # keeps them for buffer-restore on POST failure so crash-coalesce still works.
+    _pig_originals = None
     with pending_buffer_lock:
         if pending_buffer:
             log(f"[buffer] piggyback drain: {len(pending_buffer)} pending item(s) attached to '{action}' result")
-            result["pending_history"] = list(pending_buffer)
+            _pig_originals = list(pending_buffer)
+            result["pending_history"] = [{k: v for k, v in it.items() if not k.startswith("_")} for it in _pig_originals]
+            result["format"] = 2  # v2.50 room-factored items
             pending_buffer.clear()
-    if result.get("pending_history"):
-        try: PENDING_PATH.write_text(json.dumps(result["pending_history"]), encoding="utf-8")
+    if _pig_originals:
+        try: PENDING_PATH.write_text(json.dumps(_pig_originals), encoding="utf-8")
         except Exception as pe: log(f"[buffer] WARNING: PENDING_PATH write failed: {pe}")
 
     # Include SSE relay data for server-side relay to ntfy
@@ -3701,20 +4114,24 @@ def execute_command(cmd, source="unknown"):
     if sse_relay:
         result["sse_relay"] = sse_relay
     result["heartbeat"] = heartbeat_fields()
+    _cr_snap = result["heartbeat"].pop("_delta_snap", None)  # v2.49
 
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result -> HTTP {r.status_code}: {result['message']}")
+        if 200 <= r.status_code < 300:
+            _delta_commit(_cr_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
         if result.get("pending_history"):
             try: PENDING_PATH.unlink(missing_ok=True)
             except: pass
     except Exception as e:
         log(f"Failed to post command result: {e}")
-        # Restore piggybacked history to buffer on failure
-        if result.get("pending_history"):
+        # Restore piggybacked history to buffer on failure (v2.50: restore the
+        # ORIGINALS with internal coalesce fields, not the stripped wire copies)
+        if _pig_originals:
             with pending_buffer_lock:
-                pending_buffer[:0] = result["pending_history"]
+                pending_buffer[:0] = _pig_originals
 
 # --- SONOS: GITHUB CMD FALLBACK (removed in v2.24) --------------------------
 # poll_commands() and _clear_github_cmd() removed. ntfy is sole command transport.
@@ -3810,14 +4227,34 @@ def sonos_main_loop():
                 try:
                     log("Sending startup ready heartbeat...")
                     rdy_payload = {"type": "heartbeat", "startup_phase": "ready"}
-                    rdy_payload.update(heartbeat_fields())
-                    requests.post(WEBHOOK, json=rdy_payload, timeout=10)
-                    log("Ready heartbeat sent")
+                    # v2.49: boot=True — ready heartbeats always carry the last 50
+                    # raw console lines (standing rule), exempt from delta trimming
+                    rdy_payload.update(heartbeat_fields(boot=True))
+                    _rdy_snap = rdy_payload.pop("_delta_snap", None)
+                    _rdy_r = requests.post(WEBHOOK, json=rdy_payload, timeout=10)
+                    if 200 <= _rdy_r.status_code < 300:
+                        _delta_commit(_rdy_snap)
+                    log(f"Ready heartbeat sent (HTTP {_rdy_r.status_code}, v2.49 delta baseline committed)")
                     # Send SSE status_update so browser status bar goes green immediately
                     publish_ui_event("status_update", {})
                     log("Startup SSE status_update sent")
                 except Exception as e:
                     log(f"Ready heartbeat failed: {e}")
+                # v2.51: ONE unconditional state push at boot (standing rule 25
+                # companion). Normally state-{house}.json only pushes on track
+                # changes, so an idle machine's file could be days stale -- useless
+                # for verifying an update mid-session. This boot push stamps the
+                # fresh version + boot_time into the agent's webhook-free pull
+                # channel within seconds of startup. Deliberately OUTSIDE the
+                # heartbeat try-block so a heartbeat failure can't skip it.
+                try:
+                    if gh_token:
+                        log(f"[state] Boot state push (v{SERVICE_VERSION}, rule-25 verify channel)...")
+                        _do_state_push()
+                    else:
+                        log("[state] Boot state push SKIPPED: no GitHub token configured")
+                except Exception as e:
+                    log(f"[state] Boot state push failed: {e}")
 
             now = datetime.now(timezone.utc)
 
