@@ -559,7 +559,7 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
-    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Speakers synced</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
   </div>
 
   <!-- Vashon panel -->
@@ -589,7 +589,7 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
-    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Speakers synced</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
   </div>
 
   <!-- Roaming panel -->
@@ -615,9 +615,7 @@
       </div>
     </div>
     <div id="roaming-devices"></div>
-    <div style="margin-top:12px; text-align:center;">
-      <button class="sync-btn" id="sync-spotify-btn" onclick="syncSpotifyHistory()" style="font-size:13px;">↻ Sync Spotify Web History</button>
-    </div>
+    <!-- p2.57: Roaming sync button removed — ⟳ Refresh (shared toolbar) covers roaming Spotify poll -->
   </div>
 </div>
 
@@ -638,7 +636,7 @@
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
       <button class="sync-btn" id="deep-refresh-btn" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
-      <button class="sync-btn" id="sync-btn" onclick="syncNow()">↻ Sync</button>
+      <!-- p2.57: ↻ Sync removed — topology refresh lives in 🔄, wellness checks in weekly rebuild -->
 
     </div>
     <!-- p2.42 deep-refresh banner: NON-BLOCKING by design (AD-032). Commands (pause/volume/rooms)
@@ -688,7 +686,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.56';
+const PAGE_VERSION = 'p2.57';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -702,7 +700,7 @@ const STATE_URLS = {
   vashon: 'https://shumania.github.io/lifelog/state-vashon.json'
 };
 const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e';
-const SUPER_SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=61e754f5ec1abf1f75b4e28f96b618c3';
+// p2.57: SUPER_SYNC_WEBHOOK removed — Super Sync trigger still exists agent-side, just no UI caller
 const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
 const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=6d6c0c3c2153765217b95c78eb753450';
 const ROOMS_LIST = {
@@ -1065,10 +1063,10 @@ function updateSyncButton(h) {
   const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
   if (differs) {
     btn.classList.remove('disabled');
-    btn.textContent = 'Sync Speakers';
+    btn.textContent = 'Group Speakers';
   } else {
     btn.classList.add('disabled');
-    btn.textContent = '✓ Speakers synced';
+    btn.textContent = '✓ Grouped';
   }
 }
 
@@ -1103,10 +1101,10 @@ async function syncRooms(h) {
   if (ok) {
     // Optimistically update rooms state so the button reflects new state
     _roomsPlayingByHouse[h] = [...rooms];
-    showToast(`✓ Speakers synced`);
+    showToast(`✓ Speakers grouped`);
     updateSyncButton(h);
   } else {
-    if (btn) btn.textContent = 'Sync Speakers';
+    if (btn) btn.textContent = 'Group Speakers';
     showToast('✗ Sync failed', true);
   }
 }
@@ -3194,39 +3192,9 @@ function _drFinish() {
   document.getElementById('refresh-banner').hidden = true;
 }
 
-async function syncNow() {
-  const btn = document.getElementById('sync-btn');
-  btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
-  try {
-    // Refresh Sonos topology + Super Sync
-    // U-M11 (p2.43): skip Sonos refresh on roaming (no topic) — Super Sync still runs
-    if (NTFY[house]) postNtfy({ action: 'refresh' }).catch(() => {});
-    await fetch(SUPER_SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
-    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
-    // Collect runs ~5s, flush responses + wellness take ~25s, then reload
-    setTimeout(async () => {
-      await loadData(true);
-      btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-    }, 30000);
-  } catch(e) {
-    btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-  }
-}
+// p2.57: syncNow() removed (↻ Sync button retired — blind-timer pattern, jobs superseded)
 
-async function syncSpotifyHistory() {
-  const btn = document.getElementById('sync-spotify-btn');
-  btn.textContent = '⏳ Syncing Spotify...'; btn.disabled = true; btn.style.opacity = '0.6';
-  try {
-    await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
-    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
-    setTimeout(async () => {
-      await loadData(true);
-      btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-    }, 35000);
-  } catch(e) {
-    btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-  }
-}
+// p2.57: syncSpotifyHistory() removed (redundant with deepRefresh's roaming poll; full-rebuild path was heavyweight + blind timer)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SWITCHING
