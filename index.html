@@ -688,7 +688,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.54';
+const PAGE_VERSION = 'p2.56';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -707,7 +707,7 @@ const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5
 const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=6d6c0c3c2153765217b95c78eb753450';
 const ROOMS_LIST = {
   caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Parents Bedroom','Media Room','Study Computer Playbar'],
-  vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Main Black Sonos Move']
+  vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1017,7 +1017,11 @@ function renderRooms(h) {
   h = h || house;
   const container = document.getElementById('rooms-' + h);
   if (!container) return;
-  const all = ROOMS_LIST[h] || [];
+  // p2.56: chips = union of seed list + live topology, so renamed/new speakers
+  // appear automatically instead of only showing a struck-through stale name
+  const seed = ROOMS_LIST[h] || [];
+  const live = _roomsAll[h] || [];
+  const all = [...seed, ...live.filter(r => !seed.includes(r))];
   const sel = selectedRooms[h] || [];
   const liveRooms = inferActiveRooms(h);
   // Auto-set rooms if user hasn't manually selected
@@ -2224,7 +2228,7 @@ function renderHistory() {
     const rooms = Array.isArray(roomsRaw) ? roomsRaw.join(', ') : String(roomsRaw);
     // CRITICAL: encodeURIComponent does NOT encode single quotes — they break onclick='...' attributes.
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
-    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',title:item.title,artist:item.artist||'',album:item.album||'',service:item.service||''})).replace(/'/g,'%27');
+    const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',track_id:item.track_id||'',title:item.title,artist:item.artist||'',album:item.album||'',service:item.service||''})).replace(/'/g,'%27');
     const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
     const ctxId = 'ctx-' + (item.timestamp||'').replace(/\W/g,'');
     // Has album or context → show expand button
@@ -2565,6 +2569,17 @@ async function directPlay(action, encodedData) {
   _lastDirectPlayTime = now;
   const info = JSON.parse(decodeURIComponent(encodedData));
   let uri = info.uri;
+  // p2.55: x-sonos-vli session URIs are ephemeral (UPnP 804 on replay) — never send them.
+  // The old guard only checked info.sonos_uri; info.uri slipped through unguarded.
+  if (uri && uri.startsWith('x-sonos-vli:')) {
+    console.log('[directPlay] dropping unplayable x-sonos-vli uri:', uri.slice(0, 60));
+    uri = '';
+  }
+  // p2.55: prefer the resolved Spotify track id (migration join key) when the raw URI is unplayable.
+  if (!uri && info.track_id) {
+    uri = info.track_id.startsWith('spotify:') ? info.track_id : ('spotify:track:' + info.track_id);
+    console.log('[directPlay] using resolved track_id ->', uri);
+  }
   console.log('[directPlay]', action, 'house=' + house, 'rooms=' + JSON.stringify(selectedRooms[house]), 'uri=' + (uri||'none'), 'title=' + (info.title||'?'), 'cmdId=' + (commanderId||'null'));
 
   // Determine play target: if the user is on a Sonos tab (caphill/vashon) with rooms selected,
