@@ -388,6 +388,14 @@
   /* p2.47: Phase 4 — Liked Songs ♥ badge (main = red, teenbloods = blue) */
   .liked-heart { color: #e25563; font-size: 11px; vertical-align: 1px; }
   .liked-heart.tb { color: #7aa2f7; }
+  /* p2.58: interactive ♥ button — 4 states: empty ♡ / liked ♥ / pending (pulse) / local (amber) */
+  .like-btn { background:none; border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; padding:2px 6px; font-size:11px; line-height:1.4; }
+  .like-btn.liked { color:#e25563; border-color:rgba(226,85,99,0.4); }
+  .like-btn.pending { color:#e25563; animation: likePulse 1.1s ease-in-out infinite; }
+  .like-btn.localliked { color:#e2a955; border-color:rgba(226,169,85,0.4); }
+  @keyframes likePulse { 0%,100% { opacity:0.35; } 50% { opacity:1; } }
+  /* p2.58: canonical album line — "originally on X (1975)" */
+  .canon-album { font-size:10.5px; color:var(--text-dim); opacity:0.8; margin-top:1px; font-style:italic; }
   .album-tracks-loading { padding: 8px 0; font-size: 12px; color: var(--text-dim); }
 
   /* Empty/loading states */
@@ -686,7 +694,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.57';
+const PAGE_VERSION = 'p2.58';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -703,6 +711,9 @@ const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afq
 // p2.57: SUPER_SYNC_WEBHOOK removed — Super Sync trigger still exists agent-side, just no UI caller
 const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
 const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=6d6c0c3c2153765217b95c78eb753450';
+// p2.58: ♥ likes → dedicated like trigger (wti_bjmj4ma95dq0k9nyyrfc). Tokens are PER-TRIGGER —
+// never reuse another webhook's token (returns 200 but the event never reaches the like trigger).
+const LIKE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5622b453bd1554221e67daf77b930537';
 const ROOMS_LIST = {
   caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Parents Bedroom','Media Room','Study Computer Playbar'],
   vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
@@ -1625,7 +1636,7 @@ function renderNowPlayingSonos(h) {
   })).replace(/'/g,'%27') : '';
   const npArtist = (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : '')));
   const npCardIdx = findExploredCard(npArtist);
-  const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0
+  const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0 && exploredCardIsFresh(npCardIdx)
     ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
     : `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>`) : '';
   el.innerHTML = `
@@ -2236,10 +2247,11 @@ function renderHistory() {
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
       <div class="hi-info">
         <div class="hi-line1">
-          <span class="hi-track">${esc(item.title)}${likedBadge(item.track_id || item.uri)}</span>
+          <span class="hi-track">${esc(item.title)}</span>
           ${item.album ? '<span class="hi-sep">·</span><span class="hi-album">' + esc(item.album) + '</span>' : ''}
           ${item.artist ? '<span class="hi-sep">·</span><span class="hi-artist">' + esc(item.artist) + '</span>' : ''}
         </div>
+        ${canonicalAlbumLine(item.canonical_album, item.canonical_album_year, item.album)}
         <div class="hi-line2">
           <span class="hi-location ${loc.cls}">${loc.label}</span>
           ${rooms ? '<span class="hi-rooms">' + esc(rooms) + '</span>' : ''}
@@ -2249,6 +2261,7 @@ function renderHistory() {
       <div class="hi-actions">
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
+        ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', item.source || item.service || '')}
         ${exploreButton(item.artist, exploreData)}
         ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
@@ -2315,14 +2328,19 @@ function renderSuggRow(s, explorationId) {
   const albumId = isAlbum ? s.uri.split(':').pop() : '';
   let h = '';
   if (isAlbum) h += '<div class="sugg-with-tracks">';
+  // p2.58: ♥ only on real Spotify track/album URIs (never artist/playlist URIs)
+  const isTrack = !!(s.uri && s.uri.startsWith('spotify:track:'));
+  const likeBtn = (isTrack || isAlbum) ? likeButton(isAlbum ? 'album' : 'track', s.uri, s.label || '', s.artist || '', 'discovery', 'spotify') : '';
   h += `<div class="suggestion-item">
     <div class="suggestion-info">
       <div class="suggestion-title">${esc(s.label)}</div>
       ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+      ${canonicalAlbumLine(s.canonical_album, s.canonical_album_year, s.album || '')}
     </div>
     <div class="sugg-actions">
       ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">▶</button>
       <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">+</button>` : ''}
+      ${likeBtn}
       ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},decodeURIComponent('${uri}'),this)">▾</button>` : ''}
     </div>
   </div>`;
@@ -2466,6 +2484,7 @@ function renderDiscovery() {
         <div class="sugg-actions">
           ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">▶</button>
           <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">+</button>` : ''}
+          ${(sourceTrack.uri && (sourceTrack.uri.startsWith('spotify:track:') || sourceTrack.uri.startsWith('spotify:album:'))) ? likeButton(sourceTrack.uri.startsWith('spotify:album:') ? 'album' : 'track', sourceTrack.uri, sourceTrack.label || '', cmd.artist || '', 'discovery_source', 'spotify') : ''}
           ${stCanExpand ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${cmd.exploration_id},decodeURIComponent('${stAlbumUri}'),this)">▾</button>` : ''}
         </div>
       </div>`;
@@ -3095,9 +3114,17 @@ function navigateToExploration(cardIndex) {
 }
 
 // Returns HTML for explore button — 📖 if already explored, 🔍 if not
+// p2.58: jump-to-card only when the exploration is ≤14 days old; older cards are stale
+// context — allow a fresh re-explore instead (the old card stays in Discovery regardless).
+function exploredCardIsFresh(cardIdx) {
+  if (cardIdx < 0 || !data || !data.play_commands || !data.play_commands[cardIdx]) return false;
+  const ts = new Date(data.play_commands[cardIdx].timestamp).getTime();
+  return (Date.now() - ts) < 14 * 24 * 3600000;
+}
+
 function exploreButton(artist, exploreData) {
   const cardIdx = findExploredCard(artist);
-  if (cardIdx >= 0) {
+  if (cardIdx >= 0 && exploredCardIsFresh(cardIdx)) {
     return `<button class="action-btn explore" onclick="navigateToExploration(${cardIdx})" title="View exploration" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">📖</button>`;
   }
   return `<button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">🔍</button>`;
@@ -3278,6 +3305,12 @@ function connectSSE() {
           showToast('✗ ' + (msg.cmd_action || 'command') + ' failed: ' + (msg.cmd_message || 'unknown error'), true);
           console.error('[sse] command_error:', msg.cmd_action, msg.cmd_message);
         }
+      }
+
+      // p2.58: ♥ like confirmations from the like-handler (type:'like_result').
+      // Dedup by cmd_ts inside handleLikeResult (ntfy replays ?since=16m on reconnect).
+      if (msg.type === 'like_result' || events.includes('like_result')) {
+        handleLikeResult(msg);
       }
 
       // p2.44 (U-M12): confirm an in-flight hard refresh — any fresh status_update from
@@ -3494,6 +3527,146 @@ function likedBadge(uriOrId) {
   if (_likedMain.has(id)) return ' <span class="liked-heart" title="Liked Song">♥</span>';
   if (_likedTeen.has(id)) return ' <span class="liked-heart tb" title="Liked Song (teenbloods)">♥</span>';
   return '';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// p2.58: INTERACTIVE LIKES — ♥ → webhook → like-handler → both Spotify accounts
+// Optimistic-but-honest: heart pulses at tap, fills on SSE like_result confirmation,
+// reverts + red toast on failure. Non-Spotify items become "local likes" (amber ♥,
+// captured in the agent ledger; Spotify resolution is a backlogged nightly job).
+// ══════════════════════════════════════════════════════════════════════════════
+let _pendingLikes = {};     // key -> {cmd_ts, t}
+let _sessionLiked = new Set();  // keys confirmed liked this session (until liked.json catches up)
+let _localLiked = new Set();    // keys saved as local likes this session
+let _seenLikeResults = new Set(); // cmd_ts dedup — ntfy replays up to 16 min on reconnect
+
+function _likeExtractId(uriOrId, itemType) {
+  if (!uriOrId) return null;
+  const s = String(uriOrId);
+  const re = itemType === 'album'
+    ? /(?:spotify:album:|spotify%3[Aa]album%3[Aa]|open\.spotify\.com\/album\/)([a-zA-Z0-9]{22})/
+    : /(?:spotify:track:|spotify%3[Aa]track%3[Aa]|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/;
+  let m = s.match(re);
+  if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s];
+  return m ? m[1] : null;
+}
+function _likeKey(itemType, id, title, artist) {
+  return itemType + ':' + (id || ((title || '') + '|' + (artist || '')));
+}
+
+// Renders the ♥ button. Track liked-state comes from liked.json sets (live truth for ALL
+// cards, old and new) + session state; album liked-state is session-only in v1 (liked.json
+// carries tracks only — re-saving an already-saved album is a harmless no-op at Spotify).
+function likeButton(itemType, uriOrId, title, artist, sourceContext, originService) {
+  const id = _likeExtractId(uriOrId, itemType);
+  const key = _likeKey(itemType, id, title, artist);
+  const keyAttr = encodeURIComponent(key);
+  const payload = encodeURIComponent(JSON.stringify({
+    item_type: itemType, spotify_id: id, uri: uriOrId || '', title: title || '',
+    artist: artist || '', origin_service: originService || '', source_context: sourceContext || ''
+  })).replace(/'/g, '%27');
+  let cls = 'like-btn', glyph = '♡', tip = itemType === 'album' ? 'Save album to Spotify library' : 'Save to Spotify Liked Songs';
+  if ((id && itemType === 'track' && _likedMain.has(id)) || _sessionLiked.has(key)) {
+    cls += ' liked'; glyph = '♥'; tip = 'In your Spotify library';
+  } else if (_localLiked.has(key)) {
+    cls += ' localliked'; glyph = '♥'; tip = 'Saved locally — will sync to Spotify later';
+  } else if (_pendingLikes[key]) {
+    cls += ' pending'; glyph = '♥'; tip = 'Saving…';
+  }
+  return `<button class="${cls}" data-lkey="${keyAttr}" onclick="likeTap(this,'${payload}')" title="${tip}">${glyph}</button>`;
+}
+
+function _likeBtns(key) {
+  return document.querySelectorAll('.like-btn[data-lkey="' + encodeURIComponent(key) + '"]');
+}
+function _likeSetState(key, state) { // state: 'empty'|'pending'|'liked'|'local'
+  _likeBtns(key).forEach(b => {
+    b.classList.remove('pending', 'liked', 'localliked');
+    if (state === 'pending') { b.classList.add('pending'); b.textContent = '♥'; }
+    else if (state === 'liked') { b.classList.add('liked'); b.textContent = '♥'; b.title = 'In your Spotify library'; }
+    else if (state === 'local') { b.classList.add('localliked'); b.textContent = '♥'; b.title = 'Saved locally — will sync to Spotify later'; }
+    else { b.textContent = '♡'; }
+  });
+}
+
+async function likeTap(btn, encodedPayload) {
+  let d;
+  try { d = JSON.parse(decodeURIComponent(encodedPayload)); }
+  catch(e) { console.error('[like] bad payload:', e); showToast('✗ Like failed (bad data)', true); return; }
+  const key = _likeKey(d.item_type, d.spotify_id, d.title, d.artist);
+  if (btn.classList.contains('liked')) { showToast('♥ Already in your library'); return; }
+  if (btn.classList.contains('localliked')) { showToast('♥ Saved locally — syncs later'); return; }
+  if (btn.classList.contains('pending') || _pendingLikes[key]) { showToast('♥ Still saving…'); return; }
+  const cmd_ts = new Date().toISOString(); // Rule 22: fresh cmd_ts on every command
+  _pendingLikes[key] = { cmd_ts, t: Date.now() };
+  _likeSetState(key, 'pending');
+  console.log('[like] tap:', key, 'cmd_ts=' + cmd_ts, d);
+  try {
+    const r = await fetch(LIKE_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'like', item_type: d.item_type, spotify_id: d.spotify_id || null,
+        uri: d.uri || '', title: d.title, artist: d.artist, origin_service: d.origin_service,
+        source_context: d.source_context, house, cmd_ts, page_version: PAGE_VERSION }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!d.spotify_id) {
+      // Non-Spotify item → local like; no Spotify confirmation will come. Honest amber state.
+      delete _pendingLikes[key];
+      _localLiked.add(key);
+      _likeSetState(key, 'local');
+      showToast('♥ Saved locally — will sync to Spotify later');
+    } else {
+      showToast('♥ Saving to Spotify…');
+      // Backstop: confirmation rides the agent queue (can lag behind an open session).
+      // After 4 min with no like_result, revert with an honest "unconfirmed" — the ledger
+      // is still the truth and the nightly retry pass will finish the job if it landed late.
+      setTimeout(() => {
+        const p = _pendingLikes[key];
+        if (p && p.cmd_ts === cmd_ts) {
+          delete _pendingLikes[key];
+          _likeSetState(key, 'empty');
+          showToast('♥ Not confirmed yet — it may still land shortly', true);
+          console.warn('[like] no confirmation after 4 min:', key, cmd_ts);
+        }
+      }, 240000);
+    }
+  } catch(e) {
+    console.error('[like] send failed:', e);
+    delete _pendingLikes[key];
+    _likeSetState(key, 'empty');
+    showToast('✗ Like failed to send: ' + (e.message || e), true);
+  }
+}
+
+// Called from the SSE path on type='like_result' pushes from the like-handler.
+function handleLikeResult(msg) {
+  if (!msg || !msg.cmd_ts) return;
+  if (_seenLikeResults.has(msg.cmd_ts)) return; // ntfy replay dedup
+  _seenLikeResults.add(msg.cmd_ts);
+  const key = _likeKey(msg.item_type, msg.spotify_id, msg.title, msg.artist);
+  const pend = _pendingLikes[key];
+  console.log('[like] result:', msg.status, key, msg.cmd_ts, pend ? '(pending match)' : '(no pending — reload or other device)');
+  if (msg.status === 'ok') {
+    if (msg.item_type === 'track' && msg.spotify_id) _likedMain.add(msg.spotify_id);
+    _sessionLiked.add(key);
+    _likeSetState(key, 'liked');
+    if (pend) { delete _pendingLikes[key]; showToast(msg.message || '♥ Saved to Spotify'); }
+  } else if (msg.status === 'local') {
+    _localLiked.add(key);
+    _likeSetState(key, 'local');
+    if (pend) { delete _pendingLikes[key]; showToast(msg.message || '♥ Saved locally'); }
+  } else { // failed
+    if (pend) {
+      delete _pendingLikes[key];
+      _likeSetState(key, 'empty');
+      showToast('✗ ' + (msg.message || 'Like failed'), true);
+    }
+  }
+}
+
+// p2.58: canonical album line — render only when it genuinely differs from the row's own album
+function canonicalAlbumLine(canonAlbum, canonYear, contextAlbum) {
+  if (!canonAlbum) return '';
+  if (contextAlbum && canonAlbum.toLowerCase().trim() === String(contextAlbum).toLowerCase().trim()) return '';
+  return '<div class="canon-album">originally on ' + esc(canonAlbum) + (canonYear ? ' (' + esc(canonYear) + ')' : '') + '</div>';
 }
 
 let _plTrackCache = {};  // id → track array
