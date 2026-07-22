@@ -133,6 +133,9 @@
   .room-chip.offline { opacity: 0.35; text-decoration: line-through; }
   .room-chip.offline.active { opacity: 0.5; }
   .room-chip:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
+  /* p2.59: room is a member of an actual live Sonos group (truth, not selection) */
+  .room-chip.grouped { box-shadow: inset 0 -2px 0 rgba(74,222,128,0.55); }
+  .room-chip.grouped::before { content: '⛓ '; font-size: 9px; opacity: 0.7; }
   .sync-rooms-btn {
     margin-top: 8px; padding: 6px 16px; border-radius: 16px;
     border: 1px solid var(--accent); background: rgba(74,222,128,0.10);
@@ -694,7 +697,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.58';
+const PAGE_VERSION = 'p2.59';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -755,6 +758,26 @@ let _lastCmdErrKey = '';        // p2.54: dedup for command_error red toasts (SS
 let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
 function _rpPausedGet(h) { return _roomsPausedByHouse[h || house] || []; }
+// p2.59: live group topology per house — [{coordinator, members, state}], pushed by
+// v2.53+ services on every SSE message + dedicated 'topology' events on regroup.
+let _groupsByHouse = {};
+// Expand a room list to full group membership: any room that belongs to a multi-room
+// group pulls in all its group-mates. Rooms with no known group pass through as-is.
+function expandViaGroups(h, rooms) {
+  const groups = _groupsByHouse[h] || [];
+  if (!groups.length) return [...rooms];
+  const out = new Set(rooms);
+  for (const r of rooms) {
+    const g = groups.find(g => (g.members || []).includes(r));
+    if (g) for (const m of g.members) out.add(m);
+  }
+  return [...out];
+}
+// Map room -> its group (only groups with 2+ members), for chip badges/tooltips.
+function groupOf(h, room) {
+  const g = (_groupsByHouse[h] || []).find(g => (g.members || []).length > 1 && g.members.includes(room));
+  return g || null;
+}
 let _roomsAll = {};      // per-house: rooms the service can see (for offline detection)
 let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 let _muteStates = {};    // coordinator -> bool (from SSE)
@@ -1034,19 +1057,25 @@ function renderRooms(h) {
   const sel = selectedRooms[h] || [];
   const liveRooms = inferActiveRooms(h);
   // Auto-set rooms if user hasn't manually selected
+  // p2.59: expand via live group topology — a paused/stopped group used to degrade
+  // to its bare coordinator name, showing 2 chips when 5 rooms were grouped.
   if (!_userManualRoomSelect[h] && liveRooms.length > 0) {
-    selectedRooms[h] = [...liveRooms];
+    selectedRooms[h] = expandViaGroups(h, liveRooms);
     localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
   }
   const curSel = selectedRooms[h] || [];
   const visibleRooms = _roomsAll[h] || [];
   const hasVisibility = visibleRooms.length > 0;  // only mark offline if we have data
+  const pausedExpanded = expandViaGroups(h, _rpPausedGet(h));  // p2.59: members of a paused group show ⏸ too
   container.innerHTML = all.map(room => {
     const isActive = curSel.includes(room);
     const isPlaying = liveRooms.includes(room);
-    const isPaused = !isPlaying && _rpPausedGet(h).includes(room);
+    const isPaused = !isPlaying && pausedExpanded.includes(room);
     const isOffline = hasVisibility && !visibleRooms.includes(room);
-    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
+    // p2.59: ⛓ = room is in an actual live group right now (truth), independent of selection
+    const grp = groupOf(h, room);
+    const grpTitle = grp ? ' title="Grouped with: ' + esc(grp.members.filter(m => m !== room).join(', ')) + '"' : '';
+    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${grp ? ' grouped' : ''}"${grpTitle} onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
   }).join('');
   updateSyncButton(h);
 }
@@ -1069,7 +1098,9 @@ function updateSyncButton(h) {
   const btn = document.getElementById('sync-btn-' + h);
   if (!btn) return;
   const sel = new Set(selectedRooms[h] || []);
-  const live = new Set(_rpGet(h));
+  // p2.59: compare against FULL live group membership, not just rooms_playing —
+  // with group topology known, "✓ Grouped" means selection matches the actual group.
+  const live = new Set(expandViaGroups(h, _rpGet(h)));
   // Enable button if selection differs from what's actually playing
   const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
   if (differs) {
@@ -1874,6 +1905,8 @@ function applyStateNowPlaying(stateFiles) {
     }
     // Seed rooms_all for offline detection
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
+    // p2.59: seed group topology from state files (v2.53+ services publish it)
+    if (state.groups && stateTs > sseTs) { _groupsByHouse[h] = [...state.groups]; }
     // Also seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
     if (state.rooms_playing && state.rooms_playing.length > 0) {
       // Always update rooms state (reality) regardless of manual selection
@@ -1881,7 +1914,7 @@ function applyStateNowPlaying(stateFiles) {
       if (stateTs > sseTs) { _roomsPlayingByHouse[h] = [...state.rooms_playing]; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : []; }
       // Only auto-set selectedRooms if user hasn't manually chosen
       if (stateTs > sseTs && !_userManualRoomSelect[h]) {
-        selectedRooms[h] = [...state.rooms_playing];
+        selectedRooms[h] = expandViaGroups(h, state.rooms_playing);  // p2.59
         localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
       }
       // Re-evaluate sync button since live state may have changed
@@ -1893,7 +1926,7 @@ function applyStateNowPlaying(stateFiles) {
       if (!_userManualRoomSelect[h] && !_initialRoomSeedDone[h]) {
         _initialRoomSeedDone[h] = true;
         // Only keep paused rooms as selected (they're recent); clear everything else
-        const pausedRooms = (state.rooms_paused && state.rooms_paused.length > 0) ? [...state.rooms_paused] : [];
+        const pausedRooms = (state.rooms_paused && state.rooms_paused.length > 0) ? expandViaGroups(h, state.rooms_paused) : [];  // p2.59
         if (pausedRooms.length > 0) {
           console.log('[rooms] Seeding', h, 'rooms from paused state:', pausedRooms);
           selectedRooms[h] = pausedRooms;
@@ -3362,6 +3395,18 @@ function connectSSE() {
       // --- Always process state fields (every bundled message is a full snapshot) ---
       if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
       if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
+      // p2.59: capture live group topology (v2.53+ services include groups on every
+      // message). A dedicated 'topology' event = regroup happened (from ANY controller,
+      // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
+      if (sseHouse && Array.isArray(msg.groups)) {
+        _groupsByHouse[sseHouse] = msg.groups;
+        if (events.includes('topology')) {
+          console.log('[sse] topology change for', sseHouse + ':',
+            msg.groups.filter(g => (g.members || []).length > 1)
+               .map(g => g.coordinator + ' +' + (g.members.length - 1)).join(', ') || 'all ungrouped');
+          renderRooms(sseHouse);
+        }
+      }
       if (sseHouse && msg.rooms_playing) {
         // Track all visible rooms for offline detection
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
@@ -3375,7 +3420,7 @@ function connectSSE() {
         }
         if (sseHouse === house) {
           if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
-            selectedRooms[house] = [...msg.rooms_playing];
+            selectedRooms[house] = expandViaGroups(house, msg.rooms_playing);  // p2.59
             localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
           } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
             // Don't clear rooms if now_playing just set them in this same message (snapshot race)

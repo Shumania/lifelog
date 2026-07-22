@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.52.3"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.53.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -242,10 +242,12 @@ _uri_metadata_cache      = {}   # uri -> {"title": str, "artist": str, "album": 
 # Single-pass snapshot computed once per poll cycle. All downstream consumers
 # (SSE enrichment, state push, heartbeat, diagnostics) read from this instead
 # of independently querying every speaker.
+_last_topology_sig = None  # v2.53: JSON signature of group topology for change detection
 _poll_snapshot = {
     "rooms_playing": [],
     "rooms_paused": [],
     "rooms_all": [],
+    "groups": [],             # v2.53: [{"coordinator","members","state"}] for ALL groups
     "play_modes": {},
     "mute_states": {},
     "transport_states": {},   # room -> state string
@@ -978,15 +980,54 @@ def _build_poll_snapshot(coordinators):
         if st == "PAUSED_PLAYBACK" and name not in rooms_playing
     )
 
+    # v2.53: capture FULL group topology for ALL coordinators, regardless of
+    # transport state. Before this, group members were only enumerated for
+    # PLAYING coordinators — a paused/stopped group degraded to its bare
+    # coordinator name on the wire, so the UI showed 2 chips when 5 rooms were
+    # grouped (2026-07-22 bug). groups = [{"coordinator", "members", "state"}].
+    groups = []
+    for dev in coordinators:
+        name = dev.player_name
+        members = [name]
+        try:
+            if dev.group:
+                members = sorted(m.player_name for m in dev.group.members)
+                for m in dev.group.members:
+                    if m.player_name not in current_devices_by_name:
+                        current_devices_by_name[m.player_name] = m
+        except Exception as e:
+            log(f"[snapshot] group topology enumeration error for {name}: {e}")
+        groups.append({
+            "coordinator": name,
+            "members": members,
+            "state": states.get(name, "UNKNOWN"),
+        })
+    groups.sort(key=lambda g: g["coordinator"])
+
     _poll_snapshot = {
         "rooms_playing": rooms_playing,
         "rooms_paused": rooms_paused,
         "rooms_all": sorted(current_devices_by_name.keys()),
+        "groups": groups,
         "play_modes": dict(modes),
         "mute_states": dict(mutes),
         "transport_states": dict(states),
         "timestamp": now_iso(),
     }
+
+    # v2.53: topology change detection — any regroup (from ANY controller:
+    # native Sonos app, us, Alexa) fires a "topology" SSE event so every open
+    # page updates its chips without a manual refresh. Signature deliberately
+    # ignores transport state (play/pause is status_update's job, Rule 5).
+    global _last_topology_sig
+    try:
+        sig = json.dumps([[g["coordinator"], g["members"]] for g in groups])
+        if _last_topology_sig is not None and sig != _last_topology_sig:
+            log(f"[topology] group change detected -> SSE topology event")
+            publish_ui_event("topology", {})
+        _last_topology_sig = sig
+    except Exception as e:
+        log(f"[topology] change detection error: {e}")
 
 
 def get_rooms_playing():
@@ -1376,6 +1417,7 @@ def _sse_enrich_state(payload):
     payload["rooms_playing"] = list(_poll_snapshot.get("rooms_playing", []))
     payload["rooms_paused"] = list(_poll_snapshot.get("rooms_paused", []))
     payload["rooms_all"] = list(_poll_snapshot.get("rooms_all", []))
+    payload["groups"] = list(_poll_snapshot.get("groups", []))  # v2.53: full group topology
     payload["play_modes"] = dict(_poll_snapshot.get("play_modes", {}))
     payload["mute_states"] = dict(_poll_snapshot.get("mute_states", {}))
     payload["house"] = house
@@ -3932,6 +3974,24 @@ def execute_command(cmd, source="unknown"):
                         pass
                 current_devices_by_name = fresh
                 log(f"[refresh] Re-discovered {len(fresh)} speakers: {sorted(fresh.keys())}")
+                # v2.53: rebuild the poll snapshot NOW from fresh coordinators so the
+                # state push below carries current group topology — before this, the
+                # snapshot (incl. groups) stayed stale until the next poll cycle and
+                # the 🔄 button confirmed with old chip state.
+                try:
+                    _fresh_coords = []
+                    for _d in fresh.values():
+                        try:
+                            _g = _d.group
+                            if _g and _d == _g.coordinator:
+                                _fresh_coords.append(_d)
+                        except Exception:
+                            pass
+                    _build_poll_snapshot(_fresh_coords)
+                    log(f"[refresh] Snapshot rebuilt: {len(_fresh_coords)} coordinator(s), "
+                        f"{len(_poll_snapshot.get('groups', []))} group(s)")
+                except Exception as e_snap:
+                    log(f"[refresh] Snapshot rebuild failed (will heal next poll): {e_snap}")
                 # Immediately push fresh state so UI reload gets accurate rooms_playing
                 try:
                     _do_state_push()
