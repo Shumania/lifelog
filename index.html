@@ -706,7 +706,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.60';
+const PAGE_VERSION = 'p2.61';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3677,26 +3677,57 @@ function _heardExtractId(uriOrId, kind) {
   if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s];
   return m ? m[1] : null;
 }
-// ● = heard before (title shows play count) · ○ = new to you. '' until rollups load.
-function heardDot(uriOrId, kind) {
-  if (!_heardTracks) return '';
+// p2.61: live overlay — rollups.json only rebuilds nightly/weekly, so plays since
+// the last build showed \u25cb (bug: Mr Tembo, explored FROM the play, rendered "new").
+// allItems (head+archive, fresh within ~5 min of a play) fills the gap. Consulted
+// ONLY on rollup miss, so counts never double.
+let _heardLive = null, _heardLiveSig = '';
+function _heardLiveMap() {
+  const sig = allItems.length + ':' + (allItems[0] ? allItems[0].timestamp : '');
+  if (_heardLive && _heardLiveSig === sig) return _heardLive;
+  const t = {}, a = {};
+  const addT = (v) => { const id = _heardExtractId(v, 'track'); if (id) t[id] = (t[id] || 0) + 1; };
+  const addA = (v) => { const id = _heardExtractId(v, 'album'); if (id) a[id] = (a[id] || 0) + 1; };
+  try {
+    for (const it of allItems) {
+      if (it.type === 'radio_session') {
+        // enriched member tracks count individually (same rule as rollup builder)
+        if (Array.isArray(it.tracks)) for (const rt of it.tracks) addT(rt.track_id || rt.uri);
+        continue;
+      }
+      addT(it.track_id || it.uri);
+      if (it.album_id) addA(it.album_id);
+    }
+  } catch(e) { console.warn('[heard] live overlay build failed:', e && e.message); }
+  _heardLive = { tracks: t, albums: a }; _heardLiveSig = sig;
+  return _heardLive;
+}
+// Unified lookup: rollups first (deduped truth), live overlay on miss (freshness).
+function _heardCount(uriOrId, kind) {
   const id = _heardExtractId(uriOrId, kind || 'track');
-  if (!id) return '';
-  const rec = (kind === 'album' ? _heardAlbums : _heardTracks)[id];
-  if (rec && rec.n) return ' <span class="heard-dot heard" title="You\u2019ve played this ' + rec.n + '\u00d7">\u25cf</span>';
+  if (!id) return null;
+  const rec = _heardTracks ? (kind === 'album' ? _heardAlbums : _heardTracks)[id] : null;
+  if (rec && rec.n) return rec.n;
+  const live = _heardLiveMap();
+  const n = (kind === 'album' ? live.albums : live.tracks)[id];
+  return n || 0;
+}
+// ● = heard before (title shows play count) · ○ = new to you. '' until any data ready.
+function heardDot(uriOrId, kind) {
+  if (!_heardTracks && !allItems.length) return '';
+  const n = _heardCount(uriOrId, kind || 'track');
+  if (n === null) return '';
+  if (n) return ' <span class="heard-dot heard" title="You\u2019ve played this ' + n + '\u00d7">\u25cf</span>';
   return ' <span class="heard-dot new" title="New to you">\u25cb</span>';
 }
 // True if this suggestion/track has been heard (uses item.heard annotation when
-// present — stamped at explore build — else falls back to rollups lookup).
+// present — stamped at explore build — else rollups + live-overlay lookup).
 function isHeardItem(s) {
   if (s && s.heard === true) return true;
-  if (s && s.heard === false && !_heardTracks) return false;
-  if (!s || !s.uri || !_heardTracks) return s && s.heard === true;
+  if (!s || !s.uri) return false;
+  if (!_heardTracks && !allItems.length) return s.heard === true;
   const kind = String(s.uri).includes(':album:') ? 'album' : 'track';
-  const id = _heardExtractId(s.uri, kind);
-  if (!id) return false;
-  const rec = (kind === 'album' ? _heardAlbums : _heardTracks)[id];
-  return !!(rec && rec.n);
+  return (_heardCount(s.uri, kind) || 0) > 0;
 }
 
 // Accepts a spotify:track: URI, a bare 22-char ID, or an https open.spotify.com track URL.
