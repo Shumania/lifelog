@@ -136,6 +136,19 @@
   /* p2.59: room is a member of an actual live Sonos group (truth, not selection) */
   .room-chip.grouped { box-shadow: inset 0 -2px 0 rgba(74,222,128,0.55); }
   .room-chip.grouped::before { content: '⛓ '; font-size: 9px; opacity: 0.7; }
+  /* p2.62: cluster chips (Option A) — PRESENTATION ONLY; selection stays flat room names */
+  .room-chip.cluster { font-weight: 600; }
+  .room-chip.cluster.partial { border-style: dashed; color: var(--accent); border-color: var(--accent); background: rgba(74,222,128,0.06); }
+  .cluster-expand { margin-left: 5px; opacity: 0.65; font-size: 10px; }
+  .cluster-burst { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 3px 6px; border: 1px dashed var(--border); border-radius: 18px; }
+  .burst-collapse { cursor: pointer; font-size: 12px; opacity: 0.6; padding: 0 3px; -webkit-tap-highlight-color: transparent; }
+  .burst-collapse:hover { opacity: 1; }
+  .room-chip.more-toggle { border-style: dotted; color: var(--text-muted); }
+  .sync-rooms-btn.select-playing { border-color: var(--text-dim); color: var(--text-dim); background: transparent; margin-right: 8px; }
+  .sync-rooms-btn.select-playing:hover { border-color: var(--accent); color: var(--accent); background: rgba(74,222,128,0.10); }
+  /* p2.62: ▶ dot on an INACTIVE house tab whose speakers are playing (replaces removed auto-flip) */
+  .house-tab .tab-play-dot { display: none; margin-left: 4px; font-size: 9px; color: var(--accent); }
+  .house-tab.has-playing:not(.active) .tab-play-dot { display: inline; }
   .sync-rooms-btn {
     margin-top: 8px; padding: 6px 16px; border-radius: 16px;
     border: 1px solid var(--accent); background: rgba(74,222,128,0.10);
@@ -547,8 +560,8 @@
     <div class="status-dots" id="status-bar"></div>
   </div>
   <div class="house-tabs">
-    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill</div>
-    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon</div>
+    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill<span class="tab-play-dot">▶</span></div>
+    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon<span class="tab-play-dot">▶</span></div>
     <div class="house-tab" data-house="roaming" onclick="setHouse('roaming',true)">📱 Roaming</div>
   </div>
 
@@ -579,6 +592,7 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
+    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
     <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
   </div>
 
@@ -609,6 +623,7 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
+    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
     <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
   </div>
 
@@ -706,7 +721,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.61';
+const PAGE_VERSION = 'p2.62';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -731,23 +746,35 @@ const ROOMS_LIST = {
   vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
 };
 
+// p2.62: cluster / demote / never-show config (Option A, design_no_surprise_targeting_p262.md).
+// PRESENTATION ONLY — selectedRooms remains a flat list of real room names; every send
+// path and Group Speakers reconciliation is untouched by this layer.
+const CLUSTERS = { vashon: [
+  { id: 'main-floor',   label: 'Main Floor',   members: ['Main Living Room Maury','Main Kitchen Green Move 2','Sonos Move'] },
+  { id: 'master-suite', label: 'Master Suite', members: ['Main Upstairs Master Bedroom','Main Upstairs Bathroom White Roams'] },
+], caphill: [] };
+const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room'], caphill: [] };
+// Bonded devices (e.g. Vashon Sub) leak into rooms_all via GROUP MEMBER names — the Sonos
+// app hides them. Page-side guard until the v2.54 service fix. Do NOT filter these out of
+// expandViaGroups results used by Group Speakers (live topology legitimately includes them).
+const NEVER_SHOW_ROOMS = { vashon: ['Sub'], caphill: [] };
+let _clusterExpanded = {};   // session-only: cluster id -> bool (▸ burst state)
+let _moreRevealed = {};      // session-only: house -> bool (⋯ demoted row)
+
 // ══════════════════════════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════════════════════════
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = {};  // per-house
-let _userManualRoomSelect = {};
-// If we're returning from a hard refresh, lock to the tab the user was on
-let _tabManualOverride = false;
+// p2.62: the "manual override" gate flags are DELETED — ALL selection and house
+// switching is manual now, so there is no auto mode left to gate.
 const _refreshTab = localStorage.getItem('ll_refresh_tab');
 if (_refreshTab) {
   house = _refreshTab;
   localStorage.setItem('ll_house', _refreshTab);
   localStorage.removeItem('ll_refresh_tab');
-  _tabManualOverride = true;
   console.log('[init] Restored tab from hard refresh:', _refreshTab);
 }
-let _initialRoomSeedDone = {};  // per-house: true after first state-file seed (prevents repeated overrides)
 let data = null;  // data-head.json
 let archiveItems = [];
 let archiveLoaded = false;
@@ -809,7 +836,6 @@ try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone 
 // Init selected rooms from localStorage
 ['caphill','vashon'].forEach(h => {
   try { selectedRooms[h] = JSON.parse(localStorage.getItem('ll_rooms_' + h) || '[]'); } catch(e) { selectedRooms[h] = []; }
-  _userManualRoomSelect[h] = false;
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1007,7 +1033,6 @@ async function spotifyApi(method, path, body, _authRetries) {
 // ══════════════════════════════════════════════════════════════════════════════
 function setHouse(h, isUserClick) {
   house = h;
-  if (isUserClick) _tabManualOverride = true;
   localStorage.setItem('ll_house', h);
   document.querySelectorAll('.house-tab').forEach(t => t.classList.toggle('active', t.dataset.house === h));
   document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
@@ -1026,11 +1051,13 @@ function setHouse(h, isUserClick) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ROOM SELECTION (Sonos)
 // ══════════════════════════════════════════════════════════════════════════════
-function inferActiveRooms(h) {
+// p2.62: live-truth helpers (NO history heuristics — a stale history row up to 2h old
+// was the "hijack a room someone else is using" vector; see design_no_surprise_targeting_p262.md).
+function livePlayingRooms(h) {
   h = h || house;
-  // If live state already confirmed nothing is playing, don't re-infer stale rooms
-  if (_initialRoomSeedDone[h] && _rpGet(h).length === 0) return [];
-  // From data rooms_playing (per-client metadata)
+  const rp = _rpGet(h);
+  if (rp.length > 0) return [...rp];
+  // First-paint fallback: client_status metadata (state files may not have loaded yet)
   if (data && data.client_status) {
     for (const c of data.client_status) {
       if (c.house !== h || !c.sonos_commander) continue;
@@ -1040,58 +1067,125 @@ function inferActiveRooms(h) {
       } catch(e) {}
     }
   }
-  // From recent history
-  if (allItems.length > 0) {
-    const cutoff = Date.now() - 120 * 60000;
-    for (const item of allItems) {
-      if (item.house !== h) continue;
-      const ts = new Date(item.timestamp).getTime();
-      if (ts < cutoff) break;
-      if (Array.isArray(item.rooms) && item.rooms.length > 0) return [...item.rooms];
-      if (item.room) return item.room.split(', ').map(r => r.trim()).filter(Boolean);
-    }
-  }
   return [];
+}
+// Playing rooms, else paused rooms (resume intent). Used by ⊙ and the transport-class fallback.
+function liveTargetRooms(h) {
+  h = h || house;
+  const p = livePlayingRooms(h);
+  if (p.length > 0) return p;
+  return [..._rpPausedGet(h)];
 }
 
 function renderRooms(h) {
   h = h || house;
   const container = document.getElementById('rooms-' + h);
   if (!container) return;
-  // p2.56: chips = union of seed list + live topology, so renamed/new speakers
-  // appear automatically instead of only showing a struck-through stale name
+  // p2.62: chips display LIVE TRUTH (badges); selection changes ONLY by explicit tap.
+  // All auto-select paths removed (design_no_surprise_targeting_p262.md).
+  // p2.56: chips = union of seed list + live topology, so renamed/new speakers appear.
   const seed = ROOMS_LIST[h] || [];
   const live = _roomsAll[h] || [];
-  const all = [...seed, ...live.filter(r => !seed.includes(r))];
-  const sel = selectedRooms[h] || [];
-  const liveRooms = inferActiveRooms(h);
-  // Auto-set rooms if user hasn't manually selected
-  // p2.59: expand via live group topology — a paused/stopped group used to degrade
-  // to its bare coordinator name, showing 2 chips when 5 rooms were grouped.
-  if (!_userManualRoomSelect[h] && liveRooms.length > 0) {
-    selectedRooms[h] = expandViaGroups(h, liveRooms);
-    localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-  }
+  const never = NEVER_SHOW_ROOMS[h] || [];
+  const all = [...seed, ...live.filter(r => !seed.includes(r))].filter(r => !never.includes(r));
   const curSel = selectedRooms[h] || [];
+  const playing = expandViaGroups(h, livePlayingRooms(h));  // group-mates emit sound too
   const visibleRooms = _roomsAll[h] || [];
   const hasVisibility = visibleRooms.length > 0;  // only mark offline if we have data
   const pausedExpanded = expandViaGroups(h, _rpPausedGet(h));  // p2.59: members of a paused group show ⏸ too
-  container.innerHTML = all.map(room => {
+
+  const chipHtml = (room) => {
     const isActive = curSel.includes(room);
-    const isPlaying = liveRooms.includes(room);
+    const isPlaying = playing.includes(room);
     const isPaused = !isPlaying && pausedExpanded.includes(room);
     const isOffline = hasVisibility && !visibleRooms.includes(room);
     // p2.59: ⛓ = room is in an actual live group right now (truth), independent of selection
     const grp = groupOf(h, room);
     const grpTitle = grp ? ' title="Grouped with: ' + esc(grp.members.filter(m => m !== room).join(', ')) + '"' : '';
     return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${grp ? ' grouped' : ''}"${grpTitle} onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
-  }).join('');
+  };
+
+  const clusters = CLUSTERS[h] || [];
+  const clusteredNames = new Set(clusters.flatMap(c => c.members));
+  const demoted = (DEMOTED_ROOMS[h] || []).filter(r => all.includes(r));
+  const regular = all.filter(r => !clusteredNames.has(r) && !demoted.includes(r));
+
+  let html = '';
+  for (const c of clusters) {
+    const members = c.members.filter(r => all.includes(r));
+    if (!members.length) continue;
+    const selCount = members.filter(r => curSel.includes(r)).length;
+    const partial = selCount > 0 && selCount < members.length;
+    // Auto-expand while partially selected so the dashed state is always explainable
+    if (_clusterExpanded[c.id] || partial) {
+      html += '<span class="cluster-burst"><span class="burst-collapse" onclick="collapseCluster(\'' + c.id + '\')" title="Collapse ' + esc(c.label) + '">\u25c2</span>' + members.map(chipHtml).join('') + '</span>';
+      continue;
+    }
+    const isActive = selCount === members.length;
+    const isPlaying = members.some(r => playing.includes(r));
+    const isPaused = !isPlaying && members.some(r => pausedExpanded.includes(r));
+    const isOffline = hasVisibility && members.every(r => !visibleRooms.includes(r));
+    // ⛓ only when the members are actually live-grouped WITH EACH OTHER
+    const g0 = groupOf(h, members[0]);
+    const isGrouped = !!g0 && members.every(m => (g0.members || []).includes(m));
+    const tip = members.map(m => m + (playing.includes(m) ? ' \u25b6' : (pausedExpanded.includes(m) ? ' \u23f8' : ''))).join(' \u00b7 ');
+    html += `<div class="room-chip cluster${isActive ? ' active' : ''}${partial ? ' partial' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${isGrouped ? ' grouped' : ''}" title="${esc(tip)}" onclick="toggleCluster('${esc(h)}','${c.id}')">${esc(c.label)} \u00d7${members.length}<span class="cluster-expand" onclick="event.stopPropagation();expandCluster('${c.id}')" title="Expand cluster">\u25b8</span></div>`;
+  }
+  html += regular.map(chipHtml).join('');
+  if (demoted.length) {
+    const demSelected = demoted.some(r => curSel.includes(r));
+    const demLive = demoted.some(r => playing.includes(r) || pausedExpanded.includes(r));
+    // Row auto-stays open while a demoted room is selected/playing/paused (a playing Garage must not hide)
+    if (_moreRevealed[h] || demSelected || demLive) {
+      html += demoted.map(chipHtml).join('');
+      if (!demSelected && !demLive) html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',false)">\u22ef less</div>`;
+    } else {
+      html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',true)">\u22ef ${demoted.length} more</div>`;
+    }
+  }
+  container.innerHTML = html;
   updateSyncButton(h);
+  updateHouseTabDots();
+}
+
+// p2.62: cluster tap = treat as ONE speaker. none/partial -> select all members; all -> none.
+function toggleCluster(h, id) {
+  const c = (CLUSTERS[h] || []).find(x => x.id === id);
+  if (!c) return;
+  const members = c.members;
+  const sel = new Set(selectedRooms[h] || []);
+  const allSel = members.every(r => sel.has(r));
+  if (allSel) members.forEach(r => sel.delete(r)); else members.forEach(r => sel.add(r));
+  selectedRooms[h] = [...sel];
+  localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+  renderRooms(h);
+}
+function expandCluster(id) { _clusterExpanded[id] = true; renderRooms(); }
+function collapseCluster(id) { _clusterExpanded[id] = false; renderRooms(); }
+function toggleMore(h, open) { _moreRevealed[h] = open; renderRooms(h); }
+
+// p2.62: ⊙ — the ONLY one-tap way to grab live rooms (replaces all removed auto-select).
+// Selection-only; Group Speakers remains the sole grouping send path.
+function selectPlaying(h) {
+  const never = NEVER_SHOW_ROOMS[h] || [];
+  const target = expandViaGroups(h, liveTargetRooms(h)).filter(r => !never.includes(r));
+  if (!target.length) { showToast('Nothing playing right now', true); return; }
+  selectedRooms[h] = target;
+  localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
+  renderRooms(h);
+  showToast('\u2299 Selected: ' + target.join(', '));
+}
+
+// p2.62: ▶ dot on inactive house tabs with live playback (replaces removed auto tab flip)
+function updateHouseTabDots() {
+  document.querySelectorAll('.house-tab').forEach(t => {
+    const th = t.dataset.house;
+    if (th === 'roaming') return;
+    t.classList.toggle('has-playing', (_roomsPlayingByHouse[th] || []).length > 0);
+  });
 }
 
 function toggleRoom(h, room) {
-  _userManualRoomSelect[h] = true;
-  _tabManualOverride = true;  // v2.06: selecting a room implies tab commitment
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
   if (idx < 0) sel.push(room); else sel.splice(idx, 1);
@@ -1198,7 +1292,12 @@ async function sendCmd(action) {
   _lastCmdTime = now;
   if (house === 'roaming') { await spotifyCmd(action); return; }
   const sonosAction = SONOS_MAP[action] || action;
-  const rawRooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+  // p2.62 TRANSPORT-CLASS EXCEPTION (approved default): pause/skip/volume/mute with an
+  // empty selection may target the currently playing (else paused) rooms — "pause what's
+  // playing" is never a surprise. Content-START commands require explicit selection.
+  const selNow = selectedRooms[house] || [];
+  const rawRooms = selNow.length > 0 ? selNow : expandViaGroups(house, liveTargetRooms(house));
+  if (!rawRooms.length) { showToast('Tap a speaker first', true); return; }
   const rooms = filterOfflineRooms(rawRooms);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
   // Optimistic UI for mute/repeat (these are silent — no SSE confirmation comes back)
@@ -1232,9 +1331,11 @@ function toggleCtrlSettings(h) {
 async function sendClearQueue(h) {
   const pop = document.getElementById('ctrl-settings-' + h);
   if (pop) pop.hidden = true;
-  const rawRooms = (selectedRooms[h] || []).length > 0 ? selectedRooms[h] : inferActiveRooms();
-  const rooms = filterOfflineRooms(rawRooms, h);
-  if (!rooms.length) { showToast('No room selected — pick a speaker first', true); return; }
+  // p2.62: destructive command — explicit selection required (no inferred targeting)
+  const selNow = selectedRooms[h] || [];
+  if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+  const rooms = filterOfflineRooms(selNow, h);
+  if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
   const room = rooms[0];
   if (!confirm('Clear the Sonos queue for ' + room + '?\nIf the queue is currently playing, playback will stop.')) return;
   showToast('🗑 Clearing queue · ' + room);
@@ -1938,106 +2039,32 @@ function applyStateNowPlaying(stateFiles) {
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
     // p2.59: seed group topology from state files (v2.53+ services publish it)
     if (state.groups && stateTs > sseTs) { _groupsByHouse[h] = [...state.groups]; }
-    // Also seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
-    if (state.rooms_playing && state.rooms_playing.length > 0) {
-      // Always update rooms state (reality) regardless of manual selection
-      // U-M2: store for EVERY house (was gated to current tab, discarding other-house state)
-      if (stateTs > sseTs) { _roomsPlayingByHouse[h] = [...state.rooms_playing]; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : []; }
-      // Only auto-set selectedRooms if user hasn't manually chosen
-      if (stateTs > sseTs && !_userManualRoomSelect[h]) {
-        selectedRooms[h] = expandViaGroups(h, state.rooms_playing);  // p2.59
-        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+    // Seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
+    // p2.62: REALITY ONLY — selection is never seeded/cleared from state (manual-only design)
+    if (state.rooms_playing && stateTs > sseTs) {
+      // p2.62 liveness gate: a DEAD machine's last state file can be days old and still
+      // claim rooms_playing (ShumaFrame incident — week-old file lit the tab ▶ dot and fed
+      // the transport-class fallback with rooms from a week ago). Gate on the machine's
+      // client_status.last_seen, NOT file age — an alive-but-idle machine legitimately has
+      // an old state file (state only pushes on changes) and its contents are still true.
+      // "Alive" = state file OR client_status heartbeat within 12h. Both freeze when a
+      // machine dies (ShumaFrame: both were 7 days old). 12h tolerates idle days and the
+      // overnight quiet-hours gap; live SSE refreshes reality within minutes anyway.
+      const lastSeenTs = (data && data.client_status)
+        ? Math.max(0, ...data.client_status.filter(c => c.house === h && c.last_seen)
+            .map(c => new Date(c.last_seen).getTime() || 0))
+        : Date.now();  // no client info yet — trust the state file
+      const machineAlive = (Date.now() - Math.max(stateTs, lastSeenTs)) < 43200000;
+      if (machineAlive) {
+        _roomsPlayingByHouse[h] = [...state.rooms_playing];
+        _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : [];
+      } else {
+        _roomsPlayingByHouse[h] = []; _roomsPausedByHouse[h] = [];
       }
-      // Re-evaluate sync button since live state may have changed
       updateSyncButton(h);
-    } else if (state.rooms_playing && state.rooms_playing.length === 0 && stateTs > sseTs) {
-      // State says no rooms playing — clear this house's state (U-M2: all houses, keyed)
-      _roomsPlayingByHouse[h] = []; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : [];
-      // Clear stale auto-selected rooms on page load when nothing is playing
-      if (!_userManualRoomSelect[h] && !_initialRoomSeedDone[h]) {
-        _initialRoomSeedDone[h] = true;
-        // Only keep paused rooms as selected (they're recent); clear everything else
-        const pausedRooms = (state.rooms_paused && state.rooms_paused.length > 0) ? expandViaGroups(h, state.rooms_paused) : [];  // p2.59
-        if (pausedRooms.length > 0) {
-          console.log('[rooms] Seeding', h, 'rooms from paused state:', pausedRooms);
-          selectedRooms[h] = pausedRooms;
-        } else {
-          console.log('[rooms] Nothing playing/paused for', h, '— clearing stale room selection');
-          selectedRooms[h] = [];
-        }
-        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-      }
     }
   }
-}
-
-// Auto-select tab based on which house has active speakers
-function autoSelectTab(stateFiles) {
-  if (_tabManualOverride) return;  // user tapped a tab — don't fight them
-  const active = [];
-  for (const [h, state] of Object.entries(stateFiles)) {
-    if (state && state.rooms_playing && state.rooms_playing.length > 0) active.push(h);
-  }
-  if (active.length === 1 && active[0] !== house) {
-    console.log('[auto-tab] Switching to', active[0], '(active speakers detected)');
-    setHouse(active[0]);
-    return;
-  }
-  if (active.length > 0) return;  // both active or current house active — keep it
-
-  // Both idle — check rooms_paused as tiebreaker (house with paused speakers = recently active)
-  const pausedCounts = {};
-  for (const [h, state] of Object.entries(stateFiles)) {
-    pausedCounts[h] = (state && state.rooms_paused) ? state.rooms_paused.length : 0;
-  }
-  const houses = ['caphill', 'vashon'].filter(h => pausedCounts[h] !== undefined);
-  if (houses.length === 2 && pausedCounts[houses[0]] !== pausedCounts[houses[1]]) {
-    const winner = pausedCounts[houses[0]] > pausedCounts[houses[1]] ? houses[0] : houses[1];
-    if (winner !== house) {
-      console.log('[auto-tab] Switching to', winner, '(more paused rooms:', pausedCounts[winner], 'vs', pausedCounts[winner === houses[0] ? houses[1] : houses[0]], ')');
-      setHouse(winner);
-      return;
-    }
-  }
-
-  // Fallback: most recently seen sonos_commander client (from data-head.json client_status)
-  if (data && data.client_status) {
-    const commanders = data.client_status.filter(c => c.sonos_commander);
-    if (commanders.length >= 2) {
-      commanders.sort((a, b) => (b.last_seen || '').localeCompare(a.last_seen || ''));
-      const newest = commanders[0];
-      const diff = new Date(newest.last_seen).getTime() - new Date(commanders[1].last_seen).getTime();
-      if (diff > 30 * 60000 && newest.house !== house) {
-        console.log('[auto-tab] Switching to', newest.house, '(most recently seen commander:', newest.client_id, ', diff:', Math.round(diff/60000), 'min)');
-        setHouse(newest.house);
-        return;
-      }
-    }
-  }
-
-  // Fallback: most recently updated state file = active machine location
-  const timestamps = {};
-  for (const [h, state] of Object.entries(stateFiles)) {
-    timestamps[h] = state?.last_updated ? new Date(state.last_updated).getTime() : 0;
-  }
-  if (timestamps.caphill && timestamps.vashon && timestamps.caphill !== timestamps.vashon) {
-    const winner = timestamps.vashon > timestamps.caphill ? 'vashon' : 'caphill';
-    const diff = Math.abs(timestamps.vashon - timestamps.caphill);
-    if (diff > 30 * 60000 && winner !== house) {
-      console.log('[auto-tab] Switching to', winner, '(more recently updated state file, diff:', Math.round(diff/60000), 'min)');
-      setHouse(winner);
-      return;
-    }
-  }
-
-  // Final fallback: most recent non-roaming listening history
-  if (allItems.length > 0) {
-    const recent = allItems.find(i => i.house && i.house !== 'roaming');
-    if (recent && recent.house !== house) {
-      console.log('[auto-tab] Switching to', recent.house, '(most recent listening)');
-      setHouse(recent.house);
-    }
-  }
+  updateHouseTabDots();
 }
 
 async function loadData(loadArchive) {
@@ -2075,8 +2102,8 @@ async function loadData(loadArchive) {
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
     allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
-    // Auto-select tab based on active speakers
-    autoSelectTab(stateFiles);
+    // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
+    updateHouseTabDots();
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
     applyStateNowPlaying(stateFiles);
     renderAll();
@@ -2115,8 +2142,10 @@ async function loadData(loadArchive) {
 function renderAll() {
   renderStatusBar();
   updateCommander();
-  // Seed rooms state from data
-  _roomsPlayingByHouse[house] = inferActiveRooms(house) || [];
+  // Seed rooms state from data — p2.62: LIVE truth only (client_status metadata);
+  // the old history-heuristic fallback could pollute the reality store with rooms
+  // from a 2h-old play, which then leaked into badges and transport targeting.
+  if ((_roomsPlayingByHouse[house] || []).length === 0) _roomsPlayingByHouse[house] = livePlayingRooms(house);
   renderRooms(house);
   if (house === 'roaming') renderRoamingPanel();
   else renderNowPlayingSonos(house);
@@ -2717,8 +2746,10 @@ async function directPlay(action, encodedData) {
 
   // --- SONOS PATH (Cap Hill / Vashon) ---
   if (house !== 'roaming') {
-    const rawRooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
-    const rooms = filterOfflineRooms(rawRooms);
+    // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
 
     // [DESIGN NOTE] play_next handles ALL services (Spotify, Qobuz, Apple Music).
@@ -3071,7 +3102,10 @@ async function playContext(action, encodedData) {
   const isQobuz = svc.includes('qobuz') || sonosUri.includes('sid=31');
   const isApple = svc.includes('apple') || sonosUri.includes('sid=204');
   if ((isQobuz || isApple) && info.album && house !== 'roaming') {
-    const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+    // p2.62: content-start requires explicit selection
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
     const service = isQobuz ? 'Qobuz' : 'Apple Music';
     console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist);
@@ -3109,7 +3143,10 @@ async function playContext(action, encodedData) {
 
   // --- SONOS PATH ---
   if (house !== 'roaming') {
-    const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+    // p2.62: content-start requires explicit selection
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
     await postNtfy({ action: ntfyAction, uri: contextUri, title: label, rooms, target_client_id: commanderId });
@@ -3186,7 +3223,10 @@ async function playDiscovery(action, uri, label) {
   }
 
   // Sonos
-  const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+  // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+  const selNow = selectedRooms[house] || [];
+  if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+  const rooms = filterOfflineRooms(selNow);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
   // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
@@ -3448,11 +3488,8 @@ function connectSSE() {
           _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: evtTs };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
-            if (msg.rooms && msg.rooms.length > 0 && !_userManualRoomSelect[house]) {
-              selectedRooms[house] = [...msg.rooms];
-              localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
-              renderRooms(house);
-            }
+            // p2.62: badges may have changed — re-render chips; selection untouched
+            renderRooms(house);
           }
         }
         if (house === 'roaming') renderNowPlayingRoaming();
@@ -3494,27 +3531,10 @@ function connectSSE() {
         // U-M2: always store rooms state under the event's own house (not just current tab)
         _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
         _roomsPausedByHouse[sseHouse] = msg.rooms_paused ? [...msg.rooms_paused] : [];
-        // Auto-switch tab if music starts in another house
-        if (!_tabManualOverride && msg.rooms_playing.length > 0 && sseHouse !== house) {
-          console.log('[auto-tab] SSE: switching to', sseHouse, '(speakers started)');
-          setHouse(sseHouse);
-        }
+        // p2.62: NO auto tab flip, NO selection mutation — reality stored above;
+        // the inactive-tab ▶ dot carries the "other house is playing" signal now.
+        updateHouseTabDots();
         if (sseHouse === house) {
-          if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
-            selectedRooms[house] = expandViaGroups(house, msg.rooms_playing);  // p2.59
-            localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
-          } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
-            // Don't clear rooms if now_playing just set them in this same message (snapshot race)
-            if (events.includes('now_playing') && msg.rooms && msg.rooms.length > 0) {
-              console.log('[rooms] SSE: skipping rooms_playing=[] clear — now_playing has rooms:', msg.rooms);
-            } else {
-              // Nothing playing — keep paused rooms selected so user can resume
-              const pausedFallback = (msg.rooms_paused && msg.rooms_paused.length > 0) ? [...msg.rooms_paused] : [];
-              selectedRooms[house] = pausedFallback;
-              localStorage.setItem('ll_rooms_' + house, JSON.stringify(pausedFallback));
-              if (pausedFallback.length > 0) console.log('[rooms] SSE: keeping paused rooms selected:', pausedFallback);
-            }
-          }
           renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
           // (mute_states processed above may have run before _roomsPlaying was updated)
@@ -4126,8 +4146,9 @@ function handleDeepLink() {
       if (action === 'queue') await playDiscovery('queue', uri, label);
       else await playDiscovery('play', uri, label);
     } else {
-      const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
-      if (!rooms.length) { showToast('No rooms', true); return; }
+      // p2.62: content-start requires explicit selection — deep links included
+      const rooms = selectedRooms[house] || [];
+      if (!rooms.length) { showToast('Tap a speaker first', true); return; }
       const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
       const ok = await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
       if (ok) showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
