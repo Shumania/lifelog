@@ -309,6 +309,15 @@
   /* ========== DISCOVERY ========== */
   .discovery-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
   .discovery-stat { padding: 4px 0 8px; font-size: 12px; color: var(--text-dim); }
+  /* p2.60: heard-vs-new dots + Unplayed filter */
+  .heard-dot { font-size: 9px; vertical-align: 1px; }
+  .heard-dot.heard { color: var(--accent, #1db954); opacity: 0.75; }
+  .heard-dot.new { color: var(--text-dim); opacity: 0.6; }
+  .disc-filter-chip { display: inline-block; margin-left: 10px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; user-select: none; color: var(--text-dim); }
+  .disc-filter-chip.on { border-color: var(--accent, #1db954); color: var(--accent, #1db954); }
+  body.disc-unplayed .suggestion-item[data-heard="1"] { display: none; }
+  body.disc-unplayed .sugg-with-tracks:has(> .suggestion-item[data-heard="1"]) { display: none; }
+  body.disc-unplayed .discovery-card:not(:has(.suggestion-item[data-heard="0"])) { display: none; }
   .discovery-card {
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden; transition: border-color 0.15s;
@@ -697,7 +706,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.59';
+const PAGE_VERSION = 'p2.60';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1754,7 +1763,29 @@ function renderStatusBar() {
     const label = names[c.client_id] || c.client_id;
     const ver = c.version ? ` v${c.version}` : '';
     return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}<span style="font-weight:400;opacity:0.7">${esc(ver)}</span></span>`;
-  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>';
+  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>' + errorIndicator();
+}
+
+// p2.60: ⚠️ error indicator — unresolved system_errors (24h) surfaced by the publishers
+// as data.recent_errors / data.errors_24h. Absent or zero → renders nothing.
+function errorIndicator() {
+  const n = (data && data.errors_24h) || (data && data.recent_errors && data.recent_errors.length) || 0;
+  if (!n) return '';
+  return ` <span onclick="toggleErrorList()" style="white-space:nowrap;cursor:pointer;font-size:11px;color:#eab308;font-weight:600" title="Unresolved errors in the last 24h — tap for details">⚠️${n}</span>`;
+}
+function toggleErrorList() {
+  let box = document.getElementById('error-list-pop');
+  if (box) { box.remove(); return; }
+  const errs = (data && data.recent_errors) || [];
+  if (!errs.length) return;
+  box = document.createElement('div');
+  box.id = 'error-list-pop';
+  box.style.cssText = 'position:fixed;top:44px;right:8px;z-index:1000;background:var(--bg-card,#1a1a2e);border:1px solid #eab308;border-radius:8px;padding:10px 12px;max-width:320px;font-size:11px;box-shadow:0 4px 16px rgba(0,0,0,0.5)';
+  box.innerHTML = '<div style="font-weight:700;color:#eab308;margin-bottom:6px">⚠️ Recent errors (24h)</div>' +
+    errs.map(e => `<div style="margin-bottom:6px;line-height:1.35"><span style="opacity:0.6">${esc((e.ts||'').replace('T',' ').replace('Z',''))}</span> <b>${esc(e.source||'')}</b><br>${esc(e.message||'')}</div>`).join('') +
+    '<div style="opacity:0.5;margin-top:4px">tap to dismiss</div>';
+  box.onclick = () => box.remove();
+  document.body.appendChild(box);
 }
 
 // p2.44 (U-M12): hard refresh with pending/confirmation UX. After a refresh command the
@@ -2116,14 +2147,15 @@ function getLocation(item) {
   return { cls: 'roaming', label: '📱 Roaming' };
 }
 
+// p2.60: emoji dots make multi-source nature visible at a glance (backlog: "Source badges on tracks")
 function getSourceBadge(item) {
   const src = item.source || '';
-  if (src.includes('spotify')) return 'Spotify';
-  if (src.includes('apple')) return 'Apple Music';
-  if (src.includes('qobuz')) return 'Qobuz';
-  if (src.includes('kcrw')) return 'KCRW';
-  if (src.includes('kexp')) return 'KEXP';
-  if (src.includes('tunein') || src.includes('radio')) return 'Radio';
+  if (src.includes('spotify')) return '🟢 Spotify';
+  if (src.includes('apple')) return '🔴 Apple Music';
+  if (src.includes('qobuz')) return '🟡 Qobuz';
+  if (src.includes('kcrw')) return '📻 KCRW';
+  if (src.includes('kexp')) return '📻 KEXP';
+  if (src.includes('tunein') || src.includes('radio')) return '📻 Radio';
   return '';
 }
 
@@ -2364,9 +2396,9 @@ function renderSuggRow(s, explorationId) {
   // p2.58: ♥ only on real Spotify track/album URIs (never artist/playlist URIs)
   const isTrack = !!(s.uri && s.uri.startsWith('spotify:track:'));
   const likeBtn = (isTrack || isAlbum) ? likeButton(isAlbum ? 'album' : 'track', s.uri, s.label || '', s.artist || '', 'discovery', 'spotify') : '';
-  h += `<div class="suggestion-item">
+  h += `<div class="suggestion-item" data-heard="${isHeardItem(s) ? 1 : 0}">
     <div class="suggestion-info">
-      <div class="suggestion-title">${esc(s.label)}</div>
+      <div class="suggestion-title">${esc(s.label)}${(isTrack || isAlbum) ? heardDot(s.uri, isAlbum ? 'album' : 'track') : ''}</div>
       ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
       ${canonicalAlbumLine(s.canonical_album, s.canonical_album_year, s.album || '')}
     </div>
@@ -2415,6 +2447,7 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
   panel.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracks…</div>';
   panel.classList.add('show');
 
+  loadHeardData(); // p2.60: kick off rollups for heard dots (non-blocking; cached after first load)
   let tracks;
   if (_albumTracksCache[explorationId]) {
     tracks = _albumTracksCache[explorationId][albumUri];
@@ -2430,8 +2463,41 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     }
   }
 
+  // p2.60: converge on the Phase-6 chunk system. Per-exploration file missed →
+  // try the immutable albums/{id}.json chunk (shared with History expansion),
+  // and 404 there fires the proven fetch_album_chunk self-heal + poll.
+  // Kills the old "No track data yet" dead end.
+  if ((!tracks || tracks.length === 0) && albumId) {
+    let chunk = _histAlbumChunkCache[albumId];
+    if (!chunk) {
+      try {
+        const resp = await fetch('albums/' + albumId + '.json?v=' + (Date.now()>>10));
+        if (resp.ok) {
+          chunk = await resp.json();
+          _histAlbumChunkCache[albumId] = chunk;
+        } else if (resp.status === 404) {
+          console.log('[albumTracks] no chunk for', albumId, '— firing self-heal webhook');
+          panel.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Fetching tracklist… (first request for this album, ~30–60s)</div>';
+          try {
+            await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ action: 'fetch_album_chunk', album_id: albumId, cmd_ts: new Date().toISOString(), page_version: PAGE_VERSION }) });
+          } catch(e) { console.warn('[albumTracks] self-heal webhook failed:', e && e.message); }
+          for (let i = 0; i < 12 && !chunk; i++) {
+            await new Promise(r => setTimeout(r, 10000));
+            try {
+              const rr = await fetch('albums/' + albumId + '.json?v=' + Date.now());
+              if (rr.ok) { chunk = await rr.json(); _histAlbumChunkCache[albumId] = chunk; }
+            } catch(e) { /* keep polling */ }
+          }
+        }
+      } catch(e) { console.warn('[albumTracks] chunk fetch error:', e && e.message); }
+    }
+    if (chunk && chunk.tracks && chunk.tracks.length > 0) tracks = chunk.tracks;
+  }
+
   if (!tracks || tracks.length === 0) {
-    panel.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.5">No track data yet</div>';
+    panel.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.5">Tracklist not available yet — try again in a minute</div>';
     return;
   }
 
@@ -2445,14 +2511,24 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}${heardDot(tUriVal, 'track')}</span>
       <div class="sugg-actions">
         ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
+        ${likeButton('track', tUriVal, tName, '', 'discovery', 'spotify')}
       </div>
     </div>`;
   }
   panel.innerHTML = html;
+}
+
+// p2.60: "Unplayed only" Discovery filter — persisted; CSS :has() does the hiding
+function _discUnplayedOnly() { try { return localStorage.getItem('discUnplayedOnly') === '1'; } catch(e) { return false; } }
+function toggleDiscUnplayed() {
+  const on = !_discUnplayedOnly();
+  try { localStorage.setItem('discUnplayedOnly', on ? '1' : '0'); } catch(e) {}
+  if (on && !_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
+  renderDiscovery();
 }
 
 function renderDiscovery() {
@@ -2462,10 +2538,13 @@ function renderDiscovery() {
     return;
   }
   const cmds = data.play_commands;
+  // p2.60: heard dots + Unplayed filter need rollups — load once, then re-render so dots/filter appear
+  if (!_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
+  document.body.classList.toggle('disc-unplayed', _discUnplayedOnly());
   // Stat line
   const lastDate = new Date(cmds[0].timestamp);
   const statLine = `${cmds.length} artists explored · last on ${lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} at ${fmtTime(cmds[0].timestamp)}`;
-  let html = `<div class="discovery-stat">${esc(statLine)}</div>`;
+  let html = `<div class="discovery-stat">${esc(statLine)}<span class="disc-filter-chip${_discUnplayedOnly() ? ' on' : ''}" onclick="toggleDiscUnplayed()" title="Show only suggestions you haven\u2019t played yet">\u25cb Unplayed only</span></div>`;
 
   for (let i = 0; i < cmds.length; i++) {
     const cmd = cmds[i];
@@ -2756,6 +2835,7 @@ async function toggleHistAlbumTracks(panelId, albumId, btn) {
   btn.textContent = '▴';
   if (box.dataset.loaded === '1') return;
   box.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracklist…</div>';
+  loadHeardData(); // p2.60: heard dots (non-blocking)
 
   let chunk = _histAlbumChunkCache[albumId];
   if (!chunk) {
@@ -2800,10 +2880,11 @@ async function toggleHistAlbumTracks(panelId, albumId, btn) {
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}${heardDot(tUriVal, 'track')}</span>
       <div class="sugg-actions">
         ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
+        ${likeButton('track', tUriVal, tName, chunk.artist || '', 'history', 'spotify')}
       </div>
     </div>`;
   }
@@ -3560,6 +3641,64 @@ async function loadLikedData() {
     console.error('[liked] Failed to load liked.json:', e);
   }
 }
+// ── p2.60: heard-vs-new dots — client-side from rollups.json ────────────────
+// rollups.tracks/albums are keyed by bare Spotify IDs with play counts. Loading
+// once client-side keeps dots always-current with zero publish cost (chunks are
+// immutable, so heard state must NOT be stamped into them at publish time).
+let _heardTracks = null, _heardAlbums = null, _heardLoading = null;
+const ROLLUPS_URL = 'https://shumania.github.io/lifelog/rollups.json';
+async function loadHeardData() {
+  if (_heardTracks) return true;
+  if (_heardLoading) return _heardLoading;  // dedupe concurrent callers
+  _heardLoading = (async () => {
+    try {
+      const r = await fetch(ROLLUPS_URL + '?t=' + (Date.now()>>16));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      _heardTracks = d.tracks || {};
+      _heardAlbums = d.albums || {};
+      console.log('[heard] rollups loaded: ' + Object.keys(_heardTracks).length + ' tracks, ' + Object.keys(_heardAlbums).length + ' albums');
+      return true;
+    } catch(e) {
+      console.error('[heard] rollups load failed:', e && e.message);
+      _heardLoading = null;  // allow retry on next expansion
+      return false;
+    }
+  })();
+  return _heardLoading;
+}
+function _heardExtractId(uriOrId, kind) {
+  if (!uriOrId) return null;
+  const s = String(uriOrId);
+  const re = kind === 'album'
+    ? /(?:spotify:album:|spotify%3[Aa]album%3[Aa]|open\.spotify\.com\/album\/)([a-zA-Z0-9]{22})/
+    : /(?:spotify:track:|spotify%3[Aa]track%3[Aa]|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/;
+  let m = s.match(re);
+  if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s];
+  return m ? m[1] : null;
+}
+// ● = heard before (title shows play count) · ○ = new to you. '' until rollups load.
+function heardDot(uriOrId, kind) {
+  if (!_heardTracks) return '';
+  const id = _heardExtractId(uriOrId, kind || 'track');
+  if (!id) return '';
+  const rec = (kind === 'album' ? _heardAlbums : _heardTracks)[id];
+  if (rec && rec.n) return ' <span class="heard-dot heard" title="You\u2019ve played this ' + rec.n + '\u00d7">\u25cf</span>';
+  return ' <span class="heard-dot new" title="New to you">\u25cb</span>';
+}
+// True if this suggestion/track has been heard (uses item.heard annotation when
+// present — stamped at explore build — else falls back to rollups lookup).
+function isHeardItem(s) {
+  if (s && s.heard === true) return true;
+  if (s && s.heard === false && !_heardTracks) return false;
+  if (!s || !s.uri || !_heardTracks) return s && s.heard === true;
+  const kind = String(s.uri).includes(':album:') ? 'album' : 'track';
+  const id = _heardExtractId(s.uri, kind);
+  if (!id) return false;
+  const rec = (kind === 'album' ? _heardAlbums : _heardTracks)[id];
+  return !!(rec && rec.n);
+}
+
 // Accepts a spotify:track: URI, a bare 22-char ID, or an https open.spotify.com track URL.
 function likedBadge(uriOrId) {
   if (!uriOrId) return '';
