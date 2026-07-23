@@ -725,7 +725,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.64';
+const PAGE_VERSION = 'p2.65';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1139,7 +1139,7 @@ function renderRooms(h) {
   if (demoted.length) {
     // p2.63: a live/selected demoted room reveals ONLY ITSELF (a playing Garage must not hide);
     // the rest stay behind "\u22ef N more". Manual open shows all, with a "rarely used" label.
-    const liveOrSel = r => curSel.includes(r) || ((playing.includes(r) || pausedExpanded.includes(r)) && (!hasVisibility || visibleRooms.includes(r)));  // p2.64: offline rooms never auto-reveal
+    const liveOrSel = r => curSel.includes(r) || (playing.includes(r) && (!hasVisibility || visibleRooms.includes(r)));  // p2.65: only PLAYING (audible) or selected reveals; paused stays behind \u22ef
     const demChip = r => chipHtml(r, ' demoted');
     if (_moreRevealed[h]) {
       html += `<span class="demoted-label">rarely used</span>`;
