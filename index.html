@@ -725,7 +725,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.65';
+const PAGE_VERSION = 'p2.66';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -797,7 +797,27 @@ let _roomsPlayingByHouse = {};  // house -> rooms currently playing (SSE status_
 let _lastCmdErrKey = '';        // p2.54: dedup for command_error red toasts (SSE replays)
 let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
-function _rpPausedGet(h) { return _roomsPausedByHouse[h || house] || []; }
+// p2.66: paused rooms decay after 1h — a speaker sitting in ⏸ for hours isn't a live
+// session, it's an abandoned one. Stale-paused rooms are treated as stopped everywhere
+// (no ⏸ badge, no resume targeting). Clock starts when the UI first sees the room paused
+// (persisted across reloads via localStorage).
+const PAUSE_TTL_MS = 3600000;
+let _pausedSince = {};
+try { _pausedSince = JSON.parse(localStorage.getItem('pausedSince') || '{}'); } catch (e) { _pausedSince = {}; }
+function _setPaused(h, rooms) {
+  _roomsPausedByHouse[h] = [...rooms];
+  const now = Date.now();
+  rooms.forEach(r => { const k = h + '|' + r; if (!_pausedSince[k]) _pausedSince[k] = now; });
+  Object.keys(_pausedSince).forEach(k => {
+    if (k.startsWith(h + '|') && !rooms.includes(k.slice(h.length + 1))) delete _pausedSince[k];
+  });
+  try { localStorage.setItem('pausedSince', JSON.stringify(_pausedSince)); } catch (e) {}
+}
+function _rpPausedGet(h) {
+  h = h || house;
+  const now = Date.now();
+  return (_roomsPausedByHouse[h] || []).filter(r => (now - (_pausedSince[h + '|' + r] || now)) < PAUSE_TTL_MS);
+}
 // p2.59: live group topology per house — [{coordinator, members, state}], pushed by
 // v2.53+ services on every SSE message + dedicated 'topology' events on regroup.
 let _groupsByHouse = {};
@@ -2066,9 +2086,9 @@ function applyStateNowPlaying(stateFiles) {
       const machineAlive = (Date.now() - Math.max(stateTs, lastSeenTs)) < 43200000;
       if (machineAlive) {
         _roomsPlayingByHouse[h] = [...state.rooms_playing];
-        _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : [];
+        _setPaused(h, state.rooms_paused || []);  // p2.66: stamp pause clock
       } else {
-        _roomsPlayingByHouse[h] = []; _roomsPausedByHouse[h] = [];
+        _roomsPlayingByHouse[h] = []; _setPaused(h, []);
       }
       updateSyncButton(h);
     }
@@ -3539,7 +3559,7 @@ function connectSSE() {
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
         // U-M2: always store rooms state under the event's own house (not just current tab)
         _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
-        _roomsPausedByHouse[sseHouse] = msg.rooms_paused ? [...msg.rooms_paused] : [];
+        _setPaused(sseHouse, msg.rooms_paused || []);  // p2.66: stamp pause clock
         // p2.62: NO auto tab flip, NO selection mutation — reality stored above;
         // the inactive-tab ▶ dot carries the "other house is playing" signal now.
         updateHouseTabDots();
