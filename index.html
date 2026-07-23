@@ -725,7 +725,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.66';
+const PAGE_VERSION = 'p2.67';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -799,24 +799,74 @@ let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
 // p2.66: paused rooms decay after 1h — a speaker sitting in ⏸ for hours isn't a live
 // session, it's an abandoned one. Stale-paused rooms are treated as stopped everywhere
-// (no ⏸ badge, no resume targeting). Clock starts when the UI first sees the room paused
-// (persisted across reloads via localStorage).
+// (no ⏸ badge, no resume targeting).
+// p2.67 cold-load fix: a brand-new browser session used to stamp every already-paused
+// room as "paused just now", granting long-abandoned rooms a fresh hour of relevance.
+// Now only a LIVE transition (page open, room flips to paused) stamps now(); on the
+// first status per house per session, an unknown pause clock must be corroborated by
+// play history — played within the last hour → clock starts at that play; no recent
+// play → already stale. -1 sentinel = history not loaded yet → hidden, re-inferred
+// once history arrives.
 const PAUSE_TTL_MS = 3600000;
 let _pausedSince = {};
+let _pauseBaselineSeen = {};
 try { _pausedSince = JSON.parse(localStorage.getItem('pausedSince') || '{}'); } catch (e) { _pausedSince = {}; }
+function _roomInItem(item, r) {
+  if (Array.isArray(item.rooms)) return item.rooms.includes(r);
+  const s = item.room || item.domain || '';
+  return typeof s === 'string' && s.split(',').map(x => x.trim()).includes(r);
+}
+function _inferPausedSince(h, r, now) {
+  if (!allItems.length) return -1;  // history not loaded — unknown
+  for (const it of allItems) {
+    if (it.house !== h || it.type !== 'music') continue;
+    const ts = new Date(it.timestamp).getTime();
+    if (!(ts > 0)) continue;
+    if (now - ts >= PAUSE_TTL_MS) break;  // sorted desc — nothing fresher below
+    if (_roomInItem(it, r)) return ts;    // clock starts at last actual play
+  }
+  return now - PAUSE_TTL_MS;  // no recent play → already stale
+}
 function _setPaused(h, rooms) {
   _roomsPausedByHouse[h] = [...rooms];
   const now = Date.now();
-  rooms.forEach(r => { const k = h + '|' + r; if (!_pausedSince[k]) _pausedSince[k] = now; });
+  const cold = !_pauseBaselineSeen[h];
+  _pauseBaselineSeen[h] = true;
+  rooms.forEach(r => {
+    const k = h + '|' + r;
+    if (!_pausedSince[k] || _pausedSince[k] === -1) {
+      _pausedSince[k] = cold ? _inferPausedSince(h, r, now) : now;
+    }
+  });
   Object.keys(_pausedSince).forEach(k => {
     if (k.startsWith(h + '|') && !rooms.includes(k.slice(h.length + 1))) delete _pausedSince[k];
   });
   try { localStorage.setItem('pausedSince', JSON.stringify(_pausedSince)); } catch (e) {}
 }
+function _reinferPaused() {
+  if (!allItems.length) return;
+  const now = Date.now();
+  let changed = false;
+  Object.keys(_pausedSince).forEach(k => {
+    if (_pausedSince[k] === -1) {
+      const i = k.indexOf('|');
+      _pausedSince[k] = _inferPausedSince(k.slice(0, i), k.slice(i + 1), now);
+      changed = true;
+    }
+  });
+  if (changed) {
+    try { localStorage.setItem('pausedSince', JSON.stringify(_pausedSince)); } catch (e) {}
+    try { renderRooms(house); } catch (e) {}
+  }
+}
 function _rpPausedGet(h) {
   h = h || house;
   const now = Date.now();
-  return (_roomsPausedByHouse[h] || []).filter(r => (now - (_pausedSince[h + '|' + r] || now)) < PAUSE_TTL_MS);
+  return (_roomsPausedByHouse[h] || []).filter(r => {
+    const ts = _pausedSince[h + '|' + r];
+    if (ts === -1) return false;  // unknown age — hide until history corroborates
+    return (now - (ts || now)) < PAUSE_TTL_MS;
+  });
 }
 // p2.59: live group topology per house — [{coordinator, members, state}], pushed by
 // v2.53+ services on every SSE message + dedicated 'topology' events on regroup.
@@ -2131,6 +2181,7 @@ async function loadData(loadArchive) {
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
     allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
+    _reinferPaused();  // p2.67: resolve unknown pause clocks now that history is loaded
     // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
     updateHouseTabDots();
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
