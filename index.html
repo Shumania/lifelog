@@ -725,7 +725,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.63';
+const PAGE_VERSION = 'p2.64';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -757,7 +757,7 @@ const CLUSTERS = { vashon: [
   { id: 'main-floor',   label: 'Main Floor',   members: ['Main Living Room Maury','Main Kitchen Green Move 2','Sonos Move'] },
   { id: 'master-suite', label: 'Master Suite', members: ['Main Upstairs Master Bedroom','Main Upstairs Bathroom White Roams'] },
 ], caphill: [] };
-const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room'], caphill: [] };
+const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: [] };  // p2.64: Shed Boombox demoted (often offline)
 // Bonded devices (e.g. Vashon Sub) leak into rooms_all via GROUP MEMBER names — the Sonos
 // app hides them. Page-side guard until the v2.54 service fix. Do NOT filter these out of
 // expandViaGroups results used by Group Speakers (live topology legitimately includes them).
@@ -1122,7 +1122,7 @@ function renderRooms(h) {
     const partial = selCount > 0 && selCount < members.length;
     // Auto-expand while partially selected so the dashed state is always explainable
     if (_clusterExpanded[c.id] || partial) {
-      html += '<span class="cluster-burst"><span class="burst-collapse" onclick="collapseCluster(\'' + c.id + '\')" title="Collapse ' + esc(c.label) + '">\u25c2</span>' + members.map(chipHtml).join('') + '</span>';
+      html += '<span class="cluster-burst"><span class="burst-collapse" onclick="collapseCluster(\'' + c.id + '\')" title="Collapse ' + esc(c.label) + '">\u25c2</span>' + members.map(r => chipHtml(r)).join('') + '</span>';
       continue;
     }
     const isActive = selCount === members.length;
@@ -1135,11 +1135,11 @@ function renderRooms(h) {
     const tip = members.map(m => m + (playing.includes(m) ? ' \u25b6' : (pausedExpanded.includes(m) ? ' \u23f8' : ''))).join(' \u00b7 ');
     html += `<div class="room-chip cluster${isActive ? ' active' : ''}${partial ? ' partial' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${isGrouped ? ' grouped' : ''}" title="${esc(tip)}" onclick="toggleCluster('${esc(h)}','${c.id}')">${esc(c.label)} \u00d7${members.length}<span class="cluster-expand" onclick="event.stopPropagation();expandCluster('${c.id}')" title="Expand cluster">\u25b8</span></div>`;
   }
-  html += regular.map(chipHtml).join('');
+  html += regular.map(r => chipHtml(r)).join('');  // p2.64: no bare map(chipHtml) — index would corrupt xcls
   if (demoted.length) {
     // p2.63: a live/selected demoted room reveals ONLY ITSELF (a playing Garage must not hide);
     // the rest stay behind "\u22ef N more". Manual open shows all, with a "rarely used" label.
-    const liveOrSel = r => curSel.includes(r) || playing.includes(r) || pausedExpanded.includes(r);
+    const liveOrSel = r => curSel.includes(r) || ((playing.includes(r) || pausedExpanded.includes(r)) && (!hasVisibility || visibleRooms.includes(r)));  // p2.64: offline rooms never auto-reveal
     const demChip = r => chipHtml(r, ' demoted');
     if (_moreRevealed[h]) {
       html += `<span class="demoted-label">rarely used</span>`;
