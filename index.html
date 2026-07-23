@@ -120,7 +120,7 @@
   }
   .ctrl-settings-item:hover { background: var(--surface2); }
 
-  .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
+  .room-selector { display: flex; flex-wrap: wrap; gap: 10px 7px; align-items: center; margin: 10px 0 4px; }
   .room-chip {
     font-size: 12px; padding: 5px 12px; border-radius: 16px;
     border: 1px solid var(--border); background: var(--surface);
@@ -144,6 +144,10 @@
   .burst-collapse { cursor: pointer; font-size: 12px; opacity: 0.6; padding: 0 3px; -webkit-tap-highlight-color: transparent; }
   .burst-collapse:hover { opacity: 1; }
   .room-chip.more-toggle { border-style: dotted; color: var(--text-muted); }
+  /* p2.63: rarely-used (demoted) chips — dimmer + smaller per approved mockup; live/selected ones pop */
+  .room-chip.demoted { opacity: 0.55; font-size: 11px; padding: 4px 10px; }
+  .room-chip.demoted.active, .room-chip.demoted.playing, .room-chip.demoted.paused { opacity: 1; }
+  .demoted-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-left: 4px; user-select: none; }
   .sync-rooms-btn.select-playing { border-color: var(--text-dim); color: var(--text-dim); background: transparent; margin-right: 8px; }
   .sync-rooms-btn.select-playing:hover { border-color: var(--accent); color: var(--accent); background: rgba(74,222,128,0.10); }
   /* p2.62: ▶ dot on an INACTIVE house tab whose speakers are playing (replaces removed auto-flip) */
@@ -721,7 +725,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.62';
+const PAGE_VERSION = 'p2.63';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1094,7 +1098,7 @@ function renderRooms(h) {
   const hasVisibility = visibleRooms.length > 0;  // only mark offline if we have data
   const pausedExpanded = expandViaGroups(h, _rpPausedGet(h));  // p2.59: members of a paused group show ⏸ too
 
-  const chipHtml = (room) => {
+  const chipHtml = (room, xcls) => {
     const isActive = curSel.includes(room);
     const isPlaying = playing.includes(room);
     const isPaused = !isPlaying && pausedExpanded.includes(room);
@@ -1102,7 +1106,7 @@ function renderRooms(h) {
     // p2.59: ⛓ = room is in an actual live group right now (truth), independent of selection
     const grp = groupOf(h, room);
     const grpTitle = grp ? ' title="Grouped with: ' + esc(grp.members.filter(m => m !== room).join(', ')) + '"' : '';
-    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${grp ? ' grouped' : ''}"${grpTitle} onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
+    return `<div class="room-chip${xcls || ''}${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${grp ? ' grouped' : ''}"${grpTitle} onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
   };
 
   const clusters = CLUSTERS[h] || [];
@@ -1133,14 +1137,19 @@ function renderRooms(h) {
   }
   html += regular.map(chipHtml).join('');
   if (demoted.length) {
-    const demSelected = demoted.some(r => curSel.includes(r));
-    const demLive = demoted.some(r => playing.includes(r) || pausedExpanded.includes(r));
-    // Row auto-stays open while a demoted room is selected/playing/paused (a playing Garage must not hide)
-    if (_moreRevealed[h] || demSelected || demLive) {
-      html += demoted.map(chipHtml).join('');
-      if (!demSelected && !demLive) html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',false)">\u22ef less</div>`;
+    // p2.63: a live/selected demoted room reveals ONLY ITSELF (a playing Garage must not hide);
+    // the rest stay behind "\u22ef N more". Manual open shows all, with a "rarely used" label.
+    const liveOrSel = r => curSel.includes(r) || playing.includes(r) || pausedExpanded.includes(r);
+    const demChip = r => chipHtml(r, ' demoted');
+    if (_moreRevealed[h]) {
+      html += `<span class="demoted-label">rarely used</span>`;
+      html += demoted.map(demChip).join('');
+      html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',false)">\u22ef less</div>`;
     } else {
-      html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',true)">\u22ef ${demoted.length} more</div>`;
+      const shown = demoted.filter(liveOrSel);
+      const hidden = demoted.filter(r => !liveOrSel(r));
+      html += shown.map(demChip).join('');
+      if (hidden.length) html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',true)">\u22ef ${hidden.length} more</div>`;
     }
   }
   container.innerHTML = html;
