@@ -726,7 +726,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.68';
+const PAGE_VERSION = 'p2.69';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -765,6 +765,7 @@ const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Se
 const NEVER_SHOW_ROOMS = { vashon: ['Sub'], caphill: [] };
 let _clusterExpanded = {};   // session-only: cluster id -> bool (▸ burst state)
 let _moreRevealed = {};      // session-only: house -> bool (⋯ demoted row)
+let _demotedTucked = {};     // p2.69: house -> rooms tucked back behind ⋯ at Group Speakers press (cleared on fresh state)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // STATE
@@ -1210,7 +1211,8 @@ function renderRooms(h) {
   if (demoted.length) {
     // p2.63: a live/selected demoted room reveals ONLY ITSELF (a playing Garage must not hide);
     // the rest stay behind "\u22ef N more". Manual open shows all, with a "rarely used" label.
-    const liveOrSel = r => curSel.includes(r) || (playing.includes(r) && (!hasVisibility || visibleRooms.includes(r)));  // p2.65: only PLAYING (audible) or selected reveals; paused stays behind \u22ef
+    const _tucked = _demotedTucked[h] || [];  // p2.69: deselected-at-group-press rooms stay tucked until fresh state
+    const liveOrSel = r => curSel.includes(r) || (!_tucked.includes(r) && playing.includes(r) && (!hasVisibility || visibleRooms.includes(r)));  // p2.65: only PLAYING (audible) or selected reveals; paused stays behind \u22ef
     const demChip = r => chipHtml(r, ' demoted');
     if (_moreRevealed[h]) {
       html += `<span class="demoted-label">rarely used</span>`;
@@ -1326,8 +1328,10 @@ async function syncRooms(h) {
   if (ok) {
     // Optimistically update rooms state so the button reflects new state
     _roomsPlayingByHouse[h] = [...rooms];
+    // p2.69: rarely-used rooms NOT in the new group tuck back behind ⋯ immediately
+    _demotedTucked[h] = (DEMOTED_ROOMS[h] || []).filter(r => !rooms.includes(r));
     showToast(`✓ Speakers grouped`);
-    updateSyncButton(h);
+    renderRooms(h);
   } else {
     if (btn) btn.textContent = 'Group Speakers';
     showToast('✗ Sync failed', true);
@@ -2197,6 +2201,7 @@ function applyStateNowPlaying(stateFiles) {
       if (machineAlive) {
         _roomsPlayingByHouse[h] = [...state.rooms_playing];
         _setPaused(h, state.rooms_paused || []);  // p2.66: stamp pause clock
+        _demotedTucked[h] = [];  // p2.69: fresh truth supersedes tuck
       } else {
         _roomsPlayingByHouse[h] = []; _setPaused(h, []);
       }
@@ -3671,6 +3676,7 @@ function connectSSE() {
         // U-M2: always store rooms state under the event's own house (not just current tab)
         _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
         _setPaused(sseHouse, msg.rooms_paused || []);  // p2.66: stamp pause clock
+        _demotedTucked[sseHouse] = [];  // p2.69: fresh truth supersedes tuck
         // p2.62: NO auto tab flip, NO selection mutation — reality stored above;
         // the inactive-tab ▶ dot carries the "other house is playing" signal now.
         updateHouseTabDots();
