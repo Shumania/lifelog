@@ -60,7 +60,7 @@
   .house-panel[hidden] { display: none; }
 
   .now-playing {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 10px 14px; background: rgba(74, 222, 128, 0.06);
     border: 1px solid rgba(74, 222, 128, 0.15); border-radius: 10px;
     margin-bottom: 12px;
@@ -85,6 +85,7 @@
     flex-shrink: 0; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
   }
   .np-explore:hover { background: rgba(96,165,250,0.15); }
+  .now-playing .ctx-panel { flex-basis: 100%; width: 100%; }
   .np-explore:active { transform: scale(0.92); }
   .np-explore.exploring { animation: pulse 1s infinite; }
 
@@ -725,7 +726,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.67';
+const PAGE_VERSION = 'p2.68';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1575,7 +1576,8 @@ async function fetchSpotifyNowPlaying() {
         album: d.item.type === 'track' ? (d.item.album?.name||'') : '',
         device: d.device?.name || '',
         progress_ms: d.progress_ms || 0, duration_ms: d.item.duration_ms || 0,
-        is_playing: d.is_playing, uri: d.item.uri
+        is_playing: d.is_playing, uri: d.item.uri,
+        context_type: d.context?.type || '', context_uri: d.context?.uri || ''
       };
       if (d.device?.id && !_manualPinActive()) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
     }
@@ -1711,6 +1713,46 @@ function updateMuteRepeatButtons() {
       repeatBtn.classList.toggle('active', isActive);
     }
   }
+}
+
+// p2.68: synthesize a ctx-panel info blob from Now Playing state.
+// Source precedence mirrors renderNowPlayingSonos: SSE live → dataNp (<30m) → latest history item.
+// Returns null when there is nothing expandable (radio, garbage title, no data).
+function npCtxInfo(h) {
+  const sse = _sseNowPlaying[h];
+  const isLive = sse && (Date.now() - sse.ts) < 600000;
+  const dataNp = data && data.now_playing && data.now_playing.house === h ? data.now_playing : null;
+  const dataNpAge = dataNp ? Date.now() - new Date(dataNp.timestamp || dataNp.ts || 0).getTime() : Infinity;
+  let s = null;
+  if (isLive) s = sse;
+  else if (dataNp && dataNpAge < 30 * 60000) s = dataNp;
+  else if (allItems.length > 0) s = allItems.find(i => i.house === h && i.type === 'music') || null;
+  if (!s || !s.title || s.title === '—' || isGarbageTitle(s.title)) return null;
+  const uriRaw = s.uri || '';
+  const low = (uriRaw + ' ' + (s.service || s.source || '')).toLowerCase();
+  if (low.includes('kexp') || low.includes('kcrw')) return null;  // radio → nothing to unfold
+  // Bare spotify:track:ID — decode from sonos-encoded URIs when needed
+  let bare = '';
+  if (uriRaw.startsWith('spotify:track:')) bare = uriRaw;
+  else { try { const m = decodeURIComponent(uriRaw).match(/spotify:track:[A-Za-z0-9]+/); if (m) bare = m[0]; } catch(e) {} }
+  const sonosUri = (uriRaw.startsWith('x-sonos') || uriRaw.startsWith('x-rincon')) ? uriRaw : (s.sonos_uri || '');
+  const info = {
+    uri: bare, album: s.album || '', artist: s.artist || '', title: s.title || '',
+    context_type: s.context_type || '', context_uri: s.context_uri || '',
+    service: s.service || s.source || '', sonos_uri: sonosUri, album_id: s.album_id || ''
+  };
+  // Enrichment: borrow album_id / context from the matching history-head row (live plays land there fast)
+  if ((!info.album_id || !info.context_uri) && bare && allItems.length) {
+    const tid = bare.split(':').pop();
+    const m = allItems.find(i => i.type === 'music' && (i.uri === bare || (i.uri || '').includes(tid)));
+    if (m) {
+      if (!info.album_id && m.album_id) info.album_id = m.album_id;
+      if (!info.context_uri && m.context_uri) { info.context_uri = m.context_uri; info.context_type = m.context_type || ''; }
+      if (!info.album && m.album) info.album = m.album;
+    }
+  }
+  if (!info.album && !info.album_id && !info.uri && !info.context_uri) return null;
+  return info;
 }
 
 function renderNowPlayingSonos(h) {
@@ -1859,13 +1901,17 @@ function renderNowPlayingSonos(h) {
   const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0 && exploredCardIsFresh(npCardIdx)
     ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
     : `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>`) : '';
+  // p2.68: NP context expansion (album/playlist unfold). Re-render closes the panel — honest on track change.
+  const npInfo = npCtxInfo(h);
+  const npCtxId = 'npctx-' + h;
+  const ctxBtn = npInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('${npCtxId}',this,'${encodeURIComponent(JSON.stringify(npInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
       <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
-    </div>${exploreBtn}`;
+    </div>${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
 }
 
 function renderNowPlayingRoaming() {
@@ -1876,6 +1922,20 @@ function renderNowPlayingRoaming() {
     const np = spotifyNowPlaying;
     const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
     const rExplore = encodeURIComponent(JSON.stringify({title:np.title,artist:np.artist,album:np.album||'',source:'Spotify',uri:''})).replace(/'/g,'%27');
+    // p2.68: NP context expansion — roaming already has a bare track uri + Spotify context
+    let rInfo = {
+      uri: (np.uri && np.uri.startsWith('spotify:track:')) ? np.uri : '',
+      album: np.album || '', artist: np.artist || '', title: np.title || '',
+      context_type: (np.context_type === 'playlist' || np.context_type === 'album') ? np.context_type : '',
+      context_uri: np.context_uri || '', service: 'spotify', sonos_uri: '', album_id: ''
+    };
+    if (rInfo.uri && allItems.length) {
+      const rtid = rInfo.uri.split(':').pop();
+      const rm = allItems.find(i => i.type === 'music' && i.album_id && (i.uri === rInfo.uri || (i.uri || '').includes(rtid)));
+      if (rm) rInfo.album_id = rm.album_id;
+    }
+    if (!rInfo.album && !rInfo.uri && !rInfo.context_uri && !rInfo.album_id) rInfo = null;
+    const rCtxBtn = rInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('npctx-roaming',this,'${encodeURIComponent(JSON.stringify(rInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
     el.className = 'now-playing';
     el.innerHTML = `
       <div class="np-indicator" style="background:var(--spotify);"></div>
@@ -1888,7 +1948,7 @@ function renderNowPlayingRoaming() {
       </div>
       ${findExploredCard(np.artist) >= 0
         ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(np.artist)})" title="View exploration">📖</button>`
-        : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}`;
+        : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}${rCtxBtn}${rInfo ? `<div class="ctx-panel" id="npctx-roaming"></div>` : ''}`;
   } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
     const pExplore = encodeURIComponent(JSON.stringify({title:spotifyNowPlaying.title,artist:spotifyNowPlaying.artist,album:'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     el.className = 'now-playing np-stale';
@@ -3012,7 +3072,7 @@ function toggleCtxPanel(panelId, btn, encodedInfo) {
     if (p.id !== panelId) {
       p.classList.remove('open');
       // Reset the toggle button
-      const prevBtn = p.previousElementSibling?.querySelector('.ctx-toggle');
+      const prevBtn = p.previousElementSibling?.classList?.contains('ctx-toggle') ? p.previousElementSibling : p.previousElementSibling?.querySelector('.ctx-toggle');
       if (prevBtn) { prevBtn.classList.remove('open'); prevBtn.textContent = '▾'; }
     }
   });
@@ -4196,6 +4256,10 @@ function renderPlaylists() {
         card += '<div class="tr-actions">';
         card += '<button class="tr-btn" onclick="playPlTrack(\'play\',' + ti + ',\'' + p.id + '\')" title="Play">\u25b6</button>';
         card += '<button class="tr-btn queue" onclick="playPlTrack(\'queue\',' + ti + ',\'' + p.id + '\')" title="Queue">+</button>';
+        // p2.68: explore affordance on playlist tracks (same shared helper as history rows)
+        var priArtist = (t.artists && t.artists.length) ? t.artists[0].name : '';
+        var exData = encodeURIComponent(JSON.stringify({title:t.track_name,artist:priArtist,album:t.album_name||'',source:'spotify',uri:t.track_uri||''})).replace(/'/g,'%27');
+        if (priArtist) card += exploreButton(priArtist, exData);
         card += '</div></div>';
       }
     }
