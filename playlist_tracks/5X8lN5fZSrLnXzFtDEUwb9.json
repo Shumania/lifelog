@@ -1,10 +1,10 @@
 [
  {
   "position": 0,
-  "track_id": "6Ts6elkWVN39p45A6WXAO1",
-  "track_name": "New Music Friday: The best albums out July 17",
-  "track_uri": "spotify:episode:6Ts6elkWVN39p45A6WXAO1",
-  "duration_ms": 2491977,
+  "track_id": "2Ta3rDG2F1mkS3r1D4N0Os",
+  "track_name": "New Music Friday: The best albums out July 24",
+  "track_uri": "spotify:episode:2Ta3rDG2F1mkS3r1D4N0Os",
+  "duration_ms": 2401880,
   "artists": [
    {
     "name": null,
@@ -14,623 +14,464 @@
   "album_name": "NPR Music",
   "album_id": "10LYbliXlNZe1VStsTkcC0",
   "album_image_url": "https://i.scdn.co/image/ab6765630000ba8a22b9a6fc111a7e865f6cba1e",
-  "added_at": "2026-07-17T13:18:10Z"
+  "added_at": "2026-07-24T09:59:48Z"
  },
  {
   "position": 1,
-  "track_id": "1U90UBmMrQTx9GNweUA4LZ",
-  "track_name": "Hit the Wall",
-  "track_uri": "spotify:track:1U90UBmMrQTx9GNweUA4LZ",
-  "duration_ms": 194376,
+  "track_id": "1C95XJLGL9xyMlsES1uVDQ",
+  "track_name": "Camera",
+  "track_uri": "spotify:track:1C95XJLGL9xyMlsES1uVDQ",
+  "duration_ms": 151438,
   "artists": [
    {
-    "name": "Gracie Abrams",
-    "id": "4tuJ0bMpJh08umKkEXKUI5"
+    "name": "Charli xcx",
+    "id": "25uiPmTg16RbhZWAqwLBy5"
    }
   ],
-  "album_name": "Hit the Wall",
-  "album_id": "1jvG5wNg83Bm7ykfjwPHbZ",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731f4ba58b0e4dcef24a8df0cf",
-  "added_at": "2026-07-16T20:52:32Z"
+  "album_name": "Camera",
+  "album_id": "2P5WYw7vAwb5jeFPIU1lMc",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cf5e9bd3c7533d7c3d471a62",
+  "added_at": "2026-07-23T23:53:32Z"
  },
  {
   "position": 2,
-  "track_id": "4olWlfIzbDyD53NhWyvdDJ",
-  "track_name": "is it cool? (feat. SZA)",
-  "track_uri": "spotify:track:4olWlfIzbDyD53NhWyvdDJ",
-  "duration_ms": 174230,
+  "track_id": "5qoiAW2WK3b7Ncm3W9HkTL",
+  "track_name": "Talk On The Hill",
+  "track_uri": "spotify:track:5qoiAW2WK3b7Ncm3W9HkTL",
+  "duration_ms": 207774,
   "artists": [
    {
-    "name": "Steve Lacy",
-    "id": "57vWImR43h4CaDao012Ofp"
-   },
-   {
-    "name": "SZA",
-    "id": "7tYKF4w9nC0nq9CsPZTHyP"
+    "name": "WILLOW",
+    "id": "3rWZHrfrsPBxVy692yAIxF"
    }
   ],
-  "album_name": "is it cool? (feat. SZA)",
-  "album_id": "5ZKl6FzFtBJc3edhG04gxW",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273504ee91f37d2fd96ddda7da0",
-  "added_at": "2026-07-16T20:37:10Z"
+  "album_name": "Talk On The Hill",
+  "album_id": "3AhS0lrdaTPA4R6KRLtC6y",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273423ca39f068677e184d166dd",
+  "added_at": "2026-07-23T23:53:46Z"
  },
  {
   "position": 3,
-  "track_id": "3b1YokXcQXYM5xH97Dp7UU",
-  "track_name": "Get Me Down (feat. Jorja Smith)",
-  "track_uri": "spotify:track:3b1YokXcQXYM5xH97Dp7UU",
-  "duration_ms": 194038,
+  "track_id": "6NiiHhJPTeSaJR2TfDzpPz",
+  "track_name": "IS IT",
+  "track_uri": "spotify:track:6NiiHhJPTeSaJR2TfDzpPz",
+  "duration_ms": 164206,
   "artists": [
    {
-    "name": "Nia Archives",
-    "id": "7BMR0fwtEvzGtK4rNGdoiQ"
+    "name": "Tyla",
+    "id": "3SozjO3Lat463tQICI9LcE"
+   }
+  ],
+  "album_name": "IS IT",
+  "album_id": "2aCXRL0HlDr9XWpJ0EXv0C",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e60117b6c20b6bc5da76b92e",
+  "added_at": "2026-07-23T23:54:03Z"
+ },
+ {
+  "position": 4,
+  "track_id": "5HxmVxSA0jpEz67sk3bCXA",
+  "track_name": "Little Miss Twain (feat. Tanya Tucker)",
+  "track_uri": "spotify:track:5HxmVxSA0jpEz67sk3bCXA",
+  "duration_ms": 255883,
+  "artists": [
+   {
+    "name": "Shania Twain",
+    "id": "5e4Dhzv426EvQe3aDb64jL"
+   },
+   {
+    "name": "Tanya Tucker",
+    "id": "7dmeVSH4lJqxXU7C87dKIB"
+   }
+  ],
+  "album_name": "Little Miss Twain",
+  "album_id": "6DwJRbrjM1mMF4e4S6YQUc",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27355cf637e30f750f511b01bdb",
+  "added_at": "2026-07-23T23:54:24Z"
+ },
+ {
+  "position": 5,
+  "track_id": "67aVjLV3z4QqlXMBrGoOOJ",
+  "track_name": "Caught In A Jam",
+  "track_uri": "spotify:track:67aVjLV3z4QqlXMBrGoOOJ",
+  "duration_ms": 253250,
+  "artists": [
+   {
+    "name": "Portraits Of Tracy",
+    "id": "34QizBjxVeMcA5HlZpKxxE"
+   }
+  ],
+  "album_name": "Caught In A Jam",
+  "album_id": "6MDmeqzitvQIK0n7q5Ob5X",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273588603e17ec61c5462a0ca9c",
+  "added_at": "2026-07-23T23:54:36Z"
+ },
+ {
+  "position": 6,
+  "track_id": "0WmNcG7d6AYsoISKAs5azQ",
+  "track_name": "Icarus Again",
+  "track_uri": "spotify:track:0WmNcG7d6AYsoISKAs5azQ",
+  "duration_ms": 228925,
+  "artists": [
+   {
+    "name": "Creekbed Carter Hogan",
+    "id": "5QE4Qoon6ohi5z6wDJ0u0t"
+   }
+  ],
+  "album_name": "Icarus Again",
+  "album_id": "3DUATrFilxHer5lKq5tT98",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e629b8f646b602fbb835e7c5",
+  "added_at": "2026-07-24T01:33:29Z"
+ },
+ {
+  "position": 7,
+  "track_id": "2bknsnLPCEMMKCVrYdTfAV",
+  "track_name": "Cupcake",
+  "track_uri": "spotify:track:2bknsnLPCEMMKCVrYdTfAV",
+  "duration_ms": 146564,
+  "artists": [
+   {
+    "name": "Rico Nasty",
+    "id": "2OaHYHb2XcFPvqL3VsyPzU"
+   }
+  ],
+  "album_name": "Cupcake",
+  "album_id": "6qts20zdlXIj0lu42qjbD6",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2737166dc5709c0d8290283adb4",
+  "added_at": "2026-07-24T01:33:58Z"
+ },
+ {
+  "position": 8,
+  "track_id": "5mALlwaDBhzXt3OEiKIHEc",
+  "track_name": "Child of Divorce",
+  "track_uri": "spotify:track:5mALlwaDBhzXt3OEiKIHEc",
+  "duration_ms": 204253,
+  "artists": [
+   {
+    "name": "Amy Shark",
+    "id": "2DORQjKJVYZMx9uu82UGtT"
+   }
+  ],
+  "album_name": "Child of Divorce",
+  "album_id": "1IWdldEy6JWOZcvjcBQmWY",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ae1a38dd85150999bf143735",
+  "added_at": "2026-07-24T01:34:51Z"
+ },
+ {
+  "position": 9,
+  "track_id": "2fFnk2BqkDilk5Q68IbOK3",
+  "track_name": "Bed of Quiet",
+  "track_uri": "spotify:track:2fFnk2BqkDilk5Q68IbOK3",
+  "duration_ms": 210786,
+  "artists": [
+   {
+    "name": "Josaleigh Pollett",
+    "id": "58f1MCgC8Q0XnjYqEpklz9"
+   },
+   {
+    "name": "Crowd Shy",
+    "id": "56PFTDT6hR5g9uDRWTDRVk"
+   }
+  ],
+  "album_name": "Bed of Quiet",
+  "album_id": "0STZQMGPBPUw5phmARng4L",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27321fef0b65ad81e8f1b657cf3",
+  "added_at": "2026-07-24T01:35:53Z"
+ },
+ {
+  "position": 10,
+  "track_id": "2E0cEkMXWGKOA1wZx48IG5",
+  "track_name": "I Can See",
+  "track_uri": "spotify:track:2E0cEkMXWGKOA1wZx48IG5",
+  "duration_ms": 344041,
+  "artists": [
+   {
+    "name": "Nick Hakim",
+    "id": "1Goe2NezNnym45kco2xTk6"
+   }
+  ],
+  "album_name": "I Can See",
+  "album_id": "04MbUzml78sr5akB33mNDG",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735e4771fc11642482c381f51e",
+  "added_at": "2026-07-24T01:37:21Z"
+ },
+ {
+  "position": 11,
+  "track_id": "6LGleR0KKUqSISnXp93l4F",
+  "track_name": "Every Day",
+  "track_uri": "spotify:track:6LGleR0KKUqSISnXp93l4F",
+  "duration_ms": 239915,
+  "artists": [
+   {
+    "name": "Lockimara",
+    "id": "6drdBXL5XPxCQnOdBz6rJx"
+   }
+  ],
+  "album_name": "Every Day",
+  "album_id": "5GRVUvLhDNPG2quxf8hx5T",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ba5535ff294902436e0eebb2",
+  "added_at": "2026-07-24T01:37:48Z"
+ },
+ {
+  "position": 12,
+  "track_id": "5TgCU1OPxWYWbtkV0hjzki",
+  "track_name": "Cedron",
+  "track_uri": "spotify:track:5TgCU1OPxWYWbtkV0hjzki",
+  "duration_ms": 262872,
+  "artists": [
+   {
+    "name": "Joaquin Vanrafelghem",
+    "id": "2x4cVdOFq5895YFhCSWpL2"
+   }
+  ],
+  "album_name": "Autobahn",
+  "album_id": "65PzylPYsaSto5ypiv3MBL",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27320c9367c9dfe48814d5b4b4a",
+  "added_at": "2026-07-24T01:40:00Z"
+ },
+ {
+  "position": 13,
+  "track_id": "0oh2c3rG8QHc7a3IiU83Vu",
+  "track_name": "Found in a Frozen Fog",
+  "track_uri": "spotify:track:0oh2c3rG8QHc7a3IiU83Vu",
+  "duration_ms": 363253,
+  "artists": [
+   {
+    "name": "Punch Brothers",
+    "id": "4gFssfOmWNY3LfIZ3zyoy4"
+   }
+  ],
+  "album_name": "Found in a Frozen Fog",
+  "album_id": "1dS2JefzsUAS4fkVjl2SlD",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27393c37fe68b06533ced28f17e",
+  "added_at": "2026-07-24T01:40:37Z"
+ },
+ {
+  "position": 14,
+  "track_id": "6QN5ClFa3Ul4kFzsdw3Z8t",
+  "track_name": "Betty",
+  "track_uri": "spotify:track:6QN5ClFa3Ul4kFzsdw3Z8t",
+  "duration_ms": 174666,
+  "artists": [
+   {
+    "name": "Carter Faith",
+    "id": "4X5CTYQmx1NNyz9S1IpNko"
+   }
+  ],
+  "album_name": "Cherry Valley",
+  "album_id": "5cBseH5iReybVachkE0BMA",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273197200d29108e4d4449e08dd",
+  "added_at": "2026-07-24T01:41:42Z"
+ },
+ {
+  "position": 15,
+  "track_id": "2DjiUfyKFUjR93c28MBX5m",
+  "track_name": "Just Like You",
+  "track_uri": "spotify:track:2DjiUfyKFUjR93c28MBX5m",
+  "duration_ms": 194773,
+  "artists": [
+   {
+    "name": "Jensen McRae",
+    "id": "11dABkjSoOjcP9p3TFSNRj"
+   }
+  ],
+  "album_name": "Just Like You",
+  "album_id": "7Ebv6UYPniNO0T7ufT9hby",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27340d0d40dff7dd4c240f135fc",
+  "added_at": "2026-07-24T01:42:30Z"
+ },
+ {
+  "position": 16,
+  "track_id": "5ALhIliZFCXfYVOsejh7SM",
+  "track_name": "Down on Love",
+  "track_uri": "spotify:track:5ALhIliZFCXfYVOsejh7SM",
+  "duration_ms": 177375,
+  "artists": [
+   {
+    "name": "Sam and Louise Sullivan",
+    "id": "2pI9qPV311bnXUoJHhdtqF"
+   }
+  ],
+  "album_name": "Love & Devotion",
+  "album_id": "2cak1de5G8oa1OMtxHIF9n",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27338a0582428b9905e1e1bae68",
+  "added_at": "2026-07-24T01:42:58Z"
+ },
+ {
+  "position": 17,
+  "track_id": "3QRf1b0DZej59MUjFdg9k4",
+  "track_name": "FREEDOM (feat. Jorja Smith)",
+  "track_uri": "spotify:track:3QRf1b0DZej59MUjFdg9k4",
+  "duration_ms": 160455,
+  "artists": [
+   {
+    "name": "DAMEDAME*",
+    "id": "3X6c2uu6yXYP4XnprvDg11"
    },
    {
     "name": "Jorja Smith",
     "id": "1CoZyIx7UvdxT5c8UkMzHd"
    }
   ],
-  "album_name": "Get Me Down (feat. Jorja Smith)",
-  "album_id": "7jtKstOvFpbqMAZzV5hDjC",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c7d90176e951ef16bd72e286",
-  "added_at": "2026-07-16T20:37:21Z"
- },
- {
-  "position": 4,
-  "track_id": "25ewGihQsJVyUEaS9F6IDv",
-  "track_name": "Talento",
-  "track_uri": "spotify:track:25ewGihQsJVyUEaS9F6IDv",
-  "duration_ms": 225257,
-  "artists": [
-   {
-    "name": "Lido Pimienta",
-    "id": "1IdkKQ9CM1i0wygfxYV4Z3"
-   }
-  ],
-  "album_name": "Talento",
-  "album_id": "1D8OPRrKlq01f1jt0OWaMl",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27368c7978ab7bc2914903898e6",
-  "added_at": "2026-07-16T20:37:34Z"
- },
- {
-  "position": 5,
-  "track_id": "3q2YKTA1K0GrFVoBFMoN5t",
-  "track_name": "I Know!",
-  "track_uri": "spotify:track:3q2YKTA1K0GrFVoBFMoN5t",
-  "duration_ms": 214304,
-  "artists": [
-   {
-    "name": "Swapmeet",
-    "id": "02ngaZWfkvv0Fzmh7FhJqj"
-   }
-  ],
-  "album_name": "I Know!",
-  "album_id": "0M2XvfmdGjy0jer1Z7gbXW",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27323109c3d431bf0eb3b2e085a",
-  "added_at": "2026-07-16T20:37:51Z"
- },
- {
-  "position": 6,
-  "track_id": "2aBqscY5Avi55vMM3I0GXd",
-  "track_name": "Jawbreaker",
-  "track_uri": "spotify:track:2aBqscY5Avi55vMM3I0GXd",
-  "duration_ms": 193250,
-  "artists": [
-   {
-    "name": "Catherine Moan",
-    "id": "1j3eSDACLPhrEDYDkHYF9I"
-   }
-  ],
-  "album_name": "Jawbreaker",
-  "album_id": "1ETl22OkVjTisNokLO9EMd",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ac1a3512e920aa841ca169db",
-  "added_at": "2026-07-16T20:38:03Z"
- },
- {
-  "position": 7,
-  "track_id": "2G0DeZgrAU8b1HCsgvTqB0",
-  "track_name": "Tocando",
-  "track_uri": "spotify:track:2G0DeZgrAU8b1HCsgvTqB0",
-  "duration_ms": 148656,
-  "artists": [
-   {
-    "name": "Helado Tropical",
-    "id": "4pqutkxj0y0je4UpFFX8B9"
-   },
-   {
-    "name": "Helado Negro",
-    "id": "69qhRLDvsWJOhWGXXQ0lQQ"
-   },
-   {
-    "name": "Reyna Tropical",
-    "id": "7i6bx5ASeX99tjQYqahDXL"
-   }
-  ],
-  "album_name": "Tocando",
-  "album_id": "5ZS8pCBcLUQcNJml8sR397",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731ef2004c13b8cce0d21ac545",
-  "added_at": "2026-07-16T20:38:15Z"
- },
- {
-  "position": 8,
-  "track_id": "0x20jMq9v5RUiu2HiFu71b",
-  "track_name": "No Me Voy",
-  "track_uri": "spotify:track:0x20jMq9v5RUiu2HiFu71b",
-  "duration_ms": 253066,
-  "artists": [
-   {
-    "name": "Orquesta Akok\u00e1n",
-    "id": "0ntVDLb8Ro6BLGVBVOBFVS"
-   },
-   {
-    "name": "Carolina Oliveros",
-    "id": "6MTGbP8SN1Xec4i2RlKni7"
-   }
-  ],
-  "album_name": "No Me Voy",
-  "album_id": "7MKZZu6yByI56ecgwkPcKD",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27362db583f40385422fe54d697",
-  "added_at": "2026-07-16T20:38:29Z"
- },
- {
-  "position": 9,
-  "track_id": "7FkCColdGXYdkLZf7HbjK5",
-  "track_name": "Changes",
-  "track_uri": "spotify:track:7FkCColdGXYdkLZf7HbjK5",
-  "duration_ms": 264006,
-  "artists": [
-   {
-    "name": "Nao Yoshioka",
-    "id": "4YPiq62lEVjRdzhSlNto08"
-   },
-   {
-    "name": "Devin Morrison",
-    "id": "4AgZVM5339ZoMyg38nYyYW"
-   }
-  ],
-  "album_name": "Changes",
-  "album_id": "5qHPDhMOkATOEzV2JSG20B",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273901a8da53e0eee42433700a7",
-  "added_at": "2026-07-16T20:38:42Z"
- },
- {
-  "position": 10,
-  "track_id": "0ZBy3gSWbLQOi71t8bshya",
-  "track_name": "Regenerate",
-  "track_uri": "spotify:track:0ZBy3gSWbLQOi71t8bshya",
-  "duration_ms": 175800,
-  "artists": [
-   {
-    "name": "Quicksand",
-    "id": "1GDjwZ2zwNZizuNJPmH3mE"
-   }
-  ],
-  "album_name": "Get To It",
-  "album_id": "501oPIRjZkYmnCqGrAp9aj",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739eb05455d486b06c9e542014",
-  "added_at": "2026-07-16T20:38:55Z"
- },
- {
-  "position": 11,
-  "track_id": "2ZPzIZGqhm613bqOj3evQv",
-  "track_name": "Malka Moma",
-  "track_uri": "spotify:track:2ZPzIZGqhm613bqOj3evQv",
-  "duration_ms": 194920,
-  "artists": [
-   {
-    "name": "Eartheater",
-    "id": "18ca9d5EU5R1AhVKPR1cm0"
-   }
-  ],
-  "album_name": "Heavenly Body: If I'm The Bottle You\u2019re The Message",
-  "album_id": "6NjXeIwjKdVEkJHvom1m3x",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273b08416ae39812896e94b8ae8",
-  "added_at": "2026-07-16T20:39:09Z"
- },
- {
-  "position": 12,
-  "track_id": "0mvaPr8EQmx46H6han0xwN",
-  "track_name": "i wait, i sink",
-  "track_uri": "spotify:track:0mvaPr8EQmx46H6han0xwN",
-  "duration_ms": 166167,
-  "artists": [
-   {
-    "name": "The Healing Power of Horses",
-    "id": "4ps9FIxIQatbBhudrWSK3J"
-   }
-  ],
-  "album_name": "i wait, i sink",
-  "album_id": "7caD1nvFAGlDkltnoJHh1o",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2739729caaaa5c88a391845b911",
-  "added_at": "2026-07-16T20:40:11Z"
- },
- {
-  "position": 13,
-  "track_id": "0SLoMgCv2SlXKqP73EKi3E",
-  "track_name": "Lydia's Boots",
-  "track_uri": "spotify:track:0SLoMgCv2SlXKqP73EKi3E",
-  "duration_ms": 209875,
-  "artists": [
-   {
-    "name": "Aaron Lee Tasjan",
-    "id": "4PztbfCny3X9gBjlpgvjYo"
-   }
-  ],
-  "album_name": "Lydia's Boots",
-  "album_id": "6Q0lO6dKcK0mCSZOnhWxfB",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736883651ecee1b83e441d4db5",
-  "added_at": "2026-07-16T20:40:43Z"
- },
- {
-  "position": 14,
-  "track_id": "547opdfofRbb8cQRgyjFrH",
-  "track_name": "Dead Man Walkin'",
-  "track_uri": "spotify:track:547opdfofRbb8cQRgyjFrH",
-  "duration_ms": 159607,
-  "artists": [
-   {
-    "name": "Waylon Wyatt",
-    "id": "6Ff2omMMZOd8FWNqb980Ol"
-   }
-  ],
-  "album_name": "Dead Man Walkin'",
-  "album_id": "1OQQ8s6Ia3cmioSbZNNkZ2",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27391e738b4a78a8925f0d39760",
-  "added_at": "2026-07-16T20:40:57Z"
- },
- {
-  "position": 15,
-  "track_id": "0MSwEp1oqojExCixKd0xKu",
-  "track_name": "Fara",
-  "track_uri": "spotify:track:0MSwEp1oqojExCixKd0xKu",
-  "duration_ms": 182472,
-  "artists": [
-   {
-    "name": "O'Flynn",
-    "id": "7LTSTQkL7iK7zndjFQgHQo"
-   }
-  ],
-  "album_name": "Fara",
-  "album_id": "5eF1127c1C2jiqc3xuzeqd",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d158a695cccefa895ca99608",
-  "added_at": "2026-07-16T20:41:09Z"
- },
- {
-  "position": 16,
-  "track_id": "4MtIIJJTct7sajaYYBvFwL",
-  "track_name": "Without me",
-  "track_uri": "spotify:track:4MtIIJJTct7sajaYYBvFwL",
-  "duration_ms": 168000,
-  "artists": [
-   {
-    "name": "FAUZIA",
-    "id": "5a8f6ZZzBZ3lFtv9wQClHl"
-   }
-  ],
-  "album_name": "Without me",
-  "album_id": "3SGthOVVyssO3DaldX7Wfv",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273897930ef8a4b7aa132a04a95",
-  "added_at": "2026-07-16T20:41:19Z"
- },
- {
-  "position": 17,
-  "track_id": "1KiWQFbHX5VPg41EEErqXh",
-  "track_name": "Knifefish",
-  "track_uri": "spotify:track:1KiWQFbHX5VPg41EEErqXh",
-  "duration_ms": 146788,
-  "artists": [
-   {
-    "name": "Oxis",
-    "id": "3b3mTvNu2TQcbJSKrvsOYb"
-   }
-  ],
-  "album_name": "Knifefish",
-  "album_id": "00PbPT6noUQpRC9bWXXJu4",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273052b70f2b3eea807cc9bf701",
-  "added_at": "2026-07-16T20:41:30Z"
+  "album_name": "FREEDOM (feat. Jorja Smith)",
+  "album_id": "7eDn2idlPx8ENANzBYcndg",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27352afec07a9b70d9f95fa7baf",
+  "added_at": "2026-07-24T01:43:46Z"
  },
  {
   "position": 18,
-  "track_id": "2U7di7LKC59ViH5ICKOBts",
-  "track_name": "IT LOOKS BETTER FROM A DISTANCE",
-  "track_uri": "spotify:track:2U7di7LKC59ViH5ICKOBts",
-  "duration_ms": 277000,
+  "track_id": "6BHCsXVZbOSB5wLoqF0Utc",
+  "track_name": "Chanka Chanka",
+  "track_uri": "spotify:track:6BHCsXVZbOSB5wLoqF0Utc",
+  "duration_ms": 179012,
   "artists": [
    {
-    "name": "wing!",
-    "id": "17zzsvpeBPUpP5XittRxEs"
+    "name": "ATARASHII GAKKO!",
+    "id": "4OfU76YhPU04wlmbVFFgTJ"
    }
   ],
-  "album_name": "(WORTH SCANNING FOR)",
-  "album_id": "5pzlu5SVvgqU992TAmIg2M",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27382ab4694415e3a4801823e57",
-  "added_at": "2026-07-16T20:41:50Z"
+  "album_name": "Chanka Chanka",
+  "album_id": "2cNUjLmnqoE2ZfHlx6SZtN",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27337809e4ea312d0808dc68263",
+  "added_at": "2026-07-24T01:44:18Z"
  },
  {
   "position": 19,
-  "track_id": "1Go2rvd7HrIGpycLZRYR8g",
-  "track_name": "My Journey",
-  "track_uri": "spotify:track:1Go2rvd7HrIGpycLZRYR8g",
-  "duration_ms": 421219,
+  "track_id": "2Oof4NCIrXZmYBViU9XAfw",
+  "track_name": "Maybe I Still Love You",
+  "track_uri": "spotify:track:2Oof4NCIrXZmYBViU9XAfw",
+  "duration_ms": 241331,
   "artists": [
    {
-    "name": "Hercules & Love Affair",
-    "id": "1WHoAjAWGx5qLsgzpaOk7W"
-   },
-   {
-    "name": "Hips & Lips",
-    "id": "2xaQZsblWFPXPtlsNGgO3Q"
+    "name": "Love Spells",
+    "id": "5iiqhuffUTPEOjAUDj19IW"
    }
   ],
-  "album_name": "Danseur EP",
-  "album_id": "08fh8Ha0U5LbNr3xmkPk2Y",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734f8b8fd9a9a22d720fc60dca",
-  "added_at": "2026-07-16T20:42:45Z"
+  "album_name": "Maybe I Still Love You",
+  "album_id": "1Ma4Uq57VElIYB5o8ZRYkQ",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273ce0dcfbd3d2288fde401454d",
+  "added_at": "2026-07-24T01:44:49Z"
  },
  {
   "position": 20,
-  "track_id": "0xKi8JlcgB58nKfunxq3KX",
-  "track_name": "In Lieu",
-  "track_uri": "spotify:track:0xKi8JlcgB58nKfunxq3KX",
-  "duration_ms": 326346,
+  "track_id": "12njcAm61Bfni5axb4dEXs",
+  "track_name": "Carrie Bradshaw",
+  "track_uri": "spotify:track:12njcAm61Bfni5axb4dEXs",
+  "duration_ms": 172765,
   "artists": [
    {
-    "name": "Gi Gi",
-    "id": "2X6qMx9wP4p6L7PU3kTh9r"
+    "name": "Kylie Cantrall",
+    "id": "20EGKg0XsxPJ0GRHxfb9LX"
    }
   ],
-  "album_name": "In Lieu",
-  "album_id": "0mO6XgelQS6vg1ObOFYKJm",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27315ed89ca3857751be781def0",
-  "added_at": "2026-07-16T20:43:09Z"
+  "album_name": "Carrie Bradshaw",
+  "album_id": "6BrxaBUiVM4nPp5K6pEHsC",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735c6e7bb829508dc514b2ede8",
+  "added_at": "2026-07-24T01:45:18Z"
  },
  {
   "position": 21,
-  "track_id": "6g7GFZdyZME150qnjdYksC",
-  "track_name": "An Honest Man - Live from Leeds, England",
-  "track_uri": "spotify:track:6g7GFZdyZME150qnjdYksC",
-  "duration_ms": 302398,
+  "track_id": "49Vjj7j0nLOjFBGvQe5KZy",
+  "track_name": "MORE THAN LIKELY",
+  "track_uri": "spotify:track:49Vjj7j0nLOjFBGvQe5KZy",
+  "duration_ms": 130872,
   "artists": [
    {
-    "name": "Fantastic Negrito",
-    "id": "5QXLMdpKeByOo5ypH9gT13"
+    "name": "12k Gotti",
+    "id": "2tXGUIXdUyzhdcD5UcuJuH"
    }
   ],
-  "album_name": "An Honest Man (Live from Leeds, England)",
-  "album_id": "7sbc2spkxDNiHFS4NyTfKC",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273d4b3d02d73ebe49eaa40f891",
-  "added_at": "2026-07-16T20:44:57Z"
+  "album_name": "MADLIFE",
+  "album_id": "37jr3cniFm7RS6U5WkVV0I",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273c2ee4852df1b5e3bd8268ebd",
+  "added_at": "2026-07-24T01:46:22Z"
  },
  {
   "position": 22,
-  "track_id": "1fsHjzB9BSe2pSt0YTuKAL",
-  "track_name": "She",
-  "track_uri": "spotify:track:1fsHjzB9BSe2pSt0YTuKAL",
-  "duration_ms": 156586,
+  "track_id": "3wNcQrEtxl9bR3VXnw8WwR",
+  "track_name": "Campeones",
+  "track_uri": "spotify:track:3wNcQrEtxl9bR3VXnw8WwR",
+  "duration_ms": 228400,
   "artists": [
    {
-    "name": "Ambr\u00e9",
-    "id": "6gj3sMEZYP6IESIptoXnrP"
+    "name": "Cypress Hill",
+    "id": "4P0dddbxPil35MNN9G2MEX"
+   },
+   {
+    "name": "Mellow Man Ace",
+    "id": "37YcGi7z4aXgzWu4jGRe4H"
    }
   ],
-  "album_name": "She",
-  "album_id": "2bQgSIFWTdcBZngvgSzIo0",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273470f6db489f40ccfdb0c2246",
-  "added_at": "2026-07-16T20:45:14Z"
+  "album_name": "Campeones",
+  "album_id": "07RvDCTEmwPoC0YTMmbuyv",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f93e43baeb72a0bafd59ded7",
+  "added_at": "2026-07-24T01:47:54Z"
  },
  {
   "position": 23,
-  "track_id": "0NjQT00ScuYMhQPFRCXndF",
-  "track_name": "Callin (feat. Blu june)",
-  "track_uri": "spotify:track:0NjQT00ScuYMhQPFRCXndF",
-  "duration_ms": 154581,
+  "track_id": "2wOcjMB4HUqx8mKyTrkAq7",
+  "track_name": "NEW BITCH",
+  "track_uri": "spotify:track:2wOcjMB4HUqx8mKyTrkAq7",
+  "duration_ms": 152315,
   "artists": [
    {
-    "name": "Syd",
-    "id": "3jk39CGeaaSO3FPKNx1RUx"
-   },
-   {
-    "name": "Blu June",
-    "id": "33ccitBWLlxrI5sJN4ccuw"
+    "name": "Cakes da Killa",
+    "id": "6MoQZOH2KnQrJhVtO9VoXC"
    }
   ],
-  "album_name": "Callin (feat. Blu june)",
-  "album_id": "1AbdUkx9FpRz4JZeTKDnvS",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273696ee9795a7ad388c657e03f",
-  "added_at": "2026-07-16T20:45:28Z"
+  "album_name": "NEW BITCH",
+  "album_id": "7tqvcKoYn9Z29ZLBMAo7Bg",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2735ba225b79104a320b92b6dbb",
+  "added_at": "2026-07-24T01:48:22Z"
  },
  {
   "position": 24,
-  "track_id": "0YJuBcj5bl9HGqMOBnthHC",
-  "track_name": "Organic Motion (feat. DJ.Fresh)",
-  "track_uri": "spotify:track:0YJuBcj5bl9HGqMOBnthHC",
-  "duration_ms": 155990,
+  "track_id": "3qAYNIIiXHoycbCWku8cIU",
+  "track_name": "Energizer",
+  "track_uri": "spotify:track:3qAYNIIiXHoycbCWku8cIU",
+  "duration_ms": 151306,
   "artists": [
    {
-    "name": "Larry June",
-    "id": "1grN0519h2zYqpRtYbDZAl"
-   },
-   {
-    "name": "DJ.Fresh",
-    "id": "35cJT1IMCFHLeKiPcSpequ"
+    "name": "girlsweetvoiced",
+    "id": "5pQD8yR8sjmxwgZfLnZzmT"
    }
   ],
-  "album_name": "Organic Motion (feat. DJ.Fresh)",
-  "album_id": "5SdeOFSHrOBR6LikAiD7rU",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2731cdd9d6addcfde539f9dd254",
-  "added_at": "2026-07-16T20:45:50Z"
+  "album_name": "Energizer",
+  "album_id": "5L0OP0vBGpyU6q6urm9aHs",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273db6ebb4590f5013188540656",
+  "added_at": "2026-07-24T01:49:34Z"
  },
  {
   "position": 25,
-  "track_id": "21itYZHuLYQY7rxc2zO7B7",
-  "track_name": "you know what",
-  "track_uri": "spotify:track:21itYZHuLYQY7rxc2zO7B7",
-  "duration_ms": 111374,
+  "track_id": "1rQtRwgx4vB2reixMAoHsR",
+  "track_name": "Criminal Kissing",
+  "track_uri": "spotify:track:1rQtRwgx4vB2reixMAoHsR",
+  "duration_ms": 232000,
   "artists": [
    {
-    "name": "ksuuvi",
-    "id": "7MYVlTfQYFOVKftHoiwO5b"
+    "name": "IAN SWEET",
+    "id": "6mrOjLZyPub9LcecUarcMD"
    }
   ],
-  "album_name": "ksuuvi buckets xtended",
-  "album_id": "1KsrkGFx0jNIlA0g6y2ifq",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27363f38840df9c9098f0d0c082",
-  "added_at": "2026-07-16T20:46:37Z"
+  "album_name": "Criminal Kissing",
+  "album_id": "5rLPF3X7izZap4WFPav7Yb",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27301cd30e1344771a8ef966abe",
+  "added_at": "2026-07-24T01:49:57Z"
  },
  {
   "position": 26,
-  "track_id": "33Bn3hhHkfVFKojsg41kb2",
-  "track_name": "Many People",
-  "track_uri": "spotify:track:33Bn3hhHkfVFKojsg41kb2",
-  "duration_ms": 175448,
+  "track_id": "46559MbcfyS1BtB2NAttkK",
+  "track_name": "I Am This Thing - Radio Edit",
+  "track_uri": "spotify:track:46559MbcfyS1BtB2NAttkK",
+  "duration_ms": 155866,
   "artists": [
    {
-    "name": "LADIPOE",
-    "id": "379IT6Szv0zgnw4xrdu4mu"
-   },
-   {
-    "name": "Ema Onigah",
-    "id": "3xl6xQ0sIWIWE6tiUW3hwD"
+    "name": "Robyn Hitchcock",
+    "id": "0O0g9JMOVNoIgLG6dgaYMY"
    }
   ],
-  "album_name": "Many People",
-  "album_id": "70JkP23kQm8ufn4XS6Bv0q",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b27376cee7d61389b0b58aff89de",
-  "added_at": "2026-07-16T20:46:47Z"
- },
- {
-  "position": 27,
-  "track_id": "1UC82aenDIiSaCEXp5jNpS",
-  "track_name": "Minks In Miami",
-  "track_uri": "spotify:track:1UC82aenDIiSaCEXp5jNpS",
-  "duration_ms": 170806,
-  "artists": [
-   {
-    "name": "Rick Ross",
-    "id": "1sBkRIssrMs1AbVkOJbc7a"
-   },
-   {
-    "name": "French Montana",
-    "id": "6vXTefBL93Dj5IqAWq6OTv"
-   },
-   {
-    "name": "Max B",
-    "id": "7f35VZGDpomj11PXdNn5D9"
-   }
-  ],
-  "album_name": "Minks In Miami",
-  "album_id": "5vVAfd7JRgOooDtlspNLlQ",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273e9c76b24a158e81a4cd841cc",
-  "added_at": "2026-07-16T20:47:00Z"
- },
- {
-  "position": 28,
-  "track_id": "2zhv3ZZjjWJjCyys8THvJt",
-  "track_name": "Carolina",
-  "track_uri": "spotify:track:2zhv3ZZjjWJjCyys8THvJt",
-  "duration_ms": 235285,
-  "artists": [
-   {
-    "name": "Day We Ran",
-    "id": "6dtbK89qIT2XjIsCQHjTxS"
-   }
-  ],
-  "album_name": "Carolina",
-  "album_id": "2E5RSL9kmfA4eW9F2K5QwL",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273a259bf0aa06ba0fc96ba81f5",
-  "added_at": "2026-07-16T20:47:27Z"
- },
- {
-  "position": 29,
-  "track_id": "3xSybknQJBnWQ1ysvBCXnq",
-  "track_name": "All I Really Want Now (Live In Studio)",
-  "track_uri": "spotify:track:3xSybknQJBnWQ1ysvBCXnq",
-  "duration_ms": 263048,
-  "artists": [
-   {
-    "name": "Zac Farro",
-    "id": "6QAqHBPOy9Cugos5xLqGT3"
-   }
-  ],
-  "album_name": "All I Really Want Now (Live In Studio)",
-  "album_id": "2blDQrU44KlMZuU4fojuSB",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734cfe4daa08d48f9bd38024fe",
-  "added_at": "2026-07-16T20:48:00Z"
- },
- {
-  "position": 30,
-  "track_id": "7Lt57VWFV2MRbn9fzY0kp9",
-  "track_name": "Revenant",
-  "track_uri": "spotify:track:7Lt57VWFV2MRbn9fzY0kp9",
-  "duration_ms": 211746,
-  "artists": [
-   {
-    "name": "Loathe",
-    "id": "4G9wSdX0klmoHfjm9i6DLd"
-   },
-   {
-    "name": "NOWHERE2RUN",
-    "id": "3ARwlqMR3e96RXdxpAhx4s"
-   }
-  ],
-  "album_name": "Revenant",
-  "album_id": "7Cb7gWgJmePlHHhO7WAyKH",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273cf6bf7df0fa24d63226779ae",
-  "added_at": "2026-07-16T20:48:10Z"
- },
- {
-  "position": 31,
-  "track_id": "20TRvTxNFgy095TbcCAAYS",
-  "track_name": "I'm Yours",
-  "track_uri": "spotify:track:20TRvTxNFgy095TbcCAAYS",
-  "duration_ms": 155058,
-  "artists": [
-   {
-    "name": "Tricky",
-    "id": "6hhA8TKRNryM8FNzqCqdDO"
-   },
-   {
-    "name": "Mitch Sanders",
-    "id": "7HedZ72Eue9RBASoQXqQWf"
-   }
-  ],
-  "album_name": "I'm Yours",
-  "album_id": "5EW6ZOxF9WP40dSJjFrBHE",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2736ae113fbf0d01a94511ec4f0",
-  "added_at": "2026-07-16T20:48:30Z"
- },
- {
-  "position": 32,
-  "track_id": "6rDVb2EImUpLRrOJkev2XE",
-  "track_name": "Redeemer",
-  "track_uri": "spotify:track:6rDVb2EImUpLRrOJkev2XE",
-  "duration_ms": 238840,
-  "artists": [
-   {
-    "name": "Yard Act",
-    "id": "2h3ooJn8m8X8cL2g1BZ1Rd"
-   }
-  ],
-  "album_name": "Redeemer",
-  "album_id": "2UejSXZV8wsfHIM47lo2hD",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2733e874bbc64e5a28574e52a11",
-  "added_at": "2026-07-16T20:48:45Z"
- },
- {
-  "position": 33,
-  "track_id": "3dSmcooRQGXXQ3wi0ZxGde",
-  "track_name": "Walking on Thin Ice",
-  "track_uri": "spotify:track:3dSmcooRQGXXQ3wi0ZxGde",
-  "duration_ms": 420693,
-  "artists": [
-   {
-    "name": "Yoko Ono",
-    "id": "2s4tjL6W3qrblOe0raIzwJ"
-   }
-  ],
-  "album_name": "Walking on Thin Ice",
-  "album_id": "1SbOF4GKrXRAu03xbEEDhj",
-  "album_image_url": "https://i.scdn.co/image/ab67616d0000b2734ed26b8967597cb500e89d63",
-  "added_at": "2026-07-16T20:49:07Z"
+  "album_name": "I Am This Thing (Radio Edit)",
+  "album_id": "1tZKaAeL77SiNcm5JzD7Tf",
+  "album_image_url": "https://i.scdn.co/image/ab67616d0000b273f945a969ed7421b8719a3621",
+  "added_at": "2026-07-24T01:53:00Z"
  }
 ]
