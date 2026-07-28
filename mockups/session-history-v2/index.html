@@ -119,6 +119,22 @@ main { max-width: 620px; margin: 0 auto; padding: 6px 10px 40px; }
 .trk .btns { display: flex; gap: 4px; flex: 0 0 auto; }
 .trk .pill { padding: 2px 6px; font-size: 11px; }
 
+/* ---------- Variant G: flat expansion ---------- */
+.albhdr { display: flex; align-items: center; gap: 8px; padding: 6px 2px 5px; margin-top: 8px; border-bottom: 1px solid var(--border); }
+.albhdr:first-child { margin-top: 2px; }
+.albhdr .thumb28 { width: 28px; height: 28px; border-radius: 5px; font-size: 10px; }
+.albhdr .ah-meta { flex: 1; min-width: 0; display: flex; gap: 7px; align-items: baseline; overflow: hidden; }
+.albhdr .ah-nm { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.albhdr .ah-ar { font-size: 12px; color: var(--dim); flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.albhdr .btns { display: flex; gap: 4px; flex: 0 0 auto; }
+.albhdr .pill { padding: 2px 6px; font-size: 11px; }
+.trk.g-ind { padding-left: 14px; }
+.trk .alb-inline { color: var(--dim2); font-size: 11.5px; margin-left: 7px; }
+.showall { padding: 7px 2px 4px 14px; font-size: 12.5px; color: var(--accent); cursor: pointer; }
+.showall:hover { text-decoration: underline; }
+.g-hidden { display: none; }
+.g-hidden.open { display: block; }
+
 @media (max-width: 420px) {
   .t1 .time { width: 50px; }
   .trk .ta { display: none; }
@@ -127,11 +143,12 @@ main { max-width: 620px; margin: 0 auto; padding: 6px 10px 40px; }
 </head>
 <body>
 <header>
-  <h1>Session History <small>— Pass 2 · three tiers, three variants, real listening data</small></h1>
+  <h1>Session History <small>— Pass 2 · three tiers, four variants, real listening data</small></h1>
   <div class="tabs">
     <button id="tabD" class="on" onclick="setVariant('D')">D · Ledger</button>
     <button id="tabE" onclick="setVariant('E')">E · Shelf</button>
     <button id="tabF" onclick="setVariant('F')">F · Hybrid</button>
+    <button id="tabG" onclick="setVariant('G')">G · Flat</button>
   </div>
   <div class="caption" id="caption"></div>
 </header>
@@ -145,6 +162,7 @@ const CAPTIONS = {
   D: 'Ledger — text-forward, tightest rhythm; art only earns space at Tier 3.',
   E: 'Shelf — art-forward at every tier, echoing the album-shelf feel.',
   F: 'Hybrid — pure text at a glance, then art and emphasis scale in with session weight.',
+  G: 'Flat — one click opens the full tracklist; albums are section headers, not a second level.',
 };
 
 /* ---------------- utilities ---------------- */
@@ -287,7 +305,103 @@ function entityCardHtml(s, ent, sid) {
     </div>
     <div class="trackrows ${open ? 'open' : ''}" id="trk-${sid}-${safeKey}">${rows}</div>`;
 }
+/* ---------------- Variant G: flat single-click expansion ---------------- */
+function jsq(str) { return esc(String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+function normAlbumKey(t) { return String(t.album || '').trim().toLowerCase(); }
+function albumInfoFor(s, key) {
+  // best-matching session album entry for an album-name key: prefer art, then play count
+  const matches = s.albums.filter(a => String(a.album || '').trim().toLowerCase() === key);
+  if (!matches.length) return null;
+  return matches.slice().sort((a, b) => ((b.art ? 1 : 0) - (a.art ? 1 : 0)) || (b.n - a.n))[0];
+}
+function trackRowHtmlG(t, albumLabel, indent) {
+  return `<div class="trk${indent ? ' g-ind' : ''}">
+    <span class="tm">${ftime(t.ts)}</span>
+    <span class="tt">${esc(t.title)}${albumLabel ? `<span class="alb-inline">${esc(albumLabel)}</span>` : ''}</span>
+    <span class="ta">${esc(t.artist)}</span>
+    <span class="btns">
+      <button class="pill" onclick="event.stopPropagation(); playStub('track','${jsq(t.title)}')">▶</button>
+      <button class="pill" onclick="event.stopPropagation(); queueStub('track','${jsq(t.title)}')">＋</button>
+    </span>
+  </div>`;
+}
+function groupHeaderHtml(icon, kind, name, artist, art) {
+  return `<div class="albhdr">
+    ${artOrPh(art, name, 'thumb28')}
+    <div class="ah-meta"><span class="ah-nm">${icon} ${esc(name)}</span>${artist ? `<span class="ah-ar">${esc(artist)}</span>` : ''}</div>
+    <span class="btns">
+      <button class="pill" onclick="event.stopPropagation(); playStub('${kind}','${jsq(name)}')">▶</button>
+      <button class="pill" onclick="event.stopPropagation(); queueStub('${kind}','${jsq(name)}')">＋</button>
+    </span>
+  </div>`;
+}
+function flatItemsG(s) {
+  // returns [{isTrack, html}] — headers interleaved with track rows
+  const items = [];
+  if (s.isRadio) {
+    // station-first: the station card is the header; flat enriched rows below
+    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, null, false) });
+    return items;
+  }
+  const namedCtxs = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0));
+  if (namedCtxs.length) {
+    // playlist session: one playlist header, tracks with dim inline album labels
+    const pl = namedCtxs[0];
+    items.push({ isTrack: false, html: groupHeaderHtml('📃', 'playlist', pl.name, `playlist · ${pl.n || s.n} trk`, pl.art) });
+    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, t.album, true) });
+    return items;
+  }
+  // group consecutive tracks on album identity (album name/id; merges artist-credit variants)
+  const groups = [];
+  for (const t of s.tracks) {
+    const k = normAlbumKey(t);
+    const last = groups[groups.length - 1];
+    if (last && last.key === k) last.tracks.push(t);
+    else groups.push({ key: k, tracks: [t] });
+  }
+  const singles = groups.filter(g => g.tracks.length === 1).length;
+  const grazing = groups.length > 1 && singles / groups.length > 0.6;
+  if (grazing) {
+    // shuffle grazing: no headers, inline dim album labels
+    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, t.album, false) });
+    return items;
+  }
+  for (const g of groups) {
+    const info = albumInfoFor(s, g.key);
+    const name = (info && info.album) || g.tracks[0].album || 'Unknown album';
+    const artist = (info && info.artist) || g.tracks[0].artist || '';
+    items.push({ isTrack: false, html: groupHeaderHtml('💿', 'album', name, artist, info ? info.art : null) });
+    for (const t of g.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, null, true) });
+  }
+  return items;
+}
+function flatBlockHtml(s, sid) {
+  const open = !!STATE.sess[sid];
+  const items = flatItemsG(s);
+  const total = items.filter(i => i.isTrack).length;
+  let inner;
+  if (total > 14) {
+    let shown = 0, cut = items.length;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].isTrack && ++shown === 12) { cut = i + 1; break; }
+    }
+    inner = items.slice(0, cut).map(i => i.html).join('')
+      + `<div class="showall" id="more-btn-${sid}" onclick="event.stopPropagation(); showAllG(${sid})">show all ${total} tracks</div>`
+      + `<div class="g-hidden" id="more-${sid}">${items.slice(cut).map(i => i.html).join('')}</div>`;
+  } else {
+    inner = items.map(i => i.html).join('');
+  }
+  return `<div class="entities ${open ? 'open' : ''}" id="ent-${sid}"><div class="trackrows open">${inner}</div></div>`;
+}
+function showAllG(sid) {
+  const m = document.getElementById('more-' + sid);
+  const b = document.getElementById('more-btn-' + sid);
+  if (m) m.classList.add('open');
+  if (b) b.style.display = 'none';
+}
+
 function entitiesBlockHtml(s, sid) {
+  if (VCFG[VARIANT] && VCFG[VARIANT].flatExpand) return flatBlockHtml(s, sid);
   if (s.isRadio) {
     const rows = s.tracks.map(trackRowHtml).join('');
     return `<div class="entities ${STATE.sess[sid] ? 'open' : ''}" id="ent-${sid}"><div class="trackrows open">${rows}</div></div>`;
@@ -389,6 +503,7 @@ const VCFG = {
   D: { t1Thumb: false, t2Thumb: 40, t3Style: 'stackRight' },
   E: { t1Thumb: true, t2Thumb: 56, t3Style: 'grid2x2' },
   F: { t1Thumb: false, t2Thumb: 56, t3Style: 'inlineCluster' },
+  G: { t1Thumb: false, t2Thumb: 56, t3Style: 'inlineCluster', flatExpand: true },
 };
 
 function renderSession(s, cfg) {
@@ -413,7 +528,7 @@ function groupByDay(sessions) {
 let VARIANT = 'D';
 function setVariant(v) {
   VARIANT = v;
-  for (const x of ['D', 'E', 'F']) document.getElementById('tab' + x).classList.toggle('on', x === v);
+  for (const x of ['D', 'E', 'F', 'G']) document.getElementById('tab' + x).classList.toggle('on', x === v);
   document.getElementById('caption').textContent = CAPTIONS[v];
   render();
 }
