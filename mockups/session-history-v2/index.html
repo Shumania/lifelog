@@ -135,6 +135,14 @@ main { max-width: 620px; margin: 0 auto; padding: 6px 10px 40px; }
 .g-hidden { display: none; }
 .g-hidden.open { display: block; }
 
+/* ---------- Variant G: resumed-seam divider (spec G2 B2) ---------- */
+.seamdiv { text-align: center; font-size: 11px; color: var(--dim); opacity: .5; padding: 3px 0; border: none; }
+
+/* ---------- Variant G: ultra-compact fixed-height T1 rows (spec G2 C) ---------- */
+.t1.t1g { height: 22px; padding: 3px 0; margin: 0; gap: 6px; overflow: hidden; font-size: 12.5px; line-height: 1.35; border-radius: 4px; }
+.t1.t1g .time { width: 52px; font-size: 12.5px; }
+.t1.t1g .txt { font-size: 12.5px; }
+
 @media (max-width: 420px) {
   .t1 .time { width: 50px; }
   .trk .ta { display: none; }
@@ -186,6 +194,115 @@ function artOrPh(art, label, cls) {
   if (art) return `<img class="art ${cls}" src="${esc(art)}" loading="lazy" alt="">`;
   const h = hashHue(label);
   return `<div class="art-ph ${cls}" style="background:linear-gradient(135deg, hsl(${h},55%,32%), hsl(${(h + 45) % 360},55%,20%))">${esc(initials(label))}</div>`;
+}
+
+/* ---------------- data preprocessing (spec G2 §A) ---------------- */
+function normStr(s) { return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function normTitle(s) { return normStr(s).replace(/\s*[-(]\s*(remaster|remastered|live|mono|stereo|deluxe|single|bonus|radio edit)[^]*$/i, '').trim(); }
+function titlesMatch(a, b) { const x = normTitle(a), y = normTitle(b); return !!x && !!y && (x.startsWith(y) || y.startsWith(x)); }
+
+function preprocessSessions(sessions) {
+  const stats = { before: sessions.length, ghosts: 0, merges: 0 };
+
+  /* A1: duration-aware ghost dedup — Sonos plays are stamped at track START and
+     carry dur; roaming/Spotify plays are stamped at track END with dur null.
+     Drop a dur-null play that falls inside the play window of the same track
+     with a known duration (anywhere), plus slack. */
+  const durTracks = [];
+  for (const s of sessions) for (const t of s.tracks) if (t.dur != null) durTracks.push(t);
+  for (const s of sessions) {
+    s.tracks = s.tracks.filter(t1 => {
+      if (t1.dur != null) return true;
+      const ghost = durTracks.some(t2 =>
+        normStr(t2.artist) === normStr(t1.artist) &&
+        titlesMatch(t1.title, t2.title) &&
+        t1.ts >= t2.ts - 60000 &&
+        t1.ts <= t2.ts + t2.dur * 1000 + 180000);
+      if (ghost) stats.ghosts++;
+      return !ghost;
+    });
+  }
+  sessions = sessions.filter(s => s.tracks.length > 0);
+
+  /* album metadata pool (art/year/total survive session rebuilds) */
+  const meta = new Map();
+  for (const s of sessions) for (const a of (s.albums || [])) {
+    const k = normStr(a.album);
+    const cur = meta.get(k);
+    if (!cur || (!cur.art && a.art)) meta.set(k, a);
+  }
+
+  function rebuild(s) {
+    s.tracks.sort((a, b) => a.ts - b.ts);
+    s.n = s.tracks.length;
+    s.start = s.tracks[0].ts;
+    s.end = Math.max(...s.tracks.map(t => t.ts + (t.dur ? t.dur * 1000 : 0)));
+    const ac = new Map();
+    for (const t of s.tracks) ac.set(t.artist, (ac.get(t.artist) || 0) + 1);
+    s.artists = [...ac.entries()].sort((a, b) => b[1] - a[1]);
+    const alb = new Map();
+    for (const t of s.tracks) {
+      if (!t.album) continue;
+      const k = normStr(t.album);
+      if (!alb.has(k)) alb.set(k, []);
+      alb.get(k).push(t);
+    }
+    s.albums = [...alb.entries()].map(([k, g]) => {
+      const m = meta.get(k) || {};
+      const ac2 = new Map();
+      for (const t of g) ac2.set(t.artist, (ac2.get(t.artist) || 0) + 1);
+      const topArtist = [...ac2.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      return { album: m.album || g[0].album, artist: m.artist || topArtist, year: m.year, total: m.total, art: m.art, n: g.length };
+    }).sort((a, b) => b.n - a.n);
+  }
+  for (const s of sessions) rebuild(s);
+
+  /* A2: album-continuation merge. Literal spec rule: S with ≤3 tracks all from
+     one album A merges into an adjacent session containing A (gap ≤ 90 min).
+     Generalized per the spec's verification anchors: (i) S ≤3 tracks and ALL of
+     S's albums appear in N; (ii) S of any size whose tracks are all one album A
+     appearing in N. Seam = first-track ts of the chronologically later session. */
+  const albumSet = s => new Set(s.tracks.map(t => normStr(t.album)).filter(Boolean));
+  const oneAlbum = s => { const a = albumSet(s); return a.size === 1 && s.tracks.every(t => t.album); };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    sessions.sort((a, b) => a.start - b.start);
+    for (let i = 0; i < sessions.length; i++) {
+      const S = sessions[i];
+      if (S.isRadio) continue;
+      const small = S.n <= 3 && albumSet(S).size >= 1;
+      const single = oneAlbum(S);
+      if (!small && !single) continue;
+      const need = albumSet(S);
+      if (!need.size) continue;
+      for (const j of [i - 1, i + 1]) {
+        const N = sessions[j];
+        if (!N || N === S || N.isRadio) continue;
+        const nAlbums = albumSet(N);
+        const covered = single ? nAlbums.has([...need][0]) : [...need].every(k => nAlbums.has(k));
+        if (!covered) continue;
+        const gap = N.start > S.start ? Math.max(0, N.start - S.end) : Math.max(0, S.start - N.end);
+        if (gap > 90 * 60 * 1000) continue;
+        const seam = (S.start > N.start ? S : N).tracks[0].ts;
+        N.seams = (N.seams || []).concat(S.seams || [], [seam]);
+        N.tracks = N.tracks.concat(S.tracks);
+        N.contexts = (N.contexts || []).concat(S.contexts || []);
+        N.explorations = (N.explorations || []).concat(S.explorations || []);
+        N.rooms = [...new Set((N.rooms || []).concat(S.rooms || []))];
+        rebuild(N);
+        stats.merges++;
+        sessions.splice(i, 1);
+        changed = true;
+        break;
+      }
+      if (changed) break;
+    }
+  }
+  stats.after = sessions.length;
+  preprocessSessions.stats = stats;
+  try { console.log('[preprocess] sessions ' + stats.before + ' -> ' + stats.after + ', ghosts removed ' + stats.ghosts + ', merges ' + stats.merges); } catch (e) {}
+  return sessions;
 }
 
 /* ---------------- tier logic ---------------- */
@@ -335,21 +452,36 @@ function groupHeaderHtml(icon, kind, name, artist, art) {
     </span>
   </div>`;
 }
+function seamDividerHtml(ts) {
+  const t = ftime(ts).replace('AM', 'am').replace('PM', 'pm');
+  return `<div class="seamdiv">· resumed ${t} ·</div>`;
+}
+function insertSeams(items, s) {
+  // spec G2 B2: thin "· resumed ·" divider at each merge seam
+  if (!s.seams || !s.seams.length) return items;
+  for (const seam of [...s.seams].sort((a, b) => a - b)) {
+    const idx = items.findIndex(i => i.isTrack && i.ts === seam);
+    if (idx === -1) continue;
+    const at = (idx > 0 && items[idx - 1].isHeader) ? idx - 1 : idx;
+    items.splice(at, 0, { isTrack: false, html: seamDividerHtml(seam) });
+  }
+  return items;
+}
 function flatItemsG(s) {
-  // returns [{isTrack, html}] — headers interleaved with track rows
+  // returns [{isTrack, ts?, isHeader?, html}] — headers interleaved with track rows
   const items = [];
   if (s.isRadio) {
     // station-first: the station card is the header; flat enriched rows below
-    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, null, false) });
+    for (const t of s.tracks) items.push({ isTrack: true, ts: t.ts, html: trackRowHtmlG(t, null, false) });
     return items;
   }
   const namedCtxs = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0));
   if (namedCtxs.length) {
     // playlist session: one playlist header, tracks with dim inline album labels
     const pl = namedCtxs[0];
-    items.push({ isTrack: false, html: groupHeaderHtml('📃', 'playlist', pl.name, `playlist · ${pl.n || s.n} trk`, pl.art) });
-    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, t.album, true) });
-    return items;
+    items.push({ isTrack: false, isHeader: true, html: groupHeaderHtml('📃', 'playlist', pl.name, `playlist · ${pl.n || s.n} trk`, pl.art) });
+    for (const t of s.tracks) items.push({ isTrack: true, ts: t.ts, html: trackRowHtmlG(t, t.album, true) });
+    return insertSeams(items, s);
   }
   // group consecutive tracks on album identity (album name/id; merges artist-credit variants)
   const groups = [];
@@ -359,21 +491,20 @@ function flatItemsG(s) {
     if (last && last.key === k) last.tracks.push(t);
     else groups.push({ key: k, tracks: [t] });
   }
-  const singles = groups.filter(g => g.tracks.length === 1).length;
-  const grazing = groups.length > 1 && singles / groups.length > 0.6;
-  if (grazing) {
-    // shuffle grazing: no headers, inline dim album labels
-    for (const t of s.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, t.album, false) });
-    return items;
-  }
+  // spec G2 B1: any contiguous run of ≥3 same-album tracks gets a 💿 header;
+  // all other tracks render flat with the dim inline album label.
   for (const g of groups) {
-    const info = albumInfoFor(s, g.key);
-    const name = (info && info.album) || g.tracks[0].album || 'Unknown album';
-    const artist = (info && info.artist) || g.tracks[0].artist || '';
-    items.push({ isTrack: false, html: groupHeaderHtml('💿', 'album', name, artist, info ? info.art : null) });
-    for (const t of g.tracks) items.push({ isTrack: true, html: trackRowHtmlG(t, null, true) });
+    if (g.tracks.length >= 3 && g.key) {
+      const info = albumInfoFor(s, g.key);
+      const name = (info && info.album) || g.tracks[0].album || 'Unknown album';
+      const artist = (info && info.artist) || g.tracks[0].artist || '';
+      items.push({ isTrack: false, isHeader: true, html: groupHeaderHtml('💿', 'album', name, artist, info ? info.art : null) });
+      for (const t of g.tracks) items.push({ isTrack: true, ts: t.ts, html: trackRowHtmlG(t, null, true) });
+    } else {
+      for (const t of g.tracks) items.push({ isTrack: true, ts: t.ts, html: trackRowHtmlG(t, t.album, false) });
+    }
   }
-  return items;
+  return insertSeams(items, s);
 }
 function flatBlockHtml(s, sid) {
   const open = !!STATE.sess[sid];
@@ -418,8 +549,18 @@ function explBadge(s) {
 function demoBadge(s) { return s.isRadio ? '<span class="b-demo">demo data</span>' : ''; }
 
 /* ---------------- tier renderers (shared across variants, thumb size configurable) ---------------- */
-function renderT1(s, sid, thumb) {
+function renderT1(s, sid, thumb, dense) {
   const o = oneLiner(s);
+  if (dense) {
+    // spec G2 C: maximally dense, identical fixed-height ledger rows (G only)
+    const plusN = s.n > 1 ? ` <span class="muted">(+${s.n - 1})</span>` : '';
+    return `<div class="t1 t1g" onclick="toggleSession(${sid})">
+        <span class="time">${ftime(s.start)}</span>
+        <span class="txt">· <b>${esc(o.artist)}</b> — ${esc(o.title)}${plusN}</span>
+        ${explBadge(s)}
+      </div>
+      ${entitiesBlockHtml(s, sid)}`;
+  }
   const thumbHtml = thumb ? artOrPh(null, o.artist, 'thumb18') : '';
   // use dominant album art if available for the micro-thumb
   const albums = [...s.albums].sort((a, b) => b.n - a.n);
@@ -503,14 +644,14 @@ const VCFG = {
   D: { t1Thumb: false, t2Thumb: 40, t3Style: 'stackRight' },
   E: { t1Thumb: true, t2Thumb: 56, t3Style: 'grid2x2' },
   F: { t1Thumb: false, t2Thumb: 56, t3Style: 'inlineCluster' },
-  G: { t1Thumb: false, t2Thumb: 56, t3Style: 'inlineCluster', flatExpand: true },
+  G: { t1Thumb: false, t2Thumb: 56, t3Style: 'inlineCluster', flatExpand: true, denseT1: true },
 };
 
 function renderSession(s, cfg) {
   const sid = s.__id;
   if (s.isRadio) return renderStation(s, sid);
   const tier = tierOf(s);
-  if (tier === 1) return renderT1(s, sid, cfg.t1Thumb);
+  if (tier === 1) return renderT1(s, sid, cfg.t1Thumb, cfg.denseT1);
   if (tier === 2) return renderT2(s, sid, cfg.t2Thumb);
   return renderT3(s, sid, cfg.t3Style);
 }
@@ -573,7 +714,7 @@ function buildDemoRadioSession(anchorStart) {
 
 let ALL_SESSIONS = [];
 function init() {
-  ALL_SESSIONS = SESSIONS.slice();
+  ALL_SESSIONS = preprocessSessions(SESSIONS.slice());
   const maxStart = Math.max(...ALL_SESSIONS.map(s => s.start));
   ALL_SESSIONS.push(buildDemoRadioSession(maxStart));
   ALL_SESSIONS.sort((a, b) => b.start - a.start);
