@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Session History — Pass 2.6</title>
+<title>Session History — Pass 2.7</title>
 <style>
 :root {
   --bg: #0f1115; --panel: #1a1d24; --panel2: #20242e; --border: #2a2f3a;
@@ -190,6 +190,7 @@ main.vG .daygrid .cell { min-width: 0; }
 .gxp-rail .title { font-size: 16px; }
 .gxp-rail .sub { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
 .gxp-pl { font-size: 12.5px; color: var(--dim); margin-top: 4px; }
+.ctxnote { font-size: 12px; color: var(--dim); padding: 4px 2px 6px; } /* pass 2.7: partial playlist-context note */
 .gxp-tracks { min-width: 0; }
 @container (min-width: 1000px) {
   /* two regions: sticky ~280px left rail + tracklist at a readable measure (≤760px);
@@ -225,6 +226,11 @@ main.zdays { max-width: 1720px; }
 .dayrow .dr-stats { flex: 0 0 auto; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dayrow .dr-chev { flex: 0 0 auto; color: var(--dim2); font-size: 13px; }
 @media (max-width: 700px) { .dayrow .dr-arts { display: none; } }
+/* ---------- Variant G pass 2.7: multi-anchor day rows ---------- */
+/* continuation rows: blank/ditto date cell, tighter height, no separator so the day reads as one block */
+.dayrow.dr-cont { height: 38px; margin-top: -2px; }
+.dayrow .dr-ditto { color: var(--dim2); padding-left: 4px; }
+.dayrow .dr-date.dr-datelink:hover { color: var(--text); text-decoration: underline; }
 
 @media (max-width: 520px) {
   .trk .ta { display: none; }
@@ -236,7 +242,7 @@ main.zdays { max-width: 1720px; }
 </head>
 <body>
 <header>
-  <h1>Session History <small>— Pass 2.6 · multi-expand + wide-panel rail + dense Days</small></h1>
+  <h1>Session History <small>— Pass 2.7 · multi-anchor day rows + playlist-header fix</small></h1>
   <div class="tabs">
     <button id="tabD" onclick="setVariant('D')">D · Ledger</button>
     <button id="tabE" onclick="setVariant('E')">E · Shelf</button>
@@ -676,12 +682,17 @@ function flatBlockHtml(s, sid, forceOpen, omitExpl) {
     inner = s.tracks.map(t => trackRowHtmlG(t, null, false)).join('');
   } else {
     const namedCtxs = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0));
-    if (namedCtxs.length) {
+    // pass 2.7 fix: whole-session 📃 header only when the top context covers (nearly) every
+    // play — a partial context (e.g. 3 of 8 plays from "2020s Mix" in a merged session) must
+    // NOT claim the whole session; fall through to album-run grouping with a dim context note.
+    const topCtx = namedCtxs[0];
+    if (topCtx && (topCtx.n || 0) >= s.n * 0.8) {
       // playlist session: one 📃 header, tracks with dim inline album labels
-      const pl = namedCtxs[0];
+      const pl = topCtx;
       inner = groupHeaderHtml('📃', 'playlist', pl.name, 'playlist', pl.art, `${uniqCount(s.tracks)} trk`)
         + s.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, true)).join('');
     } else {
+      if (topCtx) inner += `<div class="ctxnote">📃 ${esc(topCtx.name)} · ${topCtx.n} of ${s.n} plays</div>`;
       // group consecutive tracks on album identity (album name; merges artist-credit variants)
       const groups = [];
       for (const t of s.tracks) {
@@ -925,6 +936,8 @@ function setZoom(z) {
   render();
 }
 function zoomToDay(k) { PENDING_SCROLL = k; setZoom('sessions'); } // clicking a day card jumps to Sessions zoom at that day
+// spec G2.7: clicking an anchor row lands on THAT session's card (falls back to the day header)
+function zoomToSession(k, sid) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = sid; setZoom('sessions'); }
 function daypartOf(ts) {
   const h = +new Date(ts).toLocaleString('en-US', { timeZone: TZ, hour12: false, hour: 'numeric' });
   return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
@@ -955,31 +968,57 @@ function renderDays() {
       const real = ss.filter(s => !s.isQuickLedger);
       const led = ss.find(s => s.isQuickLedger);
       const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
-      const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
-      // headline: anchor session summary, one line (💿 album — artist / led by X / 📻 station daypart)
-      let head = '▫ quick plays only';
-      if (anchor) {
-        if (anchor.isRadio) head = `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}`;
-        else {
-          const h = titleFor(anchor);
-          if (h.kind === 'album') {
-            const top = [...anchor.albums].sort((a, b) => b.n - a.n)[0];
-            head = `💿 ${esc(h.title)}${top ? ' — ' + esc(top.artist) : ''}`;
-          } else if (h.kind === 'playlist') head = `📃 ${esc(String(h.plain || h.title).replace(/^📃\s*/, ''))}`;
-          else head = esc(h.plain || h.title);
-        }
-      }
-      // mini art strip: top albums of the day by play count, deduped, up to 4 × 24px
-      const seen = new Set(); let thumbs = '';
-      for (const a of ss.flatMap(s => s.albums || []).filter(a => a.art).sort((a, b) => b.n - a.n)) {
-        if (seen.has(a.art)) continue; seen.add(a.art);
-        thumbs += `<img class="art" src="${esc(a.art)}" loading="lazy" alt="">`;
-        if (seen.size >= 4) break;
-      }
+      // day totals + quick-plays residual — rendered exactly once per day (last row of the group)
       const stats = `${fdur(dayDur(ss))} · ${totTracks} tracks · ${real.length} session${real.length === 1 ? '' : 's'}${led ? ` · ▫${led.qplays}` : ''}`;
+      // headline base: session summary, one line (💿 album — artist / 📃 playlist / led by X / 📻 station)
+      const headBase = s => {
+        if (s.isRadio) return `📻 ${esc(s.stationName)}`;
+        const h = titleFor(s);
+        if (h.kind === 'album') {
+          const top = [...s.albums].sort((a, b) => b.n - a.n)[0];
+          return `💿 ${esc(h.title)}${top ? ' — ' + esc(top.artist) : ''}`;
+        }
+        if (h.kind === 'playlist') return `📃 ${esc(String(h.plain || h.title).replace(/^📃\s*/, ''))}`;
+        return esc(h.plain || h.title);
+      };
+      // mini art strip: top albums by play count, deduped, up to 4 × 24px
+      const thumbsFor = list => {
+        const seen = new Set(); let t = '';
+        for (const a of list.flatMap(s => s.albums || []).filter(a => a.art).sort((a, b) => b.n - a.n)) {
+          if (seen.has(a.art)) continue; seen.add(a.art);
+          t += `<img class="art" src="${esc(a.art)}" loading="lazy" alt="">`;
+          if (seen.size >= 4) break;
+        }
+        return t;
+      };
+      // spec G2.7: anchor = ≥8 unique tracks OR ≥45 min
+      const anchors = real.filter(s => uniqCount(s.tracks) >= 8 || sessDurMs(s) >= 45 * 60000);
+      if (anchors.length >= 2) {
+        // spec G2.7: 2–3 anchors → one row per anchor; 4+ → top 3 by duration (rest stay in
+        // the day totals' session count). Display order is chronological within the day.
+        const shown = anchors.slice().sort((a, b) => sessDurMs(b) - sessDurMs(a)).slice(0, 3).sort((a, b) => a.start - b.start);
+        shown.forEach((a, i) => {
+          const last = i === shown.length - 1;
+          // per-anchor headline: context · daypart · own duration · own tracks (spec G2.7)
+          const head = `${headBase(a)} <span class="muted">· ${daypartOf(a.start)} · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span>`;
+          // spec G2.7: anchor row click → that session's card; date cell click → day header
+          out += `<div class="dayrow${i ? ' dr-cont' : ''}" onclick="zoomToSession('${k}', ${a.__id})">
+            <span class="dr-date${i ? '' : ' dr-datelink'}"${i ? '' : ` onclick="event.stopPropagation();zoomToDay('${k}')"`}>${i ? '<span class="dr-ditto">〃</span>' : fdayShort(ss[0].start)}</span>
+            <span class="dr-arts">${thumbsFor([a])}</span>
+            <span class="dr-head">${head}</span>
+            <span class="dr-stats">${last ? stats : ''}</span>
+            <span class="dr-chev">›</span>
+          </div>`;
+        });
+        continue;
+      }
+      // 0–1 anchors: single-row format, unchanged from pass 2.6
+      const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
+      let head = '▫ quick plays only';
+      if (anchor) head = anchor.isRadio ? `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}` : headBase(anchor);
       out += `<div class="dayrow" onclick="zoomToDay('${k}')">
         <span class="dr-date">${fdayShort(ss[0].start)}</span>
-        <span class="dr-arts">${thumbs}</span>
+        <span class="dr-arts">${thumbsFor(ss)}</span>
         <span class="dr-head">${head}</span>
         <span class="dr-stats">${stats}</span>
         <span class="dr-chev">›</span>
