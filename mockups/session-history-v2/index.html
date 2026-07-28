@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Session History — Pass 2.5</title>
+<title>Session History — Pass 2.6</title>
 <style>
 :root {
   --bg: #0f1115; --panel: #1a1d24; --panel2: #20242e; --border: #2a2f3a;
@@ -177,36 +177,54 @@ main.vG .daygrid .cell { min-width: 0; }
   .cell.sel > .t1 { box-shadow: inset 0 0 0 1.5px var(--accent); }
 }
 
-/* ---------- Variant G pass 2.5 §2: full-width inline expansion panel ("Google Images" row) ---------- */
-.gxp { grid-column: 1 / -1; position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 12px; margin: 10px 0 6px; }
+/* ---------- Variant G pass 2.5 §2 / 2.6 §1: full-width inline expansion panels (per-card, multi-expand) ---------- */
+.gxp { grid-column: 1 / -1; position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 12px; margin: 10px 0 6px; container-type: inline-size; }
 .gxp-caret { position: absolute; top: -9px; left: 40px; width: 16px; height: 16px; transform: rotate(45deg); background: var(--panel); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
 .gxp-x { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--dim); font-size: 15px; line-height: 1; cursor: pointer; padding: 4px 6px; z-index: 1; }
 .gxp-x:hover { color: var(--text); }
-.gxp-hdr { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; padding-right: 26px; }
-.gxp-hdr .gxp-text { min-width: 0; }
-.gxp-hdr .gxp-top { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
-.gxp-hdr .title { font-size: 16px; }
-.gxp-hdr .sub { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+/* ---------- Variant G pass 2.6 §2: two-region wide-panel internal layout ---------- */
+/* stacked default (<~1000px panel width): header block above the tracklist, as in 2.5 */
+.gxp-railhdr { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; padding-right: 26px; }
+.gxp-railhdr .gxp-text { min-width: 0; }
+.gxp-top { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.gxp-rail .title { font-size: 16px; }
+.gxp-rail .sub { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+.gxp-pl { font-size: 12.5px; color: var(--dim); margin-top: 4px; }
+.gxp-tracks { min-width: 0; }
+@container (min-width: 1000px) {
+  /* two regions: sticky ~280px left rail + tracklist at a readable measure (≤760px);
+     leftover ultrawide space stays empty — no stretching */
+  .gxp-body { display: flex; gap: 28px; align-items: flex-start; }
+  .gxp-rail { flex: 0 0 280px; position: sticky; top: 96px; }
+  .gxp-railhdr { display: block; margin-bottom: 0; padding-right: 0; }
+  .gxp-railhdr .gxp-art { margin-bottom: 12px; }
+  /* rail order: art, title, (artist sub), meta line, playlist */
+  .gxp-railhdr .gxp-text { display: flex; flex-direction: column; }
+  .gxp-railhdr .gxp-text .title { order: 0; }
+  .gxp-railhdr .gxp-text .sub { order: 1; }
+  .gxp-railhdr .gxp-text .gxp-top { order: 2; margin: 6px 0 0; }
+  .gxp-railhdr .gxp-text .gxp-pl { order: 3; }
+  .gxp-tracks { flex: 1 1 auto; max-width: 760px; }
+}
 
 /* ---------- Variant G pass 2.4 §4: Days zoom ---------- */
 .zoomseg { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
 .zoomseg button { background: var(--chip); color: var(--text); border: none; padding: 5px 13px; font-size: 12.5px; cursor: pointer; }
 .zoomseg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 main.zdays { max-width: 1720px; }
-/* spec G2.5 §3: Days zoom uses the same auto-fill density as the sessions grid */
-.daysgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
-.daycard { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; cursor: pointer; }
-.daycard:hover { background: var(--panel2); }
-.daycard .dc-date { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim2); margin-bottom: 8px; }
-.daycard .dc-body { display: flex; gap: 12px; align-items: flex-start; }
-.daycard .dc-text { min-width: 0; }
-.hero96 { width: 96px; height: 96px; border-radius: 10px; font-size: 26px; flex: 0 0 auto; }
-.daycard .dc-title { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daycard .dc-ctx { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
-.daycard .dc-stats { font-size: 12px; color: var(--dim); margin-top: 5px; }
-.daycard .dc-mini { font-size: 12.5px; color: var(--dim); margin-top: 8px; }
-.daycard .dc-mini div { padding: 1px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daycard .dc-quick { color: var(--dim2); }
+/* ---------- Variant G pass 2.6 §3: dense Days ledger (replaces rich day cards) ---------- */
+.daysledger { max-width: 920px; margin: 6px auto 0; }
+.weekhdr { margin: 24px 2px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim2); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.weekhdr b { color: var(--dim); font-weight: 600; }
+.dayrow { display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+.dayrow:hover { background: var(--panel); }
+.dayrow .dr-date { flex: 0 0 96px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dayrow .dr-arts { flex: 0 0 105px; display: flex; gap: 3px; }
+.dayrow .dr-arts .art { width: 24px; height: 24px; border-radius: 5px; }
+.dayrow .dr-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.dayrow .dr-stats { flex: 0 0 auto; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dayrow .dr-chev { flex: 0 0 auto; color: var(--dim2); font-size: 13px; }
+@media (max-width: 700px) { .dayrow .dr-arts { display: none; } }
 
 @media (max-width: 520px) {
   .trk .ta { display: none; }
@@ -218,7 +236,7 @@ main.zdays { max-width: 1720px; }
 </head>
 <body>
 <header>
-  <h1>Session History <small>— Pass 2.5 · inline expansion + dense grid</small></h1>
+  <h1>Session History <small>— Pass 2.6 · multi-expand + wide-panel rail + dense Days</small></h1>
   <div class="tabs">
     <button id="tabD" onclick="setVariant('D')">D · Ledger</button>
     <button id="tabE" onclick="setVariant('E')">E · Shelf</button>
@@ -497,8 +515,15 @@ STATE.gcol = STATE.gcol || {}; // spec G2.3 §E: per-run collapse state, same me
 function saveState() { try { sessionStorage.setItem(STATE_KEY, JSON.stringify(STATE)); } catch (e) {} }
 function toggleSession(sid, ev) {
   if (ev) ev.stopPropagation();
-  // spec G2.5 §2: at ≥900px in G, clicking a card toggles the full-width inline panel
-  if (panelMode()) { togglePanel(sid); return; }
+  if (VARIANT === 'G') {
+    // spec G2.6 §1: clicking a card toggles ONLY that card; other open panels are untouched.
+    // Expanded state lives in the in-memory EXPANDED Set (shared by panel + phone inline modes).
+    if (panelMode()) { togglePanel(sid); return; }
+    if (EXPANDED.has(sid)) EXPANDED.delete(sid); else EXPANDED.add(sid);
+    const el = document.getElementById('ent-' + sid);
+    if (el) el.classList.toggle('open', EXPANDED.has(sid));
+    return;
+  }
   STATE.sess[sid] = !STATE.sess[sid];
   saveState();
   const el = document.getElementById('ent-' + sid);
@@ -638,9 +663,11 @@ function runHeaderHtml(sid, idx, name, artist, art, sub, collapsed) {
     </span>
   </div>`;
 }
-function flatBlockHtml(s, sid, forceOpen) {
+function flatBlockHtml(s, sid, forceOpen, omitExpl) {
   // spec G2.3 §E: NO "show all" fold — opening a session always renders the full tracklist
-  const open = forceOpen || !!STATE.sess[sid];
+  // spec G2.6 §1: G expansion state lives in the EXPANDED Set (in-memory)
+  // spec G2.6 §2: omitExpl=true when the panel rail already carries the exploration links
+  const open = forceOpen || (VARIANT === 'G' ? EXPANDED.has(sid) : !!STATE.sess[sid]);
   const seamSet = new Set(s.seams || []);
   const seam = t => { if (seamSet.has(t.ts)) { seamSet.delete(t.ts); return seamDividerHtml(t.ts); } return ''; };
   let inner = '';
@@ -686,7 +713,7 @@ function flatBlockHtml(s, sid, forceOpen) {
       }
     }
   }
-  return `<div class="entities ${open ? 'open' : ''}" id="ent-${sid}"><div class="trackrows open">${explRowsG(s)}${inner}</div></div>`;
+  return `<div class="entities ${open ? 'open' : ''}" id="ent-${sid}"><div class="trackrows open">${omitExpl ? '' : explRowsG(s)}${inner}</div></div>`;
 }
 /* ---------------- Variant G pass 2.3: card renderers ---------------- */
 function bigArtG(s, h) {
@@ -782,7 +809,7 @@ function qledBodyHtml(s) { return `<div class="trackrows open">${s.tracks.map(ql
 function renderQuickLedgerG(s, sid) {
   // spec G2.4 §2: one collapsed 24px row, docked at the END of its day group;
   // a single click expands the ledger rows sorted by time
-  const open = !!STATE.sess[sid];
+  const open = EXPANDED.has(sid); // spec G2.6 §1: quick ledger is G-only — same Set
   return `<div class="t1 t1g qled" onclick="toggleSession(${sid})">
       <span class="qmark">▫</span>
       <span class="txt"><b>${s.qplays} quick play${s.qplays === 1 ? '' : 's'}</b> · ${fdur(s.qdur)}</span>
@@ -790,26 +817,40 @@ function renderQuickLedgerG(s, sid) {
     <div class="entities ${open ? 'open' : ''}" id="ent-${sid}">${qledBodyHtml(s)}</div>`;
 }
 
-/* ---------------- Variant G pass 2.5 §2: full-width inline expansion panel (≥900px) ---------------- */
+/* ---------------- Variant G pass 2.6 §1: per-card full-width panels, multi-expand ---------------- */
 const GRID_MQ = window.matchMedia('(min-width: 900px)');
+// spec G2.6 §1: expanded state remembered in a JS Set keyed by session id (in-memory only;
+// survives re-renders, resize column changes, Sessions↔Days zoom toggles, day-jump navigation)
+const EXPANDED = new Set();
 function panelMode() { return VARIANT === 'G' && ZOOM === 'sessions' && GRID_MQ.matches; }
 function findSessionById(sid) { return G_SESSIONS.find(x => x.__id === sid) || ALL_SESSIONS.find(x => x.__id === sid); }
-function panelBodyHtml(s) {
-  const psid = 100000 + s.__id; // panel-local id namespace: run-collapse ids/state never collide with inline blocks
+function panelRailHtml(s) {
+  // spec G2.6 §2: left rail — art fan/cover, session title, meta line
+  // (time · duration · N tracks · artists count), playlist name if any, exploration link
   if (s.isQuickLedger) {
-    return `<div class="gxp-hdr"><div class="gxp-text"><div class="gxp-top">${fdur(s.qdur)}</div><div class="title"><b>▫ ${s.qplays} quick plays</b></div></div></div>${qledBodyHtml(s)}`;
+    return `<div class="gxp-rail"><div class="gxp-railhdr"><div class="gxp-text"><div class="gxp-top">${fdur(s.qdur)}</div><div class="title"><b>▫ ${s.qplays} quick plays</b></div></div></div></div>`;
   }
-  let hdr;
+  const meta = topLineG(s) + (s.artists.length > 1 ? ` · ${s.artists.length} artists` : '');
+  let art = '', title, sub = '', pl = '';
   if (s.isRadio) {
-    hdr = `<div class="gxp-hdr"><div class="gxp-text"><div class="gxp-top">${topLineG(s)}</div><div class="title"><b>📻 ${esc(s.stationName)} · ${esc(s.stationFreq)}</b></div><div class="sub">live radio</div></div></div>`;
+    title = `<b>📻 ${esc(s.stationName)} · ${esc(s.stationFreq)}</b>`;
+    sub = 'live radio';
   } else {
     const h = titleFor(s);
-    const titleHtml = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
-    const sub = subG(s, h);
-    hdr = `<div class="gxp-hdr">${bigArtG(s, h)}<div class="gxp-text"><div class="gxp-top">${topLineG(s)}</div><div class="title">${titleHtml}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`;
+    title = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
+    if (h.kind === 'album') sub = subG(s, h); // artist · year (artist count already on the meta line)
+    art = `<div class="gxp-art">${bigArtG(s, h)}</div>`;
+    const namedCtx = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+    if (namedCtx && h.kind !== 'playlist') pl = `<div class="gxp-pl">📃 ${esc(namedCtx.name)}</div>`;
   }
-  // full expansion, SAME renderer as inline (never forked): exploration links, album runs w/ collapse, seams, ♥ 🔍 ▶ ＋ rows
-  return hdr + flatBlockHtml(s, psid, true);
+  return `<div class="gxp-rail"><div class="gxp-railhdr">${art}<div class="gxp-text"><div class="gxp-top">${meta}</div><div class="title">${title}</div>${sub ? `<div class="sub">${sub}</div>` : ''}${pl}</div></div>${explRowsG(s)}</div>`;
+}
+function panelBodyHtml(s) {
+  const psid = 100000 + s.__id; // panel-local id namespace: run-collapse ids/state never collide with inline blocks
+  // tracklist region: SAME renderer as inline (never forked) — album runs w/ collapse, seams, ♥ 🔍 ▶ ＋ rows;
+  // exploration links live in the rail (spec G2.6 §2), so the tracklist omits them
+  const tracks = s.isQuickLedger ? qledBodyHtml(s) : flatBlockHtml(s, psid, true, true);
+  return `<div class="gxp-body">${panelRailHtml(s)}<div class="gxp-tracks">${tracks}</div></div>`;
 }
 function rowAnchorFor(cell) {
   // last cell of the clicked card's visual row (same offsetTop among the grid's cells)
@@ -821,47 +862,57 @@ function rowAnchorFor(cell) {
 function positionCaret(panel, cell) {
   const caret = panel.querySelector('.gxp-caret');
   if (!caret) return;
-  // caret points at the clicked card's horizontal center (cell and panel share an offset parent)
+  // caret points at its own card's horizontal center (cell and panel share an offset parent)
   const center = cell.offsetLeft + cell.offsetWidth / 2 - panel.offsetLeft;
   caret.style.left = Math.max(14, Math.round(center - 8)) + 'px';
 }
-function togglePanel(sid) { if (SEL === sid) closePanel(); else openPanel(sid); } // same card toggles closed; another card moves the panel
-function closePanel() {
-  SEL = null;
-  const p = document.getElementById('gxpanel');
-  if (p) p.remove();
+function layoutPanels() {
+  // spec G2.6 §1: rebuild all open panels from the EXPANDED Set. Each expanded card gets its
+  // own full-width panel after its grid row; multiple expanded cards in one row stack their
+  // panels below that row in left→right card order, each caret aligned to its own card.
+  document.querySelectorAll('.gxp').forEach(p => p.remove());
   document.querySelectorAll('.cell.sel').forEach(e => e.classList.remove('sel'));
+  if (!panelMode()) return;
+  // measure rows with all panels removed, THEN insert (insertion shifts offsetTop below it)
+  const items = [...EXPANDED].map(sid => ({ sid, cell: document.getElementById('cell-' + sid) })).filter(x => x.cell);
+  for (const x of items) { x.left = x.cell.offsetLeft; x.anchor = rowAnchorFor(x.cell); }
+  const rows = new Map(); // row anchor element -> expanded cells in that visual row
+  for (const x of items) { if (!rows.has(x.anchor)) rows.set(x.anchor, []); rows.get(x.anchor).push(x); }
+  const made = [];
+  for (const [anchor, xs] of rows) {
+    xs.sort((a, b) => a.left - b.left);
+    let after = anchor;
+    for (const x of xs) {
+      const s = findSessionById(x.sid);
+      if (!s) continue;
+      x.cell.classList.add('sel'); // teal ring on every expanded card
+      const panel = document.createElement('div');
+      panel.className = 'gxp';
+      panel.id = 'gxpanel-' + x.sid;
+      panel.innerHTML = `<span class="gxp-caret"></span><button class="gxp-x" title="Close" onclick="closePanel(${x.sid})">✕</button>` + panelBodyHtml(s);
+      after.after(panel);
+      after = panel;
+      made.push(x);
+    }
+  }
+  for (const x of made) { const p = document.getElementById('gxpanel-' + x.sid); if (p) positionCaret(p, x.cell); }
 }
-function openPanel(sid) {
-  closePanel(); // single panel at a time
-  const cell = document.getElementById('cell-' + sid);
-  const s = findSessionById(sid);
-  if (!cell || !s) return;
-  SEL = sid;
-  cell.classList.add('sel');
-  const panel = document.createElement('div');
-  panel.className = 'gxp';
-  panel.id = 'gxpanel';
-  panel.innerHTML = `<span class="gxp-caret"></span><button class="gxp-x" title="Close" onclick="closePanel()">✕</button>` + panelBodyHtml(s);
-  rowAnchorFor(cell).after(panel); // full-width grid row directly below the clicked card's row; columns never move
-  positionCaret(panel, cell);
-  // gentle scroll only when the panel's top would be off-screen
-  const hdrH = document.querySelector('header').offsetHeight;
-  const top = panel.getBoundingClientRect().top;
-  if (top < hdrH || top > window.innerHeight) panel.scrollIntoView({ block: 'nearest' });
+function togglePanel(sid) {
+  // spec G2.6 §1: toggles ONLY this card's panel; other open panels are untouched
+  const opening = !EXPANDED.has(sid);
+  if (opening) EXPANDED.add(sid); else EXPANDED.delete(sid);
+  layoutPanels();
+  if (opening) {
+    // gentle scroll only when the new panel's top would be off-screen
+    const panel = document.getElementById('gxpanel-' + sid);
+    if (!panel) return;
+    const hdrH = document.querySelector('header').offsetHeight;
+    const top = panel.getBoundingClientRect().top;
+    if (top < hdrH || top > window.innerHeight) panel.scrollIntoView({ block: 'nearest' });
+  }
 }
-function repositionPanel() {
-  // column count can change on resize: recompute the open panel's row anchor + caret
-  if (SEL == null) return;
-  if (!panelMode()) { closePanel(); return; }
-  const panel = document.getElementById('gxpanel');
-  const cell = document.getElementById('cell-' + SEL);
-  if (!panel || !cell) return;
-  panel.remove(); // take the panel out before measuring rows so it doesn't skew offsetTop
-  rowAnchorFor(cell).after(panel);
-  positionCaret(panel, cell);
-}
-window.addEventListener('resize', () => { clearTimeout(repositionPanel._h); repositionPanel._h = setTimeout(repositionPanel, 120); });
+function closePanel(sid) { EXPANDED.delete(sid); layoutPanels(); } // ✕ button (re-click of the card also closes)
+window.addEventListener('resize', () => { clearTimeout(layoutPanels._h); layoutPanels._h = setTimeout(layoutPanels, 120); }); // column count may change: re-anchor every open panel
 GRID_MQ.addEventListener('change', () => { if (VARIANT === 'G') render(); }); // crossing 900px swaps panel/inline modes
 
 /* ---------------- Variant G pass 2.4 §4: Days zoom (prototype) ---------------- */
@@ -878,44 +929,62 @@ function daypartOf(ts) {
   const h = +new Date(ts).toLocaleString('en-US', { timeZone: TZ, hour12: false, hour: 'numeric' });
   return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
 }
-function dayIconTitle(s) {
-  if (s.isRadio) return { icon: '📻', title: s.stationName };
-  const h = titleFor(s);
-  const icon = h.kind === 'album' ? '💿' : h.kind === 'playlist' ? '📃' : '🎶';
-  const t = String(h.plain || h.title || '').replace(/^📃\s*/, '');
-  return { icon, title: t };
-}
 function renderDays() {
-  // one card per day: anchor session headline (hero art, icon+title), room+daypart
-  // context line, stats line, up to 3 mini-lines, quick plays last
+  // spec G2.6 §3: dense scan-first ledger — one ~46px row per listened day (zero-listening
+  // days skipped by construction), grouped under week headers, newest week first.
+  // Row: date · mini art strip (≤4×24px, top albums by play count) · anchor headline ·
+  // right-aligned stats · chevron. Click → Sessions zoom scrolled to that day (unchanged).
   const days = groupByDay(G_SESSIONS);
-  let out = '<div class="daysgrid">';
+  const fdayShort = ts => new Date(ts).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' }).replace(/,/g, ''); // "Mon Jul 27"
+  const dayDur = ss => ss.reduce((a, s) => a + (s.isQuickLedger ? s.qdur : sessDurMs(s)), 0);
+  // bucket day keys into Monday-start weeks (calendar math on the day key is TZ-safe)
+  const weeks = new Map();
   for (const [k, ss] of days) {
-    const real = ss.filter(s => !s.isQuickLedger);
-    const led = ss.find(s => s.isQuickLedger);
-    const totDur = ss.reduce((a, s) => a + (s.isQuickLedger ? s.qdur : sessDurMs(s)), 0);
-    const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
-    const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
-    let hero = '', headline = '', ctx = '';
-    if (anchor) {
-      const it = dayIconTitle(anchor);
-      const h2 = anchor.isRadio ? null : titleFor(anchor);
-      hero = artOrPh(h2 ? h2.art : null, h2 ? h2.artLabel : anchor.stationName, 'hero96');
-      headline = `${it.icon} ${esc(it.title)}`;
-      const room = (anchor.rooms && anchor.rooms[0]) || (anchor.locus === 'roaming' ? 'On the go' : (anchor.locus ? anchor.locus[0].toUpperCase() + anchor.locus.slice(1) : ''));
-      ctx = `${esc(room)} ${daypartOf(anchor.start)}`;
+    const [y, m, d] = k.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7)); // back to Monday
+    const wk = dt.toISOString().slice(0, 10);
+    if (!weeks.has(wk)) weeks.set(wk, { label: dt.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }), days: [] });
+    weeks.get(wk).days.push([k, ss]);
+  }
+  let out = '<div class="daysledger">';
+  for (const [, w] of weeks) {
+    const wDur = w.days.reduce((a, [, ss]) => a + dayDur(ss), 0);
+    out += `<div class="weekhdr"><b>Week of ${w.label}</b> · ${fdur(wDur)} · ${w.days.length} day${w.days.length === 1 ? '' : 's'} listened</div>`;
+    for (const [k, ss] of w.days) {
+      const real = ss.filter(s => !s.isQuickLedger);
+      const led = ss.find(s => s.isQuickLedger);
+      const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
+      const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
+      // headline: anchor session summary, one line (💿 album — artist / led by X / 📻 station daypart)
+      let head = '▫ quick plays only';
+      if (anchor) {
+        if (anchor.isRadio) head = `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}`;
+        else {
+          const h = titleFor(anchor);
+          if (h.kind === 'album') {
+            const top = [...anchor.albums].sort((a, b) => b.n - a.n)[0];
+            head = `💿 ${esc(h.title)}${top ? ' — ' + esc(top.artist) : ''}`;
+          } else if (h.kind === 'playlist') head = `📃 ${esc(String(h.plain || h.title).replace(/^📃\s*/, ''))}`;
+          else head = esc(h.plain || h.title);
+        }
+      }
+      // mini art strip: top albums of the day by play count, deduped, up to 4 × 24px
+      const seen = new Set(); let thumbs = '';
+      for (const a of ss.flatMap(s => s.albums || []).filter(a => a.art).sort((a, b) => b.n - a.n)) {
+        if (seen.has(a.art)) continue; seen.add(a.art);
+        thumbs += `<img class="art" src="${esc(a.art)}" loading="lazy" alt="">`;
+        if (seen.size >= 4) break;
+      }
+      const stats = `${fdur(dayDur(ss))} · ${totTracks} tracks · ${real.length} session${real.length === 1 ? '' : 's'}${led ? ` · ▫${led.qplays}` : ''}`;
+      out += `<div class="dayrow" onclick="zoomToDay('${k}')">
+        <span class="dr-date">${fdayShort(ss[0].start)}</span>
+        <span class="dr-arts">${thumbs}</span>
+        <span class="dr-head">${head}</span>
+        <span class="dr-stats">${stats}</span>
+        <span class="dr-chev">›</span>
+      </div>`;
     }
-    const minis = real.filter(s => s !== anchor).sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks)).slice(0, 3)
-      .map(s => { const it = dayIconTitle(s); return `<div>▸ ${it.icon} ${esc(it.title)} · ${fdur(sessDurMs(s))}</div>`; }).join('');
-    out += `<div class="daycard" onclick="zoomToDay('${k}')">
-      <div class="dc-date">${fday(ss[0].start)}</div>
-      <div class="dc-body">${hero}<div class="dc-text">
-        <div class="dc-title">${headline || '▫ quick plays only'}</div>
-        ${ctx ? `<div class="dc-ctx">${ctx}</div>` : ''}
-        <div class="dc-stats">${fdur(totDur)} · ${totTracks} tracks · ${real.length} session${real.length === 1 ? '' : 's'}</div>
-      </div></div>
-      ${(minis || led) ? `<div class="dc-mini">${minis}${led ? `<div class="dc-quick">+ ${led.qplays} quick plays</div>` : ''}</div>` : ''}
-    </div>`;
   }
   out += '</div>';
   document.getElementById('main').innerHTML = out;
@@ -1081,7 +1150,7 @@ const VARIANT_KEY = 'shv2_variant';
 /* ---------------- spec G2.4 state ---------------- */
 const ZOOM_KEY = 'shv2_zoom';
 let ZOOM = 'sessions';        // §4: 'sessions' | 'days'
-let SEL = null;               // G2.5 §2: session id whose full-width inline panel is open
+// (G2.6 §1: the old single-selection SEL is gone — see the EXPANDED Set above)
 let PENDING_SCROLL = null;    // §4: day key to scroll to after zooming in
 let G_SESSIONS = [];          // §2: G-only view list with quick-plays folded (D/E/F use ALL_SESSIONS)
 function setVariant(v) {
@@ -1098,7 +1167,7 @@ function render() {
   const zs = document.getElementById('zoomseg');
   if (zs) zs.style.display = isG ? '' : 'none'; // spec G2.4 §4: zoom toggle is a G prototype
   main.className = isG ? (ZOOM === 'days' ? 'vG zdays' : 'vG') : '';
-  if (isG && ZOOM === 'days') { SEL = null; renderDays(); return; }
+  if (isG && ZOOM === 'days') { renderDays(); return; } // G2.6 §1: EXPANDED survives zoom toggles
   // spec G2.4 §2: G renders the quick-plays-folded list; D/E/F keep the raw session list
   const list = isG ? G_SESSIONS : ALL_SESSIONS;
   const days = groupByDay(list);
@@ -1108,12 +1177,14 @@ function render() {
     const cards = ss.filter(s => !s.isQuickLedger).concat(ss.filter(s => s.isQuickLedger));
     // spec G2.4 §3: day header spans full width; cards tile into a CSS grid (G ≥900px)
     out += `<section class="daygrp" id="day-${k}"><div class="dayhdr">${fday(cards[0].start)}</div><div class="daygrid">`;
-    for (const s of cards) out += `<div class="cell${s.isQuickLedger ? ' qcell' : ''}${isG && SEL === s.__id ? ' sel' : ''}" id="cell-${s.__id}">${renderSession(s, cfg)}</div>`;
+    for (const s of cards) out += `<div class="cell${s.isQuickLedger ? ' qcell' : ''}" id="cell-${s.__id}">${renderSession(s, cfg)}</div>`;
     out += `</div></section>`;
   }
   main.innerHTML = out;
-  // spec G2.5 §2: re-attach the open panel after a re-render (single panel at a time)
-  if (panelMode() && SEL != null) openPanel(SEL); else SEL = null;
+  // spec G2.6 §1: re-open EVERY expanded card's panel from the EXPANDED Set after a re-render
+  // (resize column changes, zoom toggles, day-jump navigation); no-op below 900px, where the
+  // inline blocks already rendered open from the same Set
+  if (isG) layoutPanels();
   if (PENDING_SCROLL) { // spec G2.4 §4: Days→Sessions zoom lands on the clicked day
     const el = document.getElementById('day-' + PENDING_SCROLL);
     PENDING_SCROLL = null;
