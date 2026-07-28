@@ -58,3 +58,13 @@ ledger, A1/A2 suppression.
 5. Date cell click → day header jump still works.
 6. Week header sums unchanged.
 7. Phone width 390px: ledger rows still readable (headline truncates with ellipsis).
+
+## Pass 2.7b addendum (2026-07-28, Andrew feedback): names beat numbers on narrow widths
+Problem: on phone, fixed-width nowrap stats squeezed the headline to "T…" / "Portrai…" / "Bill E…".
+Rule: Days view favors artist/album/context names over time & length numbers.
+- Day-total stats split into classed spans: `.st-dur` (duration), `.st-trk` (track count), `.st-sess` (session count); straggler `▫n` stays with duration.
+- Per-anchor muted suffix: daypart always survives; `· duration · N tracks` wrapped in `.mut-len`.
+- ≤760px: drop `.st-trk` + `.mut-len` (headline = name · daypart; stats = duration · sessions · ▫n).
+- ≤560px: drop `.st-sess`; date column 96→72px; row gap 12→8px. Stats = duration (+▫n) only.
+- Names never yield to numbers; only genuinely long titles ellipsize.
+Verified at 390px in-frame: all three offender rows from Andrew's screenshot render name-first.

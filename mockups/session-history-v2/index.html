@@ -231,6 +231,15 @@ main.zdays { max-width: 1720px; }
 .dayrow.dr-cont { height: 38px; margin-top: -2px; }
 .dayrow .dr-ditto { color: var(--dim2); padding-left: 4px; }
 .dayrow .dr-date.dr-datelink:hover { color: var(--text); text-decoration: underline; }
+/* pass 2.7b: names & context beat numbers on narrow screens — drop stats progressively */
+@media (max-width: 760px) {
+  .dayrow .dr-stats .st-trk, .dayrow .dr-head .mut-len { display: none; }
+}
+@media (max-width: 560px) {
+  .dayrow .dr-stats .st-sess { display: none; }
+  .dayrow .dr-date { flex-basis: 72px; }
+  .dayrow { gap: 8px; }
+}
 
 @media (max-width: 520px) {
   .trk .ta { display: none; }
@@ -969,7 +978,8 @@ function renderDays() {
       const led = ss.find(s => s.isQuickLedger);
       const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
       // day totals + quick-plays residual — rendered exactly once per day (last row of the group)
-      const stats = `${fdur(dayDur(ss))} · ${totTracks} tracks · ${real.length} session${real.length === 1 ? '' : 's'}${led ? ` · ▫${led.qplays}` : ''}`;
+      // pass 2.7b: numeric pieces individually classed so narrow widths can drop them (names win)
+      const stats = `<span class="st-dur">${fdur(dayDur(ss))}</span><span class="st-trk"> · ${totTracks} tracks</span><span class="st-sess"> · ${real.length} session${real.length === 1 ? '' : 's'}</span>${led ? ` · ▫${led.qplays}` : ''}`;
       // headline base: session summary, one line (💿 album — artist / 📃 playlist / led by X / 📻 station)
       const headBase = s => {
         if (s.isRadio) return `📻 ${esc(s.stationName)}`;
@@ -1000,7 +1010,8 @@ function renderDays() {
         shown.forEach((a, i) => {
           const last = i === shown.length - 1;
           // per-anchor headline: context · daypart · own duration · own tracks (spec G2.7)
-          const head = `${headBase(a)} <span class="muted">· ${daypartOf(a.start)} · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span>`;
+          // pass 2.7b: daypart survives narrow widths; duration/track-count wrapped so they drop first
+          const head = `${headBase(a)} <span class="muted">· ${daypartOf(a.start)}<span class="mut-len"> · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span></span>`;
           // spec G2.7: anchor row click → that session's card; date cell click → day header
           out += `<div class="dayrow${i ? ' dr-cont' : ''}" onclick="zoomToSession('${k}', ${a.__id})">
             <span class="dr-date${i ? '' : ' dr-datelink'}"${i ? '' : ` onclick="event.stopPropagation();zoomToDay('${k}')"`}>${i ? '<span class="dr-ditto">〃</span>' : fdayShort(ss[0].start)}</span>
