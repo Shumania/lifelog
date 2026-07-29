@@ -120,6 +120,28 @@
     text-align: left; transition: background 0.15s;
   }
   .ctrl-settings-item:hover { background: var(--surface2); }
+  /* p2.72: 390px viewport — controls-row overflowed and clipped the ⚙ button.
+     Inline 36px widths on −/+ need !important to shrink here. */
+  @media (max-width: 430px) {
+    .controls-row { gap: 5px; }
+    .controls-row .ctrl-btn { width: 34px !important; height: 34px !important; font-size: 14px; border-radius: 9px; }
+    .controls-row .volume-group { gap: 3px; }
+    .controls-row .mute-btn svg { width: 17px; height: 17px; }
+  }
+  /* p2.72: played-only playlist badge (public playlists played but not followed) */
+  .pc-po-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 9px; white-space: nowrap;
+    border: 1px dashed var(--border); color: var(--text-dim); opacity: 0.85;
+  }
+  /* p2.72: History-tab account filter chip (All / Main / TB) */
+  .sh-acct-chip {
+    font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-dim);
+    -webkit-tap-highlight-color: transparent; transition: all 0.15s; flex-shrink: 0;
+  }
+  .sh-acct-chip.on { border-color: var(--accent); color: var(--accent); background: rgba(96,165,250,0.08); }
+  /* p2.72: Days-ledger locus icons (multi-locus days only, GAP B) */
+  .sh-dr-loci { font-size: 11px; opacity: 0.65; margin-left: 5px; white-space: nowrap; }
 
   .room-selector { display: flex; flex-wrap: wrap; gap: 10px 7px; align-items: center; margin: 10px 0 4px; }
   .room-chip {
@@ -872,6 +894,8 @@
   <div id="tab-sessions" hidden>
     <div class="sh-toolbar">
       <span class="sh-updated" id="sh-updated"></span>
+      <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
+      <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
       <div class="sh-zoomseg" id="sh-zoomseg">
         <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
         <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
@@ -912,7 +936,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.71';
+const PAGE_VERSION = 'p2.72';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4395,7 +4419,10 @@ function renderPlaylists() {
     // p2.46: is_followed comes straight from the API (owner differs from account user); fall back to old heuristic for stale assets
     var isShared = (p.is_followed != null) ? !!p.is_followed : (p.owner_id ? (_plAccountOwnerId && p.owner_id !== _plAccountOwnerId) : false);
 
-    var meta = (p.tracks_total || 0) + ' tracks';
+    // p2.72: played-only ghost playlists (public playlists Andrew played but never followed).
+    // No library track data exists for them: no track count, no expandable track list.
+    var isPO = !!p.played_only;
+    var meta = isPO ? 'public playlist' : (p.tracks_total || 0) + ' tracks';
     if (p.created_approx) {
       var d = new Date(p.created_approx);
       meta += ' \u00b7 ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -4406,13 +4433,15 @@ function renderPlaylists() {
     }
     var ownerBadge = isShared ? ' <span class="pc-owner-badge">' + esc(p.owner) + '</span>' : '';
     if (p.account === 'teenbloods') ownerBadge += ' <span class="pc-owner-badge" title="teenbloods account">🏝 TB</span>'; // p2.46: account badge
+    if (isPO) ownerBadge += ' <span class="pc-po-badge" title="You\u2019ve played this public playlist but don\u2019t follow it">\u25b8 played only</span>'; // p2.72
 
     var artHtml = p.image_url
       ? '<img class="pc-art" src="' + esc(p.image_url) + '" alt="">'
       : '<div class="pc-art-placeholder">\u266b</div>';
 
     var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + '" id="pl-' + p.id + '">';
-    card += '<div class="pc-header" onclick="togglePlCard(\'' + p.id + '\')">';
+    // p2.72: played-only cards have no synced track list — header doesn't expand
+    card += '<div class="pc-header"' + (isPO ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isPO ? ' style="cursor:default"' : '') + '>';
     card += artHtml;
     card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) + '</div>';
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div></div>';
@@ -4420,7 +4449,7 @@ function renderPlaylists() {
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
     card += '</div>';
-    card += '<span class="pc-expand">\u203a</span>';
+    if (!isPO) card += '<span class="pc-expand">\u203a</span>';
     card += '</div>';
 
     card += '<div class="pc-body">';
@@ -4527,7 +4556,7 @@ function handleDeepLink() {
 const SH = (() => {
   'use strict';
   const TZ = 'America/Los_Angeles';
-  const LS_ZOOM = 'sh_zoom', LS_EXP = 'sh_expanded', LS_GCOL = 'sh_gcol';
+  const LS_ZOOM = 'sh_zoom', LS_EXP = 'sh_expanded', LS_GCOL = 'sh_gcol', LS_ACCT = 'sh_acct';
   const LOCI = { caphill: ['🏠', 'Cap Hill'], vashon: ['🌲', 'Vashon'], roaming: ['📱', 'Roaming'] };
   const KNOWN_SESSION_FIELDS = new Set(['id','locus','start','end','dur_ms','n','uniq','anchor','tier','rooms','accounts','isRadio','station','title','body','runs','artists','albums','contexts','explorations','seams','tracks']);
 
@@ -4559,6 +4588,36 @@ const SH = (() => {
     } catch (e) {}
   }
   function saveGcol() { try { localStorage.setItem(LS_GCOL, JSON.stringify(GCOL)); } catch (e) {} }
+
+  // p2.72: account filter chip (decision #1, Phase 3). Session-level filter:
+  // "Main" hides TB-only sessions (mixed main+TB sessions stay — main was involved);
+  // "TB" shows only sessions with any non-main account involvement.
+  // Sessions with no account data (some archive rows) are treated as main.
+  let ACCT = 'all'; // 'all' | 'main' | 'tb'
+  try { const a0 = localStorage.getItem(LS_ACCT); if (a0 === 'main' || a0 === 'tb') ACCT = a0; } catch (e) {}
+  function hasTB(s) { return (s.accounts || []).some(a => a && a !== 'main'); }
+  function acctVisible(s) {
+    if (ACCT === 'all') return true;
+    if (ACCT === 'tb') return hasTB(s);
+    const a = (s.accounts || []).filter(Boolean);
+    return !a.length || a.includes('main');
+  }
+  function visList() { return ACCT === 'all' ? LIST : LIST.filter(acctVisible); }
+  function syncAcctChip() {
+    const el = document.getElementById('sh-acctchip');
+    if (!el) return;
+    el.classList.toggle('on', ACCT !== 'all');
+    el.textContent = ACCT === 'all' ? '👤 All' : (ACCT === 'main' ? '👤 Main' : '🏝 TB');
+    el.title = ACCT === 'all' ? 'Showing all accounts — tap to hide teenbloods-only sessions'
+      : ACCT === 'main' ? 'Hiding teenbloods-only sessions — tap to show teenbloods only'
+      : 'Showing teenbloods sessions only — tap to show all accounts';
+  }
+  function cycleAcct() {
+    ACCT = ACCT === 'all' ? 'main' : (ACCT === 'main' ? 'tb' : 'all');
+    try { localStorage.setItem(LS_ACCT, ACCT); } catch (e) {}
+    syncAcctChip();
+    if (booted) { render(); setStatus(statusLine()); }
+  }
 
   // ---------------- published-data adapter (from live.html harness) ----------------
   function adaptTrack(t) {
@@ -4623,13 +4682,17 @@ const SH = (() => {
   }
   function setStatus(txt) { const el = document.getElementById('sh-updated'); if (el) el.textContent = txt; }
   function statusLine() {
-    const days = groupByDay(LIST).size;
+    // p2.72: counts reflect the account filter when one is active
+    const vis = visList();
+    const days = groupByDay(vis).size;
     let gen = '';
     if (INDEX && INDEX.generated_at) {
       const d = new Date(INDEX.generated_at);
       if (!isNaN(d)) gen = ' · updated ' + d.toLocaleString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     }
-    return ALL.length + ' sessions · ' + LEDGERS.length + ' quick ledgers · ' + days + ' days loaded' + gen;
+    const nS = vis.filter(s => !s.isQuickLedger).length, nL = vis.length - nS;
+    const filt = ACCT === 'all' ? '' : (ACCT === 'main' ? ' · main only' : ' · TB only');
+    return nS + ' sessions · ' + nL + ' quick ledgers · ' + days + ' days loaded' + filt + gen;
   }
   async function _boot() {
     if (booted || booting) return;
@@ -4645,6 +4708,7 @@ const SH = (() => {
       integrate(docs);
       oldestLoadedIdx = eager.length - 1;
       booted = true;
+      syncAcctChip(); // p2.72: restore persisted account filter chip state
       setZoom(ZOOM); // renders + syncs the Sessions/Days seg buttons (zoom restored from localStorage)
       setStatus(statusLine());
     } catch (err) {
@@ -5126,9 +5190,13 @@ const SH = (() => {
   // spec G2.7: clicking an anchor row lands on THAT session's card (falls back to the day header)
   function zoomToSession(k, sid) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = sid; setZoom('sessions'); }
   function renderDays() {
-    const days = groupByDay(LIST);
+    const days = groupByDay(visList()); // p2.72: account filter applies here too
+    if (!days.size) { document.getElementById('sh-main').innerHTML = '<div class="sh-status">No sessions match this filter.</div>' + loadMoreRowHtml(); watchLoadRow(); return; }
     const fdayShort = ts => new Date(ts).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' }).replace(/,/g, '');
     const dayDur = ss => ss.reduce((a, s) => a + (s.isQuickLedger ? s.qdur : sessDurMs(s)), 0);
+    // p2.72 (GAP B): locus icons on Days rows — only when the day spans multiple loci
+    const dayLoci = ss => { const set = new Set(); for (const s of ss) { if (s.isQuickLedger) (s.loci || []).forEach(l => set.add(l)); else if (s.locus) set.add(s.locus); } return set; };
+    const lociIcons = set => [...set].map(l => LOCI[l] ? `<span title="${LOCI[l][1]}">${LOCI[l][0]}</span>` : '').join('');
     const weeks = new Map();
     for (const [k, ss] of days) {
       const p = k.split('-').map(Number);
@@ -5166,13 +5234,17 @@ const SH = (() => {
           }
           return t;
         };
+        // p2.72 (GAP B): multi-locus day → badge rows; single-locus day → suppress
+        const dLoci = dayLoci(ss);
+        const dayMulti = dLoci.size >= 2;
         // spec G2.7: anchor = ≥8 unique tracks OR ≥45 min
         const anchors = real.filter(s => uniqCount(s.tracks) >= 8 || sessDurMs(s) >= 45 * 60000);
         if (anchors.length >= 2) {
           const shown = anchors.slice().sort((a, b) => sessDurMs(b) - sessDurMs(a)).slice(0, 3).sort((a, b) => a.start - b.start);
           shown.forEach((a, i) => {
             const last = i === shown.length - 1;
-            const head = `${headBase(a)} <span class="sh-muted">· ${daypartOf(a.start)}<span class="sh-mut-len"> · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span></span>`;
+            const rowLoci = dayMulti && a.locus && LOCI[a.locus] ? `<span class="sh-dr-loci" title="${LOCI[a.locus][1]}">${LOCI[a.locus][0]}</span>` : '';
+            const head = `${headBase(a)}${rowLoci} <span class="sh-muted">· ${daypartOf(a.start)}<span class="sh-mut-len"> · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span></span>`;
             out += `<div class="sh-dayrow${i ? ' sh-dr-cont' : ''}" onclick="SH.zoomToSession('${k}', ${a.__id})">
               <span class="sh-dr-date${i ? '' : ' sh-dr-datelink'}"${i ? '' : ` onclick="event.stopPropagation();SH.zoomToDay('${k}')"`}>${i ? '<span class="sh-dr-ditto">〃</span>' : fdayShort(ss[0].start)}</span>
               <span class="sh-dr-arts">${thumbsFor([a])}</span>
@@ -5186,6 +5258,7 @@ const SH = (() => {
         const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
         let head = '▫ quick plays only';
         if (anchor) head = anchor.isRadio ? `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}` : headBase(anchor);
+        if (dayMulti) head += `<span class="sh-dr-loci">${lociIcons(dLoci)}</span>`; // p2.72 GAP B
         out += `<div class="sh-dayrow" onclick="SH.zoomToDay('${k}')">
           <span class="sh-dr-date">${fdayShort(ss[0].start)}</span>
           <span class="sh-dr-arts">${thumbsFor(ss)}</span>
@@ -5212,7 +5285,9 @@ const SH = (() => {
     if (!main || !booted) return;
     main.className = ZOOM === 'days' ? 'sh-vG sh-zdays' : 'sh-vG';
     if (ZOOM === 'days') { renderDays(); return; }
-    const days = groupByDay(LIST);
+    const vis = visList(); // p2.72: account filter applies to both zoom levels
+    if (!vis.length) { main.innerHTML = '<div class="sh-status">No sessions match this filter.</div>' + loadMoreRowHtml(); watchLoadRow(); return; }
+    const days = groupByDay(vis);
     let out = '';
     for (const [k, ss] of days) {
       // quick-plays ledger docks at the END of its day group (spec G2.4 §2)
@@ -5244,14 +5319,15 @@ const SH = (() => {
 
   // ---------------- public API (inline onclick handlers + tab switching) ----------------
   function onShow() {
-    if (!booted) { _boot(); return; }
+    if (!booted) { syncAcctChip(); _boot(); return; }
     // re-measure panels: offsets are 0 while the tab is hidden
     layoutPanels();
+    syncAcctChip(); // p2.72
     const zs = document.getElementById('sh-zoomS'), zd = document.getElementById('sh-zoomD');
     if (zs) zs.classList.toggle('sh-on', ZOOM === 'sessions');
     if (zd) zd.classList.toggle('sh-on', ZOOM === 'days');
   }
-  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot };
+  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct };
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
