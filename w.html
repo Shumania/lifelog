@@ -1,0 +1,7 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body style="margin:0;background:#333">
+<script>
+// p2.72 width-test harness: /lifelog/w.html?w=390 — same-origin iframe so DOM is inspectable
+const w = new URLSearchParams(location.search).get('w') || 390;
+const t = new URLSearchParams(location.search).get('t') || 'p272-test.html';
+document.write('<iframe id="fr" src="' + t + '" style="width:' + w + 'px;height:820px;border:2px solid #f0f;display:block;margin:0 auto"></iframe>');
+</script></body></html>
