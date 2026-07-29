@@ -203,6 +203,11 @@
   }
   .content-tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .content-tab:hover:not(.active) { color: var(--text); }
+  /* p2.71: four tabs no longer fit at phone width with 20px pads — shrink + contain overflow to the strip */
+  @media (max-width: 480px) {
+    .content-tabs { padding: 0 8px; overflow-x: auto; scrollbar-width: none; }
+    .content-tab { padding: 12px 11px; font-size: 13px; white-space: nowrap; }
+  }
 
   .sub-tabs {
     display: flex; gap: 4px; padding: 6px 16px; align-items: center;
@@ -907,7 +912,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.70';
+const PAGE_VERSION = 'p2.71';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
