@@ -133,6 +133,22 @@
     font-size: 10px; padding: 2px 7px; border-radius: 9px; white-space: nowrap;
     border: 1px dashed var(--border); color: var(--text-dim); opacity: 0.85;
   }
+  /* p2.78: ghost playlist on-demand fetch/follow actions */
+  .pc-ghost-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 2px 14px 12px 60px; font-size: 12px; color: var(--text-dim);
+  }
+  .pc-ghost-btn {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-dim);
+    border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .pc-ghost-btn.primary { border-color: var(--accent2); color: var(--accent2); }
+  .gspin {
+    display: inline-block; width: 12px; height: 12px; flex-shrink: 0;
+    border: 2px solid var(--accent2); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
   /* p2.72: History-tab account filter chip (All / Main / TB) */
   .sh-acct-chip {
     font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer; white-space: nowrap;
@@ -941,7 +957,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.77';
+const PAGE_VERSION = 'p2.78';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3891,6 +3907,11 @@ function connectSSE() {
         handleLikeResult(msg);
       }
 
+      // p2.78: playlist fetch/follow confirmations from the fetch-public-playlist handler.
+      if (msg.type === 'fetch_result' || events.includes('fetch_result')) {
+        handleFetchResult(msg);
+      }
+
       // p2.44 (U-M12): confirm an in-flight hard refresh — any fresh status_update from
       // the awaited house proves the client is alive and has re-discovered topology
       if (events.includes('status_update')) _hrConfirm(sseHouse, evtTs, (msg.rooms_all || []).length);
@@ -4322,6 +4343,57 @@ function handleLikeResult(msg) {
   }
 }
 
+// p2.78: on-demand fetch of public "played only" ghost playlists.
+// ⟳ Fetch tracks = read-only (no Spotify library change); ＋ Add to library = follow + fetch.
+// Same webhook transport as ♥ likes. The agent fetches the playlist from Spotify, publishes
+// playlist_tracks/{id}.json + updated playlists.json, then confirms via a type:'fetch_result'
+// SSE push. Pending state persists in localStorage (15 min TTL) so a reload mid-fetch
+// doesn't re-offer the buttons; the TTL is the guard's release (Rule 11).
+const GHOST_PENDING_TTL_MS = 15 * 60 * 1000;
+function _ghostPending(id) {
+  try {
+    const raw = localStorage.getItem('po_fetch_' + id);
+    if (!raw) return false;
+    const v = JSON.parse(raw);
+    if (Date.now() - (v.t || 0) > GHOST_PENDING_TTL_MS) { localStorage.removeItem('po_fetch_' + id); return false; }
+    return true;
+  } catch (e) { return false; }
+}
+async function ghostFetchTap(id, encName, follow) {
+  let name = id;
+  try { name = decodeURIComponent(encName); } catch (e) { console.error('[ghost-fetch] bad name encoding:', e); }
+  const action = follow ? 'follow_playlist' : 'fetch_tracks';
+  const cmd_ts = new Date().toISOString(); // Rule 22: fresh cmd_ts on every command
+  console.log('[ghost-fetch] tap:', action, id, name, 'cmd_ts=' + cmd_ts);
+  localStorage.setItem('po_fetch_' + id, JSON.stringify({ t: Date.now(), cmd_ts, action }));
+  renderPlaylists(); // show spinner state immediately
+  try {
+    const r = await fetch(LIKE_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, playlist_id: id, playlist_name: name, house, cmd_ts, page_version: PAGE_VERSION }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast(follow ? '\uff0b Following + fetching \u201c' + name + '\u201d\u2026' : '\u27f3 Fetching \u201c' + name + '\u201d\u2026');
+  } catch (e) {
+    console.error('[ghost-fetch] send failed:', e);
+    localStorage.removeItem('po_fetch_' + id);
+    renderPlaylists();
+    showToast('\u2717 Fetch failed to send: ' + (e.message || e), true);
+  }
+}
+// Called from the SSE path on type='fetch_result' pushes from the fetch-public-playlist handler.
+async function handleFetchResult(msg) {
+  if (!msg || !msg.cmd_ts) return;
+  if (_seenLikeResults.has('fetch:' + msg.cmd_ts)) return; // ntfy replay dedup (shared set, namespaced key)
+  _seenLikeResults.add('fetch:' + msg.cmd_ts);
+  console.log('[ghost-fetch] result:', msg.status, msg.playlist_id, msg.message);
+  if (msg.playlist_id) { localStorage.removeItem('po_fetch_' + msg.playlist_id); delete _plTrackCache[msg.playlist_id]; }
+  showToast(msg.message || (msg.status === 'ok' ? '\u27f3 Playlist tracks fetched' : '\u2717 Playlist fetch failed'), msg.status !== 'ok');
+  if (msg.status === 'ok') {
+    await loadPlaylistData(); // re-pull playlists.json → card gains track count + becomes expandable
+  } else {
+    renderPlaylists();
+  }
+}
+
 // p2.58: canonical album line — render only when it genuinely differs from the row's own album
 function canonicalAlbumLine(canonAlbum, canonYear, contextAlbum) {
   if (!canonAlbum) return '';
@@ -4489,7 +4561,11 @@ function renderPlaylists() {
     // p2.72: played-only ghost playlists (public playlists Andrew played but never followed).
     // No library track data exists for them: no track count, no expandable track list.
     var isPO = !!p.played_only;
-    var meta = isPO ? 'public playlist' : (p.tracks_total || 0) + ' tracks';
+    // p2.78: a ghost whose tracks were fetched on demand (tracks_total now > 0 and a
+    // playlist_tracks/{id}.json chunk exists) behaves like a normal expandable card —
+    // only UNFETCHED ghosts get the "Fetch tracks / Add to library" buttons.
+    var isGhost = isPO && !((p.tracks_total || 0) > 0);
+    var meta = isGhost ? 'public playlist' : (p.tracks_total || 0) + ' tracks';
     if (p.created_approx) {
       var d = new Date(p.created_approx);
       meta += ' \u00b7 ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -4507,8 +4583,8 @@ function renderPlaylists() {
       : '<div class="pc-art-placeholder">\u266b</div>';
 
     var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + '" id="pl-' + p.id + '">';
-    // p2.72: played-only cards have no synced track list — header doesn't expand
-    card += '<div class="pc-header"' + (isPO ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isPO ? ' style="cursor:default"' : '') + '>';
+    // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
+    card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + '>';
     card += artHtml;
     card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) + '</div>';
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div></div>';
@@ -4516,8 +4592,23 @@ function renderPlaylists() {
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
     card += '</div>';
-    if (!isPO) card += '<span class="pc-expand">\u203a</span>';
+    if (!isGhost) card += '<span class="pc-expand">\u203a</span>';
     card += '</div>';
+
+    // p2.78: on-demand fetch/follow buttons for unfetched ghost playlists.
+    // Webhook transport (same channel as ♥ likes); agent fetches the public playlist
+    // from Spotify, publishes the chunk + updated playlists.json, confirms via SSE.
+    if (isGhost) {
+      if (_ghostPending(p.id)) {
+        card += '<div class="pc-ghost-actions"><span class="gspin"></span> Fetching tracks\u2026 takes a couple of minutes, updates automatically</div>';
+      } else {
+        var gEnc = encodeURIComponent(p.name).replace(/'/g, '%27');
+        card += '<div class="pc-ghost-actions">';
+        card += '<button class="pc-ghost-btn primary" onclick="event.stopPropagation();ghostFetchTap(\'' + p.id + '\',\'' + gEnc + '\',false)" title="Fetch the full track list \u2014 does not change your Spotify library">\u27f3 Fetch tracks</button>';
+        card += '<button class="pc-ghost-btn" onclick="event.stopPropagation();ghostFetchTap(\'' + p.id + '\',\'' + gEnc + '\',true)" title="Follow this playlist on Spotify and fetch its tracks">\uff0b Add to library</button>';
+        card += '</div>';
+      }
+    }
 
     card += '<div class="pc-body">';
     if (_plTrackLoading.has(p.id)) {
