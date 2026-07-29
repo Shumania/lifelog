@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.53.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.54.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -243,9 +243,12 @@ _uri_metadata_cache      = {}   # uri -> {"title": str, "artist": str, "album": 
 # (SSE enrichment, state push, heartbeat, diagnostics) read from this instead
 # of independently querying every speaker.
 _last_topology_sig = None  # v2.53: JSON signature of group topology for change detection
+_paused_at_by_room = {}    # v2.54 rider: room -> ISO ts when it entered PAUSED (cleared on leave)
 _poll_snapshot = {
     "rooms_playing": [],
     "rooms_paused": [],
+    "paused_at": {},          # v2.54 rider: real pause timestamps for cold-load UI
+
     "rooms_all": [],
     "groups": [],             # v2.53: [{"coordinator","members","state"}] for ALL groups
     "play_modes": {},
@@ -377,6 +380,7 @@ def _build_state_payload():
         "now_playing": np,
         "rooms_playing": rp,
         "rooms_paused": list(_poll_snapshot.get("rooms_paused", [])),
+        "paused_at": dict(_poll_snapshot.get("paused_at", {})),  # v2.54 rider
         "rooms_all": list(_poll_snapshot.get("rooms_all", [])),
         "recent_tracks": list(_state_ring_buffer),
     }
@@ -952,6 +956,11 @@ def _build_poll_snapshot(coordinators):
                 if dev.group:
                     try:
                         for member in dev.group.members:
+                            # v2.54 rider: bonded/invisible units (Sub, stereo-pair
+                            # slaves) leak into rooms lists via group membership —
+                            # discovery excludes them but group.members does not.
+                            if not getattr(member, "is_visible", True):
+                                continue
                             mname = member.player_name
                             if mname == name:
                                 continue
@@ -980,6 +989,17 @@ def _build_poll_snapshot(coordinators):
         if st == "PAUSED_PLAYBACK" and name not in rooms_playing
     )
 
+    # v2.54 rider: stamp WHEN each room entered paused state, so the UI can show
+    # real pause ages on cold load instead of history-approximated ones. A room
+    # keeps its original stamp while it stays paused; leaving paused clears it.
+    _now_stamp = now_iso()
+    for _pr in rooms_paused:
+        if _pr not in _paused_at_by_room:
+            _paused_at_by_room[_pr] = _now_stamp
+    for _pr in list(_paused_at_by_room.keys()):
+        if _pr not in rooms_paused:
+            del _paused_at_by_room[_pr]
+
     # v2.53: capture FULL group topology for ALL coordinators, regardless of
     # transport state. Before this, group members were only enumerated for
     # PLAYING coordinators — a paused/stopped group degraded to its bare
@@ -991,8 +1011,12 @@ def _build_poll_snapshot(coordinators):
         members = [name]
         try:
             if dev.group:
-                members = sorted(m.player_name for m in dev.group.members)
-                for m in dev.group.members:
+                # v2.54 rider: filter invisible bonded units (Sub/pair slaves) and
+                # dedupe — bonded pairs share a player_name, producing the
+                # "Garage, Garage" duplicate chips seen in the relay payload.
+                _vis = [m for m in dev.group.members if getattr(m, "is_visible", True)]
+                members = sorted(set(m.player_name for m in _vis))
+                for m in _vis:
                     if m.player_name not in current_devices_by_name:
                         current_devices_by_name[m.player_name] = m
         except Exception as e:
@@ -1007,6 +1031,7 @@ def _build_poll_snapshot(coordinators):
     _poll_snapshot = {
         "rooms_playing": rooms_playing,
         "rooms_paused": rooms_paused,
+        "paused_at": dict(_paused_at_by_room),  # v2.54 rider
         "rooms_all": sorted(current_devices_by_name.keys()),
         "groups": groups,
         "play_modes": dict(modes),
@@ -1332,6 +1357,7 @@ def heartbeat_fields(boot=False):
         # v2.24: Read from poll snapshot instead of querying speakers
         fields["rooms_playing"] = list(_poll_snapshot.get("rooms_playing", []))
         fields["rooms_paused"] = list(_poll_snapshot.get("rooms_paused", []))
+        fields["paused_at"] = dict(_poll_snapshot.get("paused_at", {}))  # v2.54 rider
         fields["rooms_all"] = list(_poll_snapshot.get("rooms_all", []))
     # SSE diagnostic state — visible in webhook heartbeats
     fields["sse_state"] = {
@@ -1416,6 +1442,7 @@ def _sse_enrich_state(payload):
     v2.24: Reads from _poll_snapshot instead of querying speakers."""
     payload["rooms_playing"] = list(_poll_snapshot.get("rooms_playing", []))
     payload["rooms_paused"] = list(_poll_snapshot.get("rooms_paused", []))
+    payload["paused_at"] = dict(_poll_snapshot.get("paused_at", {}))  # v2.54 rider
     payload["rooms_all"] = list(_poll_snapshot.get("rooms_all", []))
     payload["groups"] = list(_poll_snapshot.get("groups", []))  # v2.53: full group topology
     payload["play_modes"] = dict(_poll_snapshot.get("play_modes", {}))
@@ -1738,6 +1765,13 @@ def _heartbeat_thread_inner():
                         last_post_ts = time.time()
                     except Exception as e:
                         log(f"* Heartbeat: quiet-hours entry flush failed: {e}")
+                # v2.54 B3: nightly auth canary — piggybacks on the once-per-night
+                # quiet-hours entry gate (~22:00 Seattle). One cheap SMAPI search
+                # per service; expiry -> error ring badge (once per episode).
+                try:
+                    _run_auth_canary()
+                except Exception as _can_err:
+                    log(f"[canary] run failed: {_can_err}")
             log(f"* Heartbeat: quiet hours (Seattle {seattle_hour():02d}:xx) -- paused")
             time.sleep(HEARTBEAT_QUIET_SLEEP)
             continue
@@ -1893,6 +1927,135 @@ def detect_service(uri, metadata=""):
         sid = int(m.group(1))
         if sid in SID_MAP: return SID_MAP[sid]
     return "sonos_unknown"
+
+# --- v2.54 PLAYBACK-TRUST HELPERS --------------------------------------------
+def _verified_queue_add(coord, add_fn, intended_pos, label="", num_tracks=1):
+    """v2.54 B1: AddURIToQueue's DesiredFirstTrackNumberEnqueued is ADVISORY —
+    Sonos sometimes ignores it and silently APPENDS to the end of a long/stale
+    queue while the call succeeds (2026-07-29: 'Gravity's Angel' landed at the
+    tail of a 16-item stale Bach queue; green toast, wrong slot). Never trust
+    the request; verify the response.
+
+    add_fn() performs the add and must RETURN the raw SoCo return value
+    (int FirstTrackNumberEnqueued for ShareLinkPlugin.add_share_link_to_queue,
+    soco.add_uri_to_queue, and soco.add_to_queue alike).
+
+    Returns (actual_pos, placement):
+      placement = "direct"    — landed where intended (or append requested)
+                  "reordered" — misfiled, ReorderTracksInQueue recovered it
+                  "degraded"  — misfiled AND reorder failed/impossible; actual_pos
+                                tells the caller where the track really lives.
+                                Callers MUST surface this (no green lies) and
+                                play from actual_pos rather than intended_pos.
+    intended_pos=None means append-to-end (no verification possible/needed).
+    num_tracks: container adds (albums) enqueue N tracks; reorder must move all
+    N. Pass 0/None for unknown count -> mismatch becomes degraded (no blind move).
+    """
+    actual = add_fn()
+    try:
+        actual = int(actual)
+    except (TypeError, ValueError):
+        log(f"[queue-verify]{label} add returned non-int ({actual!r}); placement unverifiable")
+        return None, "direct"
+    if intended_pos is None or actual == int(intended_pos):
+        log(f"[queue-verify]{label} landed at {actual} (intended {'append' if intended_pos is None else intended_pos}) -> direct")
+        return actual, "direct"
+    log(f"[queue-verify]{label} MISFILED: intended {intended_pos}, landed {actual} -- attempting reorder")
+    if not num_tracks:
+        log(f"[queue-verify]{label} unknown track count for container; NOT reordering -> degraded")
+        return actual, "degraded"
+    try:
+        coord.avTransport.ReorderTracksInQueue([
+            ("InstanceID", 0),
+            ("StartingIndex", actual),
+            ("NumberOfTracks", int(num_tracks)),
+            ("InsertBefore", int(intended_pos)),
+            ("UpdateID", 0),
+        ])
+        log(f"[queue-verify]{label} reordered {actual} -> {intended_pos} ({num_tracks} track(s))")
+        return int(intended_pos), "reordered"
+    except Exception as re_err:
+        log(f"[queue-verify]{label} reorder FAILED ({re_err}); track(s) remain at {actual} -> degraded")
+        return actual, "degraded"
+
+
+# v2.54 B2: Spotify Web API client-credentials app token.
+# Used ONLY for catalog resolution (album/track name -> spotify:...:ID). It has
+# no user scope, never touches user data, and self-refreshes — so it cannot
+# expire the way Mind's per-device SoCo search token did on 2026-07-29 (three
+# independent Spotify credentials exist: household Sonos link, browser PKCE
+# token, per-device SMAPI search token — this is a FOURTH, and the most stable).
+SPOTIFY_CC_ID     = "af7ca85939e74a2a961a6a44d199af4e"
+SPOTIFY_CC_SECRET = "1f464a2283404a209752501b31af715e"
+_spotify_cc_token = {"token": None, "expires": 0.0}
+
+def _spotify_app_token():
+    """Return a cached client-credentials bearer token, refreshing if <60s left."""
+    now_t = time.time()
+    if _spotify_cc_token["token"] and now_t < _spotify_cc_token["expires"] - 60:
+        return _spotify_cc_token["token"]
+    resp = requests.post("https://accounts.spotify.com/api/token",
+                         data={"grant_type": "client_credentials"},
+                         auth=(SPOTIFY_CC_ID, SPOTIFY_CC_SECRET), timeout=10)
+    resp.raise_for_status()
+    d = resp.json()
+    _spotify_cc_token["token"] = d["access_token"]
+    _spotify_cc_token["expires"] = now_t + int(d.get("expires_in", 3600))
+    log("[spotify-cc] app token refreshed")
+    return _spotify_cc_token["token"]
+
+
+def _spotify_pick_album(items, want_title):
+    """v2.54 B2: choose the best album from a Spotify Web API search result.
+    Prefer full albums (total_tracks>1); among those prefer exact normalized
+    title match, then substring, then API relevance order (mirrors the v2.47.1
+    iTunes matcher — max-trackCount wrongly picked 'Decade' over 'Harvest')."""
+    def _norm(s):
+        return "".join(ch for ch in str(s).casefold() if ch.isalnum() or ch == " ").strip()
+    full = [a for a in items if a.get("total_tracks", 0) > 1] or items
+    want = _norm(want_title)
+    exact = [a for a in full if _norm(a.get("name", "")) == want]
+    sub   = [a for a in full if want and want in _norm(a.get("name", ""))]
+    chosen = (exact or sub or full)[0]
+    kind = "exact" if exact else ("substring" if sub else "first-full")
+    log(f"play_album: Spotify Web-API title match={kind} for '{want_title}'")
+    return chosen
+
+
+# v2.54 B3: nightly auth canary — one cheap SMAPI search per music service.
+# Catches per-device service-token expiry while idle so expired credentials
+# surface as an error-ring badge instead of a mystery toast days later.
+# Alert once per expiry episode; reset on first success (Rule 11). State is
+# in-memory: a mid-episode restart re-alerts once, which is acceptable.
+# Apple Music is NOT canaried — its SMAPI rejects soco search() entirely
+# (SOAP-ENV:Server faults, see play_album v2.47.1 notes), so a failure there
+# tells us nothing about auth.
+_canary_expired = {}
+
+def _run_auth_canary():
+    if not sonos_commander:
+        return
+    from soco.music_services import MusicService
+    for svc in ("Spotify", "Qobuz"):
+        try:
+            list(MusicService(svc).search("albums", "canary", 0, 1))
+            if _canary_expired.get(svc):
+                log(f"[canary] {svc} search token RECOVERED — clearing expiry episode")
+            else:
+                log(f"[canary] {svc} search token OK")
+            _canary_expired[svc] = False
+        except Exception as e:
+            msg = str(e)
+            if "auth" in msg.lower() or "token" in msg.lower():
+                if not _canary_expired.get(svc):
+                    _canary_expired[svc] = True
+                    post_error(f"Auth canary: {svc} search token expired on {computer}: {msg[:150]}",
+                               context=f"service={svc}", module="canary")
+                else:
+                    log(f"[canary] {svc} still expired (already alerted this episode)")
+            else:
+                log(f"[canary] {svc} search failed (non-auth, not alerting): {msg[:120]}")
+
 
 # --- SONOS: DISCOVERY -------------------------------------------------------
 def get_coordinators():
@@ -2304,7 +2467,7 @@ def get_track_info(device):
             if len(p) == 3:
                 dur_secs = int(p[0])*3600 + int(p[1])*60 + int(p[2])
         except Exception: pass
-        try:    members = list(dict.fromkeys(m.player_name for m in device.group.members))  # v2.36: deduplicate (SoCo sometimes returns coordinator twice)
+        try:    members = list(dict.fromkeys(m.player_name for m in device.group.members if getattr(m, "is_visible", True)))  # v2.36: deduplicate (SoCo sometimes returns coordinator twice); v2.54: skip invisible bonded units
         except: members = [device.player_name]
         speaker_failures[name] = 0
         # v2.38: Safety net — ensure title/artist/album are plain strings (never method refs)
@@ -2331,7 +2494,11 @@ def get_track_info(device):
                 "coordinator": device.player_name,
                 "container": ctx,
                 "didl_parent_id": didl_parent_id,
-                "didl_album_art_uri": didl_album_art_uri}
+                "didl_album_art_uri": didl_album_art_uri,
+                # v2.54 rider: raw DIDL travels to history so per-service metadata
+                # archaeology (containers, art, full titles) is possible later.
+                # Capped at 4 KB — classical DIDL can be huge.
+                "didl_raw": (metadata[:4096] if isinstance(metadata, str) else "")}
     except Exception as e:
         failures = speaker_failures.get(name, 0) + 1
         speaker_failures[name] = failures
@@ -2406,6 +2573,8 @@ def post_history(track, room, started_at, ended_at):
         "dedup_key": dedup_key,
         "didl_parent_id": track.get("didl_parent_id", ""),
         "didl_album_art_uri": track.get("didl_album_art_uri", ""),
+        "didl_raw": track.get("didl_raw", ""),  # v2.54 rider: raw DIDL for metadata archaeology
+
         "_fp": fp,                # coalesce match key (internal; server ignores)
         "_ended_epoch": ended_epoch,  # coalesce tolerance check (internal)
     }
@@ -2679,7 +2848,9 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
     finally:
         _soco_cm.config.REQUEST_TIMEOUT = prev
 
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album"}
+# v2.54: sync_rooms is now silent — its result travels over SSE only (see the
+# sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
 
@@ -2803,7 +2974,7 @@ def execute_command(cmd, source="unknown"):
             state = []
             for dev in get_coordinators():
                 info = get_track_info(dev)
-                try:    members = [m.player_name for m in dev.group.members]
+                try:    members = [m.player_name for m in dev.group.members if getattr(m, "is_visible", True)]  # v2.54: skip invisible bonded units
                 except: members = [dev.player_name]
                 state.append({"coordinator": dev.player_name, "members": members,
                                "playing": {"title":info["title"],"artist":info["artist"],
@@ -2898,6 +3069,21 @@ def execute_command(cmd, source="unknown"):
                         result["message"] += f" (removed: {', '.join(was_grouped)})"
                 else:
                     result["message"] = f"Room '{rooms[0]}' not found"
+                # v2.54 rider: sync_rooms results travel over SSE ONLY (added to
+                # SILENT_ACTIONS -> no Tasklet webhook POST). The page is the only
+                # consumer; the agent never needed these posts. Failures still land
+                # in the error ring via post_error (surfaces as badge/watchdog row).
+                try:
+                    publish_ui_event("sync_rooms_result", {
+                        "success": result["success"],
+                        "message": result["message"],
+                        "cmd_ts": cmd.get("cmd_ts", ""),
+                    })
+                    publish_ui_event("status_update", {})
+                except Exception as _sr_err:
+                    log(f"sync_rooms: SSE publish failed: {_sr_err}")
+                if not result["success"]:
+                    post_error(f"sync_rooms failed: {result['message']}", context=f"rooms={rooms}", module="sonos")
 
         elif action == "search":
             from soco.music_services import MusicService
@@ -2930,6 +3116,41 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = f"Room '{room}' not found"
             elif not query:
                 result["message"] = "No query provided"
+            elif "spotify" in svc_name.lower():
+                # === v2.54 B2: Spotify resolution via Web API, NOT SoCo SMAPI search ===
+                # The per-device SMAPI search token expires independently of every
+                # other Spotify credential (2026-07-29 Mind incident) — SoCo search
+                # is demoted to never-auto-selected for Spotify. Resolve via the
+                # self-refreshing client-credentials app token, then play the
+                # resulting spotify: URI through the proven ShareLink path.
+                from soco.plugins.sharelink import ShareLinkPlugin
+                import urllib.parse as _up
+                sp_type = "album" if str(search_type).startswith("album") else "track"
+                try:
+                    resp = requests.get(
+                        "https://api.spotify.com/v1/search?q=" + _up.quote(query) + f"&type={sp_type}&limit=5",
+                        headers={"Authorization": f"Bearer {_spotify_app_token()}"}, timeout=10)
+                    resp.raise_for_status()
+                    sp_items = resp.json().get(sp_type + "s", {}).get("items", [])
+                except Exception as sp_err:
+                    log(f"search_and_play: Spotify Web API failed: {sp_err}")
+                    sp_items = []
+                if not sp_items:
+                    result["message"] = f"No {sp_type}s found on Spotify (Web API) for '{query}'"
+                else:
+                    first = sp_items[0]
+                    title = first.get("name", "?")
+                    _sp_artist = (first.get("artists") or [{}])[0].get("name", "")
+                    share_url = f"https://open.spotify.com/{sp_type}/{first.get('id','')}"
+                    log(f"search_and_play: Spotify Web API resolved '{query}' -> '{title}' by {_sp_artist} ({share_url})")
+                    with _queue_mutation_timeout():
+                        dev.clear_queue()
+                    ShareLinkPlugin(dev).add_share_link_to_queue(share_url)
+                    dev.play_from_queue(0)
+                    _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
+                    result["success"] = True
+                    result["message"] = f"Playing '{title}'{' by ' + _sp_artist if _sp_artist else ''} (Spotify, Web-API resolved) in {room}"
+                    result["data"]    = {"title": title, "artist": _sp_artist, "uri": first.get("uri", ""), "share_url": share_url, "service": "Spotify"}
             else:
                 items = list(MusicService(svc_name).search(search_type, query, 0, 5))
                 if not items:
@@ -3000,10 +3221,17 @@ def execute_command(cmd, source="unknown"):
             album_artist = cmd.get("artist", "")
             svc_name    = cmd.get("service", "Qobuz")
             queue_only  = cmd.get("queue_only", False)
+            # v2.54 B2: direct Spotify album URI skips all resolution (Tier-0 path).
+            # Accept either "album_uri" or "uri" carrying spotify:album:ID.
+            spotify_album_uri = ""
+            for _cand in (cmd.get("album_uri", ""), cmd.get("uri", "")):
+                if isinstance(_cand, str) and _cand.startswith("spotify:album:"):
+                    spotify_album_uri = _cand
+                    break
             dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{(cmd.get('rooms') or ['?'])[0]}' not found. Available: {list(devices.keys())}"
-            elif not album_title:
+            elif not album_title and not spotify_album_uri:
                 result["message"] = "No album title provided"
             else:
                 coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
@@ -3015,10 +3243,56 @@ def execute_command(cmd, source="unknown"):
                 # of a DidlObject; the shared queue step dispatches on it.
                 album_item = None
                 apple_share_url = None
+                spotify_share_url = None  # v2.54 B2
                 chosen_title, chosen_artist = album_title, album_artist
                 chosen_tracks, chosen_id = 0, ""
 
-                if "apple" in svc_name.lower():
+                if spotify_album_uri or "spotify" in svc_name.lower():
+                    # === SPOTIFY (v2.54 B2) ===
+                    # Resolution via Spotify Web API client-credentials (app token,
+                    # self-refreshing, no user auth) — then queue the album container
+                    # via the proven ShareLink path. SoCo MusicService('Spotify')
+                    # search is deliberately NOT used here: its per-device SMAPI token
+                    # expires independently of the household link and the browser
+                    # token (2026-07-29: Mind's search token died while both others
+                    # were fine; reauth in the Sonos app could not fix it). Search
+                    # has left the critical play path.
+                    if spotify_album_uri:
+                        chosen_id = spotify_album_uri.split(":")[-1]
+                        spotify_share_url = f"https://open.spotify.com/album/{chosen_id}"
+                        if not chosen_title:
+                            chosen_title = "Album"
+                        log(f"play_album: direct Spotify album URI {spotify_album_uri} (no resolution needed)")
+                    else:
+                        log(f"play_album: resolving '{query_str}' via Spotify Web API (client credentials)")
+                        try:
+                            _q = f"album:{album_title}"
+                            if album_artist:
+                                _q += f" artist:{album_artist}"
+                            resp = requests.get(
+                                "https://api.spotify.com/v1/search?q=" + urllib.parse.quote(_q) + "&type=album&limit=10",
+                                headers={"Authorization": f"Bearer {_spotify_app_token()}"}, timeout=10)
+                            resp.raise_for_status()
+                            sp_albums = resp.json().get("albums", {}).get("items", [])
+                        except Exception as sp_err:
+                            log(f"play_album: Spotify Web API search failed: {sp_err}")
+                            sp_albums = []
+                        if sp_albums:
+                            log(f"play_album: Spotify Web API returned {len(sp_albums)} albums:")
+                            for i, a in enumerate(sp_albums):
+                                _art = (a.get("artists") or [{}])[0].get("name", "?")
+                                log(f"  [{i}] id={a.get('id','?')} tracks={a.get('total_tracks',0)} '{a.get('name','?')}' by {_art} ({a.get('release_date','?')[:4]})")
+                            chosen = _spotify_pick_album(sp_albums, album_title)
+                            chosen_title  = chosen.get("name", album_title)
+                            chosen_artist = (chosen.get("artists") or [{}])[0].get("name", album_artist)
+                            chosen_tracks = chosen.get("total_tracks", 0)
+                            chosen_id     = str(chosen.get("id", ""))
+                            spotify_share_url = f"https://open.spotify.com/album/{chosen_id}"
+                            log(f"play_album: Spotify selected id={chosen_id} tracks={chosen_tracks} '{chosen_title}' by {chosen_artist}")
+                        else:
+                            result["message"] = f"No album found on Spotify for '{query_str}'"
+
+                elif "apple" in svc_name.lower():
                     # === APPLE MUSIC (v2.47) ===
                     # Step 1: iTunes Search API (public, keyless) to disambiguate
                     # singles vs full albums via trackCount + get canonical naming.
@@ -3131,43 +3405,57 @@ def execute_command(cmd, source="unknown"):
                             album_item = ms_items[0]
 
                 # === SHARED QUEUE STEP (all services) ===
-                if album_item is not None or apple_share_url:
+                # [v2.54 B2] share-link dispatch now covers Apple AND Spotify.
+                share_link_url = apple_share_url or spotify_share_url
+                if album_item is not None or share_link_url:
                     from soco.plugins.sharelink import ShareLinkPlugin
 
                     def _enqueue(position=None):
-                        # [v2.47.1] Dispatch: Apple via ShareLinkPlugin (share URL),
-                        # everything else via native DidlObject add_to_queue.
-                        if apple_share_url:
+                        # [v2.47.1/v2.54] Dispatch: Apple/Spotify via ShareLinkPlugin
+                        # (share URL), everything else via native DidlObject add_to_queue.
+                        # Returns FirstTrackNumberEnqueued (int) on all paths.
+                        if share_link_url:
                             sl = ShareLinkPlugin(coordinator)
                             if position:
-                                return sl.add_share_link_to_queue(apple_share_url, position=position, dc_title=chosen_title)
-                            return sl.add_share_link_to_queue(apple_share_url, dc_title=chosen_title)
+                                return sl.add_share_link_to_queue(share_link_url, position=position, dc_title=chosen_title)
+                            return sl.add_share_link_to_queue(share_link_url, dc_title=chosen_title)
                         if position:
                             return coordinator.add_to_queue(album_item, position=position)
                         return coordinator.add_to_queue(album_item)
 
-                    album_item_title = chosen_title if apple_share_url else getattr(album_item, "title", str(album_item))
-                    log(f"play_album: queueing '{album_item_title}' via {'ShareLink' if apple_share_url else type(album_item).__name__}")
+                    album_item_title = chosen_title if share_link_url else getattr(album_item, "title", str(album_item))
+                    log(f"play_album: queueing '{album_item_title}' via {'ShareLink' if share_link_url else type(album_item).__name__}")
                     try:
+                        # v2.54 B1: container adds are verified too — num_tracks tells the
+                        # reorder how many rows the album occupies (0/unknown -> no blind
+                        # reorder, degraded instead).
+                        _qa_placement = "direct"
                         if queue_only:
                             # Insert after current track without interrupting playback
                             try:
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
-                                pos = _enqueue(insert_pos)
-                                log(f"play_album: queued (queue_only) at position {pos}")
+                                pos, _qa_placement = _verified_queue_add(
+                                    coordinator, lambda: _enqueue(insert_pos), insert_pos,
+                                    label=" play_album", num_tracks=chosen_tracks or 0)
+                                log(f"play_album: queued (queue_only) at position {pos} [{_qa_placement}]")
                             except Exception:
                                 pos = _enqueue()
                                 log(f"play_album: queued (queue_only, append) at position {pos}")
                         else:
-                            # Play now: insert after current, then skip to it
+                            # Play now: insert after current, then skip to it.
+                            # NOTE: play_from_queue uses the RETURNED pos, so playback is
+                            # correct even when placement degrades — the queue layout is
+                            # what suffers, and the placement field reports it honestly.
                             try:
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
-                                pos = _enqueue(insert_pos)
-                                log(f"play_album: inserted at position {pos}, skipping to it")
+                                pos, _qa_placement = _verified_queue_add(
+                                    coordinator, lambda: _enqueue(insert_pos), insert_pos,
+                                    label=" play_album", num_tracks=chosen_tracks or 0)
+                                log(f"play_album: inserted at position {pos} [{_qa_placement}], skipping to it")
                                 coordinator.play_from_queue(pos - 1)  # 0-indexed
                             except Exception:
                                 pos = _enqueue()
@@ -3181,18 +3469,26 @@ def execute_command(cmd, source="unknown"):
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                         mode = "Queued" if queue_only else "Playing"
                         tracks_note = f" ({chosen_tracks} tracks)" if chosen_tracks else ""
+                        # v2.54 B1: honest placement reporting
+                        _pl_note = ""
+                        if _qa_placement == "reordered":
+                            _pl_note = " [misfiled, recovered by reorder]"
+                        elif _qa_placement == "degraded":
+                            _pl_note = f" [WARNING: landed at queue slot {pos}]"
                         result["success"] = True
-                        result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist}{tracks_note} in {room_label}{grp_note}"
+                        result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist}{tracks_note} in {room_label}{grp_note}{_pl_note}"
                         result["data"] = {
                             "title": chosen_title,
                             "artist": chosen_artist,
                             "tracks_count": chosen_tracks,
                             "album_id": chosen_id,
-                            "service": svc_name,
+                            "service": "Spotify" if spotify_share_url else svc_name,
                             "room": rooms[0],
                             "rooms": rooms,
                             "queue_only": queue_only,
                             "position": pos,
+                            "queued_at": pos,
+                            "placement": _qa_placement,
                         }
                     except Exception as q_err:
                         log(f"play_album: add_to_queue failed: {q_err}")
@@ -3284,20 +3580,24 @@ def execute_command(cmd, source="unknown"):
                         coordinator = dev.group.coordinator
                     else:
                         coordinator = dev
-                    # DESIGN NOTE: + button should ALWAYS insert at next position.
-                    # User expectation: "play this next" -- never append to end of queue.
-                    as_next = True
+                    # DESIGN NOTE: + button default is insert at next position.
+                    # User expectation: "play this next" -- never silently append.
+                    # v2.54 rider: explicit mode param — "next" (default) | "end".
+                    # Page sends mode explicitly; absent mode keeps old behavior.
+                    as_next = (str(cmd.get("mode", "next")).lower() != "end")
 
                     def _do_queue(coord, spotify, pos=None, next_flag=False):
-                        """Queue a track -- Spotify via ShareLinkPlugin, others via add_uri_to_queue with DIDL."""
+                        """Queue a track -- Spotify via ShareLinkPlugin, others via add_uri_to_queue with DIDL.
+                        v2.54 B1: RETURNS the SoCo return value (FirstTrackNumberEnqueued)
+                        so _verified_queue_add can check actual placement."""
                         if spotify:
                             plugin = ShareLinkPlugin(coord)
                             if pos is not None:
-                                plugin.add_share_link_to_queue(share_url, position=pos)
+                                return plugin.add_share_link_to_queue(share_url, position=pos)
                             elif next_flag:
-                                plugin.add_share_link_to_queue(share_url, as_next=True)
+                                return plugin.add_share_link_to_queue(share_url, as_next=True)
                             else:
-                                plugin.add_share_link_to_queue(share_url)
+                                return plugin.add_share_link_to_queue(share_url)
                         else:
                             # [DESIGN NOTE] Raw Sonos URI (Qobuz, Apple Music, etc.)
                             # Same DIDL-Lite approach as play_next -- proper item IDs for title display
@@ -3320,24 +3620,34 @@ def execute_command(cmd, source="unknown"):
                             )
                             log(f"add_to_queue: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={q_artist}")
                             if pos is not None:
-                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
+                                return coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             elif next_flag:
-                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
+                                return coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
                             else:
-                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta)
+                                return coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta)
 
+                    # v2.54 B1: every add goes through _verified_queue_add — this exact
+                    # branch produced the 2026-07-29 Gravity's Angel misfile (appended to
+                    # a stale queue tail while reporting success).
+                    _qa_actual, _qa_placement = None, "direct"
                     if as_next:
                         try:
                             info = coordinator.get_current_track_info()
                             current_pos = int(info.get('playlist_position', 0))
                             insert_pos = current_pos + 1
                             log(f"Queueing as NEXT at position {insert_pos} (current={current_pos})")
-                            _do_queue(coordinator, is_spotify, pos=insert_pos)
+                            _qa_actual, _qa_placement = _verified_queue_add(
+                                coordinator, lambda: _do_queue(coordinator, is_spotify, pos=insert_pos),
+                                insert_pos, label=" add_to_queue")
                         except Exception as pos_err:
                             log(f"Position-based queue failed ({pos_err}), falling back to as_next flag")
-                            _do_queue(coordinator, is_spotify, next_flag=True)
+                            _qa_actual, _qa_placement = _verified_queue_add(
+                                coordinator, lambda: _do_queue(coordinator, is_spotify, next_flag=True),
+                                None, label=" add_to_queue")
                     else:
-                        _do_queue(coordinator, is_spotify)
+                        _qa_actual, _qa_placement = _verified_queue_add(
+                            coordinator, lambda: _do_queue(coordinator, is_spotify),
+                            None, label=" add_to_queue")
                     # Auto-play if nothing is currently playing
                     transport = coordinator.get_current_transport_info()
                     state = transport.get('current_transport_state', '')
@@ -3356,8 +3666,16 @@ def execute_command(cmd, source="unknown"):
                         result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri, "queue_size": qsize, "room": room}
                     except:
                         result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri, "room": room}
+                    # v2.54 B1: surface actual placement — degraded must never look green
+                    result["data"]["queued_at"] = _qa_actual
+                    result["data"]["placement"] = _qa_placement
                     result["success"] = True
-                    result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items)"
+                    _pl_note = ""
+                    if _qa_placement == "reordered":
+                        _pl_note = " [misfiled, recovered by reorder]"
+                    elif _qa_placement == "degraded":
+                        _pl_note = f" [WARNING: landed at queue slot {_qa_actual}, reorder failed]"
+                    result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items){_pl_note}"
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
 
@@ -3432,31 +3750,34 @@ def execute_command(cmd, source="unknown"):
                         log(f"play_next: GetMediaInfo failed ({mi_err}), assuming queue-based")
 
                     def _add_to_queue(coord, pos=None):
-                        """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue."""
+                        """Add track to queue -- Spotify via ShareLinkPlugin, others via add_uri_to_queue.
+                        v2.54 B1: RETURNS FirstTrackNumberEnqueued for placement verification."""
                         if is_spotify:
                             plugin = ShareLinkPlugin(coord)
                             if pos is not None:
-                                plugin.add_share_link_to_queue(share_url, position=pos)
+                                return plugin.add_share_link_to_queue(share_url, position=pos)
                             else:
-                                plugin.add_share_link_to_queue(share_url)
+                                return plugin.add_share_link_to_queue(share_url)
                         else:
                             meta = _build_didl_meta(title, track_uri, cmd_artist)
                             log(f"play_next: DIDL meta for non-Spotify URI: {track_uri[:80]} artist={cmd_artist}")
                             if pos is not None:
-                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
+                                return coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, position=pos)
                             else:
-                                coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
+                                return coord.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta, as_next=True)
 
                     def _add_with_verify(coord, pos=None, before_size=None):
                         """v2.52: run the queue add under the 30s mutation timeout; if it
                         still raises, VERIFY whether the insert actually landed before
                         declaring failure (2026-07-20 Garage postmortem: the insert
                         succeeded server-side after our 5s hangup — silence + green toast).
-                        Returns normally if the add landed; re-raises otherwise."""
+                        v2.54 B1: also verifies PLACEMENT via _verified_queue_add.
+                        Returns (actual_pos, placement) if the add landed; re-raises otherwise.
+                        placement "unverified" = timeout-recovery path (size grew but slot unknown)."""
                         try:
                             with _queue_mutation_timeout():
-                                _add_to_queue(coord, pos)
-                            return
+                                return _verified_queue_add(coord, lambda: _add_to_queue(coord, pos),
+                                                           pos, label=" play_next")
                         except Exception as add_err:
                             log(f"play_next: add raised ({add_err}); verifying whether insert landed...")
                             time.sleep(2)
@@ -3467,7 +3788,7 @@ def execute_command(cmd, source="unknown"):
                                 raise add_err
                             if before_size is not None and after > before_size:
                                 log(f"play_next: insert VERIFIED landed (queue {before_size} -> {after}); continuing to play")
-                                return
+                                return None, "unverified"
                             log(f"play_next: insert NOT found (queue {before_size} -> {after}); re-raising")
                             raise add_err
 
@@ -3475,6 +3796,7 @@ def execute_command(cmd, source="unknown"):
                     # Avoids multi-second re-index inserts into huge queues and endless queue bloat.
                     is_playlist_container = is_spotify and uri_type == "playlist"
 
+                    _qa_actual, _qa_placement = None, "direct"  # v2.54 B1
                     if is_playlist_container:
                         try:
                             _q_before = coordinator.queue_size
@@ -3483,7 +3805,7 @@ def execute_command(cmd, source="unknown"):
                         log(f"play_next: playlist container -> REPLACE queue (was {_q_before} tracks)")
                         with _queue_mutation_timeout():
                             coordinator.clear_queue()
-                        _add_with_verify(coordinator, before_size=0)
+                        _qa_actual, _qa_placement = _add_with_verify(coordinator, before_size=0)
                         coordinator.play_from_queue(0)
                     elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
@@ -3491,7 +3813,7 @@ def execute_command(cmd, source="unknown"):
                             # Spotify: clear queue + add via ShareLinkPlugin + play from queue
                             with _queue_mutation_timeout():
                                 coordinator.clear_queue()
-                            _add_with_verify(coordinator, before_size=0)
+                            _qa_actual, _qa_placement = _add_with_verify(coordinator, before_size=0)
                             coordinator.play_from_queue(0)
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
@@ -3510,25 +3832,32 @@ def execute_command(cmd, source="unknown"):
                         except Exception:
                             _q_before = None
                         log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
-                        _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
-                        try:
-                            coordinator.next()
-                            # DESIGN NOTE: next() on a STOPPED speaker advances queue pointer
-                            # but doesn't start playback. Check and force play if needed.
-                            import time as _t; _t.sleep(0.3)
-                            ts = coordinator.get_current_transport_info()
-                            state = ts.get('current_transport_state', '')
-                            if state != 'PLAYING':
-                                log(f"play_next: after next(), state={state} -> forcing play_from_queue({insert_pos - 1})")
+                        _qa_actual, _qa_placement = _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
+                        if _qa_placement == "degraded" and _qa_actual:
+                            # v2.54 B1: misfiled AND reorder failed — next() would play
+                            # whatever occupies insert_pos, not our track. Play from the
+                            # slot where the track ACTUALLY landed.
+                            log(f"play_next: degraded placement -> play_from_queue({_qa_actual - 1})")
+                            coordinator.play_from_queue(_qa_actual - 1)
+                        else:
+                            try:
+                                coordinator.next()
+                                # DESIGN NOTE: next() on a STOPPED speaker advances queue pointer
+                                # but doesn't start playback. Check and force play if needed.
+                                import time as _t; _t.sleep(0.3)
+                                ts = coordinator.get_current_transport_info()
+                                state = ts.get('current_transport_state', '')
+                                if state != 'PLAYING':
+                                    log(f"play_next: after next(), state={state} -> forcing play_from_queue({insert_pos - 1})")
+                                    coordinator.play_from_queue(insert_pos - 1)
+                            except Exception as skip_err:
+                                # Any next() failure -- play the track we just inserted.
+                                # v2.46 fix: was play_from_queue(0), which played the HEAD of
+                                # the existing (possibly stale/foreign) queue instead of the
+                                # inserted track. Cold speakers reject next() with UPnP 701,
+                                # so this path fired and played leftover queue content.
+                                log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
                                 coordinator.play_from_queue(insert_pos - 1)
-                        except Exception as skip_err:
-                            # Any next() failure -- play the track we just inserted.
-                            # v2.46 fix: was play_from_queue(0), which played the HEAD of
-                            # the existing (possibly stale/foreign) queue instead of the
-                            # inserted track. Cold speakers reject next() with UPnP 701,
-                            # so this path fired and played leftover queue content.
-                            log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
-                            coordinator.play_from_queue(insert_pos - 1)
                     _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
 
                     # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
@@ -3566,9 +3895,16 @@ def execute_command(cmd, source="unknown"):
                         except Exception as resolve_err:
                             log(f"play_next: metadata resolve failed ({resolve_err})")
 
-                    result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}"
+                    # v2.54 B1: surface placement — degraded must never look green
+                    _pl_note = ""
+                    if _qa_placement == "reordered":
+                        _pl_note = " [misfiled, recovered by reorder]"
+                    elif _qa_placement == "degraded":
+                        _pl_note = f" [WARNING: landed at queue slot {_qa_actual}]"
+                    result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}{_pl_note}"
                     result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri,
-                                      "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms}
+                                      "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms,
+                                      "queued_at": _qa_actual, "placement": _qa_placement}
                     # DESIGN NOTE: For non-Spotify URIs, Sonos may not report track metadata
                     # (shows "No Content" in Sonos app). The polling loop's get_track_info()
                     # returns None for empty titles -> no SSE now_playing fires.
@@ -4321,7 +4657,7 @@ def sonos_main_loop():
             seen_rooms = set()
             for dev in coordinators:
                 info = get_track_info(dev)
-                try:    rooms_in_group = [m.player_name for m in dev.group.members]
+                try:    rooms_in_group = [m.player_name for m in dev.group.members if getattr(m, "is_visible", True)]  # v2.54: skip invisible bonded units
                 except: rooms_in_group = [dev.player_name]
 
                 # -- Real-time UI push (ntfy SSE) -------------------------
@@ -4552,6 +4888,9 @@ def main():
         log("GitHub token: configured (5000 req/hr)")
     else:
         log("GitHub token: not set (60 req/hr unauthenticated)")
+    # v2.54 marker line — Rule 24 requires a version-unique log line so a reboot
+    # onto relabeled old bytes is detectable. Do not remove; update per release.
+    log("[v2.54] Playback-trust core active: verified queue adds + Spotify Web-API resolution + auth canary")
 
     # Check for updates at startup
     self_update_check()
