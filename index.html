@@ -676,6 +676,9 @@
   .sh-explnk:hover { text-decoration: underline; }
   .sh-seamdiv { text-align: center; font-size: 11px; color: var(--text-dim); opacity: .5; padding: 3px 0; border: none; }
   .sh-ctxnote { font-size: 12px; color: var(--text-dim); padding: 4px 2px 6px; }
+  /* p2.76: playlist-name link in session headers — navigates to Playlists tab */
+  .sh-ctx-link { color: var(--accent2); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; cursor: pointer; }
+  .sh-ctx-link:hover { text-decoration-style: solid; }
   /* quick-plays ledger */
   .sh-t1 .sh-qmark { flex: 0 0 auto; width: 14px; text-align: center; color: var(--sh-dim2); }
   .sh-t1.sh-qled .sh-txt b { font-weight: 600; }
@@ -937,7 +940,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.75';
+const PAGE_VERSION = 'p2.76';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3767,6 +3770,29 @@ function setContentTab(tab) {
   if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
 }
 
+// p2.76: navigate from a session's playlist name to its card on the Playlists tab
+function jumpToPlaylist(id) {
+  setContentTab('playlists');               // triggers loadPlaylistData() if not yet loaded
+  const searchEl = document.getElementById('pl-search');
+  if (searchEl) searchEl.value = '';        // clear any stale filter so the card is findable
+  _plOpenIds.add(id);                       // arrive with the card expanded
+  if (!_plTrackCache[id] && !_plTrackLoading.has(id)) loadPlTracks(id);
+  let tries = 0;
+  const settle = setInterval(() => {
+    tries++;
+    if (_playlists.length) {
+      clearInterval(settle);
+      renderPlaylists();
+      const el = document.getElementById('pl-' + id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else console.warn('[p2.76] jumpToPlaylist: card pl-' + id + ' not found after render');
+    } else if (tries > 40) {                // ~10s: playlist data never arrived — leave user on the tab, log loudly
+      clearInterval(settle);
+      console.warn('[p2.76] jumpToPlaylist: playlist data not loaded after 10s, id=' + id);
+    }
+  }, 250);
+}
+
 function setSubTab(sub) {
   document.querySelectorAll('.sub-tab').forEach(t => t.classList.toggle('active', t.dataset.subtab === sub));
   document.getElementById('subtab-music').hidden = sub !== 'music';
@@ -4968,11 +4994,15 @@ const SH = (() => {
       <span class="sh-btns">${trackBtns(t)}</span>
     </div>`;
   }
-  function groupHeaderHtml(icon, name, line2, art, btns) {
+  function groupHeaderHtml(icon, name, line2, art, btns, nameClick) {
+    // p2.76: nameClick (optional JS snippet) renders the name as a link — playlist names navigate to the Playlists tab
+    const nameHtml = nameClick
+      ? `<a class="sh-ctx-link" href="javascript:void(0)" onclick="event.stopPropagation();${nameClick}">${esc(name)}</a>`
+      : esc(name);
     return `<div class="sh-albhdr">
       ${artOrPh(art, name, 'sh-thumb40g')}
       <div class="sh-ah-meta">
-        <div class="sh-ah-nm">${art ? '' : icon + ' '}${esc(name)}</div>
+        <div class="sh-ah-nm">${art ? '' : icon + ' '}${nameHtml}</div>
         ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
       </div>
       <span class="sh-btns">${btns}</span>
@@ -5014,10 +5044,17 @@ const SH = (() => {
       const topCtx = namedCtxs[0];
       if (topCtx && (topCtx.n || 0) >= s.n * 0.8) {
         // p2.75: "N of M played" — session shows what you heard, not playlist size
-        inner = groupHeaderHtml('📃', topCtx.name, topCtx.total ? `playlist · ${uniqCount(s.tracks)} of ${topCtx.total} played` : `playlist · ${uniqCount(s.tracks)} trk`, topCtx.art, ctxBtns(topCtx))
+        // p2.76: playlist name links to its card on the Playlists tab
+        const plJump = (topCtx.uri || '').startsWith('spotify:playlist:') ? `jumpToPlaylist('${topCtx.uri.split(':')[2]}')` : null;
+        inner = groupHeaderHtml('📃', topCtx.name, topCtx.total ? `playlist · ${uniqCount(s.tracks)} of ${topCtx.total} played` : `playlist · ${uniqCount(s.tracks)} trk`, topCtx.art, ctxBtns(topCtx), plJump)
           + s.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, true)).join('');
       } else {
-        if (topCtx) inner += `<div class="sh-ctxnote">📃 ${esc(topCtx.name)} · ${topCtx.n} of ${s.n} plays</div>`;
+        if (topCtx) {
+          // p2.76: minority-context note gets the same name-link when it's a playlist
+          const noteJump = (topCtx.uri || '').startsWith('spotify:playlist:') ? `jumpToPlaylist('${topCtx.uri.split(':')[2]}')` : null;
+          const noteName = noteJump ? `<a class="sh-ctx-link" href="javascript:void(0)" onclick="event.stopPropagation();${noteJump}">${esc(topCtx.name)}</a>` : esc(topCtx.name);
+          inner += `<div class="sh-ctxnote">📃 ${noteName} · ${topCtx.n} of ${s.n} plays</div>`;
+        }
         const groups = [];
         for (const t of s.tracks) {
           const k = normAlbumKey(t);
