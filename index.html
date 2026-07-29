@@ -936,7 +936,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.72';
+const PAGE_VERSION = 'p2.73';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3482,7 +3482,28 @@ async function playContext(action, encodedData) {
 
   // If no context_uri, search for album on Spotify
   if (!contextUri && info.album) {
-    if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    if (!hasSpotifyAuth()) {
+      // p2.73: Sonos houses must NOT require browser-side Spotify auth (PKCE token
+      // is per-browser localStorage — fresh devices have none). Fall back to
+      // service-side Sonos MusicService search, mirroring directPlay's track
+      // fallback. Roaming (Spotify Connect) still genuinely needs the connect.
+      // NOTE: search_and_queue preserves the current queue but starts playback of
+      // the queued album — a true queue-only Spotify album path needs a play_album
+      // Spotify branch service-side (v2.54 candidate, see backlog).
+      if (house !== 'roaming') {
+        const selNow = selectedRooms[house] || [];
+        if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+        const rooms = filterOfflineRooms(selNow);
+        if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+        const q = [info.album, info.artist].filter(Boolean).join(' ');
+        const ntfyAction = action === 'queue' ? 'search_and_queue' : 'search_and_play';
+        console.log('[playContext] No PKCE auth — falling back to ' + ntfyAction + ' on service, q=' + q);
+        const ok = await postNtfy({ action: ntfyAction, query: q, service: 'Spotify', search_type: 'albums', rooms, target_client_id: commanderId });
+        if (ok) showToast('✓ Searching & ' + (action === 'queue' ? 'queueing' : 'playing') + ' album: ' + info.album + ' → ' + rooms.join(', '));
+        return;
+      }
+      showToast('Connect Spotify first', true); return;
+    }
     showToast('Searching album…');
     try {
       const q = 'album:' + info.album + (info.artist ? ' artist:' + info.artist : '');
