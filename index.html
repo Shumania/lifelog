@@ -936,7 +936,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.73';
+const PAGE_VERSION = 'p2.74';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4892,9 +4892,12 @@ const SH = (() => {
     return like + ex + trackPlayBtns(t);
   }
   // Album-run headers → page playContext() (Qobuz/Apple → play_album; Spotify → album search → play_next/add_to_queue)
-  function albumBtns(name, artist, service) {
+  function albumBtns(name, artist, service, uri) {
     if (!name || name === 'Unknown album') return offBtns();
-    const pd = encodeURIComponent(JSON.stringify({ album: name, artist: (artist && artist !== 'Unknown artist') ? artist : '', service: service || '' })).replace(/'/g, '%27');
+    // p2.74 (v2.54 A1): sessions data now stamps spotify:album: URIs on album runs.
+    // With context_uri present, playContext plays direct via ShareLink — zero search,
+    // zero auth dependency. Qobuz/Apple native branch still short-circuits first.
+    const pd = encodeURIComponent(JSON.stringify({ album: name, artist: (artist && artist !== 'Unknown artist') ? artist : '', service: service || '', context_uri: uri || undefined })).replace(/'/g, '%27');
     return `<button class="sh-pill" onclick="event.stopPropagation();playContext('play','${pd}')" title="Play album">▶</button><button class="sh-pill" onclick="event.stopPropagation();playContext('queue','${pd}')" title="Queue album">＋</button>`;
   }
   // Playlist/context headers → page playContext() with the published context uri
@@ -4974,7 +4977,7 @@ const SH = (() => {
     const t = ftime(ts).replace('AM', 'am').replace('PM', 'pm');
     return `<div class="sh-seamdiv">· resumed ${t} ·</div>`;
   }
-  function runHeaderHtml(sid, idx, name, artist, art, sub, collapsed, service) {
+  function runHeaderHtml(sid, idx, name, artist, art, sub, collapsed, service, uri) {
     const line2 = [artist, sub].filter(Boolean).join(' · ');
     return `<div class="sh-albhdr sh-coll" onclick="SH.toggleRun(${sid}, ${idx}, event)">
       ${artOrPh(art, name, 'sh-thumb40g')}
@@ -4983,7 +4986,7 @@ const SH = (() => {
         ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
       </div>
       <span class="sh-btns">
-        ${albumBtns(name, artist, service)}
+        ${albumBtns(name, artist, service, uri)}
         <span class="sh-ah-chev" id="sh-gchev-${sid}-${idx}">${collapsed ? '▸' : '▾'}</span>
       </span>
     </div>`;
@@ -5028,7 +5031,7 @@ const SH = (() => {
             const sub = (info && info.total) ? `${Math.min(u, info.total)}/${info.total} · ${fdur(runDur)}` : `${u} trk · ${fdur(runDur)}`;
             const collapsed = gcolFor(s, runIdx);
             inner += seam(g.tracks[0]);
-            inner += runHeaderHtml(sid, runIdx, name, artist, info ? info.art : null, sub, collapsed, g.tracks[0].source || '');
+            inner += runHeaderHtml(sid, runIdx, name, artist, info ? info.art : null, sub, collapsed, g.tracks[0].source || '', info ? info.uri : null);
             inner += `<div class="sh-runtracks${collapsed ? ' sh-gcol' : ''}" id="sh-grun-${sid}-${runIdx}">`
               + g.tracks.map((t, i) => (i ? seam(t) : '') + trackRowHtmlG(t, null, true)).join('') + `</div>`;
             runIdx++;
