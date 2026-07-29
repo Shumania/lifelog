@@ -551,6 +551,172 @@
 /* p2.44: hard-refresh pending spinner */
 @keyframes hrspin { to { transform: rotate(360deg); } }
 .hr-spin { display:inline-block; animation: hrspin 1s linear infinite; }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     p2.70 SESSIONS TAB — Session History v2 (variant G pass 2.7b port).
+     Every class is namespaced sh- (unprefixed harness names collide with page
+     CSS: cluster/muted/on/open/show/toast). Source: mockups/session-history-v2.
+     ══════════════════════════════════════════════════════════════════════════ */
+  #tab-sessions { --sh-panel: var(--surface); --sh-panel2: var(--surface2); --sh-dim2: #626b80;
+    --sh-chip: #1c2338; --sh-gold: #f0b940; --sh-ink: #06201d; }
+  .sh-toolbar { display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-bottom: 1px solid var(--border); }
+  .sh-updated { font-size: 11px; color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-zoomseg { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; flex-shrink: 0; }
+  .sh-zoomseg button { background: var(--sh-chip); color: var(--text); border: none; padding: 5px 13px; font-size: 12.5px; cursor: pointer; }
+  .sh-zoomseg button.sh-on { background: var(--accent); color: var(--sh-ink); font-weight: 700; }
+  #sh-main { max-width: 620px; margin: 0 auto; padding: 6px 10px 40px; font-size: 14px; line-height: 1.4; }
+  #sh-main.sh-zdays { max-width: 1720px; }
+  .sh-status { text-align: center; padding: 24px 10px; color: var(--text-dim); font-size: 13px; }
+  .sh-error { max-width: 920px; margin: 12px auto; padding: 12px; border: 1px solid #a53c47; border-radius: 8px; background: #401d22; color: #ffd8dc; white-space: pre-wrap; font-size: 12px; }
+  .sh-loadrow { text-align: center; margin: 18px auto 8px; padding: 9px 14px; max-width: 420px; border: 1px dashed var(--border); border-radius: 10px; color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
+  .sh-loadrow:hover { background: var(--sh-panel); }
+  .sh-loadrow.sh-busy { cursor: default; opacity: .7; }
+  .sh-dayhdr { margin: 20px 2px 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sh-dim2); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sh-daygrp:first-child .sh-dayhdr { margin-top: 10px; }
+  .sh-daygrp { scroll-margin-top: 12px; }
+  /* art / placeholder */
+  .sh-art, .sh-art-ph { border-radius: 6px; object-fit: cover; display: block; flex: 0 0 auto; }
+  .sh-art-ph { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; letter-spacing: .02em; }
+  /* badges */
+  .sh-b-expl { color: var(--sh-gold); font-size: 12px; cursor: help; margin-left: 4px; }
+  .sh-b-acct { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px; background: #3d3154; color: #d7c2ff; font-size: 10px; font-weight: 700; vertical-align: middle; }
+  .sh-b-locus { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px; background: var(--sh-chip); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+  .sh-b-locus.sh-dim { border: none; background: none; padding: 0 2px; opacity: .85; margin-left: 4px; font-size: 11px; }
+  .sh-qloci { flex: 0 0 auto; }
+  /* pill buttons */
+  .sh-pill { background: var(--sh-chip); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 3px 8px; font-size: 12px; cursor: pointer; line-height: 1.2; }
+  .sh-pill:active { background: var(--accent); color: var(--sh-ink); }
+  .sh-pill.sh-off { opacity: .35; cursor: not-allowed; }
+  .sh-muted { color: var(--text-dim); font-weight: 400; }
+  /* Tier 1: ultra-compact fixed-height rows */
+  .sh-t1 { display: flex; align-items: center; gap: 6px; height: 24px; padding: 3px 0; margin: 0; overflow: hidden; font-size: 12.5px; line-height: 1.35; border-radius: 4px; cursor: pointer; }
+  .sh-t1:hover { background: var(--sh-panel); }
+  .sh-t1 .sh-time { flex: 0 0 auto; width: 52px; font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .sh-t1 .sh-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+  .sh-t1 .sh-txt b { font-weight: 700; }
+  .sh-thumb18g { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 auto; object-fit: cover; }
+  .sh-thumb18ph { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 auto; background: var(--sh-chip); }
+  /* Tier 3: rich card */
+  .sh-t3 { padding: 12px; margin: 8px 0; border-radius: 14px; cursor: pointer; background: var(--sh-panel); border: 1px solid var(--border); }
+  .sh-t3:hover { background: var(--sh-panel2); }
+  .sh-t3 .sh-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .sh-t3 .sh-body { display: flex; gap: 12px; align-items: flex-start; }
+  .sh-t3 .sh-title { font-size: 15.5px; }
+  .sh-t3 .sh-title b { font-weight: 700; }
+  .sh-t3 .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-t3 .sh-textblock { flex: 1; min-width: 0; }
+  /* radio / station card */
+  .sh-station { padding: 12px; margin: 8px 0; border-radius: 14px; cursor: pointer; background: linear-gradient(135deg,#141f2b,#131829); border: 1px solid #2f4c52; }
+  .sh-station:hover { background: linear-gradient(135deg,#182635,#1a2035); }
+  .sh-station .sh-top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+  .sh-station .sh-name { font-size: 16px; font-weight: 700; margin-top: 4px; }
+  .sh-station .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-station .sh-chev { margin-top: 6px; color: var(--sh-dim2); font-size: 13px; }
+  /* expansion container */
+  .sh-entities { display: none; padding: 8px 2px 2px 4px; border-top: 1px dashed var(--border); margin-top: 8px; }
+  .sh-entities.sh-open { display: block; }
+  .sh-trackrows { display: none; padding: 4px 0 2px 8px; }
+  .sh-trackrows.sh-open { display: block; }
+  .sh-trk { display: flex; gap: 8px; align-items: center; padding: 4px 2px; font-size: 12.5px; color: var(--text-dim); border-bottom: 1px solid #161c2e; }
+  .sh-trk:last-child { border-bottom: none; }
+  .sh-trk .sh-tm { flex: 0 0 52px; font-variant-numeric: tabular-nums; }
+  .sh-trk .sh-tt { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-trk .sh-ta { flex: 0 0 auto; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-trk .sh-btns { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
+  .sh-trk .sh-pill { padding: 2px 6px; font-size: 11px; }
+  .sh-trk.sh-g-ind { padding-left: 14px; }
+  .sh-trk .sh-alb-inline { color: var(--sh-dim2); font-size: 11.5px; margin-left: 7px; }
+  /* album-run headers (flat G expansion) */
+  .sh-albhdr { display: flex; align-items: center; gap: 10px; padding: 7px 2px 6px; margin-top: 8px; border-bottom: 1px solid var(--border); }
+  .sh-albhdr:first-child { margin-top: 2px; }
+  .sh-albhdr .sh-thumb40g { width: 40px; height: 40px; border-radius: 6px; font-size: 12px; }
+  .sh-albhdr .sh-ah-meta { flex: 1; min-width: 0; }
+  .sh-albhdr .sh-ah-nm { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-albhdr .sh-ah-ar { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-albhdr .sh-btns { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
+  .sh-albhdr .sh-pill { padding: 2px 6px; font-size: 11px; }
+  .sh-albhdr.sh-coll { cursor: pointer; }
+  .sh-albhdr .sh-ah-chev { color: var(--sh-dim2); font-size: 12px; padding: 2px 3px; align-self: center; }
+  .sh-runtracks.sh-gcol { display: none; }
+  /* big-art card lead */
+  .sh-gsolo { width: 72px; height: 72px; border-radius: 8px; font-size: 20px; }
+  .sh-gfan { display: flex; align-items: center; flex: 0 0 auto; }
+  .sh-gfan .sh-art { width: 66px; height: 66px; border-radius: 8px; border: 2px solid var(--sh-panel); margin-left: -44px; box-shadow: -5px 2px 10px rgba(0,0,0,.45); }
+  .sh-gfan .sh-art:first-child { margin-left: 0; box-shadow: none; }
+  .sh-gfan .sh-gplus { margin-left: -12px; z-index: 5; background: var(--sh-chip); border: 1px solid var(--border); color: var(--text-dim); font-size: 11px; font-weight: 700; border-radius: 10px; padding: 2px 7px; }
+  .sh-explnk { display: block; color: var(--accent); font-size: 12.5px; text-decoration: none; padding: 6px 2px; border-bottom: 1px solid #161c2e; }
+  .sh-explnk:hover { text-decoration: underline; }
+  .sh-seamdiv { text-align: center; font-size: 11px; color: var(--text-dim); opacity: .5; padding: 3px 0; border: none; }
+  .sh-ctxnote { font-size: 12px; color: var(--text-dim); padding: 4px 2px 6px; }
+  /* quick-plays ledger */
+  .sh-t1 .sh-qmark { flex: 0 0 auto; width: 14px; text-align: center; color: var(--sh-dim2); }
+  .sh-t1.sh-qled .sh-txt b { font-weight: 600; }
+  .sh-qledrow .sh-ta { flex: 0 0 auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--text-dim); }
+  .sh-qledrow .sh-btns { display: flex; gap: 3px; flex: 0 0 auto; align-items: center; }
+  .sh-qledrow .sh-pill { padding: 1px 5px; font-size: 10.5px; }
+  /* dense wide-screen day grid (≥900px) */
+  #sh-main .sh-daygrid .sh-cell { min-width: 0; }
+  @media (min-width: 900px) {
+    #sh-main.sh-vG { max-width: 1720px; }
+    #sh-main.sh-vG .sh-daygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 14px; align-items: start; }
+    #sh-main.sh-vG .sh-daygrid .sh-cell.sh-qcell { grid-column: 1 / -1; }
+    /* one expansion behavior ≥900px — the full-width panel; inline blocks stay hidden so the grid never reflows */
+    #sh-main.sh-vG .sh-daygrid .sh-cell > .sh-entities { display: none; }
+    .sh-cell.sh-sel > .sh-t3, .sh-cell.sh-sel > .sh-station { border-color: var(--accent); }
+    .sh-cell.sh-sel > .sh-t1 { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  }
+  /* full-width inline expansion panels (per-card, multi-expand) */
+  .sh-gxp { grid-column: 1 / -1; position: relative; background: var(--sh-panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 12px; margin: 10px 0 6px; container-type: inline-size; }
+  .sh-gxp-caret { position: absolute; top: -9px; left: 40px; width: 16px; height: 16px; transform: rotate(45deg); background: var(--sh-panel); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
+  .sh-gxp-x { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text-dim); font-size: 15px; line-height: 1; cursor: pointer; padding: 4px 6px; z-index: 1; }
+  .sh-gxp-x:hover { color: var(--text); }
+  .sh-gxp-railhdr { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; padding-right: 26px; }
+  .sh-gxp-railhdr .sh-gxp-text { min-width: 0; }
+  .sh-gxp-top { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  .sh-gxp-rail .sh-title { font-size: 16px; }
+  .sh-gxp-rail .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-gxp-pl { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; }
+  .sh-gxp-tracks { min-width: 0; }
+  @container (min-width: 1000px) {
+    .sh-gxp-body { display: flex; gap: 28px; align-items: flex-start; }
+    .sh-gxp-rail { flex: 0 0 280px; position: sticky; top: 12px; }
+    .sh-gxp-railhdr { display: block; margin-bottom: 0; padding-right: 0; }
+    .sh-gxp-railhdr .sh-gxp-art { margin-bottom: 12px; }
+    .sh-gxp-railhdr .sh-gxp-text { display: flex; flex-direction: column; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-title { order: 0; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-sub { order: 1; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-gxp-top { order: 2; margin: 6px 0 0; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-gxp-pl { order: 3; }
+    .sh-gxp-tracks { flex: 1 1 auto; max-width: 760px; }
+  }
+  /* Days ledger */
+  .sh-daysledger { max-width: 920px; margin: 6px auto 0; }
+  .sh-weekhdr { margin: 24px 2px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sh-dim2); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sh-weekhdr b { color: var(--text-dim); font-weight: 600; }
+  .sh-dayrow { display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+  .sh-dayrow:hover { background: var(--sh-panel); }
+  .sh-dayrow .sh-dr-date { flex: 0 0 96px; font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sh-dayrow .sh-dr-arts { flex: 0 0 105px; display: flex; gap: 3px; }
+  .sh-dayrow .sh-dr-arts .sh-art { width: 24px; height: 24px; border-radius: 5px; }
+  .sh-dayrow .sh-dr-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+  .sh-dayrow .sh-dr-stats { flex: 0 0 auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sh-dayrow .sh-dr-chev { flex: 0 0 auto; color: var(--sh-dim2); font-size: 13px; }
+  @media (max-width: 700px) { .sh-dayrow .sh-dr-arts { display: none; } }
+  /* multi-anchor day rows (pass 2.7) */
+  .sh-dayrow.sh-dr-cont { height: 38px; margin-top: -2px; }
+  .sh-dayrow .sh-dr-ditto { color: var(--sh-dim2); padding-left: 4px; }
+  .sh-dayrow .sh-dr-date.sh-dr-datelink:hover { color: var(--text); text-decoration: underline; }
+  /* pass 2.7b: names beat numbers on narrow widths */
+  @media (max-width: 760px) {
+    .sh-dayrow .sh-dr-stats .sh-st-trk, .sh-dayrow .sh-dr-head .sh-mut-len { display: none; }
+  }
+  @media (max-width: 560px) {
+    .sh-dayrow .sh-dr-stats .sh-st-sess { display: none; }
+    .sh-dayrow .sh-dr-date { flex-basis: 72px; }
+    .sh-dayrow { gap: 8px; }
+  }
+  @media (max-width: 520px) { .sh-trk .sh-ta { display: none; } }
+  @media (max-width: 420px) { .sh-t1 .sh-time { width: 50px; } }
 </style>
 </head>
 <body>
@@ -663,6 +829,7 @@
 <div class="bottom-section">
   <div class="content-tabs">
     <div class="content-tab active" data-tab="history" onclick="setContentTab('history')">History</div>
+    <div class="content-tab" data-tab="sessions" onclick="setContentTab('sessions')">Sessions</div>
     <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
   </div>
@@ -696,6 +863,20 @@
     </div>
   </div>
 
+  <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
+  <div id="tab-sessions" hidden>
+    <div class="sh-toolbar">
+      <span class="sh-updated" id="sh-updated"></span>
+      <div class="sh-zoomseg" id="sh-zoomseg">
+        <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
+        <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
+      </div>
+    </div>
+    <div class="content-panel">
+      <div id="sh-main" class="sh-vG"></div>
+    </div>
+  </div>
+
   <div id="tab-discovery" hidden>
     <div class="content-panel">
       <div class="discovery-list" id="discovery-list">
@@ -726,7 +907,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.69';
+const PAGE_VERSION = 'p2.70';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3528,9 +3709,11 @@ function _drFinish() {
 function setContentTab(tab) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('tab-history').hidden = tab !== 'history';
+  document.getElementById('tab-sessions').hidden = tab !== 'sessions';
   document.getElementById('tab-discovery').hidden = tab !== 'discovery';
   document.getElementById('tab-playlists').hidden = tab !== 'playlists';
   if (tab === 'playlists' && !_playlists.length) loadPlaylistData();
+  if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
 }
 
 function setSubTab(sub) {
@@ -4308,6 +4491,764 @@ function handleDeepLink() {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // INIT
+// ══════════════════════════════════════════════════════════════════════════════
+// p2.70 SESSIONS TAB — Session History v2 (variant G pass 2.7b)
+// Ported from mockups/session-history-v2/live.html (G renderer + published-JSON
+// adapter). Variant G only — D/E/F renderers and the harness banner were retired
+// with the mockup. Namespacing: CSS classes sh-*, DOM ids sh-*, ONE JS global (SH).
+//
+// DESIGN NOTES (Rule 14):
+// - LAZY INIT: nothing is fetched until the Sessions tab is first opened
+//   (setContentTab → SH.onShow → _boot). Boot loads sessions/index.json +
+//   sessions/head.json + the two newest month chunks (same-origin RELATIVE urls —
+//   page and data both live on shumania.github.io/lifelog). Older months load on
+//   demand via the load-older row (IntersectionObserver + click fallback).
+// - DEDUP BY PUBLISHED ID IS MANDATORY: head.json overlaps the current month
+//   chunk; the byId/ledgersById Maps collapse the overlap (ADAPTER_GAPS.md).
+// - TRANSPORT REUSE: track ▶/＋ call the page's directPlay() (play_next /
+//   add_to_queue via postNtfy on Sonos; Spotify Connect when roaming — Rules 21/22
+//   cmd_ts + ledger live inside postNtfy/the agent webhook handler). Album-run and
+//   playlist headers call playContext() (handles Qobuz/Apple play_album + Spotify
+//   album search). ♥ = the page's likeButton/likeTap system. 🔍 = exploreButton.
+//   Exploration link-rows call navigateToExploration(cardIndex) → Discovery card.
+//   Buttons with no resolvable URI/search terms render disabled ("No playable URI").
+// - NO handoff-merge logic: published `seams` render as-is (Andrew decision #3).
+// - Published chunks are already merged/enriched — the mockup's preprocessSessions()
+//   is intentionally NOT ported (it would break published seams/titles/boundaries).
+// - TZ hard-coded America/Los_Angeles to match the publisher.
+// - localStorage keys are namespaced sh_*: zoom choice, expanded panel ids
+//   (published ids — stable across republishes), album-run collapse state.
+// ══════════════════════════════════════════════════════════════════════════════
+const SH = (() => {
+  'use strict';
+  const TZ = 'America/Los_Angeles';
+  const LS_ZOOM = 'sh_zoom', LS_EXP = 'sh_expanded', LS_GCOL = 'sh_gcol';
+  const LOCI = { caphill: ['🏠', 'Cap Hill'], vashon: ['🌲', 'Vashon'], roaming: ['📱', 'Roaming'] };
+  const KNOWN_SESSION_FIELDS = new Set(['id','locus','start','end','dur_ms','n','uniq','anchor','tier','rooms','accounts','isRadio','station','title','body','runs','artists','albums','contexts','explorations','seams','tracks']);
+
+  // ---------------- state ----------------
+  let INDEX = null;              // published sessions/index.json
+  let MONTHS = [];               // index.months sorted newest-first
+  let oldestLoadedIdx = -1;      // pointer into MONTHS (newest-first) of oldest loaded chunk
+  const byId = new Map(), ledgersById = new Map(); // publishedId -> raw published doc
+  const idNum = new Map();       // publishedId -> stable numeric __id for DOM/state keys
+  let nextNum = 1;
+  let ALL = [], LEDGERS = [], LIST = [];  // adapted sessions / quick ledgers / merged render list
+  let ZOOM = 'sessions';         // 'sessions' | 'days'
+  let PENDING_SCROLL = null, PENDING_SCROLL_SESS = null;
+  let booted = false, booting = false, monthLoading = false;
+  const EXPANDED = new Set();    // numeric __ids of open cards/panels (in-memory)
+  const pendingExpanded = new Set();  // persisted publishedIds not yet seen in loaded chunks
+  let GCOL = {};                 // 'publishedId:runIdx' -> collapsed (persisted)
+  const STATS = { nullDur: 0, missingArt: 0, unknownFields: new Set() };
+  const GRID_MQ = window.matchMedia('(min-width: 900px)');
+  let _io = null;                // IntersectionObserver for the load-older row
+
+  try { const z = localStorage.getItem(LS_ZOOM); if (z === 'days' || z === 'sessions') ZOOM = z; } catch (e) {}
+  try { JSON.parse(localStorage.getItem(LS_EXP) || '[]').forEach(pid => pendingExpanded.add(pid)); } catch (e) {}
+  try { GCOL = JSON.parse(localStorage.getItem(LS_GCOL) || '{}') || {}; } catch (e) {}
+  function saveExpanded() {
+    try {
+      const pids = [...EXPANDED].map(n => { const s = findSessionById(n); return s && s.publishedId; }).filter(Boolean);
+      localStorage.setItem(LS_EXP, JSON.stringify(pids.concat([...pendingExpanded])));
+    } catch (e) {}
+  }
+  function saveGcol() { try { localStorage.setItem(LS_GCOL, JSON.stringify(GCOL)); } catch (e) {} }
+
+  // ---------------- published-data adapter (from live.html harness) ----------------
+  function adaptTrack(t) {
+    const x = { ...t };
+    if (x.dur == null || !Number.isFinite(Number(x.dur))) { x.dur = 0; STATS.nullDur++; }
+    x.ts = Number(x.ts) || 0;
+    x.title = x.title || 'Unknown track'; x.artist = x.artist || 'Unknown artist';
+    x.album = x.album || null; x.art = x.art || null; x.liked = Number(x.liked) || 0;
+    if (!x.art) STATS.missingArt++;
+    return x;
+  }
+  function adaptSession(s) {
+    Object.keys(s).forEach(k => { if (!KNOWN_SESSION_FIELDS.has(k)) STATS.unknownFields.add(k); });
+    const station = s.station || {};
+    const x = { ...s, publishedId: s.id, start: Number(s.start) || 0, end: Number(s.end) || Number(s.start) || 0,
+      dur_ms: Number(s.dur_ms) || 0, n: Number(s.n) || 0, rooms: Array.isArray(s.rooms) ? s.rooms : [],
+      accounts: Array.isArray(s.accounts) ? s.accounts : [],
+      artists: Array.isArray(s.artists) ? s.artists.map(a => [a && a[0] ? a[0] : 'Unknown artist', Number(a && a[1]) || 0]) : [],
+      albums: Array.isArray(s.albums) ? s.albums : [], contexts: Array.isArray(s.contexts) ? s.contexts : [],
+      explorations: Array.isArray(s.explorations) ? s.explorations : [], seams: Array.isArray(s.seams) ? s.seams : [],
+      tracks: Array.isArray(s.tracks) ? s.tracks.map(adaptTrack) : [], stationName: station.name || 'Radio', stationFreq: station.freq || '' };
+    x.albums = x.albums.map(a => ({ ...a, album: a.album || 'Unknown album', artist: a.artist || 'Unknown artist', n: Number(a.n) || 0, art: a.art || null }));
+    x.contexts = x.contexts.map(c => ({ ...c, uri: c.uri || '', n: Number(c.n) || 0, name: c.name || null, art: c.art || null }));
+    return x;
+  }
+  function adaptLedger(q) {
+    const tracks = Array.isArray(q.tracks) ? q.tracks.map(adaptTrack) : [];
+    return { isQuickLedger: true, publishedId: q.id, day: q.day, start: Number(q.start) || 0, end: Number(q.end) || Number(q.start) || 0,
+      qplays: Number(q.qplays) || tracks.length, qdur: Number(q.qdur_ms) || 0, locus: (q.loci || []).join('+') || 'quick', loci: q.loci || [],
+      accounts: q.accounts || [], memberSessionIds: q.memberSessionIds || [], tracks, rooms: [], albums: [], contexts: [], explorations: [], artists: [], seams: [], n: tracks.length };
+  }
+
+  // ---------------- loading pipeline ----------------
+  async function fetchJson(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(url + ' fetch failed: HTTP ' + r.status);
+    return r.json();
+  }
+  function integrate(docs) {
+    for (const d of docs) {
+      for (const s of d.sessions || []) byId.set(s.id, s);
+      for (const q of d.quickPlayLedgers || []) ledgersById.set(q.id, q);
+    }
+    // Relational-contract validation (dangling ids) — log-only, like the harness.
+    let danglingS = 0, danglingL = 0;
+    for (const d of docs) for (const day of d.days || []) {
+      for (const id of day.sessionIds || []) if (!byId.has(id)) danglingS++;
+      if (day.quickLedgerId && !ledgersById.has(day.quickLedgerId)) danglingL++;
+    }
+    ALL = [...byId.values()].map(adaptSession).sort((a, b) => b.start - a.start);
+    LEDGERS = [...ledgersById.values()].map(adaptLedger).sort((a, b) => b.start - a.start);
+    LIST = ALL.concat(LEDGERS).sort((a, b) => b.start - a.start);
+    for (const s of LIST) {
+      if (!idNum.has(s.publishedId)) idNum.set(s.publishedId, nextNum++);
+      s.__id = idNum.get(s.publishedId);
+      if (pendingExpanded.has(s.publishedId)) { EXPANDED.add(s.__id); pendingExpanded.delete(s.publishedId); }
+    }
+    console.log('[sessions] integrated: ' + ALL.length + ' sessions, ' + LEDGERS.length + ' quick ledgers, '
+      + groupByDay(LIST).size + ' days; nullDur=' + STATS.nullDur + ' missingArt=' + STATS.missingArt
+      + (danglingS || danglingL ? ' ⚠ dangling ids s=' + danglingS + ' l=' + danglingL : '')
+      + (STATS.unknownFields.size ? ' ⚠ unknown fields: ' + [...STATS.unknownFields].join(',') : ''));
+  }
+  function setStatus(txt) { const el = document.getElementById('sh-updated'); if (el) el.textContent = txt; }
+  function statusLine() {
+    const days = groupByDay(LIST).size;
+    let gen = '';
+    if (INDEX && INDEX.generated_at) {
+      const d = new Date(INDEX.generated_at);
+      if (!isNaN(d)) gen = ' · updated ' + d.toLocaleString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    return ALL.length + ' sessions · ' + LEDGERS.length + ' quick ledgers · ' + days + ' days loaded' + gen;
+  }
+  async function _boot() {
+    if (booted || booting) return;
+    booting = true;
+    setStatus('Loading sessions…');
+    const main = document.getElementById('sh-main');
+    if (main) main.innerHTML = '<div class="sh-status">Loading listening sessions…</div>';
+    try {
+      INDEX = await fetchJson('sessions/index.json');
+      MONTHS = (INDEX.months || []).slice().sort((a, b) => (a.month < b.month ? 1 : -1)); // newest first
+      const eager = MONTHS.slice(0, 2); // current + previous month
+      const docs = await Promise.all([fetchJson('sessions/head.json')].concat(eager.map(m => fetchJson(m.file))));
+      integrate(docs);
+      oldestLoadedIdx = eager.length - 1;
+      booted = true;
+      setZoom(ZOOM); // renders + syncs the Sessions/Days seg buttons (zoom restored from localStorage)
+      setStatus(statusLine());
+    } catch (err) {
+      console.error('[sessions] boot failed:', err);
+      if (main) main.innerHTML = '<div class="sh-error">Could not load session history: ' + esc(err && err.message ? err.message : String(err)) + '</div>'
+        + '<div class="sh-loadrow" onclick="SH.retryBoot()">↻ Retry</div>';
+      setStatus('Load failed');
+    } finally { booting = false; }
+  }
+  function retryBoot() { booted = false; _boot(); }
+  function monthLabel(mm) {
+    const p = String(mm).split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, 1)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' });
+  }
+  function loadMoreRowHtml() {
+    if (!booted || oldestLoadedIdx >= MONTHS.length - 1) return '';
+    const m = MONTHS[oldestLoadedIdx + 1];
+    return '<div class="sh-loadrow" id="sh-loadmore" onclick="SH.loadMore()">⌄ Load ' + esc(monthLabel(m.month)) + '</div>';
+  }
+  async function loadMore() {
+    if (!booted || monthLoading || oldestLoadedIdx >= MONTHS.length - 1) return;
+    monthLoading = true;
+    const m = MONTHS[oldestLoadedIdx + 1];
+    const row = document.getElementById('sh-loadmore');
+    if (row) { row.textContent = 'Loading ' + monthLabel(m.month) + '…'; row.classList.add('sh-busy'); }
+    try {
+      const doc = await fetchJson(m.file);
+      integrate([doc]);
+      oldestLoadedIdx++;
+      render();
+      setStatus(statusLine());
+    } catch (e) {
+      console.error('[sessions] month load failed:', m.month, e);
+      const r2 = document.getElementById('sh-loadmore');
+      if (r2) { r2.textContent = '⚠ Failed to load ' + monthLabel(m.month) + ' — tap to retry'; r2.classList.remove('sh-busy'); }
+    } finally { monthLoading = false; }
+  }
+  function watchLoadRow() {
+    const row = document.getElementById('sh-loadmore');
+    if (!_io && 'IntersectionObserver' in window)
+      _io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) loadMore(); }, { rootMargin: '300px' });
+    if (_io) { _io.disconnect(); if (row) _io.observe(row); }
+  }
+
+  // ---------------- utilities (from harness; esc shadows page esc for null-safety) ----------------
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function ftime(t) { return new Date(t).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).replace(' ', '\u202f'); }
+  function fday(t) { return new Date(t).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }); }
+  function dkey(t) { return new Date(t).toLocaleDateString('en-CA', { timeZone: TZ }); }
+  function fdur(ms) { const m = Math.round(ms / 60000); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return h + 'h' + (r ? ' ' + r + 'm' : ''); }
+  function uniqCount(tracks) { return new Set((tracks || []).map(t => String((t && t.title) || '').toLowerCase().trim())).size; }
+  function initials(str) {
+    const words = String(str || '?').replace(/[^\w\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  function hashHue(str) { let h = 0; const s = String(str || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360; }
+  function artOrPh(art, label, cls) {
+    if (art) return `<img class="sh-art ${cls}" src="${esc(art)}" loading="lazy" alt="">`;
+    const h = hashHue(label);
+    return `<div class="sh-art-ph ${cls}" style="background:linear-gradient(135deg, hsl(${h},55%,32%), hsl(${(h + 45) % 360},55%,20%))">${esc(initials(label))}</div>`;
+  }
+  function normStr(s) { return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function jsq(str) { return esc(String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+  function normAlbumKey(t) { return String(t.album || '').trim().toLowerCase(); }
+  function albumInfoFor(s, key) {
+    const matches = s.albums.filter(a => String(a.album || '').trim().toLowerCase() === key);
+    if (!matches.length) return null;
+    return matches.slice().sort((a, b) => ((b.art ? 1 : 0) - (a.art ? 1 : 0)) || (b.n - a.n))[0];
+  }
+  function groupByDay(sessions) {
+    const days = new Map();
+    for (const s of sessions) { const k = dkey(s.start); if (!days.has(k)) days.set(k, []); days.get(k).push(s); }
+    return days;
+  }
+
+  // ---------------- tier / title / headline logic (spec G2.x, unchanged) ----------------
+  function tierOf(s) {
+    if (s.isRadio) return 3;
+    let t = s.n <= 3 ? 1 : (s.n <= 12 ? 2 : 3);
+    if (t === 2 && (s.end - s.start) > 70 * 60 * 1000) t = 3;
+    return t;
+  }
+  function titleFor(s) {
+    const u = uniqCount(s.tracks);
+    const albums = [...s.albums].sort((a, b) => b.n - a.n);
+    const top = albums[0];
+    if (top && s.n > 1 && top.n / s.n >= 0.7) {
+      return { kind: 'album', title: top.album, sub: `${esc(top.artist)}${top.year ? ' · ' + top.year : ''}${top.total ? ` · ${top.uniq ?? top.n}/${top.total} trk` : ''}`, art: top.art, artLabel: top.album };
+    }
+    const ctxs = s.contexts.filter(c => c.n).sort((a, b) => b.n - a.n);
+    const topc = ctxs[0];
+    if (topc && s.n > 1 && topc.n / s.n >= 0.5) {
+      const pn = topc.n >= s.n ? u : Math.min(topc.n, u);
+      return { kind: 'playlist', title: '📃 ' + (topc.name || 'Mixed session'), sub: `playlist · ${pn} track${pn > 1 ? 's' : ''}`, art: topc.art, artLabel: topc.name || 'Mixed session' };
+    }
+    const arts = s.artists;
+    const dom = arts[0];
+    if (arts.length === 1) {
+      return { kind: 'artist', title: dom[0], sub: `${u} track${u > 1 ? 's' : ''}`, art: top ? top.art : null, artLabel: dom[0] };
+    }
+    const domShare = dom[1] / s.n;
+    if (domShare >= 0.45) {
+      return { kind: 'ledby', title: `${esc(dom[0])} <span class="sh-muted">+ various</span>`, plain: `${dom[0]} + various`, sub: `${arts.length} artists · ${u} tracks`, art: top ? top.art : null, artLabel: dom[0] };
+    }
+    return { kind: 'ledby', title: `led by <b>${esc(dom[0])}</b>`, plain: `led by ${dom[0]}`, sub: `${arts.length} artists · ${u} tracks`, art: top ? top.art : null, artLabel: dom[0] };
+  }
+  function oneLiner(s) {
+    const dom = s.artists.length ? s.artists[0][0] : 'Unknown artist';
+    const track = s.tracks.find(t => t.artist === dom) || s.tracks[0] || { title: 'Unknown track' };
+    let extra = '';
+    const rest = uniqCount(s.tracks) - 1;
+    if (rest > 0) {
+      const multi = s.artists.length > 1;
+      extra = ` <span class="sh-muted">＋${rest}${multi ? ' · various' : ''}</span>`;
+    }
+    return { artist: dom, title: track.title, extra };
+  }
+  function sessDurMs(s) {
+    const d = s.end - s.start;
+    return d > 0 ? d : Math.round(Math.max(1, uniqCount(s.tracks)) * 3.5 * 60000);
+  }
+  function daypartOf(ts) {
+    const h = +new Date(ts).toLocaleString('en-US', { timeZone: TZ, hour12: false, hour: 'numeric' });
+    return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
+  }
+
+  // ---------------- badges ----------------
+  function locusChip(locus, iconOnly) {
+    const L = LOCI[locus];
+    if (!L) return '';
+    return `<span class="sh-b-locus${iconOnly ? ' sh-dim' : ''}" title="${L[1]}">${L[0]}${iconOnly ? '' : '\u2009' + L[1]}</span>`;
+  }
+  function acctChips(s) { return (s.accounts || []).filter(a => a && a !== 'main').map(a => `<span class="sh-b-acct">${esc(a)}</span>`).join(''); }
+  function trackAcctChip(t) { return (t.account && t.account !== 'main') ? `<span class="sh-b-acct">${esc(t.account)}</span>` : ''; }
+  function explBadge(s) {
+    if (!s.explorations || !s.explorations.length) return '';
+    const tip = s.explorations.map(e => e.artist).join(', ');
+    return `<span class="sh-b-expl" title="Related exploration: ${esc(tip)}">✨</span>`;
+  }
+
+  // ---------------- real action wiring (replaces the mockup's play/queue/like stubs) ----------------
+  // Track ▶/＋ → page directPlay() — same payload conventions as History rows
+  // (uri/track_id/title/artist/album/service; track_id alone is enough: directPlay
+  // resolves bare 22-char ids to spotify:track: URIs, and falls back to Spotify
+  // search on artist+title for Apple Music / Qobuz / unresolved tracks).
+  function offBtns() { return `<button class="sh-pill sh-off" disabled title="No playable URI">▶</button><button class="sh-pill sh-off" disabled title="No playable URI">＋</button>`; }
+  function trackPlayBtns(t) {
+    const playable = !!(t.track_id || (t.artist && t.artist !== 'Unknown artist' && t.title && t.title !== 'Unknown track'));
+    if (!playable) return offBtns();
+    const pd = encodeURIComponent(JSON.stringify({ uri: '', sonos_uri: '', track_id: t.track_id || '', title: t.title || '', artist: t.artist === 'Unknown artist' ? '' : (t.artist || ''), album: t.album || '', service: t.source || '' })).replace(/'/g, '%27');
+    return `<button class="sh-pill" onclick="event.stopPropagation();directPlay('play','${pd}')" title="Play">▶</button><button class="sh-pill" onclick="event.stopPropagation();directPlay('queue','${pd}')" title="Queue">＋</button>`;
+  }
+  function trackBtns(t) {
+    const like = likeButton('track', t.track_id || '', t.title, t.artist, 'sessions', t.source || '');
+    const ex = t.artist && t.artist !== 'Unknown artist'
+      ? exploreButton(t.artist, encodeURIComponent(JSON.stringify({ title: t.title, artist: t.artist, album: t.album || '', source: t.source || 'sessions', uri: t.track_id ? 'spotify:track:' + t.track_id : '' })).replace(/'/g, '%27'))
+      : '';
+    return like + ex + trackPlayBtns(t);
+  }
+  // Album-run headers → page playContext() (Qobuz/Apple → play_album; Spotify → album search → play_next/add_to_queue)
+  function albumBtns(name, artist, service) {
+    if (!name || name === 'Unknown album') return offBtns();
+    const pd = encodeURIComponent(JSON.stringify({ album: name, artist: (artist && artist !== 'Unknown artist') ? artist : '', service: service || '' })).replace(/'/g, '%27');
+    return `<button class="sh-pill" onclick="event.stopPropagation();playContext('play','${pd}')" title="Play album">▶</button><button class="sh-pill" onclick="event.stopPropagation();playContext('queue','${pd}')" title="Queue album">＋</button>`;
+  }
+  // Playlist/context headers → page playContext() with the published context uri
+  function ctxBtns(c) {
+    if (!c || !c.uri) return offBtns();
+    const pd = encodeURIComponent(JSON.stringify({ context_uri: c.uri, playlist_name: c.name || '', service: 'spotify' })).replace(/'/g, '%27');
+    return `<button class="sh-pill" onclick="event.stopPropagation();playContext('play','${pd}')" title="Play playlist">▶</button><button class="sh-pill" onclick="event.stopPropagation();playContext('queue','${pd}')" title="Queue playlist">＋</button>`;
+  }
+  // Exploration link-rows → Discovery card jump (closes History × Discovery indicators)
+  function gotoExploration(ci) {
+    if (!document.getElementById('disc-' + ci)) { showToast('Exploration card not found in Discovery', true); return; }
+    navigateToExploration(ci);
+  }
+  function explRowsG(s) {
+    if (!s.explorations || !s.explorations.length) return '';
+    const seen = new Set(); let out = '';
+    for (const e of s.explorations) {
+      const k = normStr(e.artist);
+      if (!k || seen.has(k)) continue; seen.add(k);
+      const ci = Number(e.cardIndex);
+      out += Number.isFinite(ci) && ci >= 0
+        ? `<a class="sh-explnk" href="#" onclick="event.preventDefault();event.stopPropagation();SH.expl(${ci})">🔍 Part of your ${esc(e.artist)} exploration →</a>`
+        : `<span class="sh-explnk">🔍 Part of your ${esc(e.artist)} exploration</span>`;
+    }
+    return out;
+  }
+
+  // ---------------- expansion state ----------------
+  function findSessionById(sid) {
+    if (sid >= 100000) sid -= 100000; // panel-local run-id namespace (see panelBodyHtml)
+    for (const s of LIST) if (s.__id === sid) return s;
+    return null;
+  }
+  function panelMode() { return ZOOM === 'sessions' && GRID_MQ.matches; }
+  function toggleSession(sid, ev) {
+    if (ev) ev.stopPropagation();
+    if (panelMode()) { togglePanel(sid); saveExpanded(); return; }
+    if (EXPANDED.has(sid)) EXPANDED.delete(sid); else EXPANDED.add(sid);
+    saveExpanded();
+    const el = document.getElementById('sh-ent-' + sid);
+    if (el) el.classList.toggle('sh-open', EXPANDED.has(sid));
+  }
+  function toggleRunG(sid, idx, ev) {
+    if (ev) ev.stopPropagation();
+    const s = findSessionById(sid);
+    const k = (s ? s.publishedId : sid) + ':' + idx;
+    GCOL[k] = !GCOL[k];
+    saveGcol();
+    const w = document.getElementById('sh-grun-' + sid + '-' + idx);
+    if (w) w.classList.toggle('sh-gcol', !!GCOL[k]);
+    const c = document.getElementById('sh-gchev-' + sid + '-' + idx);
+    if (c) c.textContent = GCOL[k] ? '▸' : '▾';
+  }
+  function gcolFor(s, idx) { return !!GCOL[(s ? s.publishedId : '') + ':' + idx]; }
+
+  // ---------------- markup builders (variant G, pass 2.7b) ----------------
+  function trackRowHtmlG(t, albumLabel, indent) {
+    if (albumLabel && normStr(albumLabel) === normStr(t.title)) albumLabel = null;
+    return `<div class="sh-trk${indent ? ' sh-g-ind' : ''}">
+      <span class="sh-tm">${ftime(t.ts)}</span>
+      <span class="sh-tt">${esc(t.title)}${albumLabel ? `<span class="sh-alb-inline">${esc(albumLabel)}</span>` : ''}</span>
+      <span class="sh-ta">${esc(t.artist)}</span>
+      <span class="sh-btns">${trackBtns(t)}</span>
+    </div>`;
+  }
+  function groupHeaderHtml(icon, name, line2, art, btns) {
+    return `<div class="sh-albhdr">
+      ${artOrPh(art, name, 'sh-thumb40g')}
+      <div class="sh-ah-meta">
+        <div class="sh-ah-nm">${art ? '' : icon + ' '}${esc(name)}</div>
+        ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
+      </div>
+      <span class="sh-btns">${btns}</span>
+    </div>`;
+  }
+  function seamDividerHtml(ts) {
+    const t = ftime(ts).replace('AM', 'am').replace('PM', 'pm');
+    return `<div class="sh-seamdiv">· resumed ${t} ·</div>`;
+  }
+  function runHeaderHtml(sid, idx, name, artist, art, sub, collapsed, service) {
+    const line2 = [artist, sub].filter(Boolean).join(' · ');
+    return `<div class="sh-albhdr sh-coll" onclick="SH.toggleRun(${sid}, ${idx}, event)">
+      ${artOrPh(art, name, 'sh-thumb40g')}
+      <div class="sh-ah-meta">
+        <div class="sh-ah-nm">${art ? '' : '💿 '}${esc(name)}</div>
+        ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
+      </div>
+      <span class="sh-btns">
+        ${albumBtns(name, artist, service)}
+        <span class="sh-ah-chev" id="sh-gchev-${sid}-${idx}">${collapsed ? '▸' : '▾'}</span>
+      </span>
+    </div>`;
+  }
+  function topLineG(s) {
+    const u = uniqCount(s.tracks);
+    return `${ftime(s.start)} · ${fdur(sessDurMs(s))} · ${u} track${u === 1 ? '' : 's'}${locusChip(s.locus)}${acctChips(s)}`;
+  }
+  function flatBlockHtml(s, sid, forceOpen, omitExpl) {
+    // NO "show all" fold — opening a session always renders the full tracklist (spec G2.3 §E)
+    const open = forceOpen || EXPANDED.has(sid);
+    const seamSet = new Set(s.seams || []);
+    const seam = t => { if (seamSet.has(t.ts)) { seamSet.delete(t.ts); return seamDividerHtml(t.ts); } return ''; };
+    let inner = '';
+    if (s.isRadio) {
+      inner = s.tracks.map(t => trackRowHtmlG(t, null, false)).join('');
+    } else {
+      const namedCtxs = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0));
+      // pass 2.7 fix: whole-session 📃 header only when the top context covers ≥80% of plays
+      const topCtx = namedCtxs[0];
+      if (topCtx && (topCtx.n || 0) >= s.n * 0.8) {
+        inner = groupHeaderHtml('📃', topCtx.name, `playlist · ${uniqCount(s.tracks)} trk`, topCtx.art, ctxBtns(topCtx))
+          + s.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, true)).join('');
+      } else {
+        if (topCtx) inner += `<div class="sh-ctxnote">📃 ${esc(topCtx.name)} · ${topCtx.n} of ${s.n} plays</div>`;
+        const groups = [];
+        for (const t of s.tracks) {
+          const k = normAlbumKey(t);
+          const last = groups[groups.length - 1];
+          if (last && last.key === k) last.tracks.push(t);
+          else groups.push({ key: k, tracks: [t] });
+        }
+        // spec G2 B1: any contiguous run of ≥3 same-album tracks gets a 💿 header
+        let runIdx = 0;
+        for (const g of groups) {
+          if (g.tracks.length >= 3 && g.key) {
+            const info = albumInfoFor(s, g.key);
+            const name = (info && info.album) || g.tracks[0].album || 'Unknown album';
+            const artist = (info && info.artist) || g.tracks[0].artist || '';
+            const u = uniqCount(g.tracks);
+            const runDur = g.tracks.reduce((a, t) => a + (t.dur || 210), 0) * 1000;
+            const sub = (info && info.total) ? `${Math.min(u, info.total)}/${info.total} · ${fdur(runDur)}` : `${u} trk · ${fdur(runDur)}`;
+            const collapsed = gcolFor(s, runIdx);
+            inner += seam(g.tracks[0]);
+            inner += runHeaderHtml(sid, runIdx, name, artist, info ? info.art : null, sub, collapsed, g.tracks[0].source || '');
+            inner += `<div class="sh-runtracks${collapsed ? ' sh-gcol' : ''}" id="sh-grun-${sid}-${runIdx}">`
+              + g.tracks.map((t, i) => (i ? seam(t) : '') + trackRowHtmlG(t, null, true)).join('') + `</div>`;
+            runIdx++;
+          } else {
+            inner += g.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, false)).join('');
+          }
+        }
+      }
+    }
+    return `<div class="sh-entities ${open ? 'sh-open' : ''}" id="sh-ent-${sid}"><div class="sh-trackrows sh-open">${omitExpl ? '' : explRowsG(s)}${inner}</div></div>`;
+  }
+  function bigArtG(s, h) {
+    const seen = new Map();
+    for (const a of [...s.albums].sort((x, y) => y.n - x.n)) if (a.art && !seen.has(a.art)) seen.set(a.art, a);
+    const arts = [...seen.keys()];
+    if (!arts.length) return artOrPh(h.art, h.artLabel, 'sh-gsolo');
+    if (arts.length === 1) return `<img class="sh-art sh-gsolo" src="${esc(arts[0])}" loading="lazy" alt="">`;
+    let covers = '';
+    for (let i = 0; i < Math.min(3, arts.length); i++) covers += `<img class="sh-art" src="${esc(arts[i])}" loading="lazy" alt="">`;
+    const extra = arts.length - 3;
+    return `<div class="sh-gfan">${covers}${extra > 0 ? `<span class="sh-gplus">+${extra}</span>` : ''}</div>`;
+  }
+  function subG(s, h) {
+    if (h.kind === 'album') {
+      const top = [...s.albums].sort((a, b) => b.n - a.n)[0];
+      return top ? esc(top.artist) + (top.year ? ' · ' + top.year : '') : '';
+    }
+    if (h.kind === 'playlist') return 'playlist';
+    return s.artists.length > 1 ? `${s.artists.length} artists` : '';
+  }
+  function renderCardG(s, sid) {
+    const h = titleFor(s);
+    const titleHtml = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
+    const sub = subG(s, h);
+    return `<div class="sh-t3" onclick="SH.toggle(${sid})">
+        <div class="sh-top"><span>${topLineG(s)}</span></div>
+        <div class="sh-body">${bigArtG(s, h)}<div class="sh-textblock">
+          <div class="sh-title">${titleHtml}</div>
+          ${sub ? `<div class="sh-sub">${sub}</div>` : ''}
+        </div></div>
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function renderStationG(s, sid) {
+    return `<div class="sh-station" onclick="SH.toggle(${sid})">
+        <div class="sh-top"><span>${topLineG(s)}</span></div>
+        <div class="sh-name">📻 ${esc(s.stationName)}${s.stationFreq ? ' · ' + esc(s.stationFreq) : ''}</div>
+        <div class="sh-sub">live radio</div>
+        <div class="sh-chev">▾ tracks</div>
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function renderT1G(s, sid) {
+    // dense fixed-height one-liner for tier-1 sessions (spec G2.3 §D)
+    const o = oneLiner(s);
+    const uu = uniqCount(s.tracks);
+    const plusN = uu > 1 ? ` <span class="sh-muted">(+${uu - 1})</span>` : '';
+    const tr = s.tracks.find(t => t.artist === o.artist && t.title === o.title) || s.tracks[0] || {};
+    let tArt = tr.art || null;
+    if (!tArt && tr.album) { const a = (s.albums || []).find(x => normStr(x.album) === normStr(tr.album)); tArt = a ? a.art : null; }
+    const thumbG = tArt ? `<img class="sh-art sh-thumb18g" src="${esc(tArt)}" loading="lazy" alt="">` : `<span class="sh-thumb18ph"></span>`;
+    return `<div class="sh-t1" onclick="SH.toggle(${sid})">
+        <span class="sh-time">${ftime(s.start)}</span>
+        ${thumbG}
+        <span class="sh-txt"><b>${esc(o.artist)}</b> — ${esc(o.title)}${plusN}</span>
+        ${locusChip(s.locus, true)}${acctChips(s)}${explBadge(s)}
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function qledRowHtml(t) {
+    let albumLabel = t.album;
+    if (albumLabel && normStr(albumLabel) === normStr(t.title)) albumLabel = null;
+    const thumbG = t.art ? `<img class="sh-art sh-thumb18g" src="${esc(t.art)}" loading="lazy" alt="">` : `<span class="sh-thumb18ph"></span>`;
+    return `<div class="sh-t1 sh-qledrow">
+      <span class="sh-time">${ftime(t.ts)}</span>
+      ${thumbG}
+      <span class="sh-txt">${esc(t.title)}${albumLabel ? `<span class="sh-alb-inline">${esc(albumLabel)}</span>` : ''}${trackAcctChip(t)}</span>
+      <span class="sh-ta">${esc(t.artist)}</span>
+      <span class="sh-btns">${trackBtns(t)}</span>
+    </div>`;
+  }
+  function qledBodyHtml(s) { return `<div class="sh-trackrows sh-open">${s.tracks.map(qledRowHtml).join('')}</div>`; }
+  function renderQuickLedgerG(s, sid) {
+    const open = EXPANDED.has(sid);
+    return `<div class="sh-t1 sh-qled" onclick="SH.toggle(${sid})">
+        <span class="sh-qmark">▫</span>
+        <span class="sh-txt"><b>${s.qplays} quick play${s.qplays === 1 ? '' : 's'}</b> · ${fdur(s.qdur)}</span>
+        <span class="sh-qloci">${(s.loci || []).map(l => locusChip(l, true)).join('')}</span>
+      </div>
+      <div class="sh-entities ${open ? 'sh-open' : ''}" id="sh-ent-${sid}">${qledBodyHtml(s)}</div>`;
+  }
+
+  // ---------------- full-width panels (≥900px, multi-expand; spec G2.6 §1/§2) ----------------
+  function panelRailHtml(s) {
+    if (s.isQuickLedger) {
+      return `<div class="sh-gxp-rail"><div class="sh-gxp-railhdr"><div class="sh-gxp-text"><div class="sh-gxp-top">${fdur(s.qdur)}</div><div class="sh-title"><b>▫ ${s.qplays} quick plays</b></div></div></div></div>`;
+    }
+    const meta = topLineG(s) + (s.artists.length > 1 ? ` · ${s.artists.length} artists` : '');
+    let art = '', title, sub = '', pl = '';
+    if (s.isRadio) {
+      title = `<b>📻 ${esc(s.stationName)}${s.stationFreq ? ' · ' + esc(s.stationFreq) : ''}</b>`;
+      sub = 'live radio';
+    } else {
+      const h = titleFor(s);
+      title = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
+      if (h.kind === 'album') sub = subG(s, h);
+      art = `<div class="sh-gxp-art">${bigArtG(s, h)}</div>`;
+      const namedCtx = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+      if (namedCtx && h.kind !== 'playlist') pl = `<div class="sh-gxp-pl">📃 ${esc(namedCtx.name)}</div>`;
+    }
+    return `<div class="sh-gxp-rail"><div class="sh-gxp-railhdr">${art}<div class="sh-gxp-text"><div class="sh-gxp-top">${meta}</div><div class="sh-title">${title}</div>${sub ? `<div class="sh-sub">${sub}</div>` : ''}${pl}</div></div>${explRowsG(s)}</div>`;
+  }
+  function panelBodyHtml(s) {
+    const psid = 100000 + s.__id; // panel-local id namespace: DOM run ids never collide with inline blocks
+    const tracks = s.isQuickLedger ? qledBodyHtml(s) : flatBlockHtml(s, psid, true, true);
+    return `<div class="sh-gxp-body">${panelRailHtml(s)}<div class="sh-gxp-tracks">${tracks}</div></div>`;
+  }
+  function rowAnchorFor(cell) {
+    const cells = [...cell.parentElement.children].filter(el => el.classList.contains('sh-cell'));
+    let anchor = cell;
+    for (const el of cells) if (el.offsetTop === cell.offsetTop) anchor = el;
+    return anchor;
+  }
+  function positionCaret(panel, cell) {
+    const caret = panel.querySelector('.sh-gxp-caret');
+    if (!caret) return;
+    const center = cell.offsetLeft + cell.offsetWidth / 2 - panel.offsetLeft;
+    caret.style.left = Math.max(14, Math.round(center - 8)) + 'px';
+  }
+  function layoutPanels() {
+    document.querySelectorAll('.sh-gxp').forEach(p => p.remove());
+    document.querySelectorAll('.sh-cell.sh-sel').forEach(e => e.classList.remove('sh-sel'));
+    if (!panelMode()) return;
+    const items = [...EXPANDED].map(sid => ({ sid, cell: document.getElementById('sh-cell-' + sid) })).filter(x => x.cell);
+    for (const x of items) { x.left = x.cell.offsetLeft; x.anchor = rowAnchorFor(x.cell); }
+    const rows = new Map();
+    for (const x of items) { if (!rows.has(x.anchor)) rows.set(x.anchor, []); rows.get(x.anchor).push(x); }
+    const made = [];
+    for (const [anchor, xs] of rows) {
+      xs.sort((a, b) => a.left - b.left);
+      let after = anchor;
+      for (const x of xs) {
+        const s = findSessionById(x.sid);
+        if (!s) continue;
+        x.cell.classList.add('sh-sel');
+        const panel = document.createElement('div');
+        panel.className = 'sh-gxp';
+        panel.id = 'sh-gxpanel-' + x.sid;
+        panel.innerHTML = `<span class="sh-gxp-caret"></span><button class="sh-gxp-x" title="Close" onclick="SH.closePanel(${x.sid})">✕</button>` + panelBodyHtml(s);
+        after.after(panel);
+        after = panel;
+        made.push(x);
+      }
+    }
+    for (const x of made) { const p = document.getElementById('sh-gxpanel-' + x.sid); if (p) positionCaret(p, x.cell); }
+  }
+  function togglePanel(sid) {
+    const opening = !EXPANDED.has(sid);
+    if (opening) EXPANDED.add(sid); else EXPANDED.delete(sid);
+    layoutPanels();
+    if (opening) {
+      const panel = document.getElementById('sh-gxpanel-' + sid);
+      if (!panel) return;
+      const top = panel.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight) panel.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function closePanel(sid) { EXPANDED.delete(sid); saveExpanded(); layoutPanels(); }
+
+  // ---------------- Days zoom (pass 2.7 multi-anchor ledger) ----------------
+  function setZoom(z) {
+    ZOOM = z;
+    try { localStorage.setItem(LS_ZOOM, z); } catch (e) {}
+    const zs = document.getElementById('sh-zoomS'), zd = document.getElementById('sh-zoomD');
+    if (zs) zs.classList.toggle('sh-on', z === 'sessions');
+    if (zd) zd.classList.toggle('sh-on', z === 'days');
+    if (booted) render();
+  }
+  function zoomToDay(k) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = null; setZoom('sessions'); }
+  // spec G2.7: clicking an anchor row lands on THAT session's card (falls back to the day header)
+  function zoomToSession(k, sid) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = sid; setZoom('sessions'); }
+  function renderDays() {
+    const days = groupByDay(LIST);
+    const fdayShort = ts => new Date(ts).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' }).replace(/,/g, '');
+    const dayDur = ss => ss.reduce((a, s) => a + (s.isQuickLedger ? s.qdur : sessDurMs(s)), 0);
+    const weeks = new Map();
+    for (const [k, ss] of days) {
+      const p = k.split('-').map(Number);
+      const dt = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+      dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7)); // back to Monday
+      const wk = dt.toISOString().slice(0, 10);
+      if (!weeks.has(wk)) weeks.set(wk, { label: dt.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }), days: [] });
+      weeks.get(wk).days.push([k, ss]);
+    }
+    let out = '<div class="sh-daysledger">';
+    for (const [, w] of weeks) {
+      const wDur = w.days.reduce((a, kv) => a + dayDur(kv[1]), 0);
+      out += `<div class="sh-weekhdr"><b>Week of ${w.label}</b> · ${fdur(wDur)} · ${w.days.length} day${w.days.length === 1 ? '' : 's'} listened</div>`;
+      for (const [k, ss] of w.days) {
+        const real = ss.filter(s => !s.isQuickLedger);
+        const led = ss.find(s => s.isQuickLedger);
+        const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
+        const stats = `<span class="sh-st-dur">${fdur(dayDur(ss))}</span><span class="sh-st-trk"> · ${totTracks} tracks</span><span class="sh-st-sess"> · ${real.length} session${real.length === 1 ? '' : 's'}</span>${led ? ` · ▫${led.qplays}` : ''}`;
+        const headBase = s => {
+          if (s.isRadio) return `📻 ${esc(s.stationName)}`;
+          const h = titleFor(s);
+          if (h.kind === 'album') {
+            const top = [...s.albums].sort((a, b) => b.n - a.n)[0];
+            return `💿 ${esc(h.title)}${top ? ' — ' + esc(top.artist) : ''}`;
+          }
+          if (h.kind === 'playlist') return `📃 ${esc(String(h.plain || h.title).replace(/^📃\s*/, ''))}`;
+          return h.kind === 'ledby' ? esc(h.plain) : esc(h.title);
+        };
+        const thumbsFor = list => {
+          const seen = new Set(); let t = '';
+          for (const a of list.flatMap(s => s.albums || []).filter(a => a.art).sort((a, b) => b.n - a.n)) {
+            if (seen.has(a.art)) continue; seen.add(a.art);
+            t += `<img class="sh-art" src="${esc(a.art)}" loading="lazy" alt="">`;
+            if (seen.size >= 4) break;
+          }
+          return t;
+        };
+        // spec G2.7: anchor = ≥8 unique tracks OR ≥45 min
+        const anchors = real.filter(s => uniqCount(s.tracks) >= 8 || sessDurMs(s) >= 45 * 60000);
+        if (anchors.length >= 2) {
+          const shown = anchors.slice().sort((a, b) => sessDurMs(b) - sessDurMs(a)).slice(0, 3).sort((a, b) => a.start - b.start);
+          shown.forEach((a, i) => {
+            const last = i === shown.length - 1;
+            const head = `${headBase(a)} <span class="sh-muted">· ${daypartOf(a.start)}<span class="sh-mut-len"> · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span></span>`;
+            out += `<div class="sh-dayrow${i ? ' sh-dr-cont' : ''}" onclick="SH.zoomToSession('${k}', ${a.__id})">
+              <span class="sh-dr-date${i ? '' : ' sh-dr-datelink'}"${i ? '' : ` onclick="event.stopPropagation();SH.zoomToDay('${k}')"`}>${i ? '<span class="sh-dr-ditto">〃</span>' : fdayShort(ss[0].start)}</span>
+              <span class="sh-dr-arts">${thumbsFor([a])}</span>
+              <span class="sh-dr-head">${head}</span>
+              <span class="sh-dr-stats">${last ? stats : ''}</span>
+              <span class="sh-dr-chev">›</span>
+            </div>`;
+          });
+          continue;
+        }
+        const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
+        let head = '▫ quick plays only';
+        if (anchor) head = anchor.isRadio ? `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}` : headBase(anchor);
+        out += `<div class="sh-dayrow" onclick="SH.zoomToDay('${k}')">
+          <span class="sh-dr-date">${fdayShort(ss[0].start)}</span>
+          <span class="sh-dr-arts">${thumbsFor(ss)}</span>
+          <span class="sh-dr-head">${head}</span>
+          <span class="sh-dr-stats">${stats}</span>
+          <span class="sh-dr-chev">›</span>
+        </div>`;
+      }
+    }
+    out += '</div>' + loadMoreRowHtml();
+    document.getElementById('sh-main').innerHTML = out;
+    watchLoadRow();
+  }
+
+  // ---------------- render ----------------
+  function renderSession(s, sid) {
+    if (s.isQuickLedger) return renderQuickLedgerG(s, sid);
+    if (s.isRadio) return renderStationG(s, sid);
+    if (tierOf(s) === 1) return renderT1G(s, sid);
+    return renderCardG(s, sid);
+  }
+  function render() {
+    const main = document.getElementById('sh-main');
+    if (!main || !booted) return;
+    main.className = ZOOM === 'days' ? 'sh-vG sh-zdays' : 'sh-vG';
+    if (ZOOM === 'days') { renderDays(); return; }
+    const days = groupByDay(LIST);
+    let out = '';
+    for (const [k, ss] of days) {
+      // quick-plays ledger docks at the END of its day group (spec G2.4 §2)
+      const cards = ss.filter(s => !s.isQuickLedger).concat(ss.filter(s => s.isQuickLedger));
+      out += `<section class="sh-daygrp" id="sh-day-${k}"><div class="sh-dayhdr">${fday(cards[0].start)}</div><div class="sh-daygrid">`;
+      for (const s of cards) out += `<div class="sh-cell${s.isQuickLedger ? ' sh-qcell' : ''}" id="sh-cell-${s.__id}">${renderSession(s, s.__id)}</div>`;
+      out += `</div></section>`;
+    }
+    out += loadMoreRowHtml();
+    main.innerHTML = out;
+    layoutPanels(); // re-open every expanded card's panel from the EXPANDED Set
+    watchLoadRow();
+    if (PENDING_SCROLL || PENDING_SCROLL_SESS != null) {
+      let el = null;
+      const sess = PENDING_SCROLL_SESS;
+      if (sess != null) el = document.getElementById('sh-cell-' + sess);
+      if (!el && PENDING_SCROLL) el = document.getElementById('sh-day-' + PENDING_SCROLL);
+      PENDING_SCROLL = null; PENDING_SCROLL_SESS = null;
+      if (el) {
+        el.scrollIntoView({ block: 'start' });
+        if (sess != null) { el.style.outline = '2px solid var(--accent)'; setTimeout(() => { el.style.outline = ''; }, 2000); }
+      }
+    }
+  }
+
+  // panels re-anchor on resize; crossing 900px swaps panel/inline expansion modes
+  window.addEventListener('resize', () => { if (!booted) return; clearTimeout(layoutPanels._h); layoutPanels._h = setTimeout(layoutPanels, 120); });
+  GRID_MQ.addEventListener('change', () => { if (booted) render(); });
+
+  // ---------------- public API (inline onclick handlers + tab switching) ----------------
+  function onShow() {
+    if (!booted) { _boot(); return; }
+    // re-measure panels: offsets are 0 while the tab is hidden
+    layoutPanels();
+    const zs = document.getElementById('sh-zoomS'), zd = document.getElementById('sh-zoomD');
+    if (zs) zs.classList.toggle('sh-on', ZOOM === 'sessions');
+    if (zd) zd.classList.toggle('sh-on', ZOOM === 'days');
+  }
+  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot };
+})();
+
 // ══════════════════════════════════════════════════════════════════════════════
 (async () => {
   // Handle Spotify OAuth callback FIRST (before anything else)
