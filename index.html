@@ -859,13 +859,14 @@
 <!-- ==================== BOTTOM SECTION ==================== -->
 <div class="bottom-section">
   <div class="content-tabs">
-    <div class="content-tab active" data-tab="history" onclick="setContentTab('history')">History</div>
-    <div class="content-tab" data-tab="sessions" onclick="setContentTab('sessions')">Sessions</div>
+    <!-- p2.77: History tab hidden (Sessions replaces it) — section still published & reachable via #history hash as backup -->
+    <div class="content-tab" data-tab="history" style="display:none" onclick="setContentTab('history')">History</div>
+    <div class="content-tab active" data-tab="sessions" onclick="setContentTab('sessions')">Sessions</div>
     <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
   </div>
 
-  <div id="tab-history">
+  <div id="tab-history" hidden>
     <div class="sub-tabs">
       <div class="sub-tab active" data-subtab="music" onclick="setSubTab('music')">Music <span class="count" id="cnt-music"></span></div>
       <span class="sub-tab-sep">·</span>
@@ -895,7 +896,7 @@
   </div>
 
   <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
-  <div id="tab-sessions" hidden>
+  <div id="tab-sessions">
     <div class="sh-toolbar">
       <span class="sh-updated" id="sh-updated"></span>
       <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
@@ -940,7 +941,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.76';
+const PAGE_VERSION = 'p2.77';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1252,7 +1253,7 @@ async function handleSpotifyCallback() {
       localStorage.setItem('spotify_refresh_token', d.refresh_token);
       localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
       localStorage.removeItem('spotify_pkce_verifier');
-      history.replaceState({}, '', window.location.pathname);
+      history.replaceState(history.state || {}, '', window.location.pathname + window.location.hash);  // p2.77: keep tab hash
       setHouse('roaming');
       showToast('Spotify connected!');
       return true;
@@ -3760,15 +3761,33 @@ function _drFinish() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════════════════════════════════════════════
-function setContentTab(tab) {
+const CONTENT_TABS = ['history', 'sessions', 'discovery', 'playlists'];  // p2.77: 'history' hidden from bar but still valid via #history hash
+
+function setContentTab(tab, fromPop) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('tab-history').hidden = tab !== 'history';
   document.getElementById('tab-sessions').hidden = tab !== 'sessions';
   document.getElementById('tab-discovery').hidden = tab !== 'discovery';
   document.getElementById('tab-playlists').hidden = tab !== 'playlists';
+  // p2.77: content tabs participate in browser history so Back works (installed-app back arrow included)
+  if (!fromPop && (location.hash || '').replace('#', '') !== tab) {
+    history.pushState({ ctab: tab }, '', '#' + tab);
+  }
   if (tab === 'playlists' && !_playlists.length) loadPlaylistData();
   if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
 }
+
+// p2.77: honor #hash on load (default: sessions), and restore tabs on Back/Forward
+function applyInitialTab() {
+  let t = (location.hash || '').replace('#', '');
+  if (!CONTENT_TABS.includes(t)) t = 'sessions';
+  history.replaceState({ ctab: t }, '', '#' + t);
+  setContentTab(t, true);
+}
+window.addEventListener('popstate', (e) => {
+  const t = (e.state && e.state.ctab) || (location.hash || '').replace('#', '');
+  if (CONTENT_TABS.includes(t)) setContentTab(t, true);
+});
 
 // p2.76: navigate from a session's playlist name to its card on the Playlists tab
 function jumpToPlaylist(id) {
@@ -4553,7 +4572,7 @@ function handleDeepLink() {
   if (!action || !uri) return;
   const dlHouse = p.get('house');
   if (dlHouse && dlHouse !== house) setHouse(dlHouse);
-  history.replaceState({}, '', location.pathname);
+  history.replaceState(history.state || {}, '', location.pathname + location.hash);  // p2.77: keep tab hash
 
   // Auto-execute
   setTimeout(async () => {
@@ -5399,6 +5418,7 @@ const SH = (() => {
 
 // ══════════════════════════════════════════════════════════════════════════════
 (async () => {
+  applyInitialTab();  // p2.77: apply #hash tab (default sessions) before anything renders
   // Handle Spotify OAuth callback FIRST (before anything else)
   const didAuth = await handleSpotifyCallback();
   setHouse(house);
