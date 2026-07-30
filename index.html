@@ -608,6 +608,15 @@
     --sh-chip: #1c2338; --sh-gold: #f0b940; --sh-ink: #06201d; }
   .sh-toolbar { display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-bottom: 1px solid var(--border); }
   .sh-updated { font-size: 11px; color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* p2.81 D8: staleness chip — quiet when synced, amber when behind/silent */
+  .sh-syncchip { font-size: 11px; color: var(--text-dim); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0; }
+  .sh-syncchip.sh-amber { color: #e8b34a; border-color: rgba(232,179,74,0.45); }
+  /* p2.81 D4: the only visual tell on a live session — a soft pulsing dot on its card */
+  .sh-livecell { position: relative; }
+  .sh-livecell::after { content: ''; position: absolute; top: 9px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: #4ac97e; animation: shLivePulse 2.2s ease-in-out infinite; pointer-events: none; }
+  @keyframes shLivePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  /* p2.81 D9: honest orphan mark — the listen happened; the durable record may be lost */
+  .sh-orph { color: #e8b34a; font-size: 10px; margin-left: 3px; }
   .sh-zoomseg { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; flex-shrink: 0; }
   .sh-zoomseg button { background: var(--sh-chip); color: var(--text); border: none; padding: 5px 13px; font-size: 12.5px; cursor: pointer; }
   .sh-zoomseg button.sh-on { background: var(--accent); color: var(--sh-ink); font-weight: 700; }
@@ -921,6 +930,8 @@
   <div id="tab-sessions">
     <div class="sh-toolbar">
       <span class="sh-updated" id="sh-updated"></span>
+      <!-- p2.81 D8: the ONE staleness chip — "synced HH:MM · N pending"; amber = behind/silent -->
+      <span class="sh-syncchip" id="sh-syncchip" style="display:none"></span>
       <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
       <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
       <div class="sh-zoomseg" id="sh-zoomseg">
@@ -963,7 +974,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.80';
+const PAGE_VERSION = 'p2.81';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1036,77 +1047,31 @@ let _roomsPlayingByHouse = {};  // house -> rooms currently playing (SSE status_
 let _lastCmdErrKey = '';        // p2.54: dedup for command_error red toasts (SSE replays)
 let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
-// p2.66: paused rooms decay after 1h — a speaker sitting in ⏸ for hours isn't a live
-// session, it's an abandoned one. Stale-paused rooms are treated as stopped everywhere
-// (no ⏸ badge, no resume targeting).
-// p2.67 cold-load fix: a brand-new browser session used to stamp every already-paused
-// room as "paused just now", granting long-abandoned rooms a fresh hour of relevance.
-// Now only a LIVE transition (page open, room flips to paused) stamps now(); on the
-// first status per house per session, an unknown pause clock must be corroborated by
-// play history — played within the last hour → clock starts at that play; no recent
-// play → already stale. -1 sentinel = history not loaded yet → hidden, re-inferred
-// once history arrives.
+// p2.81 Rider A (Rule 27 №3 — receivers are renderers, not state machines):
+// the page no longer GUESSES pause clocks. v2.54+ services send real per-room
+// paused_at epochs on every SSE push and in state-{house}.json; the page renders
+// them. Stale-paused (>1h) is still treated as stopped everywhere (no ⏸ badge,
+// no resume targeting) — same display rule, real data underneath.
+// Deleted here: _pausedSince / _inferPausedSince / _reinferPaused /
+// _pauseBaselineSeen + localStorage 'pausedSince' — ~60 lines of edge-triggered
+// history-corroboration inference (p2.66/p2.67) made obsolete by v2.54.
 const PAUSE_TTL_MS = 3600000;
-let _pausedSince = {};
-let _pauseBaselineSeen = {};
-try { _pausedSince = JSON.parse(localStorage.getItem('pausedSince') || '{}'); } catch (e) { _pausedSince = {}; }
-function _roomInItem(item, r) {
-  if (Array.isArray(item.rooms)) return item.rooms.includes(r);
-  const s = item.room || item.domain || '';
-  return typeof s === 'string' && s.split(',').map(x => x.trim()).includes(r);
-}
-function _inferPausedSince(h, r, now) {
-  if (!allItems.length) return -1;  // history not loaded — unknown
-  for (const it of allItems) {
-    if (it.house !== h || it.type !== 'music') continue;
-    const ts = new Date(it.timestamp).getTime();
-    if (!(ts > 0)) continue;
-    if (now - ts >= PAUSE_TTL_MS) break;  // sorted desc — nothing fresher below
-    if (_roomInItem(it, r)) return ts;    // clock starts at last actual play
-  }
-  return now - PAUSE_TTL_MS;  // no recent play → already stale
-}
-function _setPaused(h, rooms) {
+let _pausedAtByHouse = {};      // house -> {room: epoch_seconds} — service truth (v2.54)
+function _setPaused(h, rooms, pausedAt) {
   _roomsPausedByHouse[h] = [...rooms];
-  const now = Date.now();
-  const cold = !_pauseBaselineSeen[h];
-  _pauseBaselineSeen[h] = true;
-  rooms.forEach(r => {
-    const k = h + '|' + r;
-    if (!_pausedSince[k] || _pausedSince[k] === -1) {
-      _pausedSince[k] = cold ? _inferPausedSince(h, r, now) : now;
-    }
-  });
-  Object.keys(_pausedSince).forEach(k => {
-    if (k.startsWith(h + '|') && !rooms.includes(k.slice(h.length + 1))) delete _pausedSince[k];
-  });
-  try { localStorage.setItem('pausedSince', JSON.stringify(_pausedSince)); } catch (e) {}
-}
-function _reinferPaused() {
-  if (!allItems.length) return;
-  const now = Date.now();
-  let changed = false;
-  Object.keys(_pausedSince).forEach(k => {
-    if (_pausedSince[k] === -1) {
-      const i = k.indexOf('|');
-      _pausedSince[k] = _inferPausedSince(k.slice(0, i), k.slice(i + 1), now);
-      changed = true;
-    }
-  });
-  if (changed) {
-    try { localStorage.setItem('pausedSince', JSON.stringify(_pausedSince)); } catch (e) {}
-    try { renderRooms(house); } catch (e) {}
-  }
+  if (pausedAt && typeof pausedAt === 'object') _pausedAtByHouse[h] = { ...pausedAt };
 }
 function _rpPausedGet(h) {
   h = h || house;
   const now = Date.now();
+  const at = _pausedAtByHouse[h] || {};
   return (_roomsPausedByHouse[h] || []).filter(r => {
-    const ts = _pausedSince[h + '|' + r];
-    if (ts === -1) return false;  // unknown age — hide until history corroborates
-    return (now - (ts || now)) < PAUSE_TTL_MS;
+    const ts = Number(at[r]) * 1000;
+    if (!ts) return true;  // no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
+    return (now - ts) < PAUSE_TTL_MS;
   });
 }
+try { localStorage.removeItem('pausedSince'); } catch (e) {}  // p2.81: retire old inference state
 // p2.59: live group topology per house — [{coordinator, members, state}], pushed by
 // v2.53+ services on every SSE message + dedicated 'topology' events on regroup.
 let _groupsByHouse = {};
@@ -2462,7 +2427,7 @@ function applyStateNowPlaying(stateFiles) {
       const machineAlive = (Date.now() - Math.max(stateTs, lastSeenTs)) < 43200000;
       if (machineAlive) {
         _roomsPlayingByHouse[h] = [...state.rooms_playing];
-        _setPaused(h, state.rooms_paused || []);  // p2.66: stamp pause clock
+        _setPaused(h, state.rooms_paused || [], state.paused_at);  // p2.81: real service pause clocks
         _demotedTucked[h] = [];  // p2.69: fresh truth supersedes tuck
       } else {
         _roomsPlayingByHouse[h] = []; _setPaused(h, []);
@@ -2508,7 +2473,7 @@ async function loadData(loadArchive) {
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
     allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
-    _reinferPaused();  // p2.67: resolve unknown pause clocks now that history is loaded
+    // p2.81 Rider A: _reinferPaused() deleted — pause clocks come from the service now
     // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
     updateHouseTabDots();
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
@@ -3989,6 +3954,14 @@ function connectSSE() {
       // --- Always process state fields (every bundled message is a full snapshot) ---
       if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
       if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
+      // p2.81 (v2.56 D1/D8): pending-session snapshot + freshness fields → live history.
+      // Level-triggered: each push carries the machine's whole pending buffer; SH
+      // sticky-merges (only a published head refresh removes rows). Replay-safe:
+      // onPending ignores snapshots older than the freshest one already held.
+      // Services <v2.56 send none of these fields — the whole feature stays dormant.
+      if (sseHouse && msg.pending_count !== undefined && window.SH && SH.onPending) {
+        SH.onPending(sseHouse, msg, evtTs);
+      }
       // p2.59: capture live group topology (v2.53+ services include groups on every
       // message). A dedicated 'topology' event = regroup happened (from ANY controller,
       // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
@@ -4006,7 +3979,7 @@ function connectSSE() {
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
         // U-M2: always store rooms state under the event's own house (not just current tab)
         _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
-        _setPaused(sseHouse, msg.rooms_paused || []);  // p2.66: stamp pause clock
+        _setPaused(sseHouse, msg.rooms_paused || [], msg.paused_at);  // p2.81: real service pause clocks
         _demotedTucked[sseHouse] = [];  // p2.69: fresh truth supersedes tuck
         // p2.62: NO auto tab flip, NO selection mutation — reality stored above;
         // the inactive-tab ▶ dot carries the "other house is playing" signal now.
@@ -4767,6 +4740,162 @@ const SH = (() => {
   const GRID_MQ = window.matchMedia('(min-width: 900px)');
   let _io = null;                // IntersectionObserver for the load-older row
 
+  // ---------------- p2.81 SSE Live History (v2.56 — design Rev 2, Rule 27) ----------------
+  // D1: snapshots, not deltas — each push carries the machine's whole pending buffer.
+  // D6: sticky — snapshots only add/update; ONLY a head.json refresh prunes (published wins).
+  // D4: provisional rows render through the SAME templates as published rows.
+  // D8: one staleness chip is the universal fallback for every failure mode.
+  // D9: boot changes / 90-min-unpublished rows get an honest ⚠︎ "not synced" mark.
+  const PROV = new Map();               // provKey -> compact row {+house, bootId, unconfirmed}
+  const SYNC = {};                      // house -> {ts, pending, bufferHead, bootId}
+  let RLIST = null;                     // last list handed to render (incl. provisional)
+  let _lastHeadFetch = 0;
+  const MERGE_GAP_MS  = 30 * 60 * 1000; // D5: attach to newest published session if gap < 30 min
+  const PRUNE_SLOP_MS = 120 * 1000;     // D6: published id-match window (belt-and-suspenders)
+  const ORPHAN_MS     = 90 * 60 * 1000; // D9: unpublished after 90 min -> ⚠︎
+  function provKey(r) { return (r.id || r.u || (r.t + '|' + r.a)) + '|' + r.s; }
+  function hasSync(h) { return !!SYNC[h]; }
+  function onPending(h, msg, evtTs) {
+    const prev = SYNC[h];
+    if (prev && prev.ts > evtTs) return;         // older ntfy replay — newer truth already held
+    SYNC[h] = { ts: evtTs, pending: Number(msg.pending_count) || 0,
+                bufferHead: Number(msg.buffer_head_ts) || null, bootId: msg.boot_id || null };
+    let dirty = false;
+    if (prev && prev.bootId && msg.boot_id && prev.bootId !== msg.boot_id) {
+      for (const r of PROV.values()) if (r.house === h && r.bootId !== msg.boot_id) { r.unconfirmed = true; dirty = true; }
+      console.warn('[sessions] boot_id changed for ' + h + ' — prior provisional rows marked unconfirmed (D9)');
+    }
+    for (const raw of (msg.pending_session || [])) {
+      if (!raw || !raw.t || !raw.s) continue;
+      const k = provKey(raw);
+      const old = PROV.get(k);
+      const nu = { ...raw, house: h, bootId: msg.boot_id || null, unconfirmed: old ? old.unconfirmed : false };
+      if (!old || JSON.stringify(old) !== JSON.stringify(nu)) { PROV.set(k, nu); dirty = true; }
+    }
+    renderSyncChip();
+    if (dirty && booted) { render(); setStatus(statusLine()); }
+  }
+  // D6 prune — called from integrate(): published truth is the only remover.
+  function pruneProv() {
+    if (!PROV.size) return;
+    const cutoff = Date.now() - 48 * 3600 * 1000;
+    const maxPub = {}, recent = {};
+    const scan = (loci, tracks) => { for (const t of tracks || []) for (const L of loci) {
+      if (t.ts > (maxPub[L] || 0)) maxPub[L] = t.ts;
+      if (t.ts > cutoff && t.track_id) (recent[L] = recent[L] || []).push({ id: t.track_id, ts: t.ts });
+    } };
+    for (const s of ALL) scan([s.locus], s.tracks);
+    for (const q of LEDGERS) scan(q.loci || [], q.tracks);
+    let dropped = 0;
+    for (const [k, r] of PROV) {
+      const ts = r.s * 1000, L = r.house;
+      if (ts <= (maxPub[L] || 0) ||
+          (r.id && (recent[L] || []).some(p => p.id === r.id && Math.abs(p.ts - ts) <= PRUNE_SLOP_MS))) {
+        PROV.delete(k); dropped++;
+      }
+    }
+    if (dropped) console.log('[sessions] pruned ' + dropped + ' provisional row(s) — published truth landed');
+  }
+  // D4/D5: merge provisional rows into the render list through the SAME adapters.
+  function withProvisional(base) {
+    if (!PROV.size) { RLIST = base; return base; }
+    const now = Date.now();
+    const byHouse = {};
+    for (const r of PROV.values()) (byHouse[r.house] = byHouse[r.house] || []).push(r);
+    let out = base;
+    for (const h of Object.keys(byHouse)) {
+      const rows = byHouse[h].sort((a, b) => a.s - b.s);
+      const tracks = rows.map(r => ({
+        ts: r.s * 1000, dur: r.d || 0, title: r.t, artist: r.a, album: r.al || null,
+        art: r.art || null, track_id: r.id || null, source: 'sonos', liked: 0,
+        __prov: true, __orphan: !!r.unconfirmed || (now - r.s * 1000 > ORPHAN_MS)
+      }));
+      const ctxCount = new Map();
+      for (const r of rows) if (r.cx) { const c = ctxCount.get(r.cx) || { uri: r.cu || '', name: r.cx, n: 0, art: null }; c.n++; if (!c.uri && r.cu) c.uri = r.cu; ctxCount.set(r.cx, c); }
+      const newest = out.find(s => !s.isQuickLedger && !s.isRadio && s.locus === h);
+      const minTs = tracks[0].ts;
+      const last = tracks[tracks.length - 1];
+      const maxTs = last.ts + (last.dur || 0) * 1000;
+      if (newest && (minTs - newest.end) < MERGE_GAP_MS && minTs >= newest.start) {
+        // attach: clone the newest published session and extend it (same __id → expansion state survives)
+        const fresh = tracks.filter(t => !newest.tracks.some(p =>
+          (p.track_id && t.track_id && p.track_id === t.track_id && Math.abs(p.ts - t.ts) <= PRUNE_SLOP_MS) ||
+          (Math.abs(p.ts - t.ts) < 1500 && normStr(p.title) === normStr(t.title))));
+        if (!fresh.length) continue;
+        const m = { ...newest };
+        m.tracks = [...newest.tracks, ...fresh];
+        m.end = Math.max(newest.end, maxTs);
+        m.dur_ms = (Number(newest.dur_ms) || 0) + fresh.reduce((a, t) => a + (t.dur || 0) * 1000, 0);
+        m.n = newest.n + fresh.length;
+        const at = new Map((newest.artists || []).map(x => [x[0], x[1]]));
+        for (const t of fresh) at.set(t.artist, (at.get(t.artist) || 0) + 1);
+        m.artists = [...at.entries()].sort((a, b) => b[1] - a[1]);
+        m.contexts = (newest.contexts || []).map(c => ({ ...c }));
+        for (const c of ctxCount.values()) {
+          const ex = m.contexts.find(x => (x.uri && c.uri && x.uri === c.uri) || (x.name && x.name === c.name));
+          if (ex) ex.n += c.n; else m.contexts.push(c);
+        }
+        m.__live = true;
+        out = out.map(s => (s === newest ? m : s));
+      } else {
+        // new provisional block — adapted through the SAME pipeline as published sessions (D4)
+        const s = adaptSession({
+          id: 'prov-' + h, locus: h, start: minTs, end: maxTs, dur_ms: tracks.reduce((a, t) => a + (t.dur || 0) * 1000, 0),
+          n: tracks.length, rooms: [...new Set(rows.flatMap(r => r.rm || []))], accounts: [],
+          artists: [...tracks.reduce((mm, t) => mm.set(t.artist, (mm.get(t.artist) || 0) + 1), new Map()).entries()],
+          albums: [], contexts: [...ctxCount.values()], explorations: [], seams: [], tracks
+        });
+        s.__live = true;
+        if (!idNum.has(s.publishedId)) idNum.set(s.publishedId, nextNum++);
+        s.__id = idNum.get(s.publishedId);
+        out = [s, ...out];
+      }
+    }
+    RLIST = [...out].sort((a, b) => b.start - a.start);
+    return RLIST;
+  }
+  // D8: ONE staleness chip — the universal fallback (budget floors, dead nudges,
+  // offline machines, dead SSE pipe all degrade to "amber chip with honest age").
+  function renderSyncChip() {
+    const el = document.getElementById('sh-syncchip');
+    if (!el) return;
+    const hs = Object.keys(SYNC);
+    if (!hs.length) { el.style.display = 'none'; return; }
+    const now = Date.now();
+    let latest = 0, pending = 0, oldestHead = null, stale = false;
+    for (const h of hs) {
+      const y = SYNC[h];
+      latest = Math.max(latest, y.ts);
+      pending += y.pending || 0;
+      if (y.bufferHead) oldestHead = Math.min(oldestHead == null ? Infinity : oldestHead, y.bufferHead * 1000);
+      if (now - y.ts > 20 * 60 * 1000) stale = true;   // machine silent past its 15-min keepalive
+    }
+    if (now - ((typeof _sseLastMsg !== 'undefined' && _sseLastMsg) || 0) > 20 * 60 * 1000) stale = true;  // SSE pipe itself is dead (top-level let — NOT on window)
+    const amber = stale || (pending > 0 && oldestHead && (now - oldestHead) > 40 * 60 * 1000);
+    el.style.display = '';
+    el.className = 'sh-syncchip' + (amber ? ' sh-amber' : '');
+    el.textContent = '⟳ ' + ftime(latest) + (pending ? ' · ' + pending + ' pending' : '');
+    el.title = 'Machine snapshot ' + ftime(latest)
+      + (pending ? ' · ' + pending + ' play(s) buffered, not yet published' : ' · fully synced')
+      + (amber ? ' · ⚠ may be stale' : '');
+  }
+  setInterval(renderSyncChip, 60000);   // age/color keeps moving even with no pushes
+  // Head refetch loop — the ONLY pruner of provisional rows (D6). 5-min cadence
+  // matches the publish gate; failures keep last-known truth (chip stays honest).
+  async function refreshHead(reason) {
+    if (!booted || booting) return;
+    _lastHeadFetch = Date.now();
+    try {
+      const doc = await fetchJson('sessions/head.json');
+      integrate([doc]);
+      render(); setStatus(statusLine());
+      console.log('[sessions] head refreshed (' + (reason || 'interval') + ')');
+    } catch (e) { console.warn('[sessions] head refresh failed — keeping last-known:', e && e.message); }
+  }
+  setInterval(() => {
+    if (booted && document.visibilityState === 'visible' && Date.now() - _lastHeadFetch > 270000) refreshHead('interval');
+  }, 300000);
+
   try { const z = localStorage.getItem(LS_ZOOM); if (z === 'days' || z === 'sessions') ZOOM = z; } catch (e) {}
   try { JSON.parse(localStorage.getItem(LS_EXP) || '[]').forEach(pid => pendingExpanded.add(pid)); } catch (e) {}
   try { GCOL = JSON.parse(localStorage.getItem(LS_GCOL) || '{}') || {}; } catch (e) {}
@@ -4791,7 +4920,7 @@ const SH = (() => {
     const a = (s.accounts || []).filter(Boolean);
     return !a.length || a.includes('main');
   }
-  function visList() { return ACCT === 'all' ? LIST : LIST.filter(acctVisible); }
+  function visList() { return withProvisional(ACCT === 'all' ? LIST : LIST.filter(acctVisible)); }  // p2.81: provisional rows ride the same list
   function syncAcctChip() {
     const el = document.getElementById('sh-acctchip');
     if (!el) return;
@@ -4864,6 +4993,7 @@ const SH = (() => {
       s.__id = idNum.get(s.publishedId);
       if (pendingExpanded.has(s.publishedId)) { EXPANDED.add(s.__id); pendingExpanded.delete(s.publishedId); }
     }
+    pruneProv();  // p2.81 D6: published truth is the ONLY remover of provisional rows
     console.log('[sessions] integrated: ' + ALL.length + ' sessions, ' + LEDGERS.length + ' quick ledgers, '
       + groupByDay(LIST).size + ' days; nullDur=' + STATS.nullDur + ' missingArt=' + STATS.missingArt
       + (danglingS || danglingL ? ' ⚠ dangling ids s=' + danglingS + ' l=' + danglingL : '')
@@ -4895,6 +5025,7 @@ const SH = (() => {
       const eager = MONTHS.slice(0, 2); // current + previous month
       const docs = await Promise.all([fetchJson('sessions/head.json')].concat(eager.map(m => fetchJson(m.file))));
       integrate(docs);
+      _lastHeadFetch = Date.now();  // p2.81: boot counts as a head fetch
       oldestLoadedIdx = eager.length - 1;
       booted = true;
       syncAcctChip(); // p2.72: restore persisted account filter chip state
@@ -5100,7 +5231,8 @@ const SH = (() => {
   // ---------------- expansion state ----------------
   function findSessionById(sid) {
     if (sid >= 100000) sid -= 100000; // panel-local run-id namespace (see panelBodyHtml)
-    for (const s of LIST) if (s.__id === sid) return s;
+    // p2.81: search the rendered list first — provisional/extended sessions live there (D4)
+    for (const s of (RLIST || LIST)) if (s.__id === sid) return s;
     return null;
   }
   function panelMode() { return ZOOM === 'sessions' && GRID_MQ.matches; }
@@ -5129,7 +5261,7 @@ const SH = (() => {
   function trackRowHtmlG(t, albumLabel, indent) {
     if (albumLabel && normStr(albumLabel) === normStr(t.title)) albumLabel = null;
     return `<div class="sh-trk${indent ? ' sh-g-ind' : ''}">
-      <span class="sh-tm">${ftime(t.ts)}</span>
+      <span class="sh-tm">${ftime(t.ts)}${t.__orphan ? '<span class="sh-orph" title="not yet synced — the durable record may be lost">⚠︎</span>' : ''}</span>
       <span class="sh-tt">${esc(t.title)}${albumLabel ? `<span class="sh-alb-inline">${esc(albumLabel)}</span>` : ''}</span>
       <span class="sh-ta">${esc(t.artist)}</span>
       <span class="sh-btns">${trackBtns(t)}</span>
@@ -5501,7 +5633,7 @@ const SH = (() => {
       // quick-plays ledger docks at the END of its day group (spec G2.4 §2)
       const cards = ss.filter(s => !s.isQuickLedger).concat(ss.filter(s => s.isQuickLedger));
       out += `<section class="sh-daygrp" id="sh-day-${k}"><div class="sh-dayhdr">${fday(cards[0].start)}</div><div class="sh-daygrid">`;
-      for (const s of cards) out += `<div class="sh-cell${s.isQuickLedger ? ' sh-qcell' : ''}" id="sh-cell-${s.__id}">${renderSession(s, s.__id)}</div>`;
+      for (const s of cards) out += `<div class="sh-cell${s.isQuickLedger ? ' sh-qcell' : ''}${s.__live ? ' sh-livecell' : ''}" id="sh-cell-${s.__id}">${renderSession(s, s.__id)}</div>`;
       out += `</div></section>`;
     }
     out += loadMoreRowHtml();
@@ -5535,7 +5667,8 @@ const SH = (() => {
     if (zs) zs.classList.toggle('sh-on', ZOOM === 'sessions');
     if (zd) zd.classList.toggle('sh-on', ZOOM === 'days');
   }
-  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct };
+  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct,
+           onPending, hasSync, refreshHead };  // p2.81: SSE live history entry points
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5545,6 +5678,25 @@ const SH = (() => {
   const didAuth = await handleSpotifyCallback();
   setHouse(house);
   connectSSE();
+  // p2.81 D3: best-effort SSE nudge — usually the ?since=16m replay delivers a
+  // snapshot instantly (keepalive is 15 min), so this rarely fires. If nothing
+  // arrived after 8s, ask the current house's machine for one push; one retry at
+  // 38s; then stop. NOTHING depends on this (D8 chip stays honest regardless).
+  // Rule 22: fresh cmd_ts rides every command. Silent (no toast) — it's plumbing.
+  let _nudges = 0;
+  function maybeNudge() {
+    if (house !== 'caphill' && house !== 'vashon') return;
+    if (window.SH && SH.hasSync && SH.hasSync(house)) return;  // snapshot already arrived
+    if (_nudges >= 2 || !NTFY[house]) return;
+    _nudges++;
+    const body = JSON.stringify({ action: 'push_now', cmd_ts: new Date().toISOString(), t_requested: new Date().toISOString(), source_house: house });
+    const hdrs = NTFY_TOKEN ? { 'Authorization': 'Bearer ' + NTFY_TOKEN } : {};
+    fetch(NTFY[house], { method: 'POST', body, headers: hdrs })
+      .then(r => console.log('[nudge] push_now → ' + house + ' [' + r.status + '] (attempt ' + _nudges + ')'))
+      .catch(e => console.warn('[nudge] send failed (best-effort, moving on):', e && e.message));
+  }
+  setTimeout(maybeNudge, 8000);
+  setTimeout(maybeNudge, 38000);
   loadLikedData();  // p2.47: fire-and-forget — badges pop in when the asset lands
   await loadData(true);
   if (!didAuth) handleDeepLink();

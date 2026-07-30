@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.55.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.56.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1493,6 +1493,92 @@ SSE_DEBOUNCE_S    = 3.0               # merge window — events within 3s collap
 SSE_MIN_GAP_S     = 15.0              # absolute floor between sends — 240/hr max, under ntfy 250/hr limit
 SSE_BACKOFF_STEPS = [30, 120, 300, 600, 900, 1800]  # 30s, 2m, 5m, 10m, 15m, 30m (caps at 30m)
 
+# --- v2.56 SSE LIVE HISTORY (design_sse_live_history_v1.md Rev 2, Rule 27) ---
+# D1: every SSE push carries pending_session — a compact STATE SNAPSHOT of the
+#     history buffer (never deltas: any push may be lost; the next carries all).
+# D2: trim ladder under SSE_BODY_BUDGET — (1) strip art, (2) cap rows stepwise,
+#     floor = freshness fields only. Verbose log at every step (no silent trims).
+# D8: pending_count / buffer_head_ts / boot_id ride EVERY push, never trimmed.
+# Measured 2026-07-30 (design step 0): ntfy.sh flips body->attachment at 4096
+# bytes (4079 = body, 4183 = attachment). Budget = 3072 (25% headroom).
+SSE_BODY_BUDGET   = 3072
+_SSE_PENDING_CAPS = (12, 8, 6, 4, 3, 2, 1)  # D2 step-2 row caps, tried in order
+
+def _compact_pending_rows():
+    """Map pending_buffer items to compact wire rows (design §4). Never raises."""
+    with pending_buffer_lock:
+        items = list(pending_buffer)
+    rows = []
+    for it in items:
+        try:
+            row = {"t": it.get("title", ""), "a": it.get("artist", ""),
+                   "al": it.get("album", "")}
+            try:
+                row["s"] = int(datetime.strptime(it.get("started_at", ""), "%Y-%m-%dT%H:%M:%SZ")
+                               .replace(tzinfo=timezone.utc).timestamp())
+            except Exception:
+                row["s"] = int(it.get("_buffered_at") or time.time())
+            row["d"] = int(it.get("duration_played_seconds") or 0)
+            row["rm"] = it.get("rooms") or ([it.get("room")] if it.get("room") else [])
+            uri = it.get("uri") or ""
+            if uri:
+                row["u"] = uri
+            if uri.startswith("spotify:track:"):
+                row["id"] = uri.rsplit(":", 1)[-1]
+            art = it.get("didl_album_art_uri") or ""
+            if art.startswith("https://"):
+                row["art"] = art  # public URLs only; speaker-LAN getaa URLs are dead off-LAN
+            cx = it.get("container_name") or ""
+            cu = it.get("container_uri") or ""
+            if cx: row["cx"] = cx
+            if cu and not cu.startswith("x-"): row["cu"] = cu
+            rows.append(row)
+        except Exception as e:
+            log(f"[sse-pending] row compact failed (skipping item): {e}")
+    return rows
+
+def _attach_pending_session(payload):
+    """v2.56 D1/D2/D8: attach the pending_session snapshot + always-on freshness
+    fields to an outbound SSE payload, trimming to SSE_BODY_BUDGET. Never raises —
+    live-history decoration must never break the push that carries it."""
+    try:
+        rows = _compact_pending_rows()
+        # D8 freshness fields FIRST — they survive every trim and any row failure.
+        payload["pending_count"] = len(rows)
+        payload["buffer_head_ts"] = (min(r.get("s", 0) for r in rows) if rows else None)
+        payload["boot_id"] = int(_service_start_ts) if _service_start_ts else None
+        if not rows:
+            payload["pending_session"] = []
+            return
+        def _sz(p):
+            try: return len(json.dumps(p).encode("utf-8"))
+            except Exception: return SSE_BODY_BUDGET + 1
+        payload["pending_session"] = rows
+        sz = _sz(payload)
+        if sz <= SSE_BODY_BUDGET:
+            log(f"[sse-pending] snapshot: {len(rows)} rows, {sz}B (fits)")
+            return
+        # D2 step 1: strip art (cosmetic; page renders an initials placeholder)
+        for r in rows: r.pop("art", None)
+        sz = _sz(payload)
+        log(f"[sse-pending] trim step 1 (art stripped): {len(rows)} rows, {sz}B")
+        if sz <= SSE_BODY_BUDGET: return
+        # D2 step 2: cap rows (newest kept), stepping down until it fits
+        for cap in _SSE_PENDING_CAPS:
+            if cap >= len(rows): continue
+            payload["pending_session"] = rows[-cap:]
+            sz = _sz(payload)
+            log(f"[sse-pending] trim step 2 (cap {cap}): {sz}B")
+            if sz <= SSE_BODY_BUDGET: return
+        # Floor: freshness fields only — the chip still tells the truth (D8).
+        payload["pending_session"] = []
+        log(f"[sse-pending] trim FLOOR: 0 rows kept, {_sz(payload)}B — chip carries pending_count={payload['pending_count']}")
+    except Exception as e:
+        payload.setdefault("pending_count", None)
+        payload.setdefault("boot_id", None)
+        payload.setdefault("pending_session", [])
+        log(f"[sse-pending] attach FAILED (push continues without rows): {e}")
+
 def _sse_enrich_state(payload):
     """Inject full state snapshot into any outbound SSE payload.
     v2.24: Reads from _poll_snapshot instead of querying speakers."""
@@ -1599,6 +1685,8 @@ def _sse_do_flush():
         return
     payload["events"] = event_types
     payload["ts"] = time.time()
+    # v2.56 D1/D8: every push carries the pending-session snapshot + freshness fields
+    _attach_pending_session(payload)
     # POST as plain text body (JSON string) -- browser does JSON.parse(event.data)
     url = f"https://ntfy.sh/{ntfy_ui_topic}"
     body = json.dumps(payload)
@@ -1641,6 +1729,9 @@ def build_sse_relay_payload():
     except Exception as e:
         log(f"SSE relay enrich failed: {e}")
         return None
+    # v2.56 D1/D8: relay path carries the same pending-session snapshot (the server
+    # re-posts this to the browser ntfy topic — same 4096B attachment cliff applies)
+    _attach_pending_session(payload)
     # Determine event types from current state
     events = []
     rp = payload.get("rooms_playing", [])
@@ -3066,6 +3157,17 @@ def execute_command(cmd, source="unknown"):
             except Exception as e:
                 log(f"Failed to post flush result: {e}")
             return  # early return -- skip normal silent/non-silent POST logic
+
+        elif action == "push_now":
+            # v2.56 D3: SSE nudge — page requests an immediate state push (fires at
+            # page load only when no snapshot rode the ?since=16m SSE replay).
+            # Best-effort BY DESIGN: rides the normal bundler (debounce / min-gap /
+            # 429 backoff / quiet-hours gate all apply); nothing may depend on it.
+            # Cheap: no speaker I/O — just queues a bundled status_update push.
+            log("Command: push_now (SSE nudge) — queueing status_update push")
+            publish_ui_event("status_update", {})
+            result["success"] = True
+            result["message"] = "SSE push queued"
 
         elif action == "get_state":
             state = []
