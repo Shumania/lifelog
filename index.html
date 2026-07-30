@@ -894,7 +894,7 @@
   <div class="content-tabs">
     <!-- p2.77: History tab hidden (Sessions replaces it) — section still published & reachable via #history hash as backup -->
     <div class="content-tab" data-tab="history" style="display:none" onclick="setContentTab('history')">History</div>
-    <div class="content-tab active" data-tab="sessions" onclick="setContentTab('sessions')">Sessions</div>
+    <div class="content-tab active" data-tab="sessions" onclick="setContentTab('sessions')">History</div><!-- p2.83: renamed (Tracks|Sessions|Days live inside) -->
     <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
   </div>
@@ -937,6 +937,7 @@
       <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
       <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
       <div class="sh-zoomseg" id="sh-zoomseg">
+        <button id="sh-zoomT" onclick="SH.setZoom('tracks')">Tracks</button><!-- p2.83: legacy track-list view -->
         <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
         <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
       </div>
@@ -976,7 +977,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.82';
+const PAGE_VERSION = 'p2.83';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4909,7 +4910,7 @@ const SH = (() => {
     if (booted && document.visibilityState === 'visible' && Date.now() - _lastHeadFetch > 270000) refreshHead('interval');
   }, 300000);
 
-  try { const z = localStorage.getItem(LS_ZOOM); if (z === 'days' || z === 'sessions') ZOOM = z; } catch (e) {}
+  try { const z = localStorage.getItem(LS_ZOOM); if (z === 'days' || z === 'sessions' || z === 'tracks') ZOOM = z; } catch (e) {}  // p2.83: + tracks
   try { JSON.parse(localStorage.getItem(LS_EXP) || '[]').forEach(pid => pendingExpanded.add(pid)); } catch (e) {}
   try { GCOL = JSON.parse(localStorage.getItem(LS_GCOL) || '{}') || {}; } catch (e) {}
   function saveExpanded() {
@@ -5534,10 +5535,32 @@ const SH = (() => {
   function setZoom(z) {
     ZOOM = z;
     try { localStorage.setItem(LS_ZOOM, z); } catch (e) {}
-    const zs = document.getElementById('sh-zoomS'), zd = document.getElementById('sh-zoomD');
-    if (zs) zs.classList.toggle('sh-on', z === 'sessions');
-    if (zd) zd.classList.toggle('sh-on', z === 'days');
-    if (booted) render();
+    syncZoomSeg();
+    applyZoomVis();   // p2.83: 'tracks' reveals the legacy track-list pane inside this tab
+    if (booted && z !== 'tracks') render();
+  }
+  // p2.83: three-way seg — Tracks | Sessions | Days
+  function syncZoomSeg() {
+    const m = { 'sh-zoomT': 'tracks', 'sh-zoomS': 'sessions', 'sh-zoomD': 'days' };
+    for (const id in m) { const el = document.getElementById(id); if (el) el.classList.toggle('sh-on', ZOOM === m[id]); }
+  }
+  // p2.83: Tracks zoom = old track-list history (#tab-history pane) shown under the History tab's
+  // toolbar. The legacy pane stays warm via loadData()'s 60s loop and remains reachable directly via
+  // the #history hash (which we never fight: we only drive its visibility while OUR tab is showing).
+  // Sessions-only toolbar bits hide via visibility (not display) so layout holds and renderSyncChip's
+  // own display toggling never conflicts.
+  function applyZoomVis() {
+    const tabEl = document.getElementById('tab-sessions');
+    if (!tabEl || tabEl.hidden) return;              // not our tab right now — leave everything alone
+    const trk = ZOOM === 'tracks';
+    const hist = document.getElementById('tab-history');
+    if (hist) hist.hidden = !trk;
+    const mainPanel = document.getElementById('sh-main');
+    if (mainPanel && mainPanel.parentElement) mainPanel.parentElement.style.display = trk ? 'none' : '';
+    for (const id of ['sh-updated', 'sh-syncchip', 'sh-acctchip']) {
+      const el = document.getElementById(id);
+      if (el) el.style.visibility = trk ? 'hidden' : '';
+    }
   }
   function zoomToDay(k) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = null; setZoom('sessions'); }
   // spec G2.7: clicking an anchor row lands on THAT session's card (falls back to the day header)
@@ -5634,6 +5657,7 @@ const SH = (() => {
     return renderCardG(s, sid);
   }
   function render() {
+    if (ZOOM === 'tracks') return;  // p2.83: legacy pane owns the screen; sessions re-render on zoom-back
     const main = document.getElementById('sh-main');
     if (!main || !booted) return;
     main.className = ZOOM === 'days' ? 'sh-vG sh-zdays' : 'sh-vG';
@@ -5672,13 +5696,12 @@ const SH = (() => {
 
   // ---------------- public API (inline onclick handlers + tab switching) ----------------
   function onShow() {
+    syncZoomSeg();
+    applyZoomVis();  // p2.83: setContentTab re-hides #tab-history on every switch — reassert tracks zoom
     if (!booted) { syncAcctChip(); _boot(); return; }
     // re-measure panels: offsets are 0 while the tab is hidden
     layoutPanels();
     syncAcctChip(); // p2.72
-    const zs = document.getElementById('sh-zoomS'), zd = document.getElementById('sh-zoomD');
-    if (zs) zs.classList.toggle('sh-on', ZOOM === 'sessions');
-    if (zd) zd.classList.toggle('sh-on', ZOOM === 'days');
   }
   return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct,
            onPending, hasSync, refreshHead };  // p2.81: SSE live history entry points
