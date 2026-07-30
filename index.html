@@ -978,7 +978,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.84';
+const PAGE_VERSION = 'p2.85';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2323,6 +2323,62 @@ function mergeItems(head, archive) {
   return [...head, ...archive.filter(i => !keys.has((i.timestamp||'') + '|' + (i.title||'').toLowerCase()))];
 }
 
+// p2.85: level-triggered live Tracks rows (Rule 27) — replaces retireTrackToHistory.
+// The old path synthesized a row from the now_playing/stopped SSE *event*, stamped
+// with the event (end-of-play) time; the published row later arrived stamped with
+// the START time, so any track longer than the 2-min dedup window appeared twice
+// (user-reported dupes, 2026-07-30). This mirrors the Sessions PROV design: rows
+// come from the pending_session snapshot (real started_at, identical to what
+// publishes), keys make re-pushes idempotent, and published truth is the only
+// remover (pruneTracksProv on every head/archive merge).
+const _tracksProv = new Map(); // provKey -> item object currently in allItems
+function updateTracksProv(h, msg) {
+  let dirty = false;
+  for (const raw of (msg.pending_session || [])) {
+    if (!raw || !raw.t || !raw.s) continue;
+    const title = String(raw.t).trim();
+    if (isGarbageTitle(title)) continue;
+    const uri = (raw.u || '').toLowerCase();
+    // Raw radio tracks arrive garbled — enriched rows come via ingest instead
+    if (uri.includes('kcrw') || uri.includes('kexp') || uri.includes('streamguys')) continue;
+    const key = h + '|' + (raw.id || title.toLowerCase() + '~' + (raw.a || '').toLowerCase()) + '|' + raw.s;
+    if (_tracksProv.has(key)) continue;
+    const tMs = raw.s * 1000;
+    // Already published? (started_at should match exactly; ±2 min slop for safety)
+    if (allItems.some(i => !i._fromSSE && (i.title || '').toLowerCase() === title.toLowerCase() &&
+        Math.abs(new Date(i.timestamp) - tMs) < 120000)) continue;
+    const item = {
+      type: 'music', title: title, artist: raw.a || '', album: raw.al || '',
+      source: 'sonos', timestamp: new Date(tMs).toISOString().replace('.000Z', 'Z'),
+      domain: '', house: h, uri: raw.u || '', sonos_uri: raw.u || '',
+      _fromSSE: true, _provKey: key
+    };
+    _tracksProv.set(key, item);
+    allItems.push(item);
+    dirty = true;
+  }
+  if (dirty) { allItems = sortItemsDesc(allItems); renderHistory(); }
+}
+// Published truth is the only remover: drop a provisional row once a published row
+// with the same title lands within ±2 min of its start time. Age out at 48h.
+function pruneTracksProv() {
+  if (!_tracksProv.size) return;
+  const cutoff = Date.now() - 48 * 3600 * 1000;
+  let dropped = 0;
+  for (const [key, item] of _tracksProv) {
+    const tMs = new Date(item.timestamp).getTime();
+    const published = allItems.some(i => !i._fromSSE && (i.title || '').toLowerCase() === (item.title || '').toLowerCase() &&
+      Math.abs(new Date(i.timestamp) - tMs) < 120000);
+    if (published || tMs < cutoff) {
+      _tracksProv.delete(key);
+      const idx = allItems.indexOf(item);
+      if (idx >= 0) allItems.splice(idx, 1);
+      dropped++;
+    }
+  }
+  if (dropped) console.log('[tracks] pruned ' + dropped + ' provisional row(s) — published truth landed');
+}
+
 // --- State file merge (cross-device freshness) ---
 // DESIGN NOTE: state-{house}.json is pushed by the service after each track change.
 // Contains now_playing + last 30 tracks. Browser merges these on top of data-head.json
@@ -2477,6 +2533,7 @@ async function loadData(loadArchive) {
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
     allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
+    pruneTracksProv(); // p2.85: published truth removes provisional live rows
     // p2.81 Rider A: _reinferPaused() deleted — pause clocks come from the service now
     // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
     updateHouseTabDots();
@@ -2507,6 +2564,7 @@ async function loadData(loadArchive) {
       // only, silently dropping fresher tracks merged in after a Sync (they vanished
       // from History until the next full publish).
       allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
+      pruneTracksProv(); // p2.85: published truth removes provisional live rows
       renderHistory();
       updateCounts();
     } catch(e) {
@@ -3863,28 +3921,9 @@ function connectSSE() {
         else if (outer.topic.includes('vashon')) sseHouse = 'vashon';
       }
 
-      // Helper: retire a track from Now Playing into history list
-      function retireTrackToHistory(track, h) {
-        if (!track || !track.title || allItems.length === 0) return;
-        // Don't retire radio tracks with garbled metadata — enriched data comes via ingest
-        const tUri = (track.uri || '').toLowerCase();
-        const tSvc = (track.service || '').toLowerCase();
-        if (tUri.includes('kcrw') || tUri.includes('kexp') || tSvc.includes('tunein') || tSvc.includes('radio')) return;
-        const endedItem = {
-          type: 'music', title: track.title, artist: track.artist||'', album: track.album||'',
-          source: track.service ? 'sonos_' + track.service.replace('sonos_','') : 'sonos',
-          timestamp: new Date(evtTs).toISOString(), // U-M3: real event time, not receipt time
-          domain: (track.rooms||[]).join(', '), house: h||house,
-          uri: track.uri||'', sonos_uri: track.uri||'', _fromSSE: true
-        };
-        // Dedup: don't prepend if top item is same track within last 2 min
-        const top = allItems[0];
-        if (!(top && top.title === endedItem.title && top.artist === endedItem.artist &&
-              Math.abs(new Date(top.timestamp) - new Date(endedItem.timestamp)) < 120000)) {
-          allItems.unshift(endedItem);
-          renderHistory();
-        }
-      }
+      // p2.85: retireTrackToHistory deleted (Rule 27). It stamped rows with the
+      // end-of-play event time; the published row carried the start time → dupes.
+      // Live Tracks rows now come from updateTracksProv (pending_session snapshot).
 
       // v1.70 bundled SSE: messages have "events" array (new) or "event" string (old)
       const events = msg.events || (msg.event ? [msg.event] : []);
@@ -3925,9 +3964,7 @@ function connectSSE() {
       }
       if (events.includes('now_playing') && !npIsStale) {
         if (_trackEndedTimer) { clearTimeout(_trackEndedTimer); _trackEndedTimer = null; }
-        if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
-          retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
-        }
+        // p2.85: no retire-on-event — pending_session snapshot carries the ended track
         _sseNowPlayingGlobal = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], house: sseHouse, service: msg.service||'', uri: msg.uri||'', ts: evtTs };
         if (sseHouse) {
           _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: evtTs };
@@ -3943,9 +3980,7 @@ function connectSSE() {
       // --- Handle stopped ---
       // U-M3: same replay guard — an old stopped event must not clear fresher state
       if ((events.includes('stopped') || events.includes('track_ended')) && !npIsStale) {
-        if (sseHouse && _sseNowPlaying[sseHouse] && !_sseNowPlaying[sseHouse]._fromStatus) {
-          retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
-        }
+        // p2.85: no retire-on-event — pending_session snapshot carries the ended track
         if (_trackEndedTimer) clearTimeout(_trackEndedTimer);
         _trackEndedTimer = setTimeout(() => {
           _trackEndedTimer = null;
@@ -3965,6 +4000,12 @@ function connectSSE() {
       // Services <v2.56 send none of these fields — the whole feature stays dormant.
       if (sseHouse && msg.pending_count !== undefined && window.SH && SH.onPending) {
         SH.onPending(sseHouse, msg, evtTs);
+      }
+      // p2.85: the same snapshot feeds the legacy Tracks view (level-triggered, Rule 27).
+      // Keys are idempotent + published-check inside, so ntfy replays are harmless;
+      // the freshness guard just skips obviously stale replays.
+      if (sseHouse && msg.pending_count !== undefined && evtAge < EVT_FRESH_MS) {
+        updateTracksProv(sseHouse, msg);
       }
       // p2.59: capture live group topology (v2.53+ services include groups on every
       // message). A dedicated 'topology' event = regroup happened (from ANY controller,
@@ -4004,10 +4045,7 @@ function connectSSE() {
             console.log('[now-playing] Keeping paused track visible:', _sseNowPlaying[sseHouse].title);
             if (sseHouse === house) renderNowPlayingSonos(house);
           } else if (!events.includes('stopped') && !events.includes('track_ended')) {
-            // Truly stopped — retire and clear
-            if (!_sseNowPlaying[sseHouse]._fromStatus) {
-              retireTrackToHistory(_sseNowPlaying[sseHouse], sseHouse);
-            }
+            // Truly stopped — clear (p2.85: no retire-on-event; snapshot has the track)
             delete _sseNowPlaying[sseHouse];
             if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === sseHouse) {
               _sseNowPlayingGlobal = null;
