@@ -85,6 +85,10 @@
     flex-shrink: 0; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
   }
   .np-explore:hover { background: rgba(96,165,250,0.15); }
+  /* p2.79: ♥ on Now Playing card — square sizing to match np-explore */
+  .now-playing .like-btn { width:32px; height:32px; border-radius:8px; font-size:15px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; border-color:rgba(226,85,99,0.3); background:rgba(226,85,99,0.06); }
+  .now-playing .like-btn:active { transform: scale(0.92); }
   .now-playing .ctx-panel { flex-basis: 100%; width: 100%; }
   .np-explore:active { transform: scale(0.92); }
   .np-explore.exploring { animation: pulse 1s infinite; }
@@ -957,7 +961,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.78';
+const PAGE_VERSION = 'p2.79';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2132,6 +2136,9 @@ function renderNowPlayingSonos(h) {
     source: svc || '', uri: ''
   })).replace(/'/g,'%27') : '';
   const npArtist = (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : '')));
+  // p2.79: ♥ on Now Playing — reuse likeButton (pre-filled liked state, SSE confirmation, local-like fallback for non-Spotify)
+  const npUri = (sse && isLive ? (sse.uri || '') : (dataNp ? (dataNp.uri || '') : (latestItem ? (latestItem.uri || latestItem.track_id || '') : '')));
+  const npLikeBtn = (title && title !== '—') ? likeButton('track', npUri, title, npArtist, 'now_playing', svc || '') : '';
   const npCardIdx = findExploredCard(npArtist);
   const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0 && exploredCardIsFresh(npCardIdx)
     ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
@@ -2146,7 +2153,7 @@ function renderNowPlayingSonos(h) {
       <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
-    </div>${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
+    </div>${npLikeBtn}${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
 }
 
 function renderNowPlayingRoaming() {
@@ -2181,7 +2188,7 @@ function renderNowPlayingRoaming() {
         <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;background:var(--spotify);border-radius:2px;width:${pct}%"></div></div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${fmtMs(np.progress_ms)} / ${fmtMs(np.duration_ms)}</div>
       </div>
-      ${findExploredCard(np.artist) >= 0
+      ${likeButton('track', np.uri || '', np.title, np.artist, 'now_playing_roaming', 'spotify')}${findExploredCard(np.artist) >= 0
         ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(np.artist)})" title="View exploration">📖</button>`
         : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}${rCtxBtn}${rInfo ? `<div class="ctx-panel" id="npctx-roaming"></div>` : ''}`;
   } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
@@ -2194,7 +2201,7 @@ function renderNowPlayingRoaming() {
         <div class="np-track">${esc(spotifyNowPlaying.title)}</div>
         <div class="np-artist">${esc(spotifyNowPlaying.artist)}</div>
       </div>
-      ${findExploredCard(spotifyNowPlaying.artist) >= 0
+      ${likeButton('track', spotifyNowPlaying.uri || '', spotifyNowPlaying.title, spotifyNowPlaying.artist, 'now_playing_roaming', 'spotify')}${findExploredCard(spotifyNowPlaying.artist) >= 0
         ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(spotifyNowPlaying.artist)})" title="View exploration">📖</button>`
         : `<button class="np-explore" onclick="exploreArtist(this,'${pExplore}')" title="Explore artist">🔍</button>`}`;
   } else {
