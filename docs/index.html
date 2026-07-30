@@ -60,7 +60,7 @@
   .house-panel[hidden] { display: none; }
 
   .now-playing {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 10px 14px; background: rgba(74, 222, 128, 0.06);
     border: 1px solid rgba(74, 222, 128, 0.15); border-radius: 10px;
     margin-bottom: 12px;
@@ -85,6 +85,11 @@
     flex-shrink: 0; -webkit-tap-highlight-color: transparent; transition: all 0.15s;
   }
   .np-explore:hover { background: rgba(96,165,250,0.15); }
+  /* p2.79: ♥ on Now Playing card — square sizing to match np-explore */
+  .now-playing .like-btn { width:32px; height:32px; border-radius:8px; font-size:15px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; border-color:rgba(226,85,99,0.3); background:rgba(226,85,99,0.06); }
+  .now-playing .like-btn:active { transform: scale(0.92); }
+  .now-playing .ctx-panel { flex-basis: 100%; width: 100%; }
   .np-explore:active { transform: scale(0.92); }
   .np-explore.exploring { animation: pulse 1s infinite; }
 
@@ -119,8 +124,48 @@
     text-align: left; transition: background 0.15s;
   }
   .ctrl-settings-item:hover { background: var(--surface2); }
+  /* p2.72: 390px viewport — controls-row overflowed and clipped the ⚙ button.
+     Inline 36px widths on −/+ need !important to shrink here. */
+  @media (max-width: 430px) {
+    .controls-row { gap: 5px; }
+    .controls-row .ctrl-btn { width: 34px !important; height: 34px !important; font-size: 14px; border-radius: 9px; }
+    .controls-row .volume-group { gap: 3px; }
+    .controls-row .mute-btn svg { width: 17px; height: 17px; }
+  }
+  /* p2.72: played-only playlist badge (public playlists played but not followed) */
+  .pc-po-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 9px; white-space: nowrap;
+    border: 1px dashed var(--border); color: var(--text-dim); opacity: 0.85;
+  }
+  /* p2.78: ghost playlist on-demand fetch/follow actions */
+  .pc-ghost-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 2px 14px 12px 60px; font-size: 12px; color: var(--text-dim);
+  }
+  .pc-ghost-btn {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-dim);
+    border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .pc-ghost-btn.primary { border-color: var(--accent2); color: var(--accent2); }
+  /* p2.82: durable API-block note on Spotify-owned ghost cards */
+  .pc-ghost-blocked { color: var(--text-dim); font-size: 12px; opacity: 0.85; cursor: help; }
+  .gspin {
+    display: inline-block; width: 12px; height: 12px; flex-shrink: 0;
+    border: 2px solid var(--accent2); border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  /* p2.72: History-tab account filter chip (All / Main / TB) */
+  .sh-acct-chip {
+    font-size: 11px; padding: 3px 10px; border-radius: 12px; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-dim);
+    -webkit-tap-highlight-color: transparent; transition: all 0.15s; flex-shrink: 0;
+  }
+  .sh-acct-chip.on { border-color: var(--accent); color: var(--accent); background: rgba(96,165,250,0.08); }
+  /* p2.72: Days-ledger locus icons (multi-locus days only, GAP B) */
+  .sh-dr-loci { font-size: 11px; opacity: 0.65; margin-left: 5px; white-space: nowrap; }
 
-  .room-selector { display: flex; flex-wrap: wrap; gap: 6px; }
+  .room-selector { display: flex; flex-wrap: wrap; gap: 10px 7px; align-items: center; margin: 10px 0 4px; }
   .room-chip {
     font-size: 12px; padding: 5px 12px; border-radius: 16px;
     border: 1px solid var(--border); background: var(--surface);
@@ -133,6 +178,26 @@
   .room-chip.offline { opacity: 0.35; text-decoration: line-through; }
   .room-chip.offline.active { opacity: 0.5; }
   .room-chip:hover:not(.active) { border-color: var(--text-dim); color: var(--text); }
+  /* p2.59: room is a member of an actual live Sonos group (truth, not selection) */
+  .room-chip.grouped { box-shadow: inset 0 -2px 0 rgba(74,222,128,0.55); }
+  .room-chip.grouped::before { content: '⛓ '; font-size: 9px; opacity: 0.7; }
+  /* p2.62: cluster chips (Option A) — PRESENTATION ONLY; selection stays flat room names */
+  .room-chip.cluster { font-weight: 600; }
+  .room-chip.cluster.partial { border-style: dashed; color: var(--accent); border-color: var(--accent); background: rgba(74,222,128,0.06); }
+  .cluster-expand { margin-left: 5px; opacity: 0.65; font-size: 10px; }
+  .cluster-burst { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 3px 6px; border: 1px dashed var(--border); border-radius: 18px; }
+  .burst-collapse { cursor: pointer; font-size: 12px; opacity: 0.6; padding: 0 3px; -webkit-tap-highlight-color: transparent; }
+  .burst-collapse:hover { opacity: 1; }
+  .room-chip.more-toggle { border-style: dotted; color: var(--text-muted); }
+  /* p2.63: rarely-used (demoted) chips — dimmer + smaller per approved mockup; live/selected ones pop */
+  .room-chip.demoted { opacity: 0.55; font-size: 11px; padding: 4px 10px; }
+  .room-chip.demoted.active, .room-chip.demoted.playing, .room-chip.demoted.paused { opacity: 1; }
+  .demoted-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-left: 4px; user-select: none; }
+  .sync-rooms-btn.select-playing { border-color: var(--text-dim); color: var(--text-dim); background: transparent; margin-right: 8px; }
+  .sync-rooms-btn.select-playing:hover { border-color: var(--accent); color: var(--accent); background: rgba(74,222,128,0.10); }
+  /* p2.62: ▶ dot on an INACTIVE house tab whose speakers are playing (replaces removed auto-flip) */
+  .house-tab .tab-play-dot { display: none; margin-left: 4px; font-size: 9px; color: var(--accent); }
+  .house-tab.has-playing:not(.active) .tab-play-dot { display: inline; }
   .sync-rooms-btn {
     margin-top: 8px; padding: 6px 16px; border-radius: 16px;
     border: 1px solid var(--accent); background: rgba(74,222,128,0.10);
@@ -182,6 +247,11 @@
   }
   .content-tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .content-tab:hover:not(.active) { color: var(--text); }
+  /* p2.71: four tabs no longer fit at phone width with 20px pads — shrink + contain overflow to the strip */
+  @media (max-width: 480px) {
+    .content-tabs { padding: 0 8px; overflow-x: auto; scrollbar-width: none; }
+    .content-tab { padding: 12px 11px; font-size: 13px; white-space: nowrap; }
+  }
 
   .sub-tabs {
     display: flex; gap: 4px; padding: 6px 16px; align-items: center;
@@ -306,6 +376,15 @@
   /* ========== DISCOVERY ========== */
   .discovery-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
   .discovery-stat { padding: 4px 0 8px; font-size: 12px; color: var(--text-dim); }
+  /* p2.60: heard-vs-new dots + Unplayed filter */
+  .heard-dot { font-size: 9px; vertical-align: 1px; }
+  .heard-dot.heard { color: var(--accent, #1db954); opacity: 0.75; }
+  .heard-dot.new { color: var(--text-dim); opacity: 0.6; }
+  .disc-filter-chip { display: inline-block; margin-left: 10px; padding: 2px 10px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; user-select: none; color: var(--text-dim); }
+  .disc-filter-chip.on { border-color: var(--accent, #1db954); color: var(--accent, #1db954); }
+  body.disc-unplayed .suggestion-item[data-heard="1"] { display: none; }
+  body.disc-unplayed .sugg-with-tracks:has(> .suggestion-item[data-heard="1"]) { display: none; }
+  body.disc-unplayed .discovery-card:not(:has(.suggestion-item[data-heard="0"])) { display: none; }
   .discovery-card {
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden; transition: border-color 0.15s;
@@ -388,6 +467,14 @@
   /* p2.47: Phase 4 — Liked Songs ♥ badge (main = red, teenbloods = blue) */
   .liked-heart { color: #e25563; font-size: 11px; vertical-align: 1px; }
   .liked-heart.tb { color: #7aa2f7; }
+  /* p2.58: interactive ♥ button — 4 states: empty ♡ / liked ♥ / pending (pulse) / local (amber) */
+  .like-btn { background:none; border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; padding:2px 6px; font-size:11px; line-height:1.4; }
+  .like-btn.liked { color:#e25563; border-color:rgba(226,85,99,0.4); }
+  .like-btn.pending { color:#e25563; animation: likePulse 1.1s ease-in-out infinite; }
+  .like-btn.localliked { color:#e2a955; border-color:rgba(226,169,85,0.4); }
+  @keyframes likePulse { 0%,100% { opacity:0.35; } 50% { opacity:1; } }
+  /* p2.58: canonical album line — "originally on X (1975)" */
+  .canon-album { font-size:10.5px; color:var(--text-dim); opacity:0.8; margin-top:1px; font-style:italic; }
   .album-tracks-loading { padding: 8px 0; font-size: 12px; color: var(--text-dim); }
 
   /* Empty/loading states */
@@ -513,6 +600,185 @@
 /* p2.44: hard-refresh pending spinner */
 @keyframes hrspin { to { transform: rotate(360deg); } }
 .hr-spin { display:inline-block; animation: hrspin 1s linear infinite; }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     p2.70 SESSIONS TAB — Session History v2 (variant G pass 2.7b port).
+     Every class is namespaced sh- (unprefixed harness names collide with page
+     CSS: cluster/muted/on/open/show/toast). Source: mockups/session-history-v2.
+     ══════════════════════════════════════════════════════════════════════════ */
+  #tab-sessions { --sh-panel: var(--surface); --sh-panel2: var(--surface2); --sh-dim2: #626b80;
+    --sh-chip: #1c2338; --sh-gold: #f0b940; --sh-ink: #06201d; }
+  .sh-toolbar { display: flex; align-items: center; gap: 10px; padding: 6px 16px; border-bottom: 1px solid var(--border); }
+  .sh-updated { font-size: 11px; color: var(--text-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* p2.81 D8: staleness chip — quiet when synced, amber when behind/silent */
+  .sh-syncchip { font-size: 11px; color: var(--text-dim); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0; }
+  .sh-syncchip.sh-amber { color: #e8b34a; border-color: rgba(232,179,74,0.45); }
+  /* p2.81 D4: the only visual tell on a live session — a soft pulsing dot on its card */
+  .sh-livecell { position: relative; }
+  .sh-livecell::after { content: ''; position: absolute; top: 9px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: #4ac97e; animation: shLivePulse 2.2s ease-in-out infinite; pointer-events: none; }
+  @keyframes shLivePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+  /* p2.81 D9: honest orphan mark — the listen happened; the durable record may be lost */
+  .sh-orph { color: #e8b34a; font-size: 10px; margin-left: 3px; }
+  .sh-zoomseg { display: inline-flex; margin-left: auto; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; flex-shrink: 0; }
+  .sh-zoomseg button { background: var(--sh-chip); color: var(--text); border: none; padding: 5px 13px; font-size: 12.5px; cursor: pointer; }
+  .sh-zoomseg button.sh-on { background: var(--accent); color: var(--sh-ink); font-weight: 700; }
+  #sh-main { max-width: 620px; margin: 0 auto; padding: 6px 10px 40px; font-size: 14px; line-height: 1.4; }
+  #sh-main.sh-zdays { max-width: 1720px; }
+  .sh-status { text-align: center; padding: 24px 10px; color: var(--text-dim); font-size: 13px; }
+  .sh-error { max-width: 920px; margin: 12px auto; padding: 12px; border: 1px solid #a53c47; border-radius: 8px; background: #401d22; color: #ffd8dc; white-space: pre-wrap; font-size: 12px; }
+  .sh-loadrow { text-align: center; margin: 18px auto 8px; padding: 9px 14px; max-width: 420px; border: 1px dashed var(--border); border-radius: 10px; color: var(--text-dim); font-size: 12.5px; cursor: pointer; }
+  .sh-loadrow:hover { background: var(--sh-panel); }
+  .sh-loadrow.sh-busy { cursor: default; opacity: .7; }
+  .sh-dayhdr { margin: 20px 2px 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sh-dim2); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sh-daygrp:first-child .sh-dayhdr { margin-top: 10px; }
+  .sh-daygrp { scroll-margin-top: 12px; }
+  /* art / placeholder */
+  .sh-art, .sh-art-ph { border-radius: 6px; object-fit: cover; display: block; flex: 0 0 auto; }
+  .sh-art-ph { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; letter-spacing: .02em; }
+  /* badges */
+  .sh-b-expl { color: var(--sh-gold); font-size: 12px; cursor: help; margin-left: 4px; }
+  .sh-b-acct { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px; background: #3d3154; color: #d7c2ff; font-size: 10px; font-weight: 700; vertical-align: middle; }
+  .sh-b-locus { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px; background: var(--sh-chip); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+  .sh-b-locus.sh-dim { border: none; background: none; padding: 0 2px; opacity: .85; margin-left: 4px; font-size: 11px; }
+  .sh-qloci { flex: 0 0 auto; }
+  /* pill buttons */
+  .sh-pill { background: var(--sh-chip); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 3px 8px; font-size: 12px; cursor: pointer; line-height: 1.2; }
+  .sh-pill:active { background: var(--accent); color: var(--sh-ink); }
+  .sh-pill.sh-off { opacity: .35; cursor: not-allowed; }
+  .sh-pill-lbl { white-space: nowrap; font-weight: 600; } /* p2.75: labeled play-full-playlist pill */
+  .sh-muted { color: var(--text-dim); font-weight: 400; }
+  /* Tier 1: ultra-compact fixed-height rows */
+  .sh-t1 { display: flex; align-items: center; gap: 6px; height: 24px; padding: 3px 0; margin: 0; overflow: hidden; font-size: 12.5px; line-height: 1.35; border-radius: 4px; cursor: pointer; }
+  .sh-t1:hover { background: var(--sh-panel); }
+  .sh-t1 .sh-time { flex: 0 0 auto; width: 52px; font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .sh-t1 .sh-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+  .sh-t1 .sh-txt b { font-weight: 700; }
+  .sh-thumb18g { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 auto; object-fit: cover; }
+  .sh-thumb18ph { width: 18px; height: 18px; border-radius: 3px; flex: 0 0 auto; background: var(--sh-chip); }
+  /* Tier 3: rich card */
+  .sh-t3 { padding: 12px; margin: 8px 0; border-radius: 14px; cursor: pointer; background: var(--sh-panel); border: 1px solid var(--border); }
+  .sh-t3:hover { background: var(--sh-panel2); }
+  .sh-t3 .sh-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .sh-t3 .sh-body { display: flex; gap: 12px; align-items: flex-start; }
+  .sh-t3 .sh-title { font-size: 15.5px; }
+  .sh-t3 .sh-title b { font-weight: 700; }
+  .sh-t3 .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-t3 .sh-textblock { flex: 1; min-width: 0; }
+  /* radio / station card */
+  .sh-station { padding: 12px; margin: 8px 0; border-radius: 14px; cursor: pointer; background: linear-gradient(135deg,#141f2b,#131829); border: 1px solid #2f4c52; }
+  .sh-station:hover { background: linear-gradient(135deg,#182635,#1a2035); }
+  .sh-station .sh-top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+  .sh-station .sh-name { font-size: 16px; font-weight: 700; margin-top: 4px; }
+  .sh-station .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-station .sh-chev { margin-top: 6px; color: var(--sh-dim2); font-size: 13px; }
+  /* expansion container */
+  .sh-entities { display: none; padding: 8px 2px 2px 4px; border-top: 1px dashed var(--border); margin-top: 8px; }
+  .sh-entities.sh-open { display: block; }
+  .sh-trackrows { display: none; padding: 4px 0 2px 8px; }
+  .sh-trackrows.sh-open { display: block; }
+  .sh-trk { display: flex; gap: 8px; align-items: center; padding: 4px 2px; font-size: 12.5px; color: var(--text-dim); border-bottom: 1px solid #161c2e; }
+  .sh-trk:last-child { border-bottom: none; }
+  .sh-trk .sh-tm { flex: 0 0 52px; font-variant-numeric: tabular-nums; }
+  .sh-trk .sh-tt { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-trk .sh-ta { flex: 0 0 auto; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-trk .sh-btns { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
+  .sh-trk .sh-pill { padding: 2px 6px; font-size: 11px; }
+  .sh-trk.sh-g-ind { padding-left: 14px; }
+  .sh-trk .sh-alb-inline { color: var(--sh-dim2); font-size: 11.5px; margin-left: 7px; }
+  /* album-run headers (flat G expansion) */
+  .sh-albhdr { display: flex; align-items: center; gap: 10px; padding: 7px 2px 6px; margin-top: 8px; border-bottom: 1px solid var(--border); }
+  .sh-albhdr:first-child { margin-top: 2px; }
+  .sh-albhdr .sh-thumb40g { width: 40px; height: 40px; border-radius: 6px; font-size: 12px; }
+  .sh-albhdr .sh-ah-meta { flex: 1; min-width: 0; }
+  .sh-albhdr .sh-ah-nm { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-albhdr .sh-ah-ar { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sh-albhdr .sh-btns { display: flex; gap: 4px; flex: 0 0 auto; align-items: center; }
+  .sh-albhdr .sh-pill { padding: 2px 6px; font-size: 11px; }
+  .sh-albhdr.sh-coll { cursor: pointer; }
+  .sh-albhdr .sh-ah-chev { color: var(--sh-dim2); font-size: 12px; padding: 2px 3px; align-self: center; }
+  .sh-runtracks.sh-gcol { display: none; }
+  /* big-art card lead */
+  .sh-gsolo { width: 72px; height: 72px; border-radius: 8px; font-size: 20px; }
+  .sh-gfan { display: flex; align-items: center; flex: 0 0 auto; }
+  .sh-gfan .sh-art { width: 66px; height: 66px; border-radius: 8px; border: 2px solid var(--sh-panel); margin-left: -44px; box-shadow: -5px 2px 10px rgba(0,0,0,.45); }
+  .sh-gfan .sh-art:first-child { margin-left: 0; box-shadow: none; }
+  .sh-gfan .sh-gplus { margin-left: -12px; z-index: 5; background: var(--sh-chip); border: 1px solid var(--border); color: var(--text-dim); font-size: 11px; font-weight: 700; border-radius: 10px; padding: 2px 7px; }
+  .sh-explnk { display: block; color: var(--accent); font-size: 12.5px; text-decoration: none; padding: 6px 2px; border-bottom: 1px solid #161c2e; }
+  .sh-explnk:hover { text-decoration: underline; }
+  .sh-seamdiv { text-align: center; font-size: 11px; color: var(--text-dim); opacity: .5; padding: 3px 0; border: none; }
+  .sh-ctxnote { font-size: 12px; color: var(--text-dim); padding: 4px 2px 6px; }
+  /* p2.76: playlist-name link in session headers — navigates to Playlists tab */
+  .sh-ctx-link { color: var(--accent2); text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; cursor: pointer; }
+  .sh-ctx-link:hover { text-decoration-style: solid; }
+  /* quick-plays ledger */
+  .sh-t1 .sh-qmark { flex: 0 0 auto; width: 14px; text-align: center; color: var(--sh-dim2); }
+  .sh-t1.sh-qled .sh-txt b { font-weight: 600; }
+  .sh-qledrow .sh-ta { flex: 0 0 auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--text-dim); }
+  .sh-qledrow .sh-btns { display: flex; gap: 3px; flex: 0 0 auto; align-items: center; }
+  .sh-qledrow .sh-pill { padding: 1px 5px; font-size: 10.5px; }
+  /* dense wide-screen day grid (≥900px) */
+  #sh-main .sh-daygrid .sh-cell { min-width: 0; }
+  @media (min-width: 900px) {
+    #sh-main.sh-vG { max-width: 1720px; }
+    #sh-main.sh-vG .sh-daygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 14px; align-items: start; }
+    #sh-main.sh-vG .sh-daygrid .sh-cell.sh-qcell { grid-column: 1 / -1; }
+    /* one expansion behavior ≥900px — the full-width panel; inline blocks stay hidden so the grid never reflows */
+    #sh-main.sh-vG .sh-daygrid .sh-cell > .sh-entities { display: none; }
+    .sh-cell.sh-sel > .sh-t3, .sh-cell.sh-sel > .sh-station { border-color: var(--accent); }
+    .sh-cell.sh-sel > .sh-t1 { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  }
+  /* full-width inline expansion panels (per-card, multi-expand) */
+  .sh-gxp { grid-column: 1 / -1; position: relative; background: var(--sh-panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 12px; margin: 10px 0 6px; container-type: inline-size; }
+  .sh-gxp-caret { position: absolute; top: -9px; left: 40px; width: 16px; height: 16px; transform: rotate(45deg); background: var(--sh-panel); border-left: 1px solid var(--border); border-top: 1px solid var(--border); }
+  .sh-gxp-x { position: absolute; top: 8px; right: 10px; background: none; border: none; color: var(--text-dim); font-size: 15px; line-height: 1; cursor: pointer; padding: 4px 6px; z-index: 1; }
+  .sh-gxp-x:hover { color: var(--text); }
+  .sh-gxp-railhdr { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; padding-right: 26px; }
+  .sh-gxp-railhdr .sh-gxp-text { min-width: 0; }
+  .sh-gxp-top { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  .sh-gxp-rail .sh-title { font-size: 16px; }
+  .sh-gxp-rail .sh-sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+  .sh-gxp-pl { font-size: 12.5px; color: var(--text-dim); margin-top: 4px; }
+  .sh-gxp-tracks { min-width: 0; }
+  @container (min-width: 1000px) {
+    .sh-gxp-body { display: flex; gap: 28px; align-items: flex-start; }
+    .sh-gxp-rail { flex: 0 0 280px; position: sticky; top: 12px; }
+    .sh-gxp-railhdr { display: block; margin-bottom: 0; padding-right: 0; }
+    .sh-gxp-railhdr .sh-gxp-art { margin-bottom: 12px; }
+    .sh-gxp-railhdr .sh-gxp-text { display: flex; flex-direction: column; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-title { order: 0; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-sub { order: 1; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-gxp-top { order: 2; margin: 6px 0 0; }
+    .sh-gxp-railhdr .sh-gxp-text .sh-gxp-pl { order: 3; }
+    .sh-gxp-tracks { flex: 1 1 auto; max-width: 760px; }
+  }
+  /* Days ledger */
+  .sh-daysledger { max-width: 920px; margin: 6px auto 0; }
+  .sh-weekhdr { margin: 24px 2px 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--sh-dim2); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .sh-weekhdr b { color: var(--text-dim); font-weight: 600; }
+  .sh-dayrow { display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 8px; border-radius: 8px; cursor: pointer; }
+  .sh-dayrow:hover { background: var(--sh-panel); }
+  .sh-dayrow .sh-dr-date { flex: 0 0 96px; font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sh-dayrow .sh-dr-arts { flex: 0 0 105px; display: flex; gap: 3px; }
+  .sh-dayrow .sh-dr-arts .sh-art { width: 24px; height: 24px; border-radius: 5px; }
+  .sh-dayrow .sh-dr-head { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+  .sh-dayrow .sh-dr-stats { flex: 0 0 auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sh-dayrow .sh-dr-chev { flex: 0 0 auto; color: var(--sh-dim2); font-size: 13px; }
+  @media (max-width: 700px) { .sh-dayrow .sh-dr-arts { display: none; } }
+  /* multi-anchor day rows (pass 2.7) */
+  .sh-dayrow.sh-dr-cont { height: 38px; margin-top: -2px; }
+  .sh-dayrow .sh-dr-ditto { color: var(--sh-dim2); padding-left: 4px; }
+  .sh-dayrow .sh-dr-date.sh-dr-datelink:hover { color: var(--text); text-decoration: underline; }
+  /* pass 2.7b: names beat numbers on narrow widths */
+  @media (max-width: 760px) {
+    .sh-dayrow .sh-dr-stats .sh-st-trk, .sh-dayrow .sh-dr-head .sh-mut-len { display: none; }
+  }
+  @media (max-width: 560px) {
+    .sh-dayrow .sh-dr-stats .sh-st-sess { display: none; }
+    .sh-dayrow .sh-dr-date { flex-basis: 72px; }
+    .sh-dayrow { gap: 8px; }
+  }
+  @media (max-width: 520px) { .sh-trk .sh-ta { display: none; } }
+  @media (max-width: 420px) { .sh-t1 .sh-time { width: 50px; } }
 </style>
 </head>
 <body>
@@ -527,8 +793,8 @@
     <div class="status-dots" id="status-bar"></div>
   </div>
   <div class="house-tabs">
-    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill</div>
-    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon</div>
+    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill<span class="tab-play-dot">▶</span></div>
+    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon<span class="tab-play-dot">▶</span></div>
     <div class="house-tab" data-house="roaming" onclick="setHouse('roaming',true)">📱 Roaming</div>
   </div>
 
@@ -547,6 +813,7 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="shuffle-btn-caphill" onclick="sendCmd('toggle_shuffle')" title="Toggle shuffle">🔀</button>
       <button class="ctrl-btn repeat-btn" id="repeat-btn-caphill" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
@@ -559,7 +826,8 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-caphill"></div>
-    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Speakers synced</button>
+    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
   </div>
 
   <!-- Vashon panel -->
@@ -577,6 +845,7 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="shuffle-btn-vashon" onclick="sendCmd('toggle_shuffle')" title="Toggle shuffle">🔀</button>
       <button class="ctrl-btn repeat-btn" id="repeat-btn-vashon" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
@@ -589,7 +858,8 @@
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
     <div class="room-selector" id="rooms-vashon"></div>
-    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Speakers synced</button>
+    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
+    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
   </div>
 
   <!-- Roaming panel -->
@@ -615,21 +885,21 @@
       </div>
     </div>
     <div id="roaming-devices"></div>
-    <div style="margin-top:12px; text-align:center;">
-      <button class="sync-btn" id="sync-spotify-btn" onclick="syncSpotifyHistory()" style="font-size:13px;">↻ Sync Spotify Web History</button>
-    </div>
+    <!-- p2.57: Roaming sync button removed — ⟳ Refresh (shared toolbar) covers roaming Spotify poll -->
   </div>
 </div>
 
 <!-- ==================== BOTTOM SECTION ==================== -->
 <div class="bottom-section">
   <div class="content-tabs">
-    <div class="content-tab active" data-tab="history" onclick="setContentTab('history')">History</div>
+    <!-- p2.77: History tab hidden (Sessions replaces it) — section still published & reachable via #history hash as backup -->
+    <div class="content-tab" data-tab="history" style="display:none" onclick="setContentTab('history')">History</div>
+    <div class="content-tab active" data-tab="sessions" onclick="setContentTab('sessions')">History</div><!-- p2.83: renamed (Tracks|Sessions|Days live inside) -->
     <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
   </div>
 
-  <div id="tab-history">
+  <div id="tab-history" hidden>
     <div class="sub-tabs">
       <div class="sub-tab active" data-subtab="music" onclick="setSubTab('music')">Music <span class="count" id="cnt-music"></span></div>
       <span class="sub-tab-sep">·</span>
@@ -638,7 +908,7 @@
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
       <button class="sync-btn" id="deep-refresh-btn" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
-      <button class="sync-btn" id="sync-btn" onclick="syncNow()">↻ Sync</button>
+      <!-- p2.57: ↻ Sync removed — topology refresh lives in 🔄, wellness checks in weekly rebuild -->
 
     </div>
     <!-- p2.42 deep-refresh banner: NON-BLOCKING by design (AD-032). Commands (pause/volume/rooms)
@@ -655,6 +925,25 @@
       <div class="history-list" id="podcast-list">
         <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading podcasts...</p></div>
       </div>
+    </div>
+  </div>
+
+  <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
+  <div id="tab-sessions">
+    <div class="sh-toolbar">
+      <span class="sh-updated" id="sh-updated"></span>
+      <!-- p2.81 D8: the ONE staleness chip — "synced HH:MM · N pending"; amber = behind/silent -->
+      <span class="sh-syncchip" id="sh-syncchip" style="display:none"></span>
+      <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
+      <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
+      <div class="sh-zoomseg" id="sh-zoomseg">
+        <button id="sh-zoomT" onclick="SH.setZoom('tracks')">Tracks</button><!-- p2.83: legacy track-list view -->
+        <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
+        <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
+      </div>
+    </div>
+    <div class="content-panel">
+      <div id="sh-main" class="sh-vG"></div>
     </div>
   </div>
 
@@ -688,7 +977,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.55';
+const PAGE_VERSION = 'p2.83';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -702,31 +991,47 @@ const STATE_URLS = {
   vashon: 'https://shumania.github.io/lifelog/state-vashon.json'
 };
 const SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5fa7016c71845ffbb44d47b29d64655e';
-const SUPER_SYNC_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=61e754f5ec1abf1f75b4e28f96b618c3';
+// p2.57: SUPER_SYNC_WEBHOOK removed — Super Sync trigger still exists agent-side, just no UI caller
 const EXPLORE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=0da7fd530e6c2d366596d56e4fb702f3';
 const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=6d6c0c3c2153765217b95c78eb753450';
+// p2.58: ♥ likes → dedicated like trigger (wti_bjmj4ma95dq0k9nyyrfc). Tokens are PER-TRIGGER —
+// never reuse another webhook's token (returns 200 but the event never reaches the like trigger).
+const LIKE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5622b453bd1554221e67daf77b930537';
 const ROOMS_LIST = {
   caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Parents Bedroom','Media Room','Study Computer Playbar'],
-  vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Main Black Sonos Move']
+  vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
 };
+
+// p2.62: cluster / demote / never-show config (Option A, design_no_surprise_targeting_p262.md).
+// PRESENTATION ONLY — selectedRooms remains a flat list of real room names; every send
+// path and Group Speakers reconciliation is untouched by this layer.
+const CLUSTERS = { vashon: [
+  { id: 'main-floor',   label: 'Main Floor',   members: ['Main Living Room Maury','Main Kitchen Green Move 2','Sonos Move'] },
+  { id: 'master-suite', label: 'Master Suite', members: ['Main Upstairs Master Bedroom','Main Upstairs Bathroom White Roams'] },
+], caphill: [] };
+const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: [] };  // p2.64: Shed Boombox demoted (often offline)
+// Bonded devices (e.g. Vashon Sub) leak into rooms_all via GROUP MEMBER names — the Sonos
+// app hides them. Page-side guard until the v2.54 service fix. Do NOT filter these out of
+// expandViaGroups results used by Group Speakers (live topology legitimately includes them).
+const NEVER_SHOW_ROOMS = { vashon: ['Sub'], caphill: [] };
+let _clusterExpanded = {};   // session-only: cluster id -> bool (▸ burst state)
+let _moreRevealed = {};      // session-only: house -> bool (⋯ demoted row)
+let _demotedTucked = {};     // p2.69: house -> rooms tucked back behind ⋯ at Group Speakers press (cleared on fresh state)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════════════════════════
 let house = localStorage.getItem('ll_house') || 'caphill';
 let selectedRooms = {};  // per-house
-let _userManualRoomSelect = {};
-// If we're returning from a hard refresh, lock to the tab the user was on
-let _tabManualOverride = false;
+// p2.62: the "manual override" gate flags are DELETED — ALL selection and house
+// switching is manual now, so there is no auto mode left to gate.
 const _refreshTab = localStorage.getItem('ll_refresh_tab');
 if (_refreshTab) {
   house = _refreshTab;
   localStorage.setItem('ll_house', _refreshTab);
   localStorage.removeItem('ll_refresh_tab');
-  _tabManualOverride = true;
   console.log('[init] Restored tab from hard refresh:', _refreshTab);
 }
-let _initialRoomSeedDone = {};  // per-house: true after first state-file seed (prevents repeated overrides)
 let data = null;  // data-head.json
 let archiveItems = [];
 let archiveLoaded = false;
@@ -745,7 +1050,51 @@ let _roomsPlayingByHouse = {};  // house -> rooms currently playing (SSE status_
 let _lastCmdErrKey = '';        // p2.54: dedup for command_error red toasts (SSE replays)
 let _roomsPausedByHouse = {};   // house -> rooms currently paused
 function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
-function _rpPausedGet(h) { return _roomsPausedByHouse[h || house] || []; }
+// p2.81 Rider A (Rule 27 №3 — receivers are renderers, not state machines):
+// the page no longer GUESSES pause clocks. v2.54+ services send real per-room
+// paused_at epochs on every SSE push and in state-{house}.json; the page renders
+// them. Stale-paused (>1h) is still treated as stopped everywhere (no ⏸ badge,
+// no resume targeting) — same display rule, real data underneath.
+// Deleted here: _pausedSince / _inferPausedSince / _reinferPaused /
+// _pauseBaselineSeen + localStorage 'pausedSince' — ~60 lines of edge-triggered
+// history-corroboration inference (p2.66/p2.67) made obsolete by v2.54.
+const PAUSE_TTL_MS = 3600000;
+let _pausedAtByHouse = {};      // house -> {room: epoch_seconds} — service truth (v2.54)
+function _setPaused(h, rooms, pausedAt) {
+  _roomsPausedByHouse[h] = [...rooms];
+  if (pausedAt && typeof pausedAt === 'object') _pausedAtByHouse[h] = { ...pausedAt };
+}
+function _rpPausedGet(h) {
+  h = h || house;
+  const now = Date.now();
+  const at = _pausedAtByHouse[h] || {};
+  return (_roomsPausedByHouse[h] || []).filter(r => {
+    const ts = Number(at[r]) * 1000;
+    if (!ts) return true;  // no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
+    return (now - ts) < PAUSE_TTL_MS;
+  });
+}
+try { localStorage.removeItem('pausedSince'); } catch (e) {}  // p2.81: retire old inference state
+// p2.59: live group topology per house — [{coordinator, members, state}], pushed by
+// v2.53+ services on every SSE message + dedicated 'topology' events on regroup.
+let _groupsByHouse = {};
+// Expand a room list to full group membership: any room that belongs to a multi-room
+// group pulls in all its group-mates. Rooms with no known group pass through as-is.
+function expandViaGroups(h, rooms) {
+  const groups = _groupsByHouse[h] || [];
+  if (!groups.length) return [...rooms];
+  const out = new Set(rooms);
+  for (const r of rooms) {
+    const g = groups.find(g => (g.members || []).includes(r));
+    if (g) for (const m of g.members) out.add(m);
+  }
+  return [...out];
+}
+// Map room -> its group (only groups with 2+ members), for chip badges/tooltips.
+function groupOf(h, room) {
+  const g = (_groupsByHouse[h] || []).find(g => (g.members || []).length > 1 && g.members.includes(room));
+  return g || null;
+}
 let _roomsAll = {};      // per-house: rooms the service can see (for offline detection)
 let _playModes = {};     // coordinator -> play_mode (from SSE status_update)
 let _muteStates = {};    // coordinator -> bool (from SSE)
@@ -768,7 +1117,6 @@ try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone 
 // Init selected rooms from localStorage
 ['caphill','vashon'].forEach(h => {
   try { selectedRooms[h] = JSON.parse(localStorage.getItem('ll_rooms_' + h) || '[]'); } catch(e) { selectedRooms[h] = []; }
-  _userManualRoomSelect[h] = false;
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -895,7 +1243,7 @@ async function handleSpotifyCallback() {
       localStorage.setItem('spotify_refresh_token', d.refresh_token);
       localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
       localStorage.removeItem('spotify_pkce_verifier');
-      history.replaceState({}, '', window.location.pathname);
+      history.replaceState(history.state || {}, '', window.location.pathname + window.location.hash);  // p2.77: keep tab hash
       setHouse('roaming');
       showToast('Spotify connected!');
       return true;
@@ -966,7 +1314,6 @@ async function spotifyApi(method, path, body, _authRetries) {
 // ══════════════════════════════════════════════════════════════════════════════
 function setHouse(h, isUserClick) {
   house = h;
-  if (isUserClick) _tabManualOverride = true;
   localStorage.setItem('ll_house', h);
   document.querySelectorAll('.house-tab').forEach(t => t.classList.toggle('active', t.dataset.house === h));
   document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
@@ -985,11 +1332,13 @@ function setHouse(h, isUserClick) {
 // ══════════════════════════════════════════════════════════════════════════════
 // ROOM SELECTION (Sonos)
 // ══════════════════════════════════════════════════════════════════════════════
-function inferActiveRooms(h) {
+// p2.62: live-truth helpers (NO history heuristics — a stale history row up to 2h old
+// was the "hijack a room someone else is using" vector; see design_no_surprise_targeting_p262.md).
+function livePlayingRooms(h) {
   h = h || house;
-  // If live state already confirmed nothing is playing, don't re-infer stale rooms
-  if (_initialRoomSeedDone[h] && _rpGet(h).length === 0) return [];
-  // From data rooms_playing (per-client metadata)
+  const rp = _rpGet(h);
+  if (rp.length > 0) return [...rp];
+  // First-paint fallback: client_status metadata (state files may not have loaded yet)
   if (data && data.client_status) {
     for (const c of data.client_status) {
       if (c.house !== h || !c.sonos_commander) continue;
@@ -999,48 +1348,131 @@ function inferActiveRooms(h) {
       } catch(e) {}
     }
   }
-  // From recent history
-  if (allItems.length > 0) {
-    const cutoff = Date.now() - 120 * 60000;
-    for (const item of allItems) {
-      if (item.house !== h) continue;
-      const ts = new Date(item.timestamp).getTime();
-      if (ts < cutoff) break;
-      if (Array.isArray(item.rooms) && item.rooms.length > 0) return [...item.rooms];
-      if (item.room) return item.room.split(', ').map(r => r.trim()).filter(Boolean);
-    }
-  }
   return [];
+}
+// Playing rooms, else paused rooms (resume intent). Used by ⊙ and the transport-class fallback.
+function liveTargetRooms(h) {
+  h = h || house;
+  const p = livePlayingRooms(h);
+  if (p.length > 0) return p;
+  return [..._rpPausedGet(h)];
 }
 
 function renderRooms(h) {
   h = h || house;
   const container = document.getElementById('rooms-' + h);
   if (!container) return;
-  const all = ROOMS_LIST[h] || [];
-  const sel = selectedRooms[h] || [];
-  const liveRooms = inferActiveRooms(h);
-  // Auto-set rooms if user hasn't manually selected
-  if (!_userManualRoomSelect[h] && liveRooms.length > 0) {
-    selectedRooms[h] = [...liveRooms];
-    localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-  }
+  // p2.62: chips display LIVE TRUTH (badges); selection changes ONLY by explicit tap.
+  // All auto-select paths removed (design_no_surprise_targeting_p262.md).
+  // p2.56: chips = union of seed list + live topology, so renamed/new speakers appear.
+  const seed = ROOMS_LIST[h] || [];
+  const live = _roomsAll[h] || [];
+  const never = NEVER_SHOW_ROOMS[h] || [];
+  const all = [...seed, ...live.filter(r => !seed.includes(r))].filter(r => !never.includes(r));
   const curSel = selectedRooms[h] || [];
+  const playing = expandViaGroups(h, livePlayingRooms(h));  // group-mates emit sound too
   const visibleRooms = _roomsAll[h] || [];
   const hasVisibility = visibleRooms.length > 0;  // only mark offline if we have data
-  container.innerHTML = all.map(room => {
+  const pausedExpanded = expandViaGroups(h, _rpPausedGet(h));  // p2.59: members of a paused group show ⏸ too
+
+  const chipHtml = (room, xcls) => {
     const isActive = curSel.includes(room);
-    const isPlaying = liveRooms.includes(room);
-    const isPaused = !isPlaying && _rpPausedGet(h).includes(room);
+    const isPlaying = playing.includes(room);
+    const isPaused = !isPlaying && pausedExpanded.includes(room);
     const isOffline = hasVisibility && !visibleRooms.includes(room);
-    return `<div class="room-chip${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}" onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
-  }).join('');
+    // p2.59: ⛓ = room is in an actual live group right now (truth), independent of selection
+    const grp = groupOf(h, room);
+    const grpTitle = grp ? ' title="Grouped with: ' + esc(grp.members.filter(m => m !== room).join(', ')) + '"' : '';
+    return `<div class="room-chip${xcls || ''}${isActive ? ' active' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${grp ? ' grouped' : ''}"${grpTitle} onclick="toggleRoom('${esc(h)}','${esc(room.replace(/'/g,"\\'"))}')">${esc(room)}</div>`;
+  };
+
+  const clusters = CLUSTERS[h] || [];
+  const clusteredNames = new Set(clusters.flatMap(c => c.members));
+  const demoted = (DEMOTED_ROOMS[h] || []).filter(r => all.includes(r));
+  const regular = all.filter(r => !clusteredNames.has(r) && !demoted.includes(r));
+
+  let html = '';
+  for (const c of clusters) {
+    const members = c.members.filter(r => all.includes(r));
+    if (!members.length) continue;
+    const selCount = members.filter(r => curSel.includes(r)).length;
+    const partial = selCount > 0 && selCount < members.length;
+    // Auto-expand while partially selected so the dashed state is always explainable
+    if (_clusterExpanded[c.id] || partial) {
+      html += '<span class="cluster-burst"><span class="burst-collapse" onclick="collapseCluster(\'' + c.id + '\')" title="Collapse ' + esc(c.label) + '">\u25c2</span>' + members.map(r => chipHtml(r)).join('') + '</span>';
+      continue;
+    }
+    const isActive = selCount === members.length;
+    const isPlaying = members.some(r => playing.includes(r));
+    const isPaused = !isPlaying && members.some(r => pausedExpanded.includes(r));
+    const isOffline = hasVisibility && members.every(r => !visibleRooms.includes(r));
+    // ⛓ only when the members are actually live-grouped WITH EACH OTHER
+    const g0 = groupOf(h, members[0]);
+    const isGrouped = !!g0 && members.every(m => (g0.members || []).includes(m));
+    const tip = members.map(m => m + (playing.includes(m) ? ' \u25b6' : (pausedExpanded.includes(m) ? ' \u23f8' : ''))).join(' \u00b7 ');
+    html += `<div class="room-chip cluster${isActive ? ' active' : ''}${partial ? ' partial' : ''}${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}${isOffline ? ' offline' : ''}${isGrouped ? ' grouped' : ''}" title="${esc(tip)}" onclick="toggleCluster('${esc(h)}','${c.id}')">${esc(c.label)} \u00d7${members.length}<span class="cluster-expand" onclick="event.stopPropagation();expandCluster('${c.id}')" title="Expand cluster">\u25b8</span></div>`;
+  }
+  html += regular.map(r => chipHtml(r)).join('');  // p2.64: no bare map(chipHtml) — index would corrupt xcls
+  if (demoted.length) {
+    // p2.63: a live/selected demoted room reveals ONLY ITSELF (a playing Garage must not hide);
+    // the rest stay behind "\u22ef N more". Manual open shows all, with a "rarely used" label.
+    const _tucked = _demotedTucked[h] || [];  // p2.69: deselected-at-group-press rooms stay tucked until fresh state
+    const liveOrSel = r => curSel.includes(r) || (!_tucked.includes(r) && playing.includes(r) && (!hasVisibility || visibleRooms.includes(r)));  // p2.65: only PLAYING (audible) or selected reveals; paused stays behind \u22ef
+    const demChip = r => chipHtml(r, ' demoted');
+    if (_moreRevealed[h]) {
+      html += `<span class="demoted-label">rarely used</span>`;
+      html += demoted.map(demChip).join('');
+      html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',false)">\u22ef less</div>`;
+    } else {
+      const shown = demoted.filter(liveOrSel);
+      const hidden = demoted.filter(r => !liveOrSel(r));
+      html += shown.map(demChip).join('');
+      if (hidden.length) html += `<div class="room-chip more-toggle" onclick="toggleMore('${esc(h)}',true)">\u22ef ${hidden.length} more</div>`;
+    }
+  }
+  container.innerHTML = html;
   updateSyncButton(h);
+  updateHouseTabDots();
+}
+
+// p2.62: cluster tap = treat as ONE speaker. none/partial -> select all members; all -> none.
+function toggleCluster(h, id) {
+  const c = (CLUSTERS[h] || []).find(x => x.id === id);
+  if (!c) return;
+  const members = c.members;
+  const sel = new Set(selectedRooms[h] || []);
+  const allSel = members.every(r => sel.has(r));
+  if (allSel) members.forEach(r => sel.delete(r)); else members.forEach(r => sel.add(r));
+  selectedRooms[h] = [...sel];
+  localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+  renderRooms(h);
+}
+function expandCluster(id) { _clusterExpanded[id] = true; renderRooms(); }
+function collapseCluster(id) { _clusterExpanded[id] = false; renderRooms(); }
+function toggleMore(h, open) { _moreRevealed[h] = open; renderRooms(h); }
+
+// p2.62: ⊙ — the ONLY one-tap way to grab live rooms (replaces all removed auto-select).
+// Selection-only; Group Speakers remains the sole grouping send path.
+function selectPlaying(h) {
+  const never = NEVER_SHOW_ROOMS[h] || [];
+  const target = expandViaGroups(h, liveTargetRooms(h)).filter(r => !never.includes(r));
+  if (!target.length) { showToast('Nothing playing right now', true); return; }
+  selectedRooms[h] = target;
+  localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
+  renderRooms(h);
+  showToast('\u2299 Selected: ' + target.join(', '));
+}
+
+// p2.62: ▶ dot on inactive house tabs with live playback (replaces removed auto tab flip)
+function updateHouseTabDots() {
+  document.querySelectorAll('.house-tab').forEach(t => {
+    const th = t.dataset.house;
+    if (th === 'roaming') return;
+    t.classList.toggle('has-playing', (_roomsPlayingByHouse[th] || []).length > 0);
+  });
 }
 
 function toggleRoom(h, room) {
-  _userManualRoomSelect[h] = true;
-  _tabManualOverride = true;  // v2.06: selecting a room implies tab commitment
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
   if (idx < 0) sel.push(room); else sel.splice(idx, 1);
@@ -1056,15 +1488,17 @@ function updateSyncButton(h) {
   const btn = document.getElementById('sync-btn-' + h);
   if (!btn) return;
   const sel = new Set(selectedRooms[h] || []);
-  const live = new Set(_rpGet(h));
+  // p2.59: compare against FULL live group membership, not just rooms_playing —
+  // with group topology known, "✓ Grouped" means selection matches the actual group.
+  const live = new Set(expandViaGroups(h, _rpGet(h)));
   // Enable button if selection differs from what's actually playing
   const differs = sel.size !== live.size || [...sel].some(r => !live.has(r)) || [...live].some(r => !sel.has(r));
   if (differs) {
     btn.classList.remove('disabled');
-    btn.textContent = 'Sync Speakers';
+    btn.textContent = 'Group Speakers';
   } else {
     btn.classList.add('disabled');
-    btn.textContent = '✓ Speakers synced';
+    btn.textContent = '✓ Grouped';
   }
 }
 
@@ -1099,10 +1533,12 @@ async function syncRooms(h) {
   if (ok) {
     // Optimistically update rooms state so the button reflects new state
     _roomsPlayingByHouse[h] = [...rooms];
-    showToast(`✓ Speakers synced`);
-    updateSyncButton(h);
+    // p2.69: rarely-used rooms NOT in the new group tuck back behind ⋯ immediately
+    _demotedTucked[h] = (DEMOTED_ROOMS[h] || []).filter(r => !rooms.includes(r));
+    showToast(`✓ Speakers grouped`);
+    renderRooms(h);
   } else {
-    if (btn) btn.textContent = 'Sync Speakers';
+    if (btn) btn.textContent = 'Group Speakers';
     showToast('✗ Sync failed', true);
   }
 }
@@ -1123,7 +1559,7 @@ function updateCommander() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSPORT CONTROLS
 // ══════════════════════════════════════════════════════════════════════════════
-const SONOS_MAP = { play: 'resume', prev: 'previous' };
+const SONOS_MAP = { play: 'resume', prev: 'previous', toggle_shuffle: 'set_shuffle' };  // p2.80: 🔀 → deterministic set_shuffle
 let _lastCmdTime = 0;
 
 function filterOfflineRooms(rooms, h) {
@@ -1145,10 +1581,16 @@ async function sendCmd(action) {
   _lastCmdTime = now;
   if (house === 'roaming') { await spotifyCmd(action); return; }
   const sonosAction = SONOS_MAP[action] || action;
-  const rawRooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
+  // p2.62 TRANSPORT-CLASS EXCEPTION (approved default): pause/skip/volume/mute with an
+  // empty selection may target the currently playing (else paused) rooms — "pause what's
+  // playing" is never a surprise. Content-START commands require explicit selection.
+  const selNow = selectedRooms[house] || [];
+  const rawRooms = selNow.length > 0 ? selNow : expandViaGroups(house, liveTargetRooms(house));
+  if (!rawRooms.length) { showToast('Tap a speaker first', true); return; }
   const rooms = filterOfflineRooms(rawRooms);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
-  // Optimistic UI for mute/repeat (these are silent — no SSE confirmation comes back)
+  // Optimistic UI for mute/repeat/shuffle (these are silent — no SSE confirmation comes back)
+  let _shufTo;  // p2.80: desired shuffle state, rides in the set_shuffle payload
   if (action === 'toggle_mute') {
     const room = rooms[0];
     _muteStates[room] = !_muteStates[room];
@@ -1160,6 +1602,19 @@ async function sendCmd(action) {
                     SHUFFLE:'SHUFFLE', SHUFFLE_NOREPEAT:'SHUFFLE', SHUFFLE_REPEAT_ONE:'SHUFFLE_NOREPEAT' };
     _playModes[room] = cycle[cur] || 'NORMAL';
     updateMuteRepeatButtons();
+  } else if (action === 'toggle_shuffle') {
+    // p2.80: deterministic shuffle toggle — read current mode, send explicit
+    // set_shuffle(true|false). Optimistic mode map mirrors the service's
+    // repeat-preserving transitions exactly.
+    const room = rooms[0];
+    const cur = _playModes[room] || 'NORMAL';
+    const isShuf = cur === 'SHUFFLE' || cur === 'SHUFFLE_NOREPEAT' || cur === 'SHUFFLE_REPEAT_ONE';
+    _shufTo = !isShuf;
+    const to = { NORMAL:'SHUFFLE_NOREPEAT', REPEAT_ALL:'SHUFFLE', REPEAT_ONE:'SHUFFLE_REPEAT_ONE',
+                 SHUFFLE_NOREPEAT:'NORMAL', SHUFFLE:'REPEAT_ALL', SHUFFLE_REPEAT_ONE:'REPEAT_ONE' };
+    _playModes[room] = to[cur] || (_shufTo ? 'SHUFFLE_NOREPEAT' : 'NORMAL');
+    updateMuteRepeatButtons();
+    showToast(_shufTo ? '🔀 Shuffle on' : '🔀 Shuffle off');
   }
   // Optimistic toast for volume
   if (action === 'volume_up') showToast('🔊 Volume up · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
@@ -1167,6 +1622,7 @@ async function sendCmd(action) {
   const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
   // p2.50: finer volume steps — service default is ±10/tap, way too coarse vs native Sonos app; send explicit step
   if (action === 'volume_up' || action === 'volume_down') payload.step = 3;
+  if (_shufTo !== undefined) payload.shuffle = _shufTo;  // p2.80: explicit target state
   await postNtfy(payload);
 }
 
@@ -1179,9 +1635,11 @@ function toggleCtrlSettings(h) {
 async function sendClearQueue(h) {
   const pop = document.getElementById('ctrl-settings-' + h);
   if (pop) pop.hidden = true;
-  const rawRooms = (selectedRooms[h] || []).length > 0 ? selectedRooms[h] : inferActiveRooms();
-  const rooms = filterOfflineRooms(rawRooms, h);
-  if (!rooms.length) { showToast('No room selected — pick a speaker first', true); return; }
+  // p2.62: destructive command — explicit selection required (no inferred targeting)
+  const selNow = selectedRooms[h] || [];
+  if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+  const rooms = filterOfflineRooms(selNow, h);
+  if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
   const room = rooms[0];
   if (!confirm('Clear the Sonos queue for ' + room + '?\nIf the queue is currently playing, playback will stop.')) return;
   showToast('🗑 Clearing queue · ' + room);
@@ -1342,7 +1800,8 @@ async function fetchSpotifyNowPlaying() {
         album: d.item.type === 'track' ? (d.item.album?.name||'') : '',
         device: d.device?.name || '',
         progress_ms: d.progress_ms || 0, duration_ms: d.item.duration_ms || 0,
-        is_playing: d.is_playing, uri: d.item.uri
+        is_playing: d.is_playing, uri: d.item.uri,
+        context_type: d.context?.type || '', context_uri: d.context?.uri || ''
       };
       if (d.device?.id && !_manualPinActive()) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
     }
@@ -1477,7 +1936,54 @@ function updateMuteRepeatButtons() {
       repeatBtn.textContent = isRepeatOne ? '🔂' : (isRepeatAll ? '🔁' : '➖');
       repeatBtn.classList.toggle('active', isActive);
     }
+    // p2.80: 🔀 lights up when the active room's group is in any shuffle mode
+    const shufBtn = document.getElementById('shuffle-btn-' + h);
+    if (shufBtn && h !== 'roaming') {
+      const activeRoom = _getActiveRoom(h);
+      const mode = activeRoom ? (_playModes[activeRoom] || 'NORMAL') : 'NORMAL';
+      shufBtn.classList.toggle('active', mode === 'SHUFFLE' || mode === 'SHUFFLE_NOREPEAT' || mode === 'SHUFFLE_REPEAT_ONE');
+    }
   }
+}
+
+// p2.68: synthesize a ctx-panel info blob from Now Playing state.
+// Source precedence mirrors renderNowPlayingSonos: SSE live → dataNp (<30m) → latest history item.
+// Returns null when there is nothing expandable (radio, garbage title, no data).
+function npCtxInfo(h) {
+  const sse = _sseNowPlaying[h];
+  const isLive = sse && (Date.now() - sse.ts) < 600000;
+  const dataNp = data && data.now_playing && data.now_playing.house === h ? data.now_playing : null;
+  const dataNpAge = dataNp ? Date.now() - new Date(dataNp.timestamp || dataNp.ts || 0).getTime() : Infinity;
+  let s = null;
+  if (isLive) s = sse;
+  else if (dataNp && dataNpAge < 30 * 60000) s = dataNp;
+  else if (allItems.length > 0) s = allItems.find(i => i.house === h && i.type === 'music') || null;
+  if (!s || !s.title || s.title === '—' || isGarbageTitle(s.title)) return null;
+  const uriRaw = s.uri || '';
+  const low = (uriRaw + ' ' + (s.service || s.source || '')).toLowerCase();
+  if (low.includes('kexp') || low.includes('kcrw')) return null;  // radio → nothing to unfold
+  // Bare spotify:track:ID — decode from sonos-encoded URIs when needed
+  let bare = '';
+  if (uriRaw.startsWith('spotify:track:')) bare = uriRaw;
+  else { try { const m = decodeURIComponent(uriRaw).match(/spotify:track:[A-Za-z0-9]+/); if (m) bare = m[0]; } catch(e) {} }
+  const sonosUri = (uriRaw.startsWith('x-sonos') || uriRaw.startsWith('x-rincon')) ? uriRaw : (s.sonos_uri || '');
+  const info = {
+    uri: bare, album: s.album || '', artist: s.artist || '', title: s.title || '',
+    context_type: s.context_type || '', context_uri: s.context_uri || '',
+    service: s.service || s.source || '', sonos_uri: sonosUri, album_id: s.album_id || ''
+  };
+  // Enrichment: borrow album_id / context from the matching history-head row (live plays land there fast)
+  if ((!info.album_id || !info.context_uri) && bare && allItems.length) {
+    const tid = bare.split(':').pop();
+    const m = allItems.find(i => i.type === 'music' && (i.uri === bare || (i.uri || '').includes(tid)));
+    if (m) {
+      if (!info.album_id && m.album_id) info.album_id = m.album_id;
+      if (!info.context_uri && m.context_uri) { info.context_uri = m.context_uri; info.context_type = m.context_type || ''; }
+      if (!info.album && m.album) info.album = m.album;
+    }
+  }
+  if (!info.album && !info.album_id && !info.uri && !info.context_uri) return null;
+  return info;
 }
 
 function renderNowPlayingSonos(h) {
@@ -1622,17 +2128,24 @@ function renderNowPlayingSonos(h) {
     source: svc || '', uri: ''
   })).replace(/'/g,'%27') : '';
   const npArtist = (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : '')));
+  // p2.79: ♥ on Now Playing — reuse likeButton (pre-filled liked state, SSE confirmation, local-like fallback for non-Spotify)
+  const npUri = (sse && isLive ? (sse.uri || '') : (dataNp ? (dataNp.uri || '') : (latestItem ? (latestItem.uri || latestItem.track_id || '') : '')));
+  const npLikeBtn = (title && title !== '—') ? likeButton('track', npUri, title, npArtist, 'now_playing', svc || '') : '';
   const npCardIdx = findExploredCard(npArtist);
-  const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0
+  const exploreBtn = (title && title !== '—') ? (npCardIdx >= 0 && exploredCardIsFresh(npCardIdx)
     ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
     : `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>`) : '';
+  // p2.68: NP context expansion (album/playlist unfold). Re-render closes the panel — honest on track change.
+  const npInfo = npCtxInfo(h);
+  const npCtxId = 'npctx-' + h;
+  const ctxBtn = npInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('${npCtxId}',this,'${encodeURIComponent(JSON.stringify(npInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
       <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
-    </div>${exploreBtn}`;
+    </div>${npLikeBtn}${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
 }
 
 function renderNowPlayingRoaming() {
@@ -1643,6 +2156,20 @@ function renderNowPlayingRoaming() {
     const np = spotifyNowPlaying;
     const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
     const rExplore = encodeURIComponent(JSON.stringify({title:np.title,artist:np.artist,album:np.album||'',source:'Spotify',uri:''})).replace(/'/g,'%27');
+    // p2.68: NP context expansion — roaming already has a bare track uri + Spotify context
+    let rInfo = {
+      uri: (np.uri && np.uri.startsWith('spotify:track:')) ? np.uri : '',
+      album: np.album || '', artist: np.artist || '', title: np.title || '',
+      context_type: (np.context_type === 'playlist' || np.context_type === 'album') ? np.context_type : '',
+      context_uri: np.context_uri || '', service: 'spotify', sonos_uri: '', album_id: ''
+    };
+    if (rInfo.uri && allItems.length) {
+      const rtid = rInfo.uri.split(':').pop();
+      const rm = allItems.find(i => i.type === 'music' && i.album_id && (i.uri === rInfo.uri || (i.uri || '').includes(rtid)));
+      if (rm) rInfo.album_id = rm.album_id;
+    }
+    if (!rInfo.album && !rInfo.uri && !rInfo.context_uri && !rInfo.album_id) rInfo = null;
+    const rCtxBtn = rInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('npctx-roaming',this,'${encodeURIComponent(JSON.stringify(rInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
     el.className = 'now-playing';
     el.innerHTML = `
       <div class="np-indicator" style="background:var(--spotify);"></div>
@@ -1653,9 +2180,9 @@ function renderNowPlayingRoaming() {
         <div style="height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;"><div style="height:100%;background:var(--spotify);border-radius:2px;width:${pct}%"></div></div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${fmtMs(np.progress_ms)} / ${fmtMs(np.duration_ms)}</div>
       </div>
-      ${findExploredCard(np.artist) >= 0
+      ${likeButton('track', np.uri || '', np.title, np.artist, 'now_playing_roaming', 'spotify')}${findExploredCard(np.artist) >= 0
         ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(np.artist)})" title="View exploration">📖</button>`
-        : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}`;
+        : `<button class="np-explore" onclick="exploreArtist(this,'${rExplore}')" title="Explore artist">🔍</button>`}${rCtxBtn}${rInfo ? `<div class="ctx-panel" id="npctx-roaming"></div>` : ''}`;
   } else if (spotifyNowPlaying && !spotifyNowPlaying.is_playing) {
     const pExplore = encodeURIComponent(JSON.stringify({title:spotifyNowPlaying.title,artist:spotifyNowPlaying.artist,album:'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     el.className = 'now-playing np-stale';
@@ -1666,7 +2193,7 @@ function renderNowPlayingRoaming() {
         <div class="np-track">${esc(spotifyNowPlaying.title)}</div>
         <div class="np-artist">${esc(spotifyNowPlaying.artist)}</div>
       </div>
-      ${findExploredCard(spotifyNowPlaying.artist) >= 0
+      ${likeButton('track', spotifyNowPlaying.uri || '', spotifyNowPlaying.title, spotifyNowPlaying.artist, 'now_playing_roaming', 'spotify')}${findExploredCard(spotifyNowPlaying.artist) >= 0
         ? `<button class="np-explore" onclick="navigateToExploration(${findExploredCard(spotifyNowPlaying.artist)})" title="View exploration">📖</button>`
         : `<button class="np-explore" onclick="exploreArtist(this,'${pExplore}')" title="Explore artist">🔍</button>`}`;
   } else {
@@ -1710,7 +2237,29 @@ function renderStatusBar() {
     const label = names[c.client_id] || c.client_id;
     const ver = c.version ? ` v${c.version}` : '';
     return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}<span style="font-weight:400;opacity:0.7">${esc(ver)}</span></span>`;
-  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>';
+  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>' + errorIndicator();
+}
+
+// p2.60: ⚠️ error indicator — unresolved system_errors (24h) surfaced by the publishers
+// as data.recent_errors / data.errors_24h. Absent or zero → renders nothing.
+function errorIndicator() {
+  const n = (data && data.errors_24h) || (data && data.recent_errors && data.recent_errors.length) || 0;
+  if (!n) return '';
+  return ` <span onclick="toggleErrorList()" style="white-space:nowrap;cursor:pointer;font-size:11px;color:#eab308;font-weight:600" title="Unresolved errors in the last 24h — tap for details">⚠️${n}</span>`;
+}
+function toggleErrorList() {
+  let box = document.getElementById('error-list-pop');
+  if (box) { box.remove(); return; }
+  const errs = (data && data.recent_errors) || [];
+  if (!errs.length) return;
+  box = document.createElement('div');
+  box.id = 'error-list-pop';
+  box.style.cssText = 'position:fixed;top:44px;right:8px;z-index:1000;background:var(--bg-card,#1a1a2e);border:1px solid #eab308;border-radius:8px;padding:10px 12px;max-width:320px;font-size:11px;box-shadow:0 4px 16px rgba(0,0,0,0.5)';
+  box.innerHTML = '<div style="font-weight:700;color:#eab308;margin-bottom:6px">⚠️ Recent errors (24h)</div>' +
+    errs.map(e => `<div style="margin-bottom:6px;line-height:1.35"><span style="opacity:0.6">${esc((e.ts||'').replace('T',' ').replace('Z',''))}</span> <b>${esc(e.source||'')}</b><br>${esc(e.message||'')}</div>`).join('') +
+    '<div style="opacity:0.5;margin-top:4px">tap to dismiss</div>';
+  box.onclick = () => box.remove();
+  document.body.appendChild(box);
 }
 
 // p2.44 (U-M12): hard refresh with pending/confirmation UX. After a refresh command the
@@ -1861,106 +2410,35 @@ function applyStateNowPlaying(stateFiles) {
     }
     // Seed rooms_all for offline detection
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
-    // Also seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
-    if (state.rooms_playing && state.rooms_playing.length > 0) {
-      // Always update rooms state (reality) regardless of manual selection
-      // U-M2: store for EVERY house (was gated to current tab, discarding other-house state)
-      if (stateTs > sseTs) { _roomsPlayingByHouse[h] = [...state.rooms_playing]; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : []; }
-      // Only auto-set selectedRooms if user hasn't manually chosen
-      if (stateTs > sseTs && !_userManualRoomSelect[h]) {
-        selectedRooms[h] = [...state.rooms_playing];
-        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+    // p2.59: seed group topology from state files (v2.53+ services publish it)
+    if (state.groups && stateTs > sseTs) { _groupsByHouse[h] = [...state.groups]; }
+    // Seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
+    // p2.62: REALITY ONLY — selection is never seeded/cleared from state (manual-only design)
+    if (state.rooms_playing && stateTs > sseTs) {
+      // p2.62 liveness gate: a DEAD machine's last state file can be days old and still
+      // claim rooms_playing (ShumaFrame incident — week-old file lit the tab ▶ dot and fed
+      // the transport-class fallback with rooms from a week ago). Gate on the machine's
+      // client_status.last_seen, NOT file age — an alive-but-idle machine legitimately has
+      // an old state file (state only pushes on changes) and its contents are still true.
+      // "Alive" = state file OR client_status heartbeat within 12h. Both freeze when a
+      // machine dies (ShumaFrame: both were 7 days old). 12h tolerates idle days and the
+      // overnight quiet-hours gap; live SSE refreshes reality within minutes anyway.
+      const lastSeenTs = (data && data.client_status)
+        ? Math.max(0, ...data.client_status.filter(c => c.house === h && c.last_seen)
+            .map(c => new Date(c.last_seen).getTime() || 0))
+        : Date.now();  // no client info yet — trust the state file
+      const machineAlive = (Date.now() - Math.max(stateTs, lastSeenTs)) < 43200000;
+      if (machineAlive) {
+        _roomsPlayingByHouse[h] = [...state.rooms_playing];
+        _setPaused(h, state.rooms_paused || [], state.paused_at);  // p2.81: real service pause clocks
+        _demotedTucked[h] = [];  // p2.69: fresh truth supersedes tuck
+      } else {
+        _roomsPlayingByHouse[h] = []; _setPaused(h, []);
       }
-      // Re-evaluate sync button since live state may have changed
       updateSyncButton(h);
-    } else if (state.rooms_playing && state.rooms_playing.length === 0 && stateTs > sseTs) {
-      // State says no rooms playing — clear this house's state (U-M2: all houses, keyed)
-      _roomsPlayingByHouse[h] = []; _roomsPausedByHouse[h] = state.rooms_paused ? [...state.rooms_paused] : [];
-      // Clear stale auto-selected rooms on page load when nothing is playing
-      if (!_userManualRoomSelect[h] && !_initialRoomSeedDone[h]) {
-        _initialRoomSeedDone[h] = true;
-        // Only keep paused rooms as selected (they're recent); clear everything else
-        const pausedRooms = (state.rooms_paused && state.rooms_paused.length > 0) ? [...state.rooms_paused] : [];
-        if (pausedRooms.length > 0) {
-          console.log('[rooms] Seeding', h, 'rooms from paused state:', pausedRooms);
-          selectedRooms[h] = pausedRooms;
-        } else {
-          console.log('[rooms] Nothing playing/paused for', h, '— clearing stale room selection');
-          selectedRooms[h] = [];
-        }
-        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-      }
     }
   }
-}
-
-// Auto-select tab based on which house has active speakers
-function autoSelectTab(stateFiles) {
-  if (_tabManualOverride) return;  // user tapped a tab — don't fight them
-  const active = [];
-  for (const [h, state] of Object.entries(stateFiles)) {
-    if (state && state.rooms_playing && state.rooms_playing.length > 0) active.push(h);
-  }
-  if (active.length === 1 && active[0] !== house) {
-    console.log('[auto-tab] Switching to', active[0], '(active speakers detected)');
-    setHouse(active[0]);
-    return;
-  }
-  if (active.length > 0) return;  // both active or current house active — keep it
-
-  // Both idle — check rooms_paused as tiebreaker (house with paused speakers = recently active)
-  const pausedCounts = {};
-  for (const [h, state] of Object.entries(stateFiles)) {
-    pausedCounts[h] = (state && state.rooms_paused) ? state.rooms_paused.length : 0;
-  }
-  const houses = ['caphill', 'vashon'].filter(h => pausedCounts[h] !== undefined);
-  if (houses.length === 2 && pausedCounts[houses[0]] !== pausedCounts[houses[1]]) {
-    const winner = pausedCounts[houses[0]] > pausedCounts[houses[1]] ? houses[0] : houses[1];
-    if (winner !== house) {
-      console.log('[auto-tab] Switching to', winner, '(more paused rooms:', pausedCounts[winner], 'vs', pausedCounts[winner === houses[0] ? houses[1] : houses[0]], ')');
-      setHouse(winner);
-      return;
-    }
-  }
-
-  // Fallback: most recently seen sonos_commander client (from data-head.json client_status)
-  if (data && data.client_status) {
-    const commanders = data.client_status.filter(c => c.sonos_commander);
-    if (commanders.length >= 2) {
-      commanders.sort((a, b) => (b.last_seen || '').localeCompare(a.last_seen || ''));
-      const newest = commanders[0];
-      const diff = new Date(newest.last_seen).getTime() - new Date(commanders[1].last_seen).getTime();
-      if (diff > 30 * 60000 && newest.house !== house) {
-        console.log('[auto-tab] Switching to', newest.house, '(most recently seen commander:', newest.client_id, ', diff:', Math.round(diff/60000), 'min)');
-        setHouse(newest.house);
-        return;
-      }
-    }
-  }
-
-  // Fallback: most recently updated state file = active machine location
-  const timestamps = {};
-  for (const [h, state] of Object.entries(stateFiles)) {
-    timestamps[h] = state?.last_updated ? new Date(state.last_updated).getTime() : 0;
-  }
-  if (timestamps.caphill && timestamps.vashon && timestamps.caphill !== timestamps.vashon) {
-    const winner = timestamps.vashon > timestamps.caphill ? 'vashon' : 'caphill';
-    const diff = Math.abs(timestamps.vashon - timestamps.caphill);
-    if (diff > 30 * 60000 && winner !== house) {
-      console.log('[auto-tab] Switching to', winner, '(more recently updated state file, diff:', Math.round(diff/60000), 'min)');
-      setHouse(winner);
-      return;
-    }
-  }
-
-  // Final fallback: most recent non-roaming listening history
-  if (allItems.length > 0) {
-    const recent = allItems.find(i => i.house && i.house !== 'roaming');
-    if (recent && recent.house !== house) {
-      console.log('[auto-tab] Switching to', recent.house, '(most recent listening)');
-      setHouse(recent.house);
-    }
-  }
+  updateHouseTabDots();
 }
 
 async function loadData(loadArchive) {
@@ -1998,8 +2476,9 @@ async function loadData(loadArchive) {
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
     allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
-    // Auto-select tab based on active speakers
-    autoSelectTab(stateFiles);
+    // p2.81 Rider A: _reinferPaused() deleted — pause clocks come from the service now
+    // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
+    updateHouseTabDots();
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
     applyStateNowPlaying(stateFiles);
     renderAll();
@@ -2038,8 +2517,10 @@ async function loadData(loadArchive) {
 function renderAll() {
   renderStatusBar();
   updateCommander();
-  // Seed rooms state from data
-  _roomsPlayingByHouse[house] = inferActiveRooms(house) || [];
+  // Seed rooms state from data — p2.62: LIVE truth only (client_status metadata);
+  // the old history-heuristic fallback could pollute the reality store with rooms
+  // from a 2h-old play, which then leaked into badges and transport targeting.
+  if ((_roomsPlayingByHouse[house] || []).length === 0) _roomsPlayingByHouse[house] = livePlayingRooms(house);
   renderRooms(house);
   if (house === 'roaming') renderRoamingPanel();
   else renderNowPlayingSonos(house);
@@ -2070,14 +2551,15 @@ function getLocation(item) {
   return { cls: 'roaming', label: '📱 Roaming' };
 }
 
+// p2.60: emoji dots make multi-source nature visible at a glance (backlog: "Source badges on tracks")
 function getSourceBadge(item) {
   const src = item.source || '';
-  if (src.includes('spotify')) return 'Spotify';
-  if (src.includes('apple')) return 'Apple Music';
-  if (src.includes('qobuz')) return 'Qobuz';
-  if (src.includes('kcrw')) return 'KCRW';
-  if (src.includes('kexp')) return 'KEXP';
-  if (src.includes('tunein') || src.includes('radio')) return 'Radio';
+  if (src.includes('spotify')) return '🟢 Spotify';
+  if (src.includes('apple')) return '🔴 Apple Music';
+  if (src.includes('qobuz')) return '🟡 Qobuz';
+  if (src.includes('kcrw')) return '📻 KCRW';
+  if (src.includes('kexp')) return '📻 KEXP';
+  if (src.includes('tunein') || src.includes('radio')) return '📻 Radio';
   return '';
 }
 
@@ -2234,10 +2716,11 @@ function renderHistory() {
       <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
       <div class="hi-info">
         <div class="hi-line1">
-          <span class="hi-track">${esc(item.title)}${likedBadge(item.track_id || item.uri)}</span>
+          <span class="hi-track">${esc(item.title)}</span>
           ${item.album ? '<span class="hi-sep">·</span><span class="hi-album">' + esc(item.album) + '</span>' : ''}
           ${item.artist ? '<span class="hi-sep">·</span><span class="hi-artist">' + esc(item.artist) + '</span>' : ''}
         </div>
+        ${canonicalAlbumLine(item.canonical_album, item.canonical_album_year, item.album)}
         <div class="hi-line2">
           <span class="hi-location ${loc.cls}">${loc.label}</span>
           ${rooms ? '<span class="hi-rooms">' + esc(rooms) + '</span>' : ''}
@@ -2247,6 +2730,7 @@ function renderHistory() {
       <div class="hi-actions">
         <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
+        ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', item.source || item.service || '')}
         ${exploreButton(item.artist, exploreData)}
         ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
       </div>
@@ -2313,14 +2797,19 @@ function renderSuggRow(s, explorationId) {
   const albumId = isAlbum ? s.uri.split(':').pop() : '';
   let h = '';
   if (isAlbum) h += '<div class="sugg-with-tracks">';
-  h += `<div class="suggestion-item">
+  // p2.58: ♥ only on real Spotify track/album URIs (never artist/playlist URIs)
+  const isTrack = !!(s.uri && s.uri.startsWith('spotify:track:'));
+  const likeBtn = (isTrack || isAlbum) ? likeButton(isAlbum ? 'album' : 'track', s.uri, s.label || '', s.artist || '', 'discovery', 'spotify') : '';
+  h += `<div class="suggestion-item" data-heard="${isHeardItem(s) ? 1 : 0}">
     <div class="suggestion-info">
-      <div class="suggestion-title">${esc(s.label)}</div>
+      <div class="suggestion-title">${esc(s.label)}${(isTrack || isAlbum) ? heardDot(s.uri, isAlbum ? 'album' : 'track') : ''}</div>
       ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+      ${canonicalAlbumLine(s.canonical_album, s.canonical_album_year, s.album || '')}
     </div>
     <div class="sugg-actions">
       ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">▶</button>
       <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">+</button>` : ''}
+      ${likeBtn}
       ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},decodeURIComponent('${uri}'),this)">▾</button>` : ''}
     </div>
   </div>`;
@@ -2362,6 +2851,7 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
   panel.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracks…</div>';
   panel.classList.add('show');
 
+  loadHeardData(); // p2.60: kick off rollups for heard dots (non-blocking; cached after first load)
   let tracks;
   if (_albumTracksCache[explorationId]) {
     tracks = _albumTracksCache[explorationId][albumUri];
@@ -2377,8 +2867,41 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     }
   }
 
+  // p2.60: converge on the Phase-6 chunk system. Per-exploration file missed →
+  // try the immutable albums/{id}.json chunk (shared with History expansion),
+  // and 404 there fires the proven fetch_album_chunk self-heal + poll.
+  // Kills the old "No track data yet" dead end.
+  if ((!tracks || tracks.length === 0) && albumId) {
+    let chunk = _histAlbumChunkCache[albumId];
+    if (!chunk) {
+      try {
+        const resp = await fetch('albums/' + albumId + '.json?v=' + (Date.now()>>10));
+        if (resp.ok) {
+          chunk = await resp.json();
+          _histAlbumChunkCache[albumId] = chunk;
+        } else if (resp.status === 404) {
+          console.log('[albumTracks] no chunk for', albumId, '— firing self-heal webhook');
+          panel.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Fetching tracklist… (first request for this album, ~30–60s)</div>';
+          try {
+            await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ action: 'fetch_album_chunk', album_id: albumId, cmd_ts: new Date().toISOString(), page_version: PAGE_VERSION }) });
+          } catch(e) { console.warn('[albumTracks] self-heal webhook failed:', e && e.message); }
+          for (let i = 0; i < 12 && !chunk; i++) {
+            await new Promise(r => setTimeout(r, 10000));
+            try {
+              const rr = await fetch('albums/' + albumId + '.json?v=' + Date.now());
+              if (rr.ok) { chunk = await rr.json(); _histAlbumChunkCache[albumId] = chunk; }
+            } catch(e) { /* keep polling */ }
+          }
+        }
+      } catch(e) { console.warn('[albumTracks] chunk fetch error:', e && e.message); }
+    }
+    if (chunk && chunk.tracks && chunk.tracks.length > 0) tracks = chunk.tracks;
+  }
+
   if (!tracks || tracks.length === 0) {
-    panel.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.5">No track data yet</div>';
+    panel.innerHTML = '<div class="album-tracks-loading" style="color:var(--text-dim);opacity:0.5">Tracklist not available yet — try again in a minute</div>';
     return;
   }
 
@@ -2392,14 +2915,24 @@ async function toggleAlbumTracks(explorationId, albumUri, btn) {
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}${heardDot(tUriVal, 'track')}</span>
       <div class="sugg-actions">
         ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
+        ${likeButton('track', tUriVal, tName, '', 'discovery', 'spotify')}
       </div>
     </div>`;
   }
   panel.innerHTML = html;
+}
+
+// p2.60: "Unplayed only" Discovery filter — persisted; CSS :has() does the hiding
+function _discUnplayedOnly() { try { return localStorage.getItem('discUnplayedOnly') === '1'; } catch(e) { return false; } }
+function toggleDiscUnplayed() {
+  const on = !_discUnplayedOnly();
+  try { localStorage.setItem('discUnplayedOnly', on ? '1' : '0'); } catch(e) {}
+  if (on && !_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
+  renderDiscovery();
 }
 
 function renderDiscovery() {
@@ -2409,10 +2942,13 @@ function renderDiscovery() {
     return;
   }
   const cmds = data.play_commands;
+  // p2.60: heard dots + Unplayed filter need rollups — load once, then re-render so dots/filter appear
+  if (!_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
+  document.body.classList.toggle('disc-unplayed', _discUnplayedOnly());
   // Stat line
   const lastDate = new Date(cmds[0].timestamp);
   const statLine = `${cmds.length} artists explored · last on ${lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} at ${fmtTime(cmds[0].timestamp)}`;
-  let html = `<div class="discovery-stat">${esc(statLine)}</div>`;
+  let html = `<div class="discovery-stat">${esc(statLine)}<span class="disc-filter-chip${_discUnplayedOnly() ? ' on' : ''}" onclick="toggleDiscUnplayed()" title="Show only suggestions you haven\u2019t played yet">\u25cb Unplayed only</span></div>`;
 
   for (let i = 0; i < cmds.length; i++) {
     const cmd = cmds[i];
@@ -2464,6 +3000,7 @@ function renderDiscovery() {
         <div class="sugg-actions">
           ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">▶</button>
           <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">+</button>` : ''}
+          ${(sourceTrack.uri && (sourceTrack.uri.startsWith('spotify:track:') || sourceTrack.uri.startsWith('spotify:album:'))) ? likeButton(sourceTrack.uri.startsWith('spotify:album:') ? 'album' : 'track', sourceTrack.uri, sourceTrack.label || '', cmd.artist || '', 'discovery_source', 'spotify') : ''}
           ${stCanExpand ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${cmd.exploration_id},decodeURIComponent('${stAlbumUri}'),this)">▾</button>` : ''}
         </div>
       </div>`;
@@ -2584,8 +3121,10 @@ async function directPlay(action, encodedData) {
 
   // --- SONOS PATH (Cap Hill / Vashon) ---
   if (house !== 'roaming') {
-    const rawRooms = (selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms();
-    const rooms = filterOfflineRooms(rawRooms);
+    // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
 
     // [DESIGN NOTE] play_next handles ALL services (Spotify, Qobuz, Apple Music).
@@ -2702,6 +3241,7 @@ async function toggleHistAlbumTracks(panelId, albumId, btn) {
   btn.textContent = '▴';
   if (box.dataset.loaded === '1') return;
   box.innerHTML = '<div class="album-tracks-loading"><span class="spinner"></span> Loading tracklist…</div>';
+  loadHeardData(); // p2.60: heard dots (non-blocking)
 
   let chunk = _histAlbumChunkCache[albumId];
   if (!chunk) {
@@ -2746,10 +3286,11 @@ async function toggleHistAlbumTracks(panelId, albumId, btn) {
     const num = (t.d && t.d > 1 ? t.d + '-' : '') + t.n;
     html += `<div class="album-track-item">
       <span class="at-num">${num}</span>
-      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}</span>
+      <span class="at-name">${esc(tName)}${likedBadge(tUriVal)}${heardDot(tUriVal, 'track')}</span>
       <div class="sugg-actions">
         ${tUriVal ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">▶</button>
         <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${tUri}'),decodeURIComponent('${tLbl}'))">+</button>` : ''}
+        ${likeButton('track', tUriVal, tName, chunk.artist || '', 'history', 'spotify')}
       </div>
     </div>`;
   }
@@ -2766,7 +3307,7 @@ function toggleCtxPanel(panelId, btn, encodedInfo) {
     if (p.id !== panelId) {
       p.classList.remove('open');
       // Reset the toggle button
-      const prevBtn = p.previousElementSibling?.querySelector('.ctx-toggle');
+      const prevBtn = p.previousElementSibling?.classList?.contains('ctx-toggle') ? p.previousElementSibling : p.previousElementSibling?.querySelector('.ctx-toggle');
       if (prevBtn) { prevBtn.classList.remove('open'); prevBtn.textContent = '▾'; }
     }
   });
@@ -2936,7 +3477,10 @@ async function playContext(action, encodedData) {
   const isQobuz = svc.includes('qobuz') || sonosUri.includes('sid=31');
   const isApple = svc.includes('apple') || sonosUri.includes('sid=204');
   if ((isQobuz || isApple) && info.album && house !== 'roaming') {
-    const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+    // p2.62: content-start requires explicit selection
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
     const service = isQobuz ? 'Qobuz' : 'Apple Music';
     console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist);
@@ -2958,7 +3502,28 @@ async function playContext(action, encodedData) {
 
   // If no context_uri, search for album on Spotify
   if (!contextUri && info.album) {
-    if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
+    if (!hasSpotifyAuth()) {
+      // p2.73: Sonos houses must NOT require browser-side Spotify auth (PKCE token
+      // is per-browser localStorage — fresh devices have none). Fall back to
+      // service-side Sonos MusicService search, mirroring directPlay's track
+      // fallback. Roaming (Spotify Connect) still genuinely needs the connect.
+      // NOTE: search_and_queue preserves the current queue but starts playback of
+      // the queued album — a true queue-only Spotify album path needs a play_album
+      // Spotify branch service-side (v2.54 candidate, see backlog).
+      if (house !== 'roaming') {
+        const selNow = selectedRooms[house] || [];
+        if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+        const rooms = filterOfflineRooms(selNow);
+        if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+        const q = [info.album, info.artist].filter(Boolean).join(' ');
+        const ntfyAction = action === 'queue' ? 'search_and_queue' : 'search_and_play';
+        console.log('[playContext] No PKCE auth — falling back to ' + ntfyAction + ' on service, q=' + q);
+        const ok = await postNtfy({ action: ntfyAction, query: q, service: 'Spotify', search_type: 'albums', rooms, target_client_id: commanderId });
+        if (ok) showToast('✓ Searching & ' + (action === 'queue' ? 'queueing' : 'playing') + ' album: ' + info.album + ' → ' + rooms.join(', '));
+        return;
+      }
+      showToast('Connect Spotify first', true); return;
+    }
     showToast('Searching album…');
     try {
       const q = 'album:' + info.album + (info.artist ? ' artist:' + info.artist : '');
@@ -2974,7 +3539,10 @@ async function playContext(action, encodedData) {
 
   // --- SONOS PATH ---
   if (house !== 'roaming') {
-    const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+    // p2.62: content-start requires explicit selection
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    const rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
     const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
     await postNtfy({ action: ntfyAction, uri: contextUri, title: label, rooms, target_client_id: commanderId });
@@ -3051,7 +3619,10 @@ async function playDiscovery(action, uri, label) {
   }
 
   // Sonos
-  const rooms = filterOfflineRooms((selectedRooms[house] || []).length > 0 ? selectedRooms[house] : inferActiveRooms());
+  // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+  const selNow = selectedRooms[house] || [];
+  if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+  const rooms = filterOfflineRooms(selNow);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
   // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
   const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
@@ -3093,9 +3664,17 @@ function navigateToExploration(cardIndex) {
 }
 
 // Returns HTML for explore button — 📖 if already explored, 🔍 if not
+// p2.58: jump-to-card only when the exploration is ≤14 days old; older cards are stale
+// context — allow a fresh re-explore instead (the old card stays in Discovery regardless).
+function exploredCardIsFresh(cardIdx) {
+  if (cardIdx < 0 || !data || !data.play_commands || !data.play_commands[cardIdx]) return false;
+  const ts = new Date(data.play_commands[cardIdx].timestamp).getTime();
+  return (Date.now() - ts) < 14 * 24 * 3600000;
+}
+
 function exploreButton(artist, exploreData) {
   const cardIdx = findExploredCard(artist);
-  if (cardIdx >= 0) {
+  if (cardIdx >= 0 && exploredCardIsFresh(cardIdx)) {
     return `<button class="action-btn explore" onclick="navigateToExploration(${cardIdx})" title="View exploration" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">📖</button>`;
   }
   return `<button class="action-btn explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist" style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;padding:2px 6px;font-size:11px;">🔍</button>`;
@@ -3190,49 +3769,62 @@ function _drFinish() {
   document.getElementById('refresh-banner').hidden = true;
 }
 
-async function syncNow() {
-  const btn = document.getElementById('sync-btn');
-  btn.textContent = '⏳ Collecting...'; btn.disabled = true; btn.style.opacity = '0.6';
-  try {
-    // Refresh Sonos topology + Super Sync
-    // U-M11 (p2.43): skip Sonos refresh on roaming (no topic) — Super Sync still runs
-    if (NTFY[house]) postNtfy({ action: 'refresh' }).catch(() => {});
-    await fetch(SUPER_SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
-    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
-    // Collect runs ~5s, flush responses + wellness take ~25s, then reload
-    setTimeout(async () => {
-      await loadData(true);
-      btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-    }, 30000);
-  } catch(e) {
-    btn.textContent = '↻ Sync'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-  }
-}
+// p2.57: syncNow() removed (↻ Sync button retired — blind-timer pattern, jobs superseded)
 
-async function syncSpotifyHistory() {
-  const btn = document.getElementById('sync-spotify-btn');
-  btn.textContent = '⏳ Syncing Spotify...'; btn.disabled = true; btn.style.opacity = '0.6';
-  try {
-    await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors' });
-    btn.textContent = '✓ Syncing...'; btn.style.color = 'var(--accent)';
-    setTimeout(async () => {
-      await loadData(true);
-      btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-    }, 35000);
-  } catch(e) {
-    btn.textContent = '↻ Sync Spotify Web History'; btn.style.color = ''; btn.style.opacity = '1'; btn.disabled = false;
-  }
-}
+// p2.57: syncSpotifyHistory() removed (redundant with deepRefresh's roaming poll; full-rebuild path was heavyweight + blind timer)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════════════════════════════════════════════
-function setContentTab(tab) {
+const CONTENT_TABS = ['history', 'sessions', 'discovery', 'playlists'];  // p2.77: 'history' hidden from bar but still valid via #history hash
+
+function setContentTab(tab, fromPop) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('tab-history').hidden = tab !== 'history';
+  document.getElementById('tab-sessions').hidden = tab !== 'sessions';
   document.getElementById('tab-discovery').hidden = tab !== 'discovery';
   document.getElementById('tab-playlists').hidden = tab !== 'playlists';
+  // p2.77: content tabs participate in browser history so Back works (installed-app back arrow included)
+  if (!fromPop && (location.hash || '').replace('#', '') !== tab) {
+    history.pushState({ ctab: tab }, '', '#' + tab);
+  }
   if (tab === 'playlists' && !_playlists.length) loadPlaylistData();
+  if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
+}
+
+// p2.77: honor #hash on load (default: sessions), and restore tabs on Back/Forward
+function applyInitialTab() {
+  let t = (location.hash || '').replace('#', '');
+  if (!CONTENT_TABS.includes(t)) t = 'sessions';
+  history.replaceState({ ctab: t }, '', '#' + t);
+  setContentTab(t, true);
+}
+window.addEventListener('popstate', (e) => {
+  const t = (e.state && e.state.ctab) || (location.hash || '').replace('#', '');
+  if (CONTENT_TABS.includes(t)) setContentTab(t, true);
+});
+
+// p2.76: navigate from a session's playlist name to its card on the Playlists tab
+function jumpToPlaylist(id) {
+  setContentTab('playlists');               // triggers loadPlaylistData() if not yet loaded
+  const searchEl = document.getElementById('pl-search');
+  if (searchEl) searchEl.value = '';        // clear any stale filter so the card is findable
+  _plOpenIds.add(id);                       // arrive with the card expanded
+  if (!_plTrackCache[id] && !_plTrackLoading.has(id)) loadPlTracks(id);
+  let tries = 0;
+  const settle = setInterval(() => {
+    tries++;
+    if (_playlists.length) {
+      clearInterval(settle);
+      renderPlaylists();
+      const el = document.getElementById('pl-' + id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else console.warn('[p2.76] jumpToPlaylist: card pl-' + id + ' not found after render');
+    } else if (tries > 40) {                // ~10s: playlist data never arrived — leave user on the tab, log loudly
+      clearInterval(settle);
+      console.warn('[p2.76] jumpToPlaylist: playlist data not loaded after 10s, id=' + id);
+    }
+  }, 250);
 }
 
 function setSubTab(sub) {
@@ -3308,6 +3900,17 @@ function connectSSE() {
         }
       }
 
+      // p2.58: ♥ like confirmations from the like-handler (type:'like_result').
+      // Dedup by cmd_ts inside handleLikeResult (ntfy replays ?since=16m on reconnect).
+      if (msg.type === 'like_result' || events.includes('like_result')) {
+        handleLikeResult(msg);
+      }
+
+      // p2.78: playlist fetch/follow confirmations from the fetch-public-playlist handler.
+      if (msg.type === 'fetch_result' || events.includes('fetch_result')) {
+        handleFetchResult(msg);
+      }
+
       // p2.44 (U-M12): confirm an in-flight hard refresh — any fresh status_update from
       // the awaited house proves the client is alive and has re-discovered topology
       if (events.includes('status_update')) _hrConfirm(sseHouse, evtTs, (msg.rooms_all || []).length);
@@ -3329,11 +3932,8 @@ function connectSSE() {
           _sseNowPlaying[sseHouse] = { title: msg.title, artist: msg.artist, album: msg.album, rooms: [...new Set(msg.rooms||[])], service: msg.service||'', uri: msg.uri||'', ts: evtTs };
           if (sseHouse === house) {
             renderNowPlayingSonos(house);
-            if (msg.rooms && msg.rooms.length > 0 && !_userManualRoomSelect[house]) {
-              selectedRooms[house] = [...msg.rooms];
-              localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
-              renderRooms(house);
-            }
+            // p2.62: badges may have changed — re-render chips; selection untouched
+            renderRooms(house);
           }
         }
         if (house === 'roaming') renderNowPlayingRoaming();
@@ -3357,33 +3957,37 @@ function connectSSE() {
       // --- Always process state fields (every bundled message is a full snapshot) ---
       if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
       if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
+      // p2.81 (v2.56 D1/D8): pending-session snapshot + freshness fields → live history.
+      // Level-triggered: each push carries the machine's whole pending buffer; SH
+      // sticky-merges (only a published head refresh removes rows). Replay-safe:
+      // onPending ignores snapshots older than the freshest one already held.
+      // Services <v2.56 send none of these fields — the whole feature stays dormant.
+      if (sseHouse && msg.pending_count !== undefined && window.SH && SH.onPending) {
+        SH.onPending(sseHouse, msg, evtTs);
+      }
+      // p2.59: capture live group topology (v2.53+ services include groups on every
+      // message). A dedicated 'topology' event = regroup happened (from ANY controller,
+      // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
+      if (sseHouse && Array.isArray(msg.groups)) {
+        _groupsByHouse[sseHouse] = msg.groups;
+        if (events.includes('topology')) {
+          console.log('[sse] topology change for', sseHouse + ':',
+            msg.groups.filter(g => (g.members || []).length > 1)
+               .map(g => g.coordinator + ' +' + (g.members.length - 1)).join(', ') || 'all ungrouped');
+          renderRooms(sseHouse);
+        }
+      }
       if (sseHouse && msg.rooms_playing) {
         // Track all visible rooms for offline detection
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
         // U-M2: always store rooms state under the event's own house (not just current tab)
         _roomsPlayingByHouse[sseHouse] = [...msg.rooms_playing];
-        _roomsPausedByHouse[sseHouse] = msg.rooms_paused ? [...msg.rooms_paused] : [];
-        // Auto-switch tab if music starts in another house
-        if (!_tabManualOverride && msg.rooms_playing.length > 0 && sseHouse !== house) {
-          console.log('[auto-tab] SSE: switching to', sseHouse, '(speakers started)');
-          setHouse(sseHouse);
-        }
+        _setPaused(sseHouse, msg.rooms_paused || [], msg.paused_at);  // p2.81: real service pause clocks
+        _demotedTucked[sseHouse] = [];  // p2.69: fresh truth supersedes tuck
+        // p2.62: NO auto tab flip, NO selection mutation — reality stored above;
+        // the inactive-tab ▶ dot carries the "other house is playing" signal now.
+        updateHouseTabDots();
         if (sseHouse === house) {
-          if (!_userManualRoomSelect[house] && msg.rooms_playing.length > 0) {
-            selectedRooms[house] = [...msg.rooms_playing];
-            localStorage.setItem('ll_rooms_' + house, JSON.stringify(selectedRooms[house]));
-          } else if (!_userManualRoomSelect[house] && msg.rooms_playing.length === 0) {
-            // Don't clear rooms if now_playing just set them in this same message (snapshot race)
-            if (events.includes('now_playing') && msg.rooms && msg.rooms.length > 0) {
-              console.log('[rooms] SSE: skipping rooms_playing=[] clear — now_playing has rooms:', msg.rooms);
-            } else {
-              // Nothing playing — keep paused rooms selected so user can resume
-              const pausedFallback = (msg.rooms_paused && msg.rooms_paused.length > 0) ? [...msg.rooms_paused] : [];
-              selectedRooms[house] = pausedFallback;
-              localStorage.setItem('ll_rooms_' + house, JSON.stringify(pausedFallback));
-              if (pausedFallback.length > 0) console.log('[rooms] SSE: keeping paused rooms selected:', pausedFallback);
-            }
-          }
           renderRooms(house);
           // v1.86 fix: re-render mute/repeat after rooms_playing is set
           // (mute_states processed above may have run before _roomsPlaying was updated)
@@ -3510,6 +4114,95 @@ async function loadLikedData() {
     console.error('[liked] Failed to load liked.json:', e);
   }
 }
+// ── p2.60: heard-vs-new dots — client-side from rollups.json ────────────────
+// rollups.tracks/albums are keyed by bare Spotify IDs with play counts. Loading
+// once client-side keeps dots always-current with zero publish cost (chunks are
+// immutable, so heard state must NOT be stamped into them at publish time).
+let _heardTracks = null, _heardAlbums = null, _heardLoading = null;
+const ROLLUPS_URL = 'https://shumania.github.io/lifelog/rollups.json';
+async function loadHeardData() {
+  if (_heardTracks) return true;
+  if (_heardLoading) return _heardLoading;  // dedupe concurrent callers
+  _heardLoading = (async () => {
+    try {
+      const r = await fetch(ROLLUPS_URL + '?t=' + (Date.now()>>16));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      _heardTracks = d.tracks || {};
+      _heardAlbums = d.albums || {};
+      console.log('[heard] rollups loaded: ' + Object.keys(_heardTracks).length + ' tracks, ' + Object.keys(_heardAlbums).length + ' albums');
+      return true;
+    } catch(e) {
+      console.error('[heard] rollups load failed:', e && e.message);
+      _heardLoading = null;  // allow retry on next expansion
+      return false;
+    }
+  })();
+  return _heardLoading;
+}
+function _heardExtractId(uriOrId, kind) {
+  if (!uriOrId) return null;
+  const s = String(uriOrId);
+  const re = kind === 'album'
+    ? /(?:spotify:album:|spotify%3[Aa]album%3[Aa]|open\.spotify\.com\/album\/)([a-zA-Z0-9]{22})/
+    : /(?:spotify:track:|spotify%3[Aa]track%3[Aa]|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/;
+  let m = s.match(re);
+  if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s];
+  return m ? m[1] : null;
+}
+// p2.61: live overlay — rollups.json only rebuilds nightly/weekly, so plays since
+// the last build showed \u25cb (bug: Mr Tembo, explored FROM the play, rendered "new").
+// allItems (head+archive, fresh within ~5 min of a play) fills the gap. Consulted
+// ONLY on rollup miss, so counts never double.
+let _heardLive = null, _heardLiveSig = '';
+function _heardLiveMap() {
+  const sig = allItems.length + ':' + (allItems[0] ? allItems[0].timestamp : '');
+  if (_heardLive && _heardLiveSig === sig) return _heardLive;
+  const t = {}, a = {};
+  const addT = (v) => { const id = _heardExtractId(v, 'track'); if (id) t[id] = (t[id] || 0) + 1; };
+  const addA = (v) => { const id = _heardExtractId(v, 'album'); if (id) a[id] = (a[id] || 0) + 1; };
+  try {
+    for (const it of allItems) {
+      if (it.type === 'radio_session') {
+        // enriched member tracks count individually (same rule as rollup builder)
+        if (Array.isArray(it.tracks)) for (const rt of it.tracks) addT(rt.track_id || rt.uri);
+        continue;
+      }
+      addT(it.track_id || it.uri);
+      if (it.album_id) addA(it.album_id);
+    }
+  } catch(e) { console.warn('[heard] live overlay build failed:', e && e.message); }
+  _heardLive = { tracks: t, albums: a }; _heardLiveSig = sig;
+  return _heardLive;
+}
+// Unified lookup: rollups first (deduped truth), live overlay on miss (freshness).
+function _heardCount(uriOrId, kind) {
+  const id = _heardExtractId(uriOrId, kind || 'track');
+  if (!id) return null;
+  const rec = _heardTracks ? (kind === 'album' ? _heardAlbums : _heardTracks)[id] : null;
+  if (rec && rec.n) return rec.n;
+  const live = _heardLiveMap();
+  const n = (kind === 'album' ? live.albums : live.tracks)[id];
+  return n || 0;
+}
+// ● = heard before (title shows play count) · ○ = new to you. '' until any data ready.
+function heardDot(uriOrId, kind) {
+  if (!_heardTracks && !allItems.length) return '';
+  const n = _heardCount(uriOrId, kind || 'track');
+  if (n === null) return '';
+  if (n) return ' <span class="heard-dot heard" title="You\u2019ve played this ' + n + '\u00d7">\u25cf</span>';
+  return ' <span class="heard-dot new" title="New to you">\u25cb</span>';
+}
+// True if this suggestion/track has been heard (uses item.heard annotation when
+// present — stamped at explore build — else rollups + live-overlay lookup).
+function isHeardItem(s) {
+  if (s && s.heard === true) return true;
+  if (!s || !s.uri) return false;
+  if (!_heardTracks && !allItems.length) return s.heard === true;
+  const kind = String(s.uri).includes(':album:') ? 'album' : 'track';
+  return (_heardCount(s.uri, kind) || 0) > 0;
+}
+
 // Accepts a spotify:track: URI, a bare 22-char ID, or an https open.spotify.com track URL.
 function likedBadge(uriOrId) {
   if (!uriOrId) return '';
@@ -3522,6 +4215,203 @@ function likedBadge(uriOrId) {
   if (_likedMain.has(id)) return ' <span class="liked-heart" title="Liked Song">♥</span>';
   if (_likedTeen.has(id)) return ' <span class="liked-heart tb" title="Liked Song (teenbloods)">♥</span>';
   return '';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// p2.58: INTERACTIVE LIKES — ♥ → webhook → like-handler → both Spotify accounts
+// Optimistic-but-honest: heart pulses at tap, fills on SSE like_result confirmation,
+// reverts + red toast on failure. Non-Spotify items become "local likes" (amber ♥,
+// captured in the agent ledger; Spotify resolution is a backlogged nightly job).
+// ══════════════════════════════════════════════════════════════════════════════
+let _pendingLikes = {};     // key -> {cmd_ts, t}
+let _sessionLiked = new Set();  // keys confirmed liked this session (until liked.json catches up)
+let _localLiked = new Set();    // keys saved as local likes this session
+let _seenLikeResults = new Set(); // cmd_ts dedup — ntfy replays up to 16 min on reconnect
+
+function _likeExtractId(uriOrId, itemType) {
+  if (!uriOrId) return null;
+  const s = String(uriOrId);
+  const re = itemType === 'album'
+    ? /(?:spotify:album:|spotify%3[Aa]album%3[Aa]|open\.spotify\.com\/album\/)([a-zA-Z0-9]{22})/
+    : /(?:spotify:track:|spotify%3[Aa]track%3[Aa]|open\.spotify\.com\/track\/)([a-zA-Z0-9]{22})/;
+  let m = s.match(re);
+  if (!m && /^[a-zA-Z0-9]{22}$/.test(s)) m = [s, s];
+  return m ? m[1] : null;
+}
+function _likeKey(itemType, id, title, artist) {
+  return itemType + ':' + (id || ((title || '') + '|' + (artist || '')));
+}
+
+// Renders the ♥ button. Track liked-state comes from liked.json sets (live truth for ALL
+// cards, old and new) + session state; album liked-state is session-only in v1 (liked.json
+// carries tracks only — re-saving an already-saved album is a harmless no-op at Spotify).
+function likeButton(itemType, uriOrId, title, artist, sourceContext, originService) {
+  const id = _likeExtractId(uriOrId, itemType);
+  const key = _likeKey(itemType, id, title, artist);
+  const keyAttr = encodeURIComponent(key);
+  const payload = encodeURIComponent(JSON.stringify({
+    item_type: itemType, spotify_id: id, uri: uriOrId || '', title: title || '',
+    artist: artist || '', origin_service: originService || '', source_context: sourceContext || ''
+  })).replace(/'/g, '%27');
+  let cls = 'like-btn', glyph = '♡', tip = itemType === 'album' ? 'Save album to Spotify library' : 'Save to Spotify Liked Songs';
+  if ((id && itemType === 'track' && _likedMain.has(id)) || _sessionLiked.has(key)) {
+    cls += ' liked'; glyph = '♥'; tip = 'In your Spotify library';
+  } else if (_localLiked.has(key)) {
+    cls += ' localliked'; glyph = '♥'; tip = 'Saved locally — will sync to Spotify later';
+  } else if (_pendingLikes[key]) {
+    cls += ' pending'; glyph = '♥'; tip = 'Saving…';
+  }
+  return `<button class="${cls}" data-lkey="${keyAttr}" onclick="likeTap(this,'${payload}')" title="${tip}">${glyph}</button>`;
+}
+
+function _likeBtns(key) {
+  return document.querySelectorAll('.like-btn[data-lkey="' + encodeURIComponent(key) + '"]');
+}
+function _likeSetState(key, state) { // state: 'empty'|'pending'|'liked'|'local'
+  _likeBtns(key).forEach(b => {
+    b.classList.remove('pending', 'liked', 'localliked');
+    if (state === 'pending') { b.classList.add('pending'); b.textContent = '♥'; }
+    else if (state === 'liked') { b.classList.add('liked'); b.textContent = '♥'; b.title = 'In your Spotify library'; }
+    else if (state === 'local') { b.classList.add('localliked'); b.textContent = '♥'; b.title = 'Saved locally — will sync to Spotify later'; }
+    else { b.textContent = '♡'; }
+  });
+}
+
+async function likeTap(btn, encodedPayload) {
+  let d;
+  try { d = JSON.parse(decodeURIComponent(encodedPayload)); }
+  catch(e) { console.error('[like] bad payload:', e); showToast('✗ Like failed (bad data)', true); return; }
+  const key = _likeKey(d.item_type, d.spotify_id, d.title, d.artist);
+  if (btn.classList.contains('liked')) { showToast('♥ Already in your library'); return; }
+  if (btn.classList.contains('localliked')) { showToast('♥ Saved locally — syncs later'); return; }
+  if (btn.classList.contains('pending') || _pendingLikes[key]) { showToast('♥ Still saving…'); return; }
+  const cmd_ts = new Date().toISOString(); // Rule 22: fresh cmd_ts on every command
+  _pendingLikes[key] = { cmd_ts, t: Date.now() };
+  _likeSetState(key, 'pending');
+  console.log('[like] tap:', key, 'cmd_ts=' + cmd_ts, d);
+  try {
+    const r = await fetch(LIKE_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'like', item_type: d.item_type, spotify_id: d.spotify_id || null,
+        uri: d.uri || '', title: d.title, artist: d.artist, origin_service: d.origin_service,
+        source_context: d.source_context, house, cmd_ts, page_version: PAGE_VERSION }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!d.spotify_id) {
+      // Non-Spotify item → local like; no Spotify confirmation will come. Honest amber state.
+      delete _pendingLikes[key];
+      _localLiked.add(key);
+      _likeSetState(key, 'local');
+      showToast('♥ Saved locally — will sync to Spotify later');
+    } else {
+      showToast('♥ Saving to Spotify…');
+      // Backstop: confirmation rides the agent queue (can lag behind an open session).
+      // After 4 min with no like_result, revert with an honest "unconfirmed" — the ledger
+      // is still the truth and the nightly retry pass will finish the job if it landed late.
+      setTimeout(() => {
+        const p = _pendingLikes[key];
+        if (p && p.cmd_ts === cmd_ts) {
+          delete _pendingLikes[key];
+          _likeSetState(key, 'empty');
+          showToast('♥ Not confirmed yet — it may still land shortly', true);
+          console.warn('[like] no confirmation after 4 min:', key, cmd_ts);
+        }
+      }, 240000);
+    }
+  } catch(e) {
+    console.error('[like] send failed:', e);
+    delete _pendingLikes[key];
+    _likeSetState(key, 'empty');
+    showToast('✗ Like failed to send: ' + (e.message || e), true);
+  }
+}
+
+// Called from the SSE path on type='like_result' pushes from the like-handler.
+function handleLikeResult(msg) {
+  if (!msg || !msg.cmd_ts) return;
+  if (_seenLikeResults.has(msg.cmd_ts)) return; // ntfy replay dedup
+  _seenLikeResults.add(msg.cmd_ts);
+  const key = _likeKey(msg.item_type, msg.spotify_id, msg.title, msg.artist);
+  const pend = _pendingLikes[key];
+  console.log('[like] result:', msg.status, key, msg.cmd_ts, pend ? '(pending match)' : '(no pending — reload or other device)');
+  if (msg.status === 'ok') {
+    if (msg.item_type === 'track' && msg.spotify_id) _likedMain.add(msg.spotify_id);
+    _sessionLiked.add(key);
+    _likeSetState(key, 'liked');
+    if (pend) { delete _pendingLikes[key]; showToast(msg.message || '♥ Saved to Spotify'); }
+  } else if (msg.status === 'local') {
+    _localLiked.add(key);
+    _likeSetState(key, 'local');
+    if (pend) { delete _pendingLikes[key]; showToast(msg.message || '♥ Saved locally'); }
+  } else { // failed
+    if (pend) {
+      delete _pendingLikes[key];
+      _likeSetState(key, 'empty');
+      showToast('✗ ' + (msg.message || 'Like failed'), true);
+    }
+  }
+}
+
+// p2.78: on-demand fetch of public "played only" ghost playlists.
+// ⟳ Fetch tracks = read-only (no Spotify library change); ＋ Add to library = follow + fetch.
+// Same webhook transport as ♥ likes. The agent fetches the playlist from Spotify, publishes
+// playlist_tracks/{id}.json + updated playlists.json, then confirms via a type:'fetch_result'
+// SSE push. Pending state persists in localStorage (15 min TTL) so a reload mid-fetch
+// doesn't re-offer the buttons; the TTL is the guard's release (Rule 11).
+const GHOST_PENDING_TTL_MS = 15 * 60 * 1000;
+function _ghostPending(id) {
+  try {
+    const raw = localStorage.getItem('po_fetch_' + id);
+    if (!raw) return false;
+    const v = JSON.parse(raw);
+    if (Date.now() - (v.t || 0) > GHOST_PENDING_TTL_MS) { localStorage.removeItem('po_fetch_' + id); return false; }
+    return true;
+  } catch (e) { return false; }
+}
+async function ghostFetchTap(id, encName, follow) {
+  let name = id;
+  try { name = decodeURIComponent(encName); } catch (e) { console.error('[ghost-fetch] bad name encoding:', e); }
+  const action = follow ? 'follow_playlist' : 'fetch_tracks';
+  const cmd_ts = new Date().toISOString(); // Rule 22: fresh cmd_ts on every command
+  console.log('[ghost-fetch] tap:', action, id, name, 'cmd_ts=' + cmd_ts);
+  localStorage.setItem('po_fetch_' + id, JSON.stringify({ t: Date.now(), cmd_ts, action }));
+  renderPlaylists(); // show spinner state immediately
+  try {
+    const r = await fetch(LIKE_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, playlist_id: id, playlist_name: name, house, cmd_ts, page_version: PAGE_VERSION }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    showToast(follow ? '\uff0b Following + fetching \u201c' + name + '\u201d\u2026' : '\u27f3 Fetching \u201c' + name + '\u201d\u2026');
+  } catch (e) {
+    console.error('[ghost-fetch] send failed:', e);
+    localStorage.removeItem('po_fetch_' + id);
+    renderPlaylists();
+    showToast('\u2717 Fetch failed to send: ' + (e.message || e), true);
+  }
+}
+// Called from the SSE path on type='fetch_result' pushes from the fetch-public-playlist handler.
+async function handleFetchResult(msg) {
+  if (!msg || !msg.cmd_ts) return;
+  if (_seenLikeResults.has('fetch:' + msg.cmd_ts)) return; // ntfy replay dedup (shared set, namespaced key)
+  _seenLikeResults.add('fetch:' + msg.cmd_ts);
+  console.log('[ghost-fetch] result:', msg.status, msg.playlist_id, msg.message);
+  if (msg.playlist_id) { localStorage.removeItem('po_fetch_' + msg.playlist_id); delete _plTrackCache[msg.playlist_id]; }
+  showToast(msg.message || (msg.status === 'ok' ? '\u27f3 Playlist tracks fetched' : '\u2717 Playlist fetch failed'), msg.status !== 'ok');
+  if (msg.status === 'ok') {
+    await loadPlaylistData(); // re-pull playlists.json → card gains track count + becomes expandable
+  } else {
+    // p2.82: stamp the failure on the local card immediately — durable copy lands in
+    // playlists.json via the handler's DB write; this just avoids waiting for it.
+    if (msg.playlist_id && msg.error_code) { // error_code only sent for durable blocks, never transient failures
+      var fp = _playlists.find(function(x) { return x.id === msg.playlist_id; });
+      if (fp) fp.fetch_error = msg.error_code;
+    }
+    renderPlaylists();
+  }
+}
+
+// p2.58: canonical album line — render only when it genuinely differs from the row's own album
+function canonicalAlbumLine(canonAlbum, canonYear, contextAlbum) {
+  if (!canonAlbum) return '';
+  if (contextAlbum && canonAlbum.toLowerCase().trim() === String(contextAlbum).toLowerCase().trim()) return '';
+  return '<div class="canon-album">originally on ' + esc(canonAlbum) + (canonYear ? ' (' + esc(canonYear) + ')' : '') + '</div>';
 }
 
 let _plTrackCache = {};  // id → track array
@@ -3681,7 +4571,14 @@ function renderPlaylists() {
     // p2.46: is_followed comes straight from the API (owner differs from account user); fall back to old heuristic for stale assets
     var isShared = (p.is_followed != null) ? !!p.is_followed : (p.owner_id ? (_plAccountOwnerId && p.owner_id !== _plAccountOwnerId) : false);
 
-    var meta = (p.tracks_total || 0) + ' tracks';
+    // p2.72: played-only ghost playlists (public playlists Andrew played but never followed).
+    // No library track data exists for them: no track count, no expandable track list.
+    var isPO = !!p.played_only;
+    // p2.78: a ghost whose tracks were fetched on demand (tracks_total now > 0 and a
+    // playlist_tracks/{id}.json chunk exists) behaves like a normal expandable card —
+    // only UNFETCHED ghosts get the "Fetch tracks / Add to library" buttons.
+    var isGhost = isPO && !((p.tracks_total || 0) > 0);
+    var meta = isGhost ? 'public playlist' : (p.tracks_total || 0) + ' tracks';
     if (p.created_approx) {
       var d = new Date(p.created_approx);
       meta += ' \u00b7 ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -3692,13 +4589,15 @@ function renderPlaylists() {
     }
     var ownerBadge = isShared ? ' <span class="pc-owner-badge">' + esc(p.owner) + '</span>' : '';
     if (p.account === 'teenbloods') ownerBadge += ' <span class="pc-owner-badge" title="teenbloods account">🏝 TB</span>'; // p2.46: account badge
+    if (isPO) ownerBadge += ' <span class="pc-po-badge" title="You\u2019ve played this public playlist but don\u2019t follow it">\u25b8 played only</span>'; // p2.72
 
     var artHtml = p.image_url
       ? '<img class="pc-art" src="' + esc(p.image_url) + '" alt="">'
       : '<div class="pc-art-placeholder">\u266b</div>';
 
     var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + '" id="pl-' + p.id + '">';
-    card += '<div class="pc-header" onclick="togglePlCard(\'' + p.id + '\')">';
+    // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
+    card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + '>';
     card += artHtml;
     card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) + '</div>';
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div></div>';
@@ -3706,8 +4605,28 @@ function renderPlaylists() {
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
     card += '</div>';
-    card += '<span class="pc-expand">\u203a</span>';
+    if (!isGhost) card += '<span class="pc-expand">\u203a</span>';
     card += '</div>';
+
+    // p2.78: on-demand fetch/follow buttons for unfetched ghost playlists.
+    // Webhook transport (same channel as ♥ likes); agent fetches the public playlist
+    // from Spotify, publishes the chunk + updated playlists.json, confirms via SSE.
+    if (isGhost) {
+      // p2.82: Spotify-owned editorial/algorithmic playlists are API-blocked (late 2024) —
+      // show the durable failure instead of doomed Fetch/Add buttons. Play/Queue still work
+      // (playback goes through Sonos, not the blocked read API).
+      if (p.fetch_error) {
+        card += '<div class="pc-ghost-actions pc-ghost-blocked" title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play.">\ud83d\udeab Spotify blocks apps from reading this playlist</div>';
+      } else if (_ghostPending(p.id)) {
+        card += '<div class="pc-ghost-actions"><span class="gspin"></span> Fetching tracks\u2026 takes a couple of minutes, updates automatically</div>';
+      } else {
+        var gEnc = encodeURIComponent(p.name).replace(/'/g, '%27');
+        card += '<div class="pc-ghost-actions">';
+        card += '<button class="pc-ghost-btn primary" onclick="event.stopPropagation();ghostFetchTap(\'' + p.id + '\',\'' + gEnc + '\',false)" title="Fetch the full track list \u2014 does not change your Spotify library">\u27f3 Fetch tracks</button>';
+        card += '<button class="pc-ghost-btn" onclick="event.stopPropagation();ghostFetchTap(\'' + p.id + '\',\'' + gEnc + '\',true)" title="Follow this playlist on Spotify and fetch its tracks">\uff0b Add to library</button>';
+        card += '</div>';
+      }
+    }
 
     card += '<div class="pc-body">';
     if (_plTrackLoading.has(p.id)) {
@@ -3736,6 +4655,10 @@ function renderPlaylists() {
         card += '<div class="tr-actions">';
         card += '<button class="tr-btn" onclick="playPlTrack(\'play\',' + ti + ',\'' + p.id + '\')" title="Play">\u25b6</button>';
         card += '<button class="tr-btn queue" onclick="playPlTrack(\'queue\',' + ti + ',\'' + p.id + '\')" title="Queue">+</button>';
+        // p2.68: explore affordance on playlist tracks (same shared helper as history rows)
+        var priArtist = (t.artists && t.artists.length) ? t.artists[0].name : '';
+        var exData = encodeURIComponent(JSON.stringify({title:t.track_name,artist:priArtist,album:t.album_name||'',source:'spotify',uri:t.track_uri||''})).replace(/'/g,'%27');
+        if (priArtist) card += exploreButton(priArtist, exData);
         card += '</div></div>';
       }
     }
@@ -3758,7 +4681,7 @@ function handleDeepLink() {
   if (!action || !uri) return;
   const dlHouse = p.get('house');
   if (dlHouse && dlHouse !== house) setHouse(dlHouse);
-  history.replaceState({}, '', location.pathname);
+  history.replaceState(history.state || {}, '', location.pathname + location.hash);  // p2.77: keep tab hash
 
   // Auto-execute
   setTimeout(async () => {
@@ -3766,8 +4689,9 @@ function handleDeepLink() {
       if (action === 'queue') await playDiscovery('queue', uri, label);
       else await playDiscovery('play', uri, label);
     } else {
-      const rooms = (selectedRooms[house]||[]).length > 0 ? selectedRooms[house] : inferActiveRooms();
-      if (!rooms.length) { showToast('No rooms', true); return; }
+      // p2.62: content-start requires explicit selection — deep links included
+      const rooms = selectedRooms[house] || [];
+      if (!rooms.length) { showToast('Tap a speaker first', true); return; }
       const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
       const ok = await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
       if (ok) showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
@@ -3778,11 +4702,1037 @@ function handleDeepLink() {
 // ══════════════════════════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════════════════════════
+// p2.70 SESSIONS TAB — Session History v2 (variant G pass 2.7b)
+// Ported from mockups/session-history-v2/live.html (G renderer + published-JSON
+// adapter). Variant G only — D/E/F renderers and the harness banner were retired
+// with the mockup. Namespacing: CSS classes sh-*, DOM ids sh-*, ONE JS global (SH).
+//
+// DESIGN NOTES (Rule 14):
+// - LAZY INIT: nothing is fetched until the Sessions tab is first opened
+//   (setContentTab → SH.onShow → _boot). Boot loads sessions/index.json +
+//   sessions/head.json + the two newest month chunks (same-origin RELATIVE urls —
+//   page and data both live on shumania.github.io/lifelog). Older months load on
+//   demand via the load-older row (IntersectionObserver + click fallback).
+// - DEDUP BY PUBLISHED ID IS MANDATORY: head.json overlaps the current month
+//   chunk; the byId/ledgersById Maps collapse the overlap (ADAPTER_GAPS.md).
+// - TRANSPORT REUSE: track ▶/＋ call the page's directPlay() (play_next /
+//   add_to_queue via postNtfy on Sonos; Spotify Connect when roaming — Rules 21/22
+//   cmd_ts + ledger live inside postNtfy/the agent webhook handler). Album-run and
+//   playlist headers call playContext() (handles Qobuz/Apple play_album + Spotify
+//   album search). ♥ = the page's likeButton/likeTap system. 🔍 = exploreButton.
+//   Exploration link-rows call navigateToExploration(cardIndex) → Discovery card.
+//   Buttons with no resolvable URI/search terms render disabled ("No playable URI").
+// - NO handoff-merge logic: published `seams` render as-is (Andrew decision #3).
+// - Published chunks are already merged/enriched — the mockup's preprocessSessions()
+//   is intentionally NOT ported (it would break published seams/titles/boundaries).
+// - TZ hard-coded America/Los_Angeles to match the publisher.
+// - localStorage keys are namespaced sh_*: zoom choice, expanded panel ids
+//   (published ids — stable across republishes), album-run collapse state.
+// ══════════════════════════════════════════════════════════════════════════════
+const SH = (() => {
+  'use strict';
+  const TZ = 'America/Los_Angeles';
+  const LS_ZOOM = 'sh_zoom', LS_EXP = 'sh_expanded', LS_GCOL = 'sh_gcol', LS_ACCT = 'sh_acct';
+  const LOCI = { caphill: ['🏠', 'Cap Hill'], vashon: ['🌲', 'Vashon'], roaming: ['📱', 'Roaming'] };
+  const KNOWN_SESSION_FIELDS = new Set(['id','locus','start','end','dur_ms','n','uniq','anchor','tier','rooms','accounts','isRadio','station','title','body','runs','artists','albums','contexts','explorations','seams','tracks']);
+
+  // ---------------- state ----------------
+  let INDEX = null;              // published sessions/index.json
+  let MONTHS = [];               // index.months sorted newest-first
+  let oldestLoadedIdx = -1;      // pointer into MONTHS (newest-first) of oldest loaded chunk
+  const byId = new Map(), ledgersById = new Map(); // publishedId -> raw published doc
+  const idNum = new Map();       // publishedId -> stable numeric __id for DOM/state keys
+  let nextNum = 1;
+  let ALL = [], LEDGERS = [], LIST = [];  // adapted sessions / quick ledgers / merged render list
+  let ZOOM = 'sessions';         // 'sessions' | 'days'
+  let PENDING_SCROLL = null, PENDING_SCROLL_SESS = null;
+  let booted = false, booting = false, monthLoading = false;
+  const EXPANDED = new Set();    // numeric __ids of open cards/panels (in-memory)
+  const pendingExpanded = new Set();  // persisted publishedIds not yet seen in loaded chunks
+  let GCOL = {};                 // 'publishedId:runIdx' -> collapsed (persisted)
+  const STATS = { nullDur: 0, missingArt: 0, unknownFields: new Set() };
+  const GRID_MQ = window.matchMedia('(min-width: 900px)');
+  let _io = null;                // IntersectionObserver for the load-older row
+
+  // ---------------- p2.81 SSE Live History (v2.56 — design Rev 2, Rule 27) ----------------
+  // D1: snapshots, not deltas — each push carries the machine's whole pending buffer.
+  // D6: sticky — snapshots only add/update; ONLY a head.json refresh prunes (published wins).
+  // D4: provisional rows render through the SAME templates as published rows.
+  // D8: one staleness chip is the universal fallback for every failure mode.
+  // D9: boot changes / 90-min-unpublished rows get an honest ⚠︎ "not synced" mark.
+  const PROV = new Map();               // provKey -> compact row {+house, bootId, unconfirmed}
+  const SYNC = {};                      // house -> {ts, pending, bufferHead, bootId}
+  let RLIST = null;                     // last list handed to render (incl. provisional)
+  let _lastHeadFetch = 0;
+  const MERGE_GAP_MS  = 30 * 60 * 1000; // D5: attach to newest published session if gap < 30 min
+  const PRUNE_SLOP_MS = 120 * 1000;     // D6: published id-match window (belt-and-suspenders)
+  const ORPHAN_MS     = 90 * 60 * 1000; // D9: unpublished after 90 min -> ⚠︎
+  function provKey(r) { return (r.id || r.u || (r.t + '|' + r.a)) + '|' + r.s; }
+  function hasSync(h) { return !!SYNC[h]; }
+  function onPending(h, msg, evtTs) {
+    const prev = SYNC[h];
+    if (prev && prev.ts > evtTs) return;         // older ntfy replay — newer truth already held
+    SYNC[h] = { ts: evtTs, pending: Number(msg.pending_count) || 0,
+                bufferHead: Number(msg.buffer_head_ts) || null, bootId: msg.boot_id || null };
+    let dirty = false;
+    if (prev && prev.bootId && msg.boot_id && prev.bootId !== msg.boot_id) {
+      for (const r of PROV.values()) if (r.house === h && r.bootId !== msg.boot_id) { r.unconfirmed = true; dirty = true; }
+      console.warn('[sessions] boot_id changed for ' + h + ' — prior provisional rows marked unconfirmed (D9)');
+    }
+    for (const raw of (msg.pending_session || [])) {
+      if (!raw || !raw.t || !raw.s) continue;
+      const k = provKey(raw);
+      const old = PROV.get(k);
+      const nu = { ...raw, house: h, bootId: msg.boot_id || null, unconfirmed: old ? old.unconfirmed : false };
+      if (!old || JSON.stringify(old) !== JSON.stringify(nu)) { PROV.set(k, nu); dirty = true; }
+    }
+    renderSyncChip();
+    if (dirty && booted) { render(); setStatus(statusLine()); }
+  }
+  // D6 prune — called from integrate(): published truth is the only remover.
+  function pruneProv() {
+    if (!PROV.size) return;
+    const cutoff = Date.now() - 48 * 3600 * 1000;
+    const maxPub = {}, recent = {};
+    const scan = (loci, tracks) => { for (const t of tracks || []) for (const L of loci) {
+      if (t.ts > (maxPub[L] || 0)) maxPub[L] = t.ts;
+      if (t.ts > cutoff && t.track_id) (recent[L] = recent[L] || []).push({ id: t.track_id, ts: t.ts });
+    } };
+    for (const s of ALL) scan([s.locus], s.tracks);
+    for (const q of LEDGERS) scan(q.loci || [], q.tracks);
+    let dropped = 0;
+    for (const [k, r] of PROV) {
+      const ts = r.s * 1000, L = r.house;
+      if (ts <= (maxPub[L] || 0) ||
+          (r.id && (recent[L] || []).some(p => p.id === r.id && Math.abs(p.ts - ts) <= PRUNE_SLOP_MS))) {
+        PROV.delete(k); dropped++;
+      }
+    }
+    if (dropped) console.log('[sessions] pruned ' + dropped + ' provisional row(s) — published truth landed');
+  }
+  // D4/D5: merge provisional rows into the render list through the SAME adapters.
+  function withProvisional(base) {
+    if (!PROV.size) { RLIST = base; return base; }
+    const now = Date.now();
+    const byHouse = {};
+    for (const r of PROV.values()) (byHouse[r.house] = byHouse[r.house] || []).push(r);
+    let out = base;
+    for (const h of Object.keys(byHouse)) {
+      const rows = byHouse[h].sort((a, b) => a.s - b.s);
+      const tracks = rows.map(r => ({
+        ts: r.s * 1000, dur: r.d || 0, title: r.t, artist: r.a, album: r.al || null,
+        art: r.art || null, track_id: r.id || null, source: 'sonos', liked: 0,
+        __prov: true, __orphan: !!r.unconfirmed || (now - r.s * 1000 > ORPHAN_MS)
+      }));
+      const ctxCount = new Map();
+      for (const r of rows) if (r.cx) { const c = ctxCount.get(r.cx) || { uri: r.cu || '', name: r.cx, n: 0, art: null }; c.n++; if (!c.uri && r.cu) c.uri = r.cu; ctxCount.set(r.cx, c); }
+      const newest = out.find(s => !s.isQuickLedger && !s.isRadio && s.locus === h);
+      const minTs = tracks[0].ts;
+      const last = tracks[tracks.length - 1];
+      const maxTs = last.ts + (last.dur || 0) * 1000;
+      if (newest && (minTs - newest.end) < MERGE_GAP_MS && minTs >= newest.start) {
+        // attach: clone the newest published session and extend it (same __id → expansion state survives)
+        const fresh = tracks.filter(t => !newest.tracks.some(p =>
+          (p.track_id && t.track_id && p.track_id === t.track_id && Math.abs(p.ts - t.ts) <= PRUNE_SLOP_MS) ||
+          (Math.abs(p.ts - t.ts) < 1500 && normStr(p.title) === normStr(t.title))));
+        if (!fresh.length) continue;
+        const m = { ...newest };
+        m.tracks = [...newest.tracks, ...fresh];
+        m.end = Math.max(newest.end, maxTs);
+        m.dur_ms = (Number(newest.dur_ms) || 0) + fresh.reduce((a, t) => a + (t.dur || 0) * 1000, 0);
+        m.n = newest.n + fresh.length;
+        const at = new Map((newest.artists || []).map(x => [x[0], x[1]]));
+        for (const t of fresh) at.set(t.artist, (at.get(t.artist) || 0) + 1);
+        m.artists = [...at.entries()].sort((a, b) => b[1] - a[1]);
+        m.contexts = (newest.contexts || []).map(c => ({ ...c }));
+        for (const c of ctxCount.values()) {
+          const ex = m.contexts.find(x => (x.uri && c.uri && x.uri === c.uri) || (x.name && x.name === c.name));
+          if (ex) ex.n += c.n; else m.contexts.push(c);
+        }
+        m.__live = true;
+        out = out.map(s => (s === newest ? m : s));
+      } else {
+        // new provisional block — adapted through the SAME pipeline as published sessions (D4)
+        const s = adaptSession({
+          id: 'prov-' + h, locus: h, start: minTs, end: maxTs, dur_ms: tracks.reduce((a, t) => a + (t.dur || 0) * 1000, 0),
+          n: tracks.length, rooms: [...new Set(rows.flatMap(r => r.rm || []))], accounts: [],
+          artists: [...tracks.reduce((mm, t) => mm.set(t.artist, (mm.get(t.artist) || 0) + 1), new Map()).entries()],
+          albums: [], contexts: [...ctxCount.values()], explorations: [], seams: [], tracks
+        });
+        s.__live = true;
+        if (!idNum.has(s.publishedId)) idNum.set(s.publishedId, nextNum++);
+        s.__id = idNum.get(s.publishedId);
+        out = [s, ...out];
+      }
+    }
+    RLIST = [...out].sort((a, b) => b.start - a.start);
+    return RLIST;
+  }
+  // D8: ONE staleness chip — the universal fallback (budget floors, dead nudges,
+  // offline machines, dead SSE pipe all degrade to "amber chip with honest age").
+  function renderSyncChip() {
+    const el = document.getElementById('sh-syncchip');
+    if (!el) return;
+    const hs = Object.keys(SYNC);
+    if (!hs.length) { el.style.display = 'none'; return; }
+    const now = Date.now();
+    let latest = 0, pending = 0, oldestHead = null, stale = false;
+    for (const h of hs) {
+      const y = SYNC[h];
+      latest = Math.max(latest, y.ts);
+      pending += y.pending || 0;
+      if (y.bufferHead) oldestHead = Math.min(oldestHead == null ? Infinity : oldestHead, y.bufferHead * 1000);
+      if (now - y.ts > 20 * 60 * 1000) stale = true;   // machine silent past its 15-min keepalive
+    }
+    if (now - ((typeof _sseLastMsg !== 'undefined' && _sseLastMsg) || 0) > 20 * 60 * 1000) stale = true;  // SSE pipe itself is dead (top-level let — NOT on window)
+    const amber = stale || (pending > 0 && oldestHead && (now - oldestHead) > 40 * 60 * 1000);
+    el.style.display = '';
+    el.className = 'sh-syncchip' + (amber ? ' sh-amber' : '');
+    el.textContent = '⟳ ' + ftime(latest) + (pending ? ' · ' + pending + ' pending' : '');
+    el.title = 'Machine snapshot ' + ftime(latest)
+      + (pending ? ' · ' + pending + ' play(s) buffered, not yet published' : ' · fully synced')
+      + (amber ? ' · ⚠ may be stale' : '');
+  }
+  setInterval(renderSyncChip, 60000);   // age/color keeps moving even with no pushes
+  // Head refetch loop — the ONLY pruner of provisional rows (D6). 5-min cadence
+  // matches the publish gate; failures keep last-known truth (chip stays honest).
+  async function refreshHead(reason) {
+    if (!booted || booting) return;
+    _lastHeadFetch = Date.now();
+    try {
+      const doc = await fetchJson('sessions/head.json');
+      integrate([doc]);
+      render(); setStatus(statusLine());
+      console.log('[sessions] head refreshed (' + (reason || 'interval') + ')');
+    } catch (e) { console.warn('[sessions] head refresh failed — keeping last-known:', e && e.message); }
+  }
+  setInterval(() => {
+    if (booted && document.visibilityState === 'visible' && Date.now() - _lastHeadFetch > 270000) refreshHead('interval');
+  }, 300000);
+
+  try { const z = localStorage.getItem(LS_ZOOM); if (z === 'days' || z === 'sessions' || z === 'tracks') ZOOM = z; } catch (e) {}  // p2.83: + tracks
+  try { JSON.parse(localStorage.getItem(LS_EXP) || '[]').forEach(pid => pendingExpanded.add(pid)); } catch (e) {}
+  try { GCOL = JSON.parse(localStorage.getItem(LS_GCOL) || '{}') || {}; } catch (e) {}
+  function saveExpanded() {
+    try {
+      const pids = [...EXPANDED].map(n => { const s = findSessionById(n); return s && s.publishedId; }).filter(Boolean);
+      localStorage.setItem(LS_EXP, JSON.stringify(pids.concat([...pendingExpanded])));
+    } catch (e) {}
+  }
+  function saveGcol() { try { localStorage.setItem(LS_GCOL, JSON.stringify(GCOL)); } catch (e) {} }
+
+  // p2.72: account filter chip (decision #1, Phase 3). Session-level filter:
+  // "Main" hides TB-only sessions (mixed main+TB sessions stay — main was involved);
+  // "TB" shows only sessions with any non-main account involvement.
+  // Sessions with no account data (some archive rows) are treated as main.
+  let ACCT = 'all'; // 'all' | 'main' | 'tb'
+  try { const a0 = localStorage.getItem(LS_ACCT); if (a0 === 'main' || a0 === 'tb') ACCT = a0; } catch (e) {}
+  function hasTB(s) { return (s.accounts || []).some(a => a && a !== 'main'); }
+  function acctVisible(s) {
+    if (ACCT === 'all') return true;
+    if (ACCT === 'tb') return hasTB(s);
+    const a = (s.accounts || []).filter(Boolean);
+    return !a.length || a.includes('main');
+  }
+  function visList() { return withProvisional(ACCT === 'all' ? LIST : LIST.filter(acctVisible)); }  // p2.81: provisional rows ride the same list
+  function syncAcctChip() {
+    const el = document.getElementById('sh-acctchip');
+    if (!el) return;
+    el.classList.toggle('on', ACCT !== 'all');
+    el.textContent = ACCT === 'all' ? '👤 All' : (ACCT === 'main' ? '👤 Main' : '🏝 TB');
+    el.title = ACCT === 'all' ? 'Showing all accounts — tap to hide teenbloods-only sessions'
+      : ACCT === 'main' ? 'Hiding teenbloods-only sessions — tap to show teenbloods only'
+      : 'Showing teenbloods sessions only — tap to show all accounts';
+  }
+  function cycleAcct() {
+    ACCT = ACCT === 'all' ? 'main' : (ACCT === 'main' ? 'tb' : 'all');
+    try { localStorage.setItem(LS_ACCT, ACCT); } catch (e) {}
+    syncAcctChip();
+    if (booted) { render(); setStatus(statusLine()); }
+  }
+
+  // ---------------- published-data adapter (from live.html harness) ----------------
+  function adaptTrack(t) {
+    const x = { ...t };
+    if (x.dur == null || !Number.isFinite(Number(x.dur))) { x.dur = 0; STATS.nullDur++; }
+    x.ts = Number(x.ts) || 0;
+    x.title = x.title || 'Unknown track'; x.artist = x.artist || 'Unknown artist';
+    x.album = x.album || null; x.art = x.art || null; x.liked = Number(x.liked) || 0;
+    if (!x.art) STATS.missingArt++;
+    return x;
+  }
+  function adaptSession(s) {
+    Object.keys(s).forEach(k => { if (!KNOWN_SESSION_FIELDS.has(k)) STATS.unknownFields.add(k); });
+    const station = s.station || {};
+    const x = { ...s, publishedId: s.id, start: Number(s.start) || 0, end: Number(s.end) || Number(s.start) || 0,
+      dur_ms: Number(s.dur_ms) || 0, n: Number(s.n) || 0, rooms: Array.isArray(s.rooms) ? s.rooms : [],
+      accounts: Array.isArray(s.accounts) ? s.accounts : [],
+      artists: Array.isArray(s.artists) ? s.artists.map(a => [a && a[0] ? a[0] : 'Unknown artist', Number(a && a[1]) || 0]) : [],
+      albums: Array.isArray(s.albums) ? s.albums : [], contexts: Array.isArray(s.contexts) ? s.contexts : [],
+      explorations: Array.isArray(s.explorations) ? s.explorations : [], seams: Array.isArray(s.seams) ? s.seams : [],
+      tracks: Array.isArray(s.tracks) ? s.tracks.map(adaptTrack) : [], stationName: station.name || 'Radio', stationFreq: station.freq || '' };
+    x.albums = x.albums.map(a => ({ ...a, album: a.album || 'Unknown album', artist: a.artist || 'Unknown artist', n: Number(a.n) || 0, art: a.art || null }));
+    x.contexts = x.contexts.map(c => ({ ...c, uri: c.uri || '', n: Number(c.n) || 0, name: c.name || null, art: c.art || null }));
+    return x;
+  }
+  function adaptLedger(q) {
+    const tracks = Array.isArray(q.tracks) ? q.tracks.map(adaptTrack) : [];
+    return { isQuickLedger: true, publishedId: q.id, day: q.day, start: Number(q.start) || 0, end: Number(q.end) || Number(q.start) || 0,
+      qplays: Number(q.qplays) || tracks.length, qdur: Number(q.qdur_ms) || 0, locus: (q.loci || []).join('+') || 'quick', loci: q.loci || [],
+      accounts: q.accounts || [], memberSessionIds: q.memberSessionIds || [], tracks, rooms: [], albums: [], contexts: [], explorations: [], artists: [], seams: [], n: tracks.length };
+  }
+
+  // ---------------- loading pipeline ----------------
+  async function fetchJson(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(url + ' fetch failed: HTTP ' + r.status);
+    return r.json();
+  }
+  function integrate(docs) {
+    for (const d of docs) {
+      for (const s of d.sessions || []) byId.set(s.id, s);
+      for (const q of d.quickPlayLedgers || []) ledgersById.set(q.id, q);
+    }
+    // Relational-contract validation (dangling ids) — log-only, like the harness.
+    let danglingS = 0, danglingL = 0;
+    for (const d of docs) for (const day of d.days || []) {
+      for (const id of day.sessionIds || []) if (!byId.has(id)) danglingS++;
+      if (day.quickLedgerId && !ledgersById.has(day.quickLedgerId)) danglingL++;
+    }
+    ALL = [...byId.values()].map(adaptSession).sort((a, b) => b.start - a.start);
+    LEDGERS = [...ledgersById.values()].map(adaptLedger).sort((a, b) => b.start - a.start);
+    LIST = ALL.concat(LEDGERS).sort((a, b) => b.start - a.start);
+    for (const s of LIST) {
+      if (!idNum.has(s.publishedId)) idNum.set(s.publishedId, nextNum++);
+      s.__id = idNum.get(s.publishedId);
+      if (pendingExpanded.has(s.publishedId)) { EXPANDED.add(s.__id); pendingExpanded.delete(s.publishedId); }
+    }
+    pruneProv();  // p2.81 D6: published truth is the ONLY remover of provisional rows
+    console.log('[sessions] integrated: ' + ALL.length + ' sessions, ' + LEDGERS.length + ' quick ledgers, '
+      + groupByDay(LIST).size + ' days; nullDur=' + STATS.nullDur + ' missingArt=' + STATS.missingArt
+      + (danglingS || danglingL ? ' ⚠ dangling ids s=' + danglingS + ' l=' + danglingL : '')
+      + (STATS.unknownFields.size ? ' ⚠ unknown fields: ' + [...STATS.unknownFields].join(',') : ''));
+  }
+  function setStatus(txt) { const el = document.getElementById('sh-updated'); if (el) el.textContent = txt; }
+  function statusLine() {
+    // p2.72: counts reflect the account filter when one is active
+    const vis = visList();
+    const days = groupByDay(vis).size;
+    let gen = '';
+    if (INDEX && INDEX.generated_at) {
+      const d = new Date(INDEX.generated_at);
+      if (!isNaN(d)) gen = ' · updated ' + d.toLocaleString('en-US', { timeZone: TZ, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    const nS = vis.filter(s => !s.isQuickLedger).length, nL = vis.length - nS;
+    const filt = ACCT === 'all' ? '' : (ACCT === 'main' ? ' · main only' : ' · TB only');
+    return nS + ' sessions · ' + nL + ' quick ledgers · ' + days + ' days loaded' + filt + gen;
+  }
+  async function _boot() {
+    if (booted || booting) return;
+    booting = true;
+    setStatus('Loading sessions…');
+    const main = document.getElementById('sh-main');
+    if (main) main.innerHTML = '<div class="sh-status">Loading listening sessions…</div>';
+    try {
+      INDEX = await fetchJson('sessions/index.json');
+      MONTHS = (INDEX.months || []).slice().sort((a, b) => (a.month < b.month ? 1 : -1)); // newest first
+      const eager = MONTHS.slice(0, 2); // current + previous month
+      const docs = await Promise.all([fetchJson('sessions/head.json')].concat(eager.map(m => fetchJson(m.file))));
+      integrate(docs);
+      _lastHeadFetch = Date.now();  // p2.81: boot counts as a head fetch
+      oldestLoadedIdx = eager.length - 1;
+      booted = true;
+      syncAcctChip(); // p2.72: restore persisted account filter chip state
+      setZoom(ZOOM); // renders + syncs the Sessions/Days seg buttons (zoom restored from localStorage)
+      setStatus(statusLine());
+    } catch (err) {
+      console.error('[sessions] boot failed:', err);
+      if (main) main.innerHTML = '<div class="sh-error">Could not load session history: ' + esc(err && err.message ? err.message : String(err)) + '</div>'
+        + '<div class="sh-loadrow" onclick="SH.retryBoot()">↻ Retry</div>';
+      setStatus('Load failed');
+    } finally { booting = false; }
+  }
+  function retryBoot() { booted = false; _boot(); }
+  function monthLabel(mm) {
+    const p = String(mm).split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, 1)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', year: 'numeric' });
+  }
+  function loadMoreRowHtml() {
+    if (!booted || oldestLoadedIdx >= MONTHS.length - 1) return '';
+    const m = MONTHS[oldestLoadedIdx + 1];
+    return '<div class="sh-loadrow" id="sh-loadmore" onclick="SH.loadMore()">⌄ Load ' + esc(monthLabel(m.month)) + '</div>';
+  }
+  async function loadMore() {
+    if (!booted || monthLoading || oldestLoadedIdx >= MONTHS.length - 1) return;
+    monthLoading = true;
+    const m = MONTHS[oldestLoadedIdx + 1];
+    const row = document.getElementById('sh-loadmore');
+    if (row) { row.textContent = 'Loading ' + monthLabel(m.month) + '…'; row.classList.add('sh-busy'); }
+    try {
+      const doc = await fetchJson(m.file);
+      integrate([doc]);
+      oldestLoadedIdx++;
+      render();
+      setStatus(statusLine());
+    } catch (e) {
+      console.error('[sessions] month load failed:', m.month, e);
+      const r2 = document.getElementById('sh-loadmore');
+      if (r2) { r2.textContent = '⚠ Failed to load ' + monthLabel(m.month) + ' — tap to retry'; r2.classList.remove('sh-busy'); }
+    } finally { monthLoading = false; }
+  }
+  function watchLoadRow() {
+    const row = document.getElementById('sh-loadmore');
+    if (!_io && 'IntersectionObserver' in window)
+      _io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) loadMore(); }, { rootMargin: '300px' });
+    if (_io) { _io.disconnect(); if (row) _io.observe(row); }
+  }
+
+  // ---------------- utilities (from harness; esc shadows page esc for null-safety) ----------------
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function ftime(t) { return new Date(t).toLocaleTimeString('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).replace(' ', '\u202f'); }
+  function fday(t) { return new Date(t).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' }); }
+  function dkey(t) { return new Date(t).toLocaleDateString('en-CA', { timeZone: TZ }); }
+  function fdur(ms) { const m = Math.round(ms / 60000); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return h + 'h' + (r ? ' ' + r + 'm' : ''); }
+  function uniqCount(tracks) { return new Set((tracks || []).map(t => String((t && t.title) || '').toLowerCase().trim())).size; }
+  function initials(str) {
+    const words = String(str || '?').replace(/[^\w\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  function hashHue(str) { let h = 0; const s = String(str || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360; }
+  function artOrPh(art, label, cls) {
+    if (art) return `<img class="sh-art ${cls}" src="${esc(art)}" loading="lazy" alt="">`;
+    const h = hashHue(label);
+    return `<div class="sh-art-ph ${cls}" style="background:linear-gradient(135deg, hsl(${h},55%,32%), hsl(${(h + 45) % 360},55%,20%))">${esc(initials(label))}</div>`;
+  }
+  function normStr(s) { return String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function jsq(str) { return esc(String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+  function normAlbumKey(t) { return String(t.album || '').trim().toLowerCase(); }
+  function albumInfoFor(s, key) {
+    const matches = s.albums.filter(a => String(a.album || '').trim().toLowerCase() === key);
+    if (!matches.length) return null;
+    return matches.slice().sort((a, b) => ((b.art ? 1 : 0) - (a.art ? 1 : 0)) || (b.n - a.n))[0];
+  }
+  function groupByDay(sessions) {
+    const days = new Map();
+    for (const s of sessions) { const k = dkey(s.start); if (!days.has(k)) days.set(k, []); days.get(k).push(s); }
+    return days;
+  }
+
+  // ---------------- tier / title / headline logic (spec G2.x, unchanged) ----------------
+  function tierOf(s) {
+    if (s.isRadio) return 3;
+    let t = s.n <= 3 ? 1 : (s.n <= 12 ? 2 : 3);
+    if (t === 2 && (s.end - s.start) > 70 * 60 * 1000) t = 3;
+    return t;
+  }
+  function titleFor(s) {
+    const u = uniqCount(s.tracks);
+    const albums = [...s.albums].sort((a, b) => b.n - a.n);
+    const top = albums[0];
+    if (top && s.n > 1 && top.n / s.n >= 0.7) {
+      return { kind: 'album', title: top.album, sub: `${esc(top.artist)}${top.year ? ' · ' + top.year : ''}${top.total ? ` · ${top.uniq ?? top.n}/${top.total} trk` : ''}`, art: top.art, artLabel: top.album };
+    }
+    const ctxs = s.contexts.filter(c => c.n).sort((a, b) => b.n - a.n);
+    const topc = ctxs[0];
+    if (topc && s.n > 1 && topc.n / s.n >= 0.5) {
+      const pn = topc.n >= s.n ? u : Math.min(topc.n, u);
+      // p2.75: show played-of-total so a partial listen isn't mistaken for the whole playlist
+      const psub = topc.total ? `playlist · ${pn} of ${topc.total} played` : `playlist · ${pn} track${pn > 1 ? 's' : ''}`;
+      return { kind: 'playlist', title: '📃 ' + (topc.name || 'Mixed session'), sub: psub, art: topc.art, artLabel: topc.name || 'Mixed session' };
+    }
+    const arts = s.artists;
+    const dom = arts[0];
+    if (arts.length === 1) {
+      return { kind: 'artist', title: dom[0], sub: `${u} track${u > 1 ? 's' : ''}`, art: top ? top.art : null, artLabel: dom[0] };
+    }
+    const domShare = dom[1] / s.n;
+    if (domShare >= 0.45) {
+      return { kind: 'ledby', title: `${esc(dom[0])} <span class="sh-muted">+ various</span>`, plain: `${dom[0]} + various`, sub: `${arts.length} artists · ${u} tracks`, art: top ? top.art : null, artLabel: dom[0] };
+    }
+    return { kind: 'ledby', title: `led by <b>${esc(dom[0])}</b>`, plain: `led by ${dom[0]}`, sub: `${arts.length} artists · ${u} tracks`, art: top ? top.art : null, artLabel: dom[0] };
+  }
+  function oneLiner(s) {
+    const dom = s.artists.length ? s.artists[0][0] : 'Unknown artist';
+    const track = s.tracks.find(t => t.artist === dom) || s.tracks[0] || { title: 'Unknown track' };
+    let extra = '';
+    const rest = uniqCount(s.tracks) - 1;
+    if (rest > 0) {
+      const multi = s.artists.length > 1;
+      extra = ` <span class="sh-muted">＋${rest}${multi ? ' · various' : ''}</span>`;
+    }
+    return { artist: dom, title: track.title, extra };
+  }
+  function sessDurMs(s) {
+    const d = s.end - s.start;
+    return d > 0 ? d : Math.round(Math.max(1, uniqCount(s.tracks)) * 3.5 * 60000);
+  }
+  function daypartOf(ts) {
+    const h = +new Date(ts).toLocaleString('en-US', { timeZone: TZ, hour12: false, hour: 'numeric' });
+    return h < 5 ? 'night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
+  }
+
+  // ---------------- badges ----------------
+  function locusChip(locus, iconOnly) {
+    const L = LOCI[locus];
+    if (!L) return '';
+    return `<span class="sh-b-locus${iconOnly ? ' sh-dim' : ''}" title="${L[1]}">${L[0]}${iconOnly ? '' : '\u2009' + L[1]}</span>`;
+  }
+  function acctChips(s) { return (s.accounts || []).filter(a => a && a !== 'main').map(a => `<span class="sh-b-acct">${esc(a)}</span>`).join(''); }
+  function trackAcctChip(t) { return (t.account && t.account !== 'main') ? `<span class="sh-b-acct">${esc(t.account)}</span>` : ''; }
+  function explBadge(s) {
+    if (!s.explorations || !s.explorations.length) return '';
+    const tip = s.explorations.map(e => e.artist).join(', ');
+    return `<span class="sh-b-expl" title="Related exploration: ${esc(tip)}">✨</span>`;
+  }
+
+  // ---------------- real action wiring (replaces the mockup's play/queue/like stubs) ----------------
+  // Track ▶/＋ → page directPlay() — same payload conventions as History rows
+  // (uri/track_id/title/artist/album/service; track_id alone is enough: directPlay
+  // resolves bare 22-char ids to spotify:track: URIs, and falls back to Spotify
+  // search on artist+title for Apple Music / Qobuz / unresolved tracks).
+  function offBtns() { return `<button class="sh-pill sh-off" disabled title="No playable URI">▶</button><button class="sh-pill sh-off" disabled title="No playable URI">＋</button>`; }
+  function trackPlayBtns(t) {
+    const playable = !!(t.track_id || (t.artist && t.artist !== 'Unknown artist' && t.title && t.title !== 'Unknown track'));
+    if (!playable) return offBtns();
+    const pd = encodeURIComponent(JSON.stringify({ uri: '', sonos_uri: '', track_id: t.track_id || '', title: t.title || '', artist: t.artist === 'Unknown artist' ? '' : (t.artist || ''), album: t.album || '', service: t.source || '' })).replace(/'/g, '%27');
+    return `<button class="sh-pill" onclick="event.stopPropagation();directPlay('play','${pd}')" title="Play">▶</button><button class="sh-pill" onclick="event.stopPropagation();directPlay('queue','${pd}')" title="Queue">＋</button>`;
+  }
+  function trackBtns(t) {
+    const like = likeButton('track', t.track_id || '', t.title, t.artist, 'sessions', t.source || '');
+    const ex = t.artist && t.artist !== 'Unknown artist'
+      ? exploreButton(t.artist, encodeURIComponent(JSON.stringify({ title: t.title, artist: t.artist, album: t.album || '', source: t.source || 'sessions', uri: t.track_id ? 'spotify:track:' + t.track_id : '' })).replace(/'/g, '%27'))
+      : '';
+    return like + ex + trackPlayBtns(t);
+  }
+  // Album-run headers → page playContext() (Qobuz/Apple → play_album; Spotify → album search → play_next/add_to_queue)
+  function albumBtns(name, artist, service, uri) {
+    if (!name || name === 'Unknown album') return offBtns();
+    // p2.74 (v2.54 A1): sessions data now stamps spotify:album: URIs on album runs.
+    // With context_uri present, playContext plays direct via ShareLink — zero search,
+    // zero auth dependency. Qobuz/Apple native branch still short-circuits first.
+    const pd = encodeURIComponent(JSON.stringify({ album: name, artist: (artist && artist !== 'Unknown artist') ? artist : '', service: service || '', context_uri: uri || undefined })).replace(/'/g, '%27');
+    return `<button class="sh-pill" onclick="event.stopPropagation();playContext('play','${pd}')" title="Play album">▶</button><button class="sh-pill" onclick="event.stopPropagation();playContext('queue','${pd}')" title="Queue album">＋</button>`;
+  }
+  // Playlist/context headers → page playContext() with the published context uri
+  function ctxBtns(c) {
+    if (!c || !c.uri) return offBtns();
+    const pd = encodeURIComponent(JSON.stringify({ context_uri: c.uri, playlist_name: c.name || '', service: 'spotify' })).replace(/'/g, '%27');
+    // p2.75: explicit label — session shows a partial listen, but ▶ plays the WHOLE playlist
+    const tot = c.total ? ` (${c.total} tracks)` : '';
+    return `<button class="sh-pill sh-pill-lbl" onclick="event.stopPropagation();playContext('play','${pd}')" title="Play full playlist${tot}">▶ Play full playlist</button><button class="sh-pill" onclick="event.stopPropagation();playContext('queue','${pd}')" title="Queue full playlist${tot}">＋</button>`;
+  }
+  // Exploration link-rows → Discovery card jump (closes History × Discovery indicators)
+  function gotoExploration(ci) {
+    if (!document.getElementById('disc-' + ci)) { showToast('Exploration card not found in Discovery', true); return; }
+    navigateToExploration(ci);
+  }
+  function explRowsG(s) {
+    if (!s.explorations || !s.explorations.length) return '';
+    const seen = new Set(); let out = '';
+    for (const e of s.explorations) {
+      const k = normStr(e.artist);
+      if (!k || seen.has(k)) continue; seen.add(k);
+      const ci = Number(e.cardIndex);
+      out += Number.isFinite(ci) && ci >= 0
+        ? `<a class="sh-explnk" href="#" onclick="event.preventDefault();event.stopPropagation();SH.expl(${ci})">🔍 Part of your ${esc(e.artist)} exploration →</a>`
+        : `<span class="sh-explnk">🔍 Part of your ${esc(e.artist)} exploration</span>`;
+    }
+    return out;
+  }
+
+  // ---------------- expansion state ----------------
+  function findSessionById(sid) {
+    if (sid >= 100000) sid -= 100000; // panel-local run-id namespace (see panelBodyHtml)
+    // p2.81: search the rendered list first — provisional/extended sessions live there (D4)
+    for (const s of (RLIST || LIST)) if (s.__id === sid) return s;
+    return null;
+  }
+  function panelMode() { return ZOOM === 'sessions' && GRID_MQ.matches; }
+  function toggleSession(sid, ev) {
+    if (ev) ev.stopPropagation();
+    if (panelMode()) { togglePanel(sid); saveExpanded(); return; }
+    if (EXPANDED.has(sid)) EXPANDED.delete(sid); else EXPANDED.add(sid);
+    saveExpanded();
+    const el = document.getElementById('sh-ent-' + sid);
+    if (el) el.classList.toggle('sh-open', EXPANDED.has(sid));
+  }
+  function toggleRunG(sid, idx, ev) {
+    if (ev) ev.stopPropagation();
+    const s = findSessionById(sid);
+    const k = (s ? s.publishedId : sid) + ':' + idx;
+    GCOL[k] = !GCOL[k];
+    saveGcol();
+    const w = document.getElementById('sh-grun-' + sid + '-' + idx);
+    if (w) w.classList.toggle('sh-gcol', !!GCOL[k]);
+    const c = document.getElementById('sh-gchev-' + sid + '-' + idx);
+    if (c) c.textContent = GCOL[k] ? '▸' : '▾';
+  }
+  function gcolFor(s, idx) { return !!GCOL[(s ? s.publishedId : '') + ':' + idx]; }
+
+  // ---------------- markup builders (variant G, pass 2.7b) ----------------
+  function trackRowHtmlG(t, albumLabel, indent) {
+    if (albumLabel && normStr(albumLabel) === normStr(t.title)) albumLabel = null;
+    return `<div class="sh-trk${indent ? ' sh-g-ind' : ''}">
+      <span class="sh-tm">${ftime(t.ts)}${t.__orphan ? '<span class="sh-orph" title="not yet synced — the durable record may be lost">⚠︎</span>' : ''}</span>
+      <span class="sh-tt">${esc(t.title)}${albumLabel ? `<span class="sh-alb-inline">${esc(albumLabel)}</span>` : ''}</span>
+      <span class="sh-ta">${esc(t.artist)}</span>
+      <span class="sh-btns">${trackBtns(t)}</span>
+    </div>`;
+  }
+  function groupHeaderHtml(icon, name, line2, art, btns, nameClick) {
+    // p2.76: nameClick (optional JS snippet) renders the name as a link — playlist names navigate to the Playlists tab
+    const nameHtml = nameClick
+      ? `<a class="sh-ctx-link" href="javascript:void(0)" onclick="event.stopPropagation();${nameClick}">${esc(name)}</a>`
+      : esc(name);
+    return `<div class="sh-albhdr">
+      ${artOrPh(art, name, 'sh-thumb40g')}
+      <div class="sh-ah-meta">
+        <div class="sh-ah-nm">${art ? '' : icon + ' '}${nameHtml}</div>
+        ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
+      </div>
+      <span class="sh-btns">${btns}</span>
+    </div>`;
+  }
+  function seamDividerHtml(ts) {
+    const t = ftime(ts).replace('AM', 'am').replace('PM', 'pm');
+    return `<div class="sh-seamdiv">· resumed ${t} ·</div>`;
+  }
+  function runHeaderHtml(sid, idx, name, artist, art, sub, collapsed, service, uri) {
+    const line2 = [artist, sub].filter(Boolean).join(' · ');
+    return `<div class="sh-albhdr sh-coll" onclick="SH.toggleRun(${sid}, ${idx}, event)">
+      ${artOrPh(art, name, 'sh-thumb40g')}
+      <div class="sh-ah-meta">
+        <div class="sh-ah-nm">${art ? '' : '💿 '}${esc(name)}</div>
+        ${line2 ? `<div class="sh-ah-ar">${esc(line2)}</div>` : ''}
+      </div>
+      <span class="sh-btns">
+        ${albumBtns(name, artist, service, uri)}
+        <span class="sh-ah-chev" id="sh-gchev-${sid}-${idx}">${collapsed ? '▸' : '▾'}</span>
+      </span>
+    </div>`;
+  }
+  function topLineG(s) {
+    const u = uniqCount(s.tracks);
+    return `${ftime(s.start)} · ${fdur(sessDurMs(s))} · ${u} track${u === 1 ? '' : 's'}${locusChip(s.locus)}${acctChips(s)}`;
+  }
+  function flatBlockHtml(s, sid, forceOpen, omitExpl) {
+    // NO "show all" fold — opening a session always renders the full tracklist (spec G2.3 §E)
+    const open = forceOpen || EXPANDED.has(sid);
+    const seamSet = new Set(s.seams || []);
+    const seam = t => { if (seamSet.has(t.ts)) { seamSet.delete(t.ts); return seamDividerHtml(t.ts); } return ''; };
+    let inner = '';
+    if (s.isRadio) {
+      inner = s.tracks.map(t => trackRowHtmlG(t, null, false)).join('');
+    } else {
+      const namedCtxs = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0));
+      // pass 2.7 fix: whole-session 📃 header only when the top context covers ≥80% of plays
+      const topCtx = namedCtxs[0];
+      if (topCtx && (topCtx.n || 0) >= s.n * 0.8) {
+        // p2.75: "N of M played" — session shows what you heard, not playlist size
+        // p2.76: playlist name links to its card on the Playlists tab
+        const plJump = (topCtx.uri || '').startsWith('spotify:playlist:') ? `jumpToPlaylist('${topCtx.uri.split(':')[2]}')` : null;
+        inner = groupHeaderHtml('📃', topCtx.name, topCtx.total ? `playlist · ${uniqCount(s.tracks)} of ${topCtx.total} played` : `playlist · ${uniqCount(s.tracks)} trk`, topCtx.art, ctxBtns(topCtx), plJump)
+          + s.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, true)).join('');
+      } else {
+        if (topCtx) {
+          // p2.76: minority-context note gets the same name-link when it's a playlist
+          const noteJump = (topCtx.uri || '').startsWith('spotify:playlist:') ? `jumpToPlaylist('${topCtx.uri.split(':')[2]}')` : null;
+          const noteName = noteJump ? `<a class="sh-ctx-link" href="javascript:void(0)" onclick="event.stopPropagation();${noteJump}">${esc(topCtx.name)}</a>` : esc(topCtx.name);
+          inner += `<div class="sh-ctxnote">📃 ${noteName} · ${topCtx.n} of ${s.n} plays</div>`;
+        }
+        const groups = [];
+        for (const t of s.tracks) {
+          const k = normAlbumKey(t);
+          const last = groups[groups.length - 1];
+          if (last && last.key === k) last.tracks.push(t);
+          else groups.push({ key: k, tracks: [t] });
+        }
+        // spec G2 B1: any contiguous run of ≥3 same-album tracks gets a 💿 header
+        let runIdx = 0;
+        for (const g of groups) {
+          if (g.tracks.length >= 3 && g.key) {
+            const info = albumInfoFor(s, g.key);
+            const name = (info && info.album) || g.tracks[0].album || 'Unknown album';
+            const artist = (info && info.artist) || g.tracks[0].artist || '';
+            const u = uniqCount(g.tracks);
+            const runDur = g.tracks.reduce((a, t) => a + (t.dur || 210), 0) * 1000;
+            const sub = (info && info.total) ? `${Math.min(u, info.total)}/${info.total} · ${fdur(runDur)}` : `${u} trk · ${fdur(runDur)}`;
+            const collapsed = gcolFor(s, runIdx);
+            inner += seam(g.tracks[0]);
+            inner += runHeaderHtml(sid, runIdx, name, artist, info ? info.art : null, sub, collapsed, g.tracks[0].source || '', info ? info.uri : null);
+            inner += `<div class="sh-runtracks${collapsed ? ' sh-gcol' : ''}" id="sh-grun-${sid}-${runIdx}">`
+              + g.tracks.map((t, i) => (i ? seam(t) : '') + trackRowHtmlG(t, null, true)).join('') + `</div>`;
+            runIdx++;
+          } else {
+            inner += g.tracks.map(t => seam(t) + trackRowHtmlG(t, t.album, false)).join('');
+          }
+        }
+      }
+    }
+    return `<div class="sh-entities ${open ? 'sh-open' : ''}" id="sh-ent-${sid}"><div class="sh-trackrows sh-open">${omitExpl ? '' : explRowsG(s)}${inner}</div></div>`;
+  }
+  function bigArtG(s, h) {
+    const seen = new Map();
+    for (const a of [...s.albums].sort((x, y) => y.n - x.n)) if (a.art && !seen.has(a.art)) seen.set(a.art, a);
+    const arts = [...seen.keys()];
+    if (!arts.length) return artOrPh(h.art, h.artLabel, 'sh-gsolo');
+    if (arts.length === 1) return `<img class="sh-art sh-gsolo" src="${esc(arts[0])}" loading="lazy" alt="">`;
+    let covers = '';
+    for (let i = 0; i < Math.min(3, arts.length); i++) covers += `<img class="sh-art" src="${esc(arts[i])}" loading="lazy" alt="">`;
+    const extra = arts.length - 3;
+    return `<div class="sh-gfan">${covers}${extra > 0 ? `<span class="sh-gplus">+${extra}</span>` : ''}</div>`;
+  }
+  function subG(s, h) {
+    if (h.kind === 'album') {
+      const top = [...s.albums].sort((a, b) => b.n - a.n)[0];
+      return top ? esc(top.artist) + (top.year ? ' · ' + top.year : '') : '';
+    }
+    if (h.kind === 'playlist') return 'playlist';
+    return s.artists.length > 1 ? `${s.artists.length} artists` : '';
+  }
+  function renderCardG(s, sid) {
+    const h = titleFor(s);
+    const titleHtml = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
+    const sub = subG(s, h);
+    return `<div class="sh-t3" onclick="SH.toggle(${sid})">
+        <div class="sh-top"><span>${topLineG(s)}</span></div>
+        <div class="sh-body">${bigArtG(s, h)}<div class="sh-textblock">
+          <div class="sh-title">${titleHtml}</div>
+          ${sub ? `<div class="sh-sub">${sub}</div>` : ''}
+        </div></div>
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function renderStationG(s, sid) {
+    return `<div class="sh-station" onclick="SH.toggle(${sid})">
+        <div class="sh-top"><span>${topLineG(s)}</span></div>
+        <div class="sh-name">📻 ${esc(s.stationName)}${s.stationFreq ? ' · ' + esc(s.stationFreq) : ''}</div>
+        <div class="sh-sub">live radio</div>
+        <div class="sh-chev">▾ tracks</div>
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function renderT1G(s, sid) {
+    // dense fixed-height one-liner for tier-1 sessions (spec G2.3 §D)
+    const o = oneLiner(s);
+    const uu = uniqCount(s.tracks);
+    const plusN = uu > 1 ? ` <span class="sh-muted">(+${uu - 1})</span>` : '';
+    const tr = s.tracks.find(t => t.artist === o.artist && t.title === o.title) || s.tracks[0] || {};
+    let tArt = tr.art || null;
+    if (!tArt && tr.album) { const a = (s.albums || []).find(x => normStr(x.album) === normStr(tr.album)); tArt = a ? a.art : null; }
+    const thumbG = tArt ? `<img class="sh-art sh-thumb18g" src="${esc(tArt)}" loading="lazy" alt="">` : `<span class="sh-thumb18ph"></span>`;
+    return `<div class="sh-t1" onclick="SH.toggle(${sid})">
+        <span class="sh-time">${ftime(s.start)}</span>
+        ${thumbG}
+        <span class="sh-txt"><b>${esc(o.artist)}</b> — ${esc(o.title)}${plusN}</span>
+        ${locusChip(s.locus, true)}${acctChips(s)}${explBadge(s)}
+      </div>
+      ${flatBlockHtml(s, sid)}`;
+  }
+  function qledRowHtml(t) {
+    let albumLabel = t.album;
+    if (albumLabel && normStr(albumLabel) === normStr(t.title)) albumLabel = null;
+    const thumbG = t.art ? `<img class="sh-art sh-thumb18g" src="${esc(t.art)}" loading="lazy" alt="">` : `<span class="sh-thumb18ph"></span>`;
+    return `<div class="sh-t1 sh-qledrow">
+      <span class="sh-time">${ftime(t.ts)}</span>
+      ${thumbG}
+      <span class="sh-txt">${esc(t.title)}${albumLabel ? `<span class="sh-alb-inline">${esc(albumLabel)}</span>` : ''}${trackAcctChip(t)}</span>
+      <span class="sh-ta">${esc(t.artist)}</span>
+      <span class="sh-btns">${trackBtns(t)}</span>
+    </div>`;
+  }
+  function qledBodyHtml(s) { return `<div class="sh-trackrows sh-open">${s.tracks.map(qledRowHtml).join('')}</div>`; }
+  function renderQuickLedgerG(s, sid) {
+    const open = EXPANDED.has(sid);
+    return `<div class="sh-t1 sh-qled" onclick="SH.toggle(${sid})">
+        <span class="sh-qmark">▫</span>
+        <span class="sh-txt"><b>${s.qplays} quick play${s.qplays === 1 ? '' : 's'}</b> · ${fdur(s.qdur)}</span>
+        <span class="sh-qloci">${(s.loci || []).map(l => locusChip(l, true)).join('')}</span>
+      </div>
+      <div class="sh-entities ${open ? 'sh-open' : ''}" id="sh-ent-${sid}">${qledBodyHtml(s)}</div>`;
+  }
+
+  // ---------------- full-width panels (≥900px, multi-expand; spec G2.6 §1/§2) ----------------
+  function panelRailHtml(s) {
+    if (s.isQuickLedger) {
+      return `<div class="sh-gxp-rail"><div class="sh-gxp-railhdr"><div class="sh-gxp-text"><div class="sh-gxp-top">${fdur(s.qdur)}</div><div class="sh-title"><b>▫ ${s.qplays} quick plays</b></div></div></div></div>`;
+    }
+    const meta = topLineG(s) + (s.artists.length > 1 ? ` · ${s.artists.length} artists` : '');
+    let art = '', title, sub = '', pl = '';
+    if (s.isRadio) {
+      title = `<b>📻 ${esc(s.stationName)}${s.stationFreq ? ' · ' + esc(s.stationFreq) : ''}</b>`;
+      sub = 'live radio';
+    } else {
+      const h = titleFor(s);
+      title = h.kind === 'ledby' ? h.title : `<b>${esc(h.title)}</b>`;
+      if (h.kind === 'album') sub = subG(s, h);
+      art = `<div class="sh-gxp-art">${bigArtG(s, h)}</div>`;
+      const namedCtx = (s.contexts || []).filter(c => c.name).sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+      if (namedCtx && h.kind !== 'playlist') pl = `<div class="sh-gxp-pl">📃 ${esc(namedCtx.name)}</div>`;
+    }
+    return `<div class="sh-gxp-rail"><div class="sh-gxp-railhdr">${art}<div class="sh-gxp-text"><div class="sh-gxp-top">${meta}</div><div class="sh-title">${title}</div>${sub ? `<div class="sh-sub">${sub}</div>` : ''}${pl}</div></div>${explRowsG(s)}</div>`;
+  }
+  function panelBodyHtml(s) {
+    const psid = 100000 + s.__id; // panel-local id namespace: DOM run ids never collide with inline blocks
+    const tracks = s.isQuickLedger ? qledBodyHtml(s) : flatBlockHtml(s, psid, true, true);
+    return `<div class="sh-gxp-body">${panelRailHtml(s)}<div class="sh-gxp-tracks">${tracks}</div></div>`;
+  }
+  function rowAnchorFor(cell) {
+    const cells = [...cell.parentElement.children].filter(el => el.classList.contains('sh-cell'));
+    let anchor = cell;
+    for (const el of cells) if (el.offsetTop === cell.offsetTop) anchor = el;
+    return anchor;
+  }
+  function positionCaret(panel, cell) {
+    const caret = panel.querySelector('.sh-gxp-caret');
+    if (!caret) return;
+    const center = cell.offsetLeft + cell.offsetWidth / 2 - panel.offsetLeft;
+    caret.style.left = Math.max(14, Math.round(center - 8)) + 'px';
+  }
+  function layoutPanels() {
+    document.querySelectorAll('.sh-gxp').forEach(p => p.remove());
+    document.querySelectorAll('.sh-cell.sh-sel').forEach(e => e.classList.remove('sh-sel'));
+    if (!panelMode()) return;
+    const items = [...EXPANDED].map(sid => ({ sid, cell: document.getElementById('sh-cell-' + sid) })).filter(x => x.cell);
+    for (const x of items) { x.left = x.cell.offsetLeft; x.anchor = rowAnchorFor(x.cell); }
+    const rows = new Map();
+    for (const x of items) { if (!rows.has(x.anchor)) rows.set(x.anchor, []); rows.get(x.anchor).push(x); }
+    const made = [];
+    for (const [anchor, xs] of rows) {
+      xs.sort((a, b) => a.left - b.left);
+      let after = anchor;
+      for (const x of xs) {
+        const s = findSessionById(x.sid);
+        if (!s) continue;
+        x.cell.classList.add('sh-sel');
+        const panel = document.createElement('div');
+        panel.className = 'sh-gxp';
+        panel.id = 'sh-gxpanel-' + x.sid;
+        panel.innerHTML = `<span class="sh-gxp-caret"></span><button class="sh-gxp-x" title="Close" onclick="SH.closePanel(${x.sid})">✕</button>` + panelBodyHtml(s);
+        after.after(panel);
+        after = panel;
+        made.push(x);
+      }
+    }
+    for (const x of made) { const p = document.getElementById('sh-gxpanel-' + x.sid); if (p) positionCaret(p, x.cell); }
+  }
+  function togglePanel(sid) {
+    const opening = !EXPANDED.has(sid);
+    if (opening) EXPANDED.add(sid); else EXPANDED.delete(sid);
+    layoutPanels();
+    if (opening) {
+      const panel = document.getElementById('sh-gxpanel-' + sid);
+      if (!panel) return;
+      const top = panel.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight) panel.scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function closePanel(sid) { EXPANDED.delete(sid); saveExpanded(); layoutPanels(); }
+
+  // ---------------- Days zoom (pass 2.7 multi-anchor ledger) ----------------
+  function setZoom(z) {
+    ZOOM = z;
+    try { localStorage.setItem(LS_ZOOM, z); } catch (e) {}
+    syncZoomSeg();
+    applyZoomVis();   // p2.83: 'tracks' reveals the legacy track-list pane inside this tab
+    if (booted && z !== 'tracks') render();
+  }
+  // p2.83: three-way seg — Tracks | Sessions | Days
+  function syncZoomSeg() {
+    const m = { 'sh-zoomT': 'tracks', 'sh-zoomS': 'sessions', 'sh-zoomD': 'days' };
+    for (const id in m) { const el = document.getElementById(id); if (el) el.classList.toggle('sh-on', ZOOM === m[id]); }
+  }
+  // p2.83: Tracks zoom = old track-list history (#tab-history pane) shown under the History tab's
+  // toolbar. The legacy pane stays warm via loadData()'s 60s loop and remains reachable directly via
+  // the #history hash (which we never fight: we only drive its visibility while OUR tab is showing).
+  // Sessions-only toolbar bits hide via visibility (not display) so layout holds and renderSyncChip's
+  // own display toggling never conflicts.
+  function applyZoomVis() {
+    const tabEl = document.getElementById('tab-sessions');
+    if (!tabEl || tabEl.hidden) return;              // not our tab right now — leave everything alone
+    const trk = ZOOM === 'tracks';
+    const hist = document.getElementById('tab-history');
+    if (hist) hist.hidden = !trk;
+    const mainPanel = document.getElementById('sh-main');
+    if (mainPanel && mainPanel.parentElement) mainPanel.parentElement.style.display = trk ? 'none' : '';
+    for (const id of ['sh-updated', 'sh-syncchip', 'sh-acctchip']) {
+      const el = document.getElementById(id);
+      if (el) el.style.visibility = trk ? 'hidden' : '';
+    }
+  }
+  function zoomToDay(k) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = null; setZoom('sessions'); }
+  // spec G2.7: clicking an anchor row lands on THAT session's card (falls back to the day header)
+  function zoomToSession(k, sid) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = sid; setZoom('sessions'); }
+  function renderDays() {
+    const days = groupByDay(visList()); // p2.72: account filter applies here too
+    if (!days.size) { document.getElementById('sh-main').innerHTML = '<div class="sh-status">No sessions match this filter.</div>' + loadMoreRowHtml(); watchLoadRow(); return; }
+    const fdayShort = ts => new Date(ts).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' }).replace(/,/g, '');
+    const dayDur = ss => ss.reduce((a, s) => a + (s.isQuickLedger ? s.qdur : sessDurMs(s)), 0);
+    // p2.72 (GAP B): locus icons on Days rows — only when the day spans multiple loci
+    const dayLoci = ss => { const set = new Set(); for (const s of ss) { if (s.isQuickLedger) (s.loci || []).forEach(l => set.add(l)); else if (s.locus) set.add(s.locus); } return set; };
+    const lociIcons = set => [...set].map(l => LOCI[l] ? `<span title="${LOCI[l][1]}">${LOCI[l][0]}</span>` : '').join('');
+    const weeks = new Map();
+    for (const [k, ss] of days) {
+      const p = k.split('-').map(Number);
+      const dt = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+      dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7)); // back to Monday
+      const wk = dt.toISOString().slice(0, 10);
+      if (!weeks.has(wk)) weeks.set(wk, { label: dt.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }), days: [] });
+      weeks.get(wk).days.push([k, ss]);
+    }
+    let out = '<div class="sh-daysledger">';
+    for (const [, w] of weeks) {
+      const wDur = w.days.reduce((a, kv) => a + dayDur(kv[1]), 0);
+      out += `<div class="sh-weekhdr"><b>Week of ${w.label}</b> · ${fdur(wDur)} · ${w.days.length} day${w.days.length === 1 ? '' : 's'} listened</div>`;
+      for (const [k, ss] of w.days) {
+        const real = ss.filter(s => !s.isQuickLedger);
+        const led = ss.find(s => s.isQuickLedger);
+        const totTracks = ss.reduce((a, s) => a + uniqCount(s.tracks), 0);
+        const stats = `<span class="sh-st-dur">${fdur(dayDur(ss))}</span><span class="sh-st-trk"> · ${totTracks} tracks</span><span class="sh-st-sess"> · ${real.length} session${real.length === 1 ? '' : 's'}</span>${led ? ` · ▫${led.qplays}` : ''}`;
+        const headBase = s => {
+          if (s.isRadio) return `📻 ${esc(s.stationName)}`;
+          const h = titleFor(s);
+          if (h.kind === 'album') {
+            const top = [...s.albums].sort((a, b) => b.n - a.n)[0];
+            return `💿 ${esc(h.title)}${top ? ' — ' + esc(top.artist) : ''}`;
+          }
+          if (h.kind === 'playlist') return `📃 ${esc(String(h.plain || h.title).replace(/^📃\s*/, ''))}`;
+          return h.kind === 'ledby' ? esc(h.plain) : esc(h.title);
+        };
+        const thumbsFor = list => {
+          const seen = new Set(); let t = '';
+          for (const a of list.flatMap(s => s.albums || []).filter(a => a.art).sort((a, b) => b.n - a.n)) {
+            if (seen.has(a.art)) continue; seen.add(a.art);
+            t += `<img class="sh-art" src="${esc(a.art)}" loading="lazy" alt="">`;
+            if (seen.size >= 4) break;
+          }
+          return t;
+        };
+        // p2.72 (GAP B): multi-locus day → badge rows; single-locus day → suppress
+        const dLoci = dayLoci(ss);
+        const dayMulti = dLoci.size >= 2;
+        // spec G2.7: anchor = ≥8 unique tracks OR ≥45 min
+        const anchors = real.filter(s => uniqCount(s.tracks) >= 8 || sessDurMs(s) >= 45 * 60000);
+        if (anchors.length >= 2) {
+          const shown = anchors.slice().sort((a, b) => sessDurMs(b) - sessDurMs(a)).slice(0, 3).sort((a, b) => a.start - b.start);
+          shown.forEach((a, i) => {
+            const last = i === shown.length - 1;
+            const rowLoci = dayMulti && a.locus && LOCI[a.locus] ? `<span class="sh-dr-loci" title="${LOCI[a.locus][1]}">${LOCI[a.locus][0]}</span>` : '';
+            const head = `${headBase(a)}${rowLoci} <span class="sh-muted">· ${daypartOf(a.start)}<span class="sh-mut-len"> · ${fdur(sessDurMs(a))} · ${uniqCount(a.tracks)} tracks</span></span>`;
+            out += `<div class="sh-dayrow${i ? ' sh-dr-cont' : ''}" onclick="SH.zoomToSession('${k}', ${a.__id})">
+              <span class="sh-dr-date${i ? '' : ' sh-dr-datelink'}"${i ? '' : ` onclick="event.stopPropagation();SH.zoomToDay('${k}')"`}>${i ? '<span class="sh-dr-ditto">〃</span>' : fdayShort(ss[0].start)}</span>
+              <span class="sh-dr-arts">${thumbsFor([a])}</span>
+              <span class="sh-dr-head">${head}</span>
+              <span class="sh-dr-stats">${last ? stats : ''}</span>
+              <span class="sh-dr-chev">›</span>
+            </div>`;
+          });
+          continue;
+        }
+        const anchor = real.slice().sort((a, b) => uniqCount(b.tracks) - uniqCount(a.tracks))[0] || null;
+        let head = '▫ quick plays only';
+        if (anchor) head = anchor.isRadio ? `📻 ${esc(anchor.stationName)} ${daypartOf(anchor.start)}` : headBase(anchor);
+        if (dayMulti) head += `<span class="sh-dr-loci">${lociIcons(dLoci)}</span>`; // p2.72 GAP B
+        out += `<div class="sh-dayrow" onclick="SH.zoomToDay('${k}')">
+          <span class="sh-dr-date">${fdayShort(ss[0].start)}</span>
+          <span class="sh-dr-arts">${thumbsFor(ss)}</span>
+          <span class="sh-dr-head">${head}</span>
+          <span class="sh-dr-stats">${stats}</span>
+          <span class="sh-dr-chev">›</span>
+        </div>`;
+      }
+    }
+    out += '</div>' + loadMoreRowHtml();
+    document.getElementById('sh-main').innerHTML = out;
+    watchLoadRow();
+  }
+
+  // ---------------- render ----------------
+  function renderSession(s, sid) {
+    if (s.isQuickLedger) return renderQuickLedgerG(s, sid);
+    if (s.isRadio) return renderStationG(s, sid);
+    if (tierOf(s) === 1) return renderT1G(s, sid);
+    return renderCardG(s, sid);
+  }
+  function render() {
+    if (ZOOM === 'tracks') return;  // p2.83: legacy pane owns the screen; sessions re-render on zoom-back
+    const main = document.getElementById('sh-main');
+    if (!main || !booted) return;
+    main.className = ZOOM === 'days' ? 'sh-vG sh-zdays' : 'sh-vG';
+    if (ZOOM === 'days') { renderDays(); return; }
+    const vis = visList(); // p2.72: account filter applies to both zoom levels
+    if (!vis.length) { main.innerHTML = '<div class="sh-status">No sessions match this filter.</div>' + loadMoreRowHtml(); watchLoadRow(); return; }
+    const days = groupByDay(vis);
+    let out = '';
+    for (const [k, ss] of days) {
+      // quick-plays ledger docks at the END of its day group (spec G2.4 §2)
+      const cards = ss.filter(s => !s.isQuickLedger).concat(ss.filter(s => s.isQuickLedger));
+      out += `<section class="sh-daygrp" id="sh-day-${k}"><div class="sh-dayhdr">${fday(cards[0].start)}</div><div class="sh-daygrid">`;
+      for (const s of cards) out += `<div class="sh-cell${s.isQuickLedger ? ' sh-qcell' : ''}${s.__live ? ' sh-livecell' : ''}" id="sh-cell-${s.__id}">${renderSession(s, s.__id)}</div>`;
+      out += `</div></section>`;
+    }
+    out += loadMoreRowHtml();
+    main.innerHTML = out;
+    layoutPanels(); // re-open every expanded card's panel from the EXPANDED Set
+    watchLoadRow();
+    if (PENDING_SCROLL || PENDING_SCROLL_SESS != null) {
+      let el = null;
+      const sess = PENDING_SCROLL_SESS;
+      if (sess != null) el = document.getElementById('sh-cell-' + sess);
+      if (!el && PENDING_SCROLL) el = document.getElementById('sh-day-' + PENDING_SCROLL);
+      PENDING_SCROLL = null; PENDING_SCROLL_SESS = null;
+      if (el) {
+        el.scrollIntoView({ block: 'start' });
+        if (sess != null) { el.style.outline = '2px solid var(--accent)'; setTimeout(() => { el.style.outline = ''; }, 2000); }
+      }
+    }
+  }
+
+  // panels re-anchor on resize; crossing 900px swaps panel/inline expansion modes
+  window.addEventListener('resize', () => { if (!booted) return; clearTimeout(layoutPanels._h); layoutPanels._h = setTimeout(layoutPanels, 120); });
+  GRID_MQ.addEventListener('change', () => { if (booted) render(); });
+
+  // ---------------- public API (inline onclick handlers + tab switching) ----------------
+  function onShow() {
+    syncZoomSeg();
+    applyZoomVis();  // p2.83: setContentTab re-hides #tab-history on every switch — reassert tracks zoom
+    if (!booted) { syncAcctChip(); _boot(); return; }
+    // re-measure panels: offsets are 0 while the tab is hidden
+    layoutPanels();
+    syncAcctChip(); // p2.72
+  }
+  return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct,
+           onPending, hasSync, refreshHead };  // p2.81: SSE live history entry points
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
 (async () => {
+  applyInitialTab();  // p2.77: apply #hash tab (default sessions) before anything renders
   // Handle Spotify OAuth callback FIRST (before anything else)
   const didAuth = await handleSpotifyCallback();
   setHouse(house);
   connectSSE();
+  // p2.81 D3: best-effort SSE nudge — usually the ?since=16m replay delivers a
+  // snapshot instantly (keepalive is 15 min), so this rarely fires. If nothing
+  // arrived after 8s, ask the current house's machine for one push; one retry at
+  // 38s; then stop. NOTHING depends on this (D8 chip stays honest regardless).
+  // Rule 22: fresh cmd_ts rides every command. Silent (no toast) — it's plumbing.
+  let _nudges = 0;
+  function maybeNudge() {
+    if (house !== 'caphill' && house !== 'vashon') return;
+    if (window.SH && SH.hasSync && SH.hasSync(house)) return;  // snapshot already arrived
+    if (_nudges >= 2 || !NTFY[house]) return;
+    _nudges++;
+    const body = JSON.stringify({ action: 'push_now', cmd_ts: new Date().toISOString(), t_requested: new Date().toISOString(), source_house: house });
+    const hdrs = NTFY_TOKEN ? { 'Authorization': 'Bearer ' + NTFY_TOKEN } : {};
+    fetch(NTFY[house], { method: 'POST', body, headers: hdrs })
+      .then(r => console.log('[nudge] push_now → ' + house + ' [' + r.status + '] (attempt ' + _nudges + ')'))
+      .catch(e => console.warn('[nudge] send failed (best-effort, moving on):', e && e.message));
+  }
+  setTimeout(maybeNudge, 8000);
+  setTimeout(maybeNudge, 38000);
   loadLikedData();  // p2.47: fire-and-forget — badges pop in when the asset lands
   await loadData(true);
   if (!didAuth) handleDeepLink();
