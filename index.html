@@ -148,6 +148,8 @@
     -webkit-tap-highlight-color: transparent; transition: all 0.15s; white-space: nowrap;
   }
   .pc-ghost-btn.primary { border-color: var(--accent2); color: var(--accent2); }
+  /* p2.82: durable API-block note on Spotify-owned ghost cards */
+  .pc-ghost-blocked { color: var(--text-dim); font-size: 12px; opacity: 0.85; cursor: help; }
   .gspin {
     display: inline-block; width: 12px; height: 12px; flex-shrink: 0;
     border: 2px solid var(--accent2); border-top-color: transparent;
@@ -974,7 +976,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.81';
+const PAGE_VERSION = 'p2.82';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4394,6 +4396,12 @@ async function handleFetchResult(msg) {
   if (msg.status === 'ok') {
     await loadPlaylistData(); // re-pull playlists.json → card gains track count + becomes expandable
   } else {
+    // p2.82: stamp the failure on the local card immediately — durable copy lands in
+    // playlists.json via the handler's DB write; this just avoids waiting for it.
+    if (msg.playlist_id && msg.error_code) { // error_code only sent for durable blocks, never transient failures
+      var fp = _playlists.find(function(x) { return x.id === msg.playlist_id; });
+      if (fp) fp.fetch_error = msg.error_code;
+    }
     renderPlaylists();
   }
 }
@@ -4603,7 +4611,12 @@ function renderPlaylists() {
     // Webhook transport (same channel as ♥ likes); agent fetches the public playlist
     // from Spotify, publishes the chunk + updated playlists.json, confirms via SSE.
     if (isGhost) {
-      if (_ghostPending(p.id)) {
+      // p2.82: Spotify-owned editorial/algorithmic playlists are API-blocked (late 2024) —
+      // show the durable failure instead of doomed Fetch/Add buttons. Play/Queue still work
+      // (playback goes through Sonos, not the blocked read API).
+      if (p.fetch_error) {
+        card += '<div class="pc-ghost-actions pc-ghost-blocked" title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play.">\ud83d\udeab Spotify blocks apps from reading this playlist</div>';
+      } else if (_ghostPending(p.id)) {
         card += '<div class="pc-ghost-actions"><span class="gspin"></span> Fetching tracks\u2026 takes a couple of minutes, updates automatically</div>';
       } else {
         var gEnc = encodeURIComponent(p.name).replace(/'/g, '%27');
