@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.54.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.55.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -280,6 +280,62 @@ try:
         print(f"[dedup] loaded {len(executed_cmd_hashes)} unexpired command hash(es) from disk")
 except Exception as _dh_err:
     print(f"[dedup] WARNING: failed to load executed_cmds.json: {_dh_err}")
+
+# --- QUEUE PROVENANCE (v2.55) ------------------------------------------------
+# DESIGN NOTE: Sonos reports container = x-rincon-queue for queue playback, and
+# Spotify's recently-played API reports context=null for Sonos-driven plays, so
+# the playlist/album identity of a queue load is LOST unless WE remember it
+# (confirmed 2026-07-30: 58/58 Sonos plays with NULL context; "2020s Mix" and
+# Wesleyan playlist sessions showed "led by <artist>" instead of the name).
+# When a command loads the queue from a container URI (play_spotify_uri
+# playlist/album, play_album play-now), we record {coordinator -> context} here
+# and post_history stamps it onto history items whose own container is missing
+# or a queue URI. Cleared by clear_queue and replaced by the next queue load.
+# LIMITATION (accepted): queues rebuilt via the native Sonos/Spotify apps are
+# undetectable — stale provenance could mislabel those plays. Mitigations: the
+# 24h TTL below (Rule 11: every guard/memory needs an expiry) + native app
+# loads usually DO carry a real EnqueuedTransportURI, which wins the overlay.
+queue_provenance         = {}   # coordinator name -> {"uri","name","type","loaded_at"}
+QUEUE_PROV_PATH          = INSTALL_DIR / "queue_provenance.json"
+QUEUE_PROV_TTL_SECONDS   = 24 * 3600
+
+def _save_queue_provenance():
+    try:
+        QUEUE_PROV_PATH.write_text(json.dumps(queue_provenance), encoding="utf-8")
+    except Exception as _qp_err:
+        log(f"[queue-prov] WARNING: persist failed: {_qp_err}")
+
+def _set_queue_provenance(coord_name, uri, name, ctype):
+    """Remember that coord_name's queue was loaded from container uri/name."""
+    queue_provenance[coord_name] = {"uri": uri or "", "name": name or "",
+                                    "type": ctype or "", "loaded_at": time.time()}
+    _save_queue_provenance()
+    log(f"[queue-prov] {coord_name}: queue loaded from {ctype} '{name}' ({uri})")
+
+def _clear_queue_provenance(coord_name, reason=""):
+    if queue_provenance.pop(coord_name, None) is not None:
+        _save_queue_provenance()
+        log(f"[queue-prov] {coord_name}: provenance cleared ({reason})")
+
+def _get_queue_provenance(coord_name):
+    """Return live provenance for a coordinator, or None (expired entries pruned)."""
+    p = queue_provenance.get(coord_name)
+    if not p: return None
+    if time.time() - p.get("loaded_at", 0) > QUEUE_PROV_TTL_SECONDS:
+        _clear_queue_provenance(coord_name, "TTL expired")
+        return None
+    return p
+
+try:
+    if QUEUE_PROV_PATH.exists():
+        _qp_loaded = json.loads(QUEUE_PROV_PATH.read_text(encoding="utf-8"))
+        _qp_cut = time.time() - QUEUE_PROV_TTL_SECONDS
+        queue_provenance.update({k: v for k, v in _qp_loaded.items()
+                                 if v.get("loaded_at", 0) > _qp_cut})
+    # v2.55 boot marker (Rule 24: verify a log line UNIQUE to the new version)
+    print(f"[queue-prov] v2.55 queue provenance active: {len(queue_provenance)} entry(ies) loaded")
+except Exception as _qp_err:
+    print(f"[queue-prov] WARNING: failed to load queue_provenance.json: {_qp_err}")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -2586,6 +2642,20 @@ def post_history(track, room, started_at, ended_at):
         item["container_type"] = container.get("container_type", "")
         if container.get("spotify_context"):
             item["spotify_context"] = container["spotify_context"]
+    # v2.55: QUEUE PROVENANCE OVERLAY — if Sonos gave us no real container
+    # (queue playback reports x-rincon-queue / nothing), stamp the remembered
+    # load context so sessions can be named after the playlist/album. A real
+    # EnqueuedTransportURI from Sonos always WINS over the overlay.
+    _cur_container = item.get("container_uri", "")
+    if (not _cur_container) or _cur_container.startswith("x-rincon-queue"):
+        _prov = _get_queue_provenance(track.get("coordinator") or room)
+        if _prov and _prov.get("uri"):
+            item["container_uri"]  = _prov["uri"]
+            item["container_name"] = _prov["name"]
+            item["container_type"] = _prov["type"]
+            item["context_source"] = "queue_provenance"  # honesty marker for archaeology
+            if _prov["uri"].startswith("spotify:"):
+                item["spotify_context"] = _prov["uri"]
     item["_buffered_at"] = time.time()  # for max-age relay flush
     _persist_err = None
     with pending_buffer_lock:
@@ -2731,6 +2801,33 @@ def _setup_rooms(cmd, devices):
     if room and not rooms: rooms = [room]
     if not rooms: return None, [], []
 
+    # v2.55: COORDINATOR-PRESERVING REGROUP (bug fix, live incident 2026-07-30).
+    # rooms[0] used to become the group leader UNCONDITIONALLY. When another
+    # *requested* room was the coordinator of a currently-PLAYING group, the
+    # delta logic below rebuilt the group around rooms[0]'s silent queue and
+    # killed playback (Kokoroko died when Group Speakers sent Kitchen first
+    # while Living Room Maury was the playing coordinator). Fix: if a requested
+    # room coordinates a PLAYING group, move it to the front so it stays leader
+    # and playback never blinks. rooms[0] is honored when nothing is playing.
+    if len(rooms) > 1:
+        try:
+            for _r in rooms:
+                _d = devices.get(_r)
+                if not _d: continue
+                _coord = _d.group.coordinator if _d.group and _d.group.coordinator else _d
+                _cname = _coord.player_name
+                if _cname in rooms:
+                    _tstate = _coord.get_current_transport_info().get("current_transport_state", "")
+                    if _tstate == "PLAYING":
+                        if _cname != rooms[0]:
+                            log(f"_setup_rooms: preferring playing coordinator '{_cname}' as primary (was '{rooms[0]}')")
+                            rooms = [_cname] + [x for x in rooms if x != _cname]
+                        # rooms[0] already the playing coordinator -> keep it; either
+                        # way stop scanning so a later group can't steal leadership.
+                        break
+        except Exception as _cp_err:
+            log(f"_setup_rooms: coordinator-preference check failed (falling back to rooms[0]): {_cp_err}")
+
     primary = rooms[0]
     dev = devices.get(primary)
     if not dev: return None, rooms, []
@@ -2850,7 +2947,7 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
 
 # v2.54: sync_rooms is now silent — its result travels over SSE only (see the
 # sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
 
@@ -3464,6 +3561,13 @@ def execute_command(cmd, source="unknown"):
 
                         if not queue_only:
                             _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
+                            # v2.55: queue provenance — "play now" makes this album the
+                            # active listening context (queue_only append deliberately
+                            # does NOT clobber existing provenance: the old context still
+                            # dominates the queue until the album actually plays).
+                            _prov_uri = spotify_album_uri or share_link_url or getattr(album_item, "uri", "") or ""
+                            _set_queue_provenance(coordinator.player_name, _prov_uri,
+                                                  chosen_title or album_title, "album")
 
                         room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
@@ -3530,6 +3634,13 @@ def execute_command(cmd, source="unknown"):
                         raise
                 with _queue_mutation_timeout():
                     dev.play_from_queue(0)
+                # v2.55: queue provenance — this queue now came from this container.
+                # Playlists/albums get remembered (session naming); a bare track
+                # replaces the queue with no container, so clear instead.
+                if uri_type in ("playlist", "album"):
+                    _set_queue_provenance(dev.player_name, spotify_uri, title, uri_type)
+                else:
+                    _clear_queue_provenance(dev.player_name, "queue replaced by single track")
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
                 repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
@@ -4262,6 +4373,54 @@ def execute_command(cmd, source="unknown"):
             result["data"] = {"changed": changed, "unchanged": unchanged, "errors": errors}
             log(f"set_repeat: {result['message']}" + (f" | {changed}" if changed else ""))
 
+        elif action == "set_shuffle":
+            # v2.55: DETERMINISTIC shuffle control — idempotent mirror of set_repeat
+            # (user request 2026-07-30: shuffle button next to play/pause).
+            # cmd: {"action":"set_shuffle", "shuffle": true|false,
+            #       "rooms": ["Room A", ...] | "all"}   (default: all rooms)
+            # Preserves each group's repeat state. Play mode is a GROUP property,
+            # so targets are resolved to coordinators and deduped.
+            shuf = bool(cmd.get("shuffle", False))
+            rooms_arg = cmd.get("rooms", "all")
+            if isinstance(rooms_arg, str):
+                target_rooms = list(devices.keys()) if rooms_arg.lower() == "all" else [rooms_arg]
+            else:
+                target_rooms = list(rooms_arg) if rooms_arg else list(devices.keys())
+            coords, errors = {}, []
+            for rname in target_rooms:
+                d = devices.get(rname)
+                if not d:
+                    errors.append(f"{rname}: not found")
+                    continue
+                try:
+                    c = d.group.coordinator if d.group and d.group.coordinator else d
+                except Exception:
+                    c = d
+                coords[c.player_name] = c
+            changed, unchanged = [], []
+            for cname, c in coords.items():
+                try:
+                    cur = c.play_mode
+                    rep_one = cur in ("REPEAT_ONE", "SHUFFLE_REPEAT_ONE")
+                    rep_all = cur in ("REPEAT_ALL", "SHUFFLE")
+                    if shuf:
+                        new_mode = "SHUFFLE_REPEAT_ONE" if rep_one else ("SHUFFLE" if rep_all else "SHUFFLE_NOREPEAT")
+                    else:
+                        new_mode = "REPEAT_ONE" if rep_one else ("REPEAT_ALL" if rep_all else "NORMAL")
+                    if new_mode != cur:
+                        c.play_mode = new_mode
+                        changed.append(f"{cname}: {cur} -> {new_mode}")
+                    else:
+                        unchanged.append(cname)
+                except Exception as e:
+                    errors.append(f"{cname}: {e}")
+            result["success"] = not errors
+            result["message"] = (f"set_shuffle({shuf}): {len(changed)} changed, "
+                                 f"{len(unchanged)} already correct"
+                                 + (f", {len(errors)} errors" if errors else ""))
+            result["data"] = {"changed": changed, "unchanged": unchanged, "errors": errors}
+            log(f"set_shuffle: {result['message']}" + (f" | {changed}" if changed else ""))
+
         elif action == "get_services":
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room) if room else next(iter(devices.values()), None)
@@ -4365,6 +4524,7 @@ def execute_command(cmd, source="unknown"):
                         _q_before = "?"
                     with _queue_mutation_timeout():
                         coordinator.clear_queue()
+                    _clear_queue_provenance(coordinator.player_name, "clear_queue command")  # v2.55
                     log(f"clear_queue: {coordinator.player_name} queue cleared ({_q_before} tracks removed)")
                     result["success"] = True
                     result["message"] = f"Queue cleared in {room} ({_q_before} tracks removed)"

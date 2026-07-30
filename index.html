@@ -802,6 +802,7 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="shuffle-btn-caphill" onclick="sendCmd('toggle_shuffle')" title="Toggle shuffle">🔀</button>
       <button class="ctrl-btn repeat-btn" id="repeat-btn-caphill" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
@@ -833,6 +834,7 @@
       <button class="ctrl-btn" onclick="sendCmd('pause')">⏸</button>
       <button class="ctrl-btn" onclick="sendCmd('play')">▶️</button>
       <button class="ctrl-btn" onclick="sendCmd('next')">⏭</button>
+      <button class="ctrl-btn repeat-btn" id="shuffle-btn-vashon" onclick="sendCmd('toggle_shuffle')" title="Toggle shuffle">🔀</button>
       <button class="ctrl-btn repeat-btn" id="repeat-btn-vashon" onclick="sendCmd('cycle_repeat')" title="Cycle repeat">➖</button>
       <div class="volume-group">
         <button class="ctrl-btn" style="width:36px;height:36px;font-size:18px;" onclick="sendCmd('volume_down')">−</button>
@@ -961,7 +963,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.79';
+const PAGE_VERSION = 'p2.80';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1589,7 +1591,7 @@ function updateCommander() {
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSPORT CONTROLS
 // ══════════════════════════════════════════════════════════════════════════════
-const SONOS_MAP = { play: 'resume', prev: 'previous' };
+const SONOS_MAP = { play: 'resume', prev: 'previous', toggle_shuffle: 'set_shuffle' };  // p2.80: 🔀 → deterministic set_shuffle
 let _lastCmdTime = 0;
 
 function filterOfflineRooms(rooms, h) {
@@ -1619,7 +1621,8 @@ async function sendCmd(action) {
   if (!rawRooms.length) { showToast('Tap a speaker first', true); return; }
   const rooms = filterOfflineRooms(rawRooms);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
-  // Optimistic UI for mute/repeat (these are silent — no SSE confirmation comes back)
+  // Optimistic UI for mute/repeat/shuffle (these are silent — no SSE confirmation comes back)
+  let _shufTo;  // p2.80: desired shuffle state, rides in the set_shuffle payload
   if (action === 'toggle_mute') {
     const room = rooms[0];
     _muteStates[room] = !_muteStates[room];
@@ -1631,6 +1634,19 @@ async function sendCmd(action) {
                     SHUFFLE:'SHUFFLE', SHUFFLE_NOREPEAT:'SHUFFLE', SHUFFLE_REPEAT_ONE:'SHUFFLE_NOREPEAT' };
     _playModes[room] = cycle[cur] || 'NORMAL';
     updateMuteRepeatButtons();
+  } else if (action === 'toggle_shuffle') {
+    // p2.80: deterministic shuffle toggle — read current mode, send explicit
+    // set_shuffle(true|false). Optimistic mode map mirrors the service's
+    // repeat-preserving transitions exactly.
+    const room = rooms[0];
+    const cur = _playModes[room] || 'NORMAL';
+    const isShuf = cur === 'SHUFFLE' || cur === 'SHUFFLE_NOREPEAT' || cur === 'SHUFFLE_REPEAT_ONE';
+    _shufTo = !isShuf;
+    const to = { NORMAL:'SHUFFLE_NOREPEAT', REPEAT_ALL:'SHUFFLE', REPEAT_ONE:'SHUFFLE_REPEAT_ONE',
+                 SHUFFLE_NOREPEAT:'NORMAL', SHUFFLE:'REPEAT_ALL', SHUFFLE_REPEAT_ONE:'REPEAT_ONE' };
+    _playModes[room] = to[cur] || (_shufTo ? 'SHUFFLE_NOREPEAT' : 'NORMAL');
+    updateMuteRepeatButtons();
+    showToast(_shufTo ? '🔀 Shuffle on' : '🔀 Shuffle off');
   }
   // Optimistic toast for volume
   if (action === 'volume_up') showToast('🔊 Volume up · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
@@ -1638,6 +1654,7 @@ async function sendCmd(action) {
   const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
   // p2.50: finer volume steps — service default is ±10/tap, way too coarse vs native Sonos app; send explicit step
   if (action === 'volume_up' || action === 'volume_down') payload.step = 3;
+  if (_shufTo !== undefined) payload.shuffle = _shufTo;  // p2.80: explicit target state
   await postNtfy(payload);
 }
 
@@ -1950,6 +1967,13 @@ function updateMuteRepeatButtons() {
       const isActive = isRepeatOne || isRepeatAll;
       repeatBtn.textContent = isRepeatOne ? '🔂' : (isRepeatAll ? '🔁' : '➖');
       repeatBtn.classList.toggle('active', isActive);
+    }
+    // p2.80: 🔀 lights up when the active room's group is in any shuffle mode
+    const shufBtn = document.getElementById('shuffle-btn-' + h);
+    if (shufBtn && h !== 'roaming') {
+      const activeRoom = _getActiveRoom(h);
+      const mode = activeRoom ? (_playModes[activeRoom] || 'NORMAL') : 'NORMAL';
+      shufBtn.classList.toggle('active', mode === 'SHUFFLE' || mode === 'SHUFFLE_NOREPEAT' || mode === 'SHUFFLE_REPEAT_ONE');
     }
   }
 }
