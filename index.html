@@ -899,6 +899,25 @@
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
   </div>
 
+  <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
+  <div id="tab-sessions">
+    <div class="sh-toolbar">
+      <span class="sh-updated" id="sh-updated"></span>
+      <!-- p2.81 D8: the ONE staleness chip — "synced HH:MM · N pending"; amber = behind/silent -->
+      <span class="sh-syncchip" id="sh-syncchip" style="display:none"></span>
+      <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
+      <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
+      <div class="sh-zoomseg" id="sh-zoomseg">
+        <button id="sh-zoomT" onclick="SH.setZoom('tracks')">Tracks</button><!-- p2.83: legacy track-list view -->
+        <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
+        <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
+      </div>
+    </div>
+    <div class="content-panel">
+      <div id="sh-main" class="sh-vG"></div>
+    </div>
+  </div>
+
   <div id="tab-history" hidden>
     <div class="sub-tabs">
       <div class="sub-tab active" data-subtab="music" onclick="setSubTab('music')">Music <span class="count" id="cnt-music"></span></div>
@@ -907,7 +926,8 @@
     </div>
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
-      <button class="sync-btn" id="deep-refresh-btn" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
+      <!-- p2.84: ⟳ Refresh hidden per Andrew (nightly head-publish + SSE live history cover freshness); deepRefresh() kept intact for resurrection -->
+      <button class="sync-btn" id="deep-refresh-btn" style="display:none" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
       <!-- p2.57: ↻ Sync removed — topology refresh lives in 🔄, wellness checks in weekly rebuild -->
 
     </div>
@@ -925,25 +945,6 @@
       <div class="history-list" id="podcast-list">
         <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading podcasts...</p></div>
       </div>
-    </div>
-  </div>
-
-  <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
-  <div id="tab-sessions">
-    <div class="sh-toolbar">
-      <span class="sh-updated" id="sh-updated"></span>
-      <!-- p2.81 D8: the ONE staleness chip — "synced HH:MM · N pending"; amber = behind/silent -->
-      <span class="sh-syncchip" id="sh-syncchip" style="display:none"></span>
-      <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
-      <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
-      <div class="sh-zoomseg" id="sh-zoomseg">
-        <button id="sh-zoomT" onclick="SH.setZoom('tracks')">Tracks</button><!-- p2.83: legacy track-list view -->
-        <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
-        <button id="sh-zoomD" onclick="SH.setZoom('days')">Days</button>
-      </div>
-    </div>
-    <div class="content-panel">
-      <div id="sh-main" class="sh-vG"></div>
     </div>
   </div>
 
@@ -977,7 +978,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.83';
+const PAGE_VERSION = 'p2.84';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2535,7 +2536,7 @@ function renderAll() {
     const genD = new Date(data.generated_at);
     const ageMin = (Date.now() - genD.getTime()) / 60000;
     document.getElementById('updated-label').innerHTML = 'Updated ' + esc(fmtRelative(genD)) +
-      (ageMin > 30 ? ' <span style="color:#e0a020;font-weight:600" title="Published data is over 30 min old — ⟳ Refresh will fetch roaming plays and flush speaker buffers">· stale</span>' : '');
+      (ageMin > 30 ? ' <span style="color:#e0a020;font-weight:600" title="Published data is over 30 min old">· stale</span>' : '');
   }
 }
 
