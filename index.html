@@ -986,7 +986,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.86';
+const PAGE_VERSION = 'p2.87';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2870,7 +2870,7 @@ function renderSuggRow(s, explorationId) {
   h += `<div class="suggestion-item" data-heard="${isHeardItem(s) ? 1 : 0}">
     <div class="suggestion-info">
       <div class="suggestion-title">${esc(s.label)}${(isTrack || isAlbum) ? heardDot(s.uri, isAlbum ? 'album' : 'track') : ''}</div>
-      ${s.note ? '<div class="suggestion-detail">' + esc(s.note) + '</div>' : ''}
+      ${s.note ? '<div class="suggestion-detail">' + esc(freshNote(s)) + '</div>' : ''}
       ${canonicalAlbumLine(s.canonical_album, s.canonical_album_year, s.album || '')}
     </div>
     <div class="sugg-actions">
@@ -4166,11 +4166,21 @@ async function loadLikedData() {
 // once client-side keeps dots always-current with zero publish cost (chunks are
 // immutable, so heard state must NOT be stamped into them at publish time).
 let _heardTracks = null, _heardAlbums = null, _heardLoading = null;
+// p2.87: heard_recent.json — nightly 14-day bridge between weekly rollups and the
+// 75-item head (fixes the "played it days ago, card still says ✨ new" blind spot).
+let _heardRecentT = {}, _heardRecentA = {};
 const ROLLUPS_URL = 'https://shumania.github.io/lifelog/rollups.json';
+const HEARD_RECENT_URL = 'https://shumania.github.io/lifelog/heard_recent.json';
 async function loadHeardData() {
   if (_heardTracks) return true;
   if (_heardLoading) return _heardLoading;  // dedupe concurrent callers
   _heardLoading = (async () => {
+    // recent overlay is best-effort — never blocks or fails the rollups load
+    const recentP = fetch(HEARD_RECENT_URL + '?t=' + (Date.now()>>16))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { _heardRecentT = d.tracks || {}; _heardRecentA = d.albums || {};
+        console.log('[heard] recent overlay: ' + Object.keys(_heardRecentT).length + ' tracks, ' + Object.keys(_heardRecentA).length + ' albums (built ' + (d.built_at || '?') + ')'); } })
+      .catch(e => console.warn('[heard] recent overlay load failed:', e && e.message));
     try {
       const r = await fetch(ROLLUPS_URL + '?t=' + (Date.now()>>16));
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -4178,6 +4188,7 @@ async function loadHeardData() {
       _heardTracks = d.tracks || {};
       _heardAlbums = d.albums || {};
       console.log('[heard] rollups loaded: ' + Object.keys(_heardTracks).length + ' tracks, ' + Object.keys(_heardAlbums).length + ' albums');
+      await recentP;
       return true;
     } catch(e) {
       console.error('[heard] rollups load failed:', e && e.message);
@@ -4224,13 +4235,21 @@ function _heardLiveMap() {
 }
 // Unified lookup: rollups first (deduped truth), live overlay on miss (freshness).
 function _heardCount(uriOrId, kind) {
+  const info = _heardInfo(uriOrId, kind);
+  return info ? info.n : null;
+}
+// p2.87: unified {n, last} lookup — rollups (deduped truth) → recent overlay
+// (nightly 14-day bridge) → live head overlay (freshest, last ~75 items).
+function _heardInfo(uriOrId, kind) {
   const id = _heardExtractId(uriOrId, kind || 'track');
   if (!id) return null;
   const rec = _heardTracks ? (kind === 'album' ? _heardAlbums : _heardTracks)[id] : null;
-  if (rec && rec.n) return rec.n;
+  if (rec && rec.n) return { n: rec.n, last: rec.last || null };
+  const rcnt = (kind === 'album' ? _heardRecentA : _heardRecentT)[id];
+  if (rcnt && rcnt.n) return { n: rcnt.n, last: rcnt.last || null };
   const live = _heardLiveMap();
   const n = (kind === 'album' ? live.albums : live.tracks)[id];
-  return n || 0;
+  return { n: n || 0, last: null };
 }
 // ● = heard before (title shows play count) · ○ = new to you. '' until any data ready.
 function heardDot(uriOrId, kind) {
@@ -4239,6 +4258,28 @@ function heardDot(uriOrId, kind) {
   if (n === null) return '';
   if (n) return ' <span class="heard-dot heard" title="You\u2019ve played this ' + n + '\u00d7">\u25cf</span>';
   return ' <span class="heard-dot new" title="New to you">\u25cb</span>';
+}
+// p2.87: level-triggered badge (Rule 27) — the "✨ New to you" prefix is stamped
+// into note prose at explore-build time and goes stale the moment you play the
+// item (often BECAUSE the card suggested it). Rewrite the prefix at render time
+// from current heard state; the hand-written narrative after the first em-dash
+// is preserved untouched. Only exact "✨ New to you" prefixes are rewritten —
+// other ✨ notes (e.g. playlist blurbs) and hand-written 🔁 prose are left alone.
+function freshNote(s) {
+  const note = (s && s.note) || '';
+  if (!note.startsWith('\u2728 New to you')) return note;
+  if (!s.uri) return note;
+  const kind = s.uri.includes(':album:') ? 'album' : (s.uri.includes(':track:') ? 'track' : null);
+  if (!kind) return note;
+  const info = _heardInfo(s.uri, kind);
+  if (!info || !info.n) return note;
+  const dash = note.indexOf('\u2014');
+  const tail = dash >= 0 ? note.slice(dash + 1).trim() : note;
+  let when = '';
+  if (info.last) {
+    try { when = ' \u00b7 last ' + new Date(info.last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) {}
+  }
+  return '\ud83d\udd01 Played ' + info.n + '\u00d7' + when + ' \u2014 ' + tail;
 }
 // True if this suggestion/track has been heard (uses item.heard annotation when
 // present — stamped at explore build — else rollups + live-overlay lookup).
