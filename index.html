@@ -179,6 +179,7 @@
     border: 1px solid var(--border); background: var(--surface);
     color: var(--text-dim); cursor: pointer; transition: all 0.15s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; /* p2.88: no double-tap zoom — double-tap expands clusters */
   }
   .room-chip.active { background: rgba(74,222,128,0.12); color: var(--accent); border-color: var(--accent); }
   .room-chip.playing::after { content: ' ▶'; font-size: 10px; }
@@ -192,7 +193,7 @@
   /* p2.62: cluster chips (Option A) — PRESENTATION ONLY; selection stays flat room names */
   .room-chip.cluster { font-weight: 600; }
   .room-chip.cluster.partial { border-style: dashed; color: var(--accent); border-color: var(--accent); background: rgba(74,222,128,0.06); }
-  .cluster-expand { margin-left: 5px; opacity: 0.65; font-size: 10px; }
+  .cluster-expand { display: inline-block; margin: -6px -10px -6px 2px; padding: 6px 10px; opacity: 0.65; font-size: 11px; } /* p2.88: fat touch target */
   .cluster-burst { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 3px 6px; border: 1px dashed var(--border); border-radius: 18px; }
   .burst-collapse { cursor: pointer; font-size: 12px; opacity: 0.6; padding: 0 3px; -webkit-tap-highlight-color: transparent; }
   .burst-collapse:hover { opacity: 1; }
@@ -986,7 +987,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.87';
+const PAGE_VERSION = 'p2.88';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1445,15 +1446,24 @@ function renderRooms(h) {
 }
 
 // p2.62: cluster tap = treat as ONE speaker. none/partial -> select all members; all -> none.
+// p2.88: double-tap = expand the cluster burst (the tiny \u25b8 is a hopeless touch target).
+// Manual detection: the first tap re-renders and replaces the chip node, so native dblclick
+// never fires. Safe because a collapsed chip is only ever all-or-none selected, so the
+// second tap's toggle exactly reverts the first — selection nets out unchanged.
+let _lastClusterTap = { id: null, t: 0 };
 function toggleCluster(h, id) {
   const c = (CLUSTERS[h] || []).find(x => x.id === id);
   if (!c) return;
+  const now = Date.now();
+  const isDouble = (_lastClusterTap.id === id && (now - _lastClusterTap.t) < 350);
+  _lastClusterTap = isDouble ? { id: null, t: 0 } : { id: id, t: now };
   const members = c.members;
   const sel = new Set(selectedRooms[h] || []);
   const allSel = members.every(r => sel.has(r));
   if (allSel) members.forEach(r => sel.delete(r)); else members.forEach(r => sel.add(r));
   selectedRooms[h] = [...sel];
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+  if (isDouble) _clusterExpanded[id] = true;
   renderRooms(h);
 }
 function expandCluster(id) { _clusterExpanded[id] = true; renderRooms(); }
