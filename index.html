@@ -987,7 +987,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.88';
+const PAGE_VERSION = 'p2.89';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2557,6 +2557,7 @@ async function loadData(loadArchive) {
     updateHouseTabDots();
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
     applyStateNowPlaying(stateFiles);
+    if (window.SH && SH.onRing) SH.onRing(stateFiles);  // p2.89: Sessions middle-band backfill from state-file ring
     renderAll();
   } catch(e) {
     console.warn('[loadData] head fetch failed, keeping previous data:', e.message);
@@ -4879,7 +4880,7 @@ const SH = (() => {
                 bufferHead: Number(msg.buffer_head_ts) || null, bootId: msg.boot_id || null };
     let dirty = false;
     if (prev && prev.bootId && msg.boot_id && prev.bootId !== msg.boot_id) {
-      for (const r of PROV.values()) if (r.house === h && r.bootId !== msg.boot_id) { r.unconfirmed = true; dirty = true; }
+      for (const r of PROV.values()) if (r.house === h && r.bootId !== msg.boot_id && !r.ring) { r.unconfirmed = true; dirty = true; } // p2.89 O4: ring rows are disk-durable — exempt from boot churn
       console.warn('[sessions] boot_id changed for ' + h + ' — prior provisional rows marked unconfirmed (D9)');
     }
     for (const raw of (msg.pending_session || [])) {
@@ -4891,6 +4892,49 @@ const SH = (() => {
     }
     renderSyncChip();
     if (dirty && booted) { render(); setStatus(statusLine()); }
+  }
+  // p2.89: cold-load provisional source = state-file ring (design_sessions_freshness_v1 P1).
+  // The service's state-{house}.json already carries a 30-item recent-tracks ring that is
+  // disk-persisted on the machine (survives flushes AND restarts). Feeding it through the
+  // SAME PROV pipeline closes the "middle band": flushed-but-unpublished plays now appear
+  // in Sessions on a cold load instead of waiting for the next head publish. Idempotent
+  // (called from loadData's 60s loop); published truth remains the only remover (D6).
+  // O4: ring rows are durable on-machine, so they are exempt from D9 boot_id churn —
+  // only the 90-min unpublished TTL can ⚠︎ them.
+  function onRing(stateFiles) {
+    let dirty = false;
+    for (const [h, state] of Object.entries(stateFiles || {})) {
+      if (!state || !Array.isArray(state.recent_tracks)) continue;
+      for (const rt of state.recent_tracks) {
+        const title = (rt.title || '').trim();
+        if (!title || /^ZPSTR_/i.test(title)) continue;
+        const uriRaw = rt.uri || '';
+        const uriLc = uriRaw.toLowerCase();
+        // Raw radio tracks arrive garbled — enriched rows come via ingest instead
+        if (uriLc.includes('kcrw') || uriLc.includes('kexp') || uriLc.includes('streamguys')) continue;
+        const sMs = Date.parse(rt.timestamp || '');
+        if (!sMs) continue;
+        // Bare track id from the sonos-encoded URI (same trick as Now Playing, ~L1984)
+        let id = null;
+        if (uriRaw.startsWith('spotify:track:')) id = uriRaw.slice(14);
+        else { try { const m = decodeURIComponent(uriRaw).match(/spotify:track:([A-Za-z0-9]+)/); if (m) id = m[1]; } catch(e) {} }
+        const raw = { t: title, a: rt.artist || '', al: rt.album || null, s: Math.round(sMs / 1000),
+                      art: rt.didl_album_art_uri || null, id: id, u: uriRaw,
+                      rm: rt.rooms ? String(rt.rooms).split(',').map(x => x.trim()).filter(Boolean) : [] };
+        const k = provKey(raw);
+        if (PROV.has(k)) continue; // snapshot rows may be richer (cx/cu/d) — first-in wins here; onPending overwrites
+        // Belt-and-suspenders vs. ±1s started_at drift between ring and pending_session shapes
+        let dup = false;
+        for (const p of PROV.values()) {
+          if (p.house === h && Math.abs(p.s - raw.s) <= 2 &&
+              ((p.id && raw.id && p.id === raw.id) || normStr(p.t) === normStr(raw.t))) { dup = true; break; }
+        }
+        if (dup) continue;
+        PROV.set(k, { ...raw, house: h, bootId: null, ring: true, unconfirmed: false });
+        dirty = true;
+      }
+    }
+    if (dirty && booted) { pruneProv(); render(); setStatus(statusLine()); }
   }
   // D6 prune — called from integrate(): published truth is the only remover.
   function pruneProv() {
@@ -5807,7 +5851,7 @@ const SH = (() => {
     syncAcctChip(); // p2.72
   }
   return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct,
-           onPending, hasSync, refreshHead };  // p2.81: SSE live history entry points
+           onPending, onRing, hasSync, refreshHead };  // p2.81: SSE live history entry points; p2.89: +onRing
 })();
 
 // ══════════════════════════════════════════════════════════════════════════════
