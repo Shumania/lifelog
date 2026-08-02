@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Queue Sheet Mockup v1</title>
+<title>Queue Sheet Mockup v2</title>
 <style>
   :root {
     --bg: #0a0e1a;
@@ -61,10 +61,16 @@
   .np-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-artist { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-rooms { font-size: 11px; color: var(--vashon); margin-top: 2px; }
+  .np-context-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 600; margin-top: 4px;
+    padding: 2px 8px; border-radius: 10px;
+    background: rgba(96,165,250,0.12); color: var(--accent2); border: 1px solid rgba(96,165,250,0.3);
+  }
   .np-transport { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 10px; font-size: 22px; color: var(--text); }
   .np-transport span { cursor: pointer; }
 
-  /* ===== NEW: queue status line ===== */
+  /* ===== queue status line ===== */
   .queue-line {
     display: flex; align-items: center; gap: 8px;
     margin-top: 10px; padding: 8px 10px;
@@ -82,16 +88,18 @@
   }
   .queue-line.radio-mode { color: var(--radio); }
 
-  /* ===== content: explore card rows ===== */
+  /* ===== content cards ===== */
   .section-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin: 16px 16px 6px; }
   .card { background: var(--surface); margin: 0 12px 10px; border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
-  .card-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
-  .card-art { width: 48px; height: 48px; border-radius: 6px; background: linear-gradient(135deg, #5f2d3a, #35201a); display:flex; align-items:center; justify-content:center; font-size: 20px; }
+  .card-head { display: flex; gap: 10px; align-items: center; }
+  .card-art { width: 48px; height: 48px; border-radius: 6px; background: linear-gradient(135deg, #5f2d3a, #35201a); display:flex; align-items:center; justify-content:center; font-size: 20px; flex-shrink:0; }
+  .card-art.pl { background: linear-gradient(135deg, #1a3a2d, #14261f); }
   .card-title { font-size: 14px; font-weight: 700; }
   .card-sub { font-size: 12px; color: var(--text-dim); }
   .track-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-top: 1px solid var(--border); font-size: 13px; }
+  .track-row .t-dur { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
   .track-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track-new { font-size: 10px; }
+  .track-new { font-size: 10px; flex-shrink: 0; }
   .btn-round {
     width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border);
     background: var(--surface2); color: var(--text); font-size: 13px;
@@ -99,6 +107,18 @@
   }
   .btn-round.play { color: var(--accent); }
   .btn-round.plus { color: var(--accent2); }
+
+  /* expand-right chevron */
+  .btn-expand {
+    width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent;
+    color: var(--text-dim); font-size: 16px; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s;
+  }
+  .btn-expand.open { transform: rotate(90deg); color: var(--accent2); }
+  .expand-area { display: none; margin-top: 8px; }
+  .expand-area.open { display: block; }
+  .expand-meta { font-size: 11px; color: var(--text-dim); padding: 2px 2px 4px; border-top: 1px solid var(--border); }
 
   /* ===== bottom sheet ===== */
   .sheet-scrim {
@@ -172,10 +192,11 @@
 <body>
 
 <div class="mock-bar">
-  <b>🎛 MOCKUP — pick a scenario, then tap any ＋</b>
+  <b>🎛 MOCKUP v2 — pick a scenario, tap ＋ anywhere, tap › to expand albums/playlists</b>
   <div class="scenarios">
     <button class="mock-scenario active" data-s="stale">Stale queue (this morning)</button>
-    <button class="mock-scenario" data-s="fresh">Fresh queue playing</button>
+    <button class="mock-scenario" data-s="fresh">Fresh queue (album)</button>
+    <button class="mock-scenario" data-s="playlist">Playlist playing</button>
     <button class="mock-scenario" data-s="radio">Radio streaming</button>
     <button class="mock-scenario" data-s="idle">Idle / empty queue</button>
   </div>
@@ -192,7 +213,7 @@
   </div>
 </div>
 
-<!-- Now Playing card with NEW queue line -->
+<!-- Now Playing card with queue line -->
 <div class="np-card">
   <div class="np-row">
     <div class="np-art" id="npArt">🎷</div>
@@ -200,6 +221,7 @@
       <div class="np-title" id="npTitle">Romaine</div>
       <div class="np-artist" id="npArtist">The Modern Jazz Quartet · Pyramid</div>
       <div class="np-rooms" id="npRooms">Main Floor +4 · Spotify</div>
+      <div class="np-context-chip" id="npContextChip" style="display:none"><span>☰</span><span id="npContextChipText"></span></div>
     </div>
   </div>
   <div class="np-transport">
@@ -213,30 +235,61 @@
   </div>
 </div>
 
+<!-- ===== Discovery card: ALBUM with expand-right ===== -->
 <div class="section-label">Discovery · Card #212</div>
 <div class="card">
   <div class="card-head">
     <div class="card-art">🏜</div>
-    <div style="flex:1">
+    <div style="flex:1; min-width:0">
       <div class="card-title">Sirāt — Original Soundtrack</div>
-      <div class="card-sub">Kangding Ray · 2025 · ✨ new</div>
+      <div class="card-sub">Kangding Ray · 2025 · album · 10 tracks · ✨ new</div>
     </div>
     <button class="btn-round play">▶</button>
-    <button class="btn-round plus" onclick="openSheet({title:'Sirāt — Original Soundtrack', sub:'Kangding Ray · album · 10 tracks', art:'🏜'})">＋</button>
+    <button class="btn-round plus" onclick="openSheet({title:'Sirāt — Original Soundtrack', sub:'Kangding Ray · album · 10 tracks · 52 min', art:'🏜'})">＋</button>
+    <button class="btn-expand" id="albExpBtn" onclick="toggleExpand('alb')">›</button>
   </div>
-  <div class="track-row">
-    <span class="track-new">✨</span><span class="track-name">Desert Convoy</span>
-    <button class="btn-round play">▶</button>
-    <button class="btn-round plus" onclick="openSheet({title:'Desert Convoy', sub:'Kangding Ray · track · 6:12', art:'🏜'})">＋</button>
-  </div>
-  <div class="track-row">
-    <span class="track-new">✨</span><span class="track-name">Rave in the Dunes</span>
-    <button class="btn-round play">▶</button>
-    <button class="btn-round plus" onclick="openSheet({title:'Rave in the Dunes', sub:'Kangding Ray · track · 4:48', art:'🏜'})">＋</button>
+  <div class="expand-area" id="albExp">
+    <div class="expand-meta">Invada · 2025 · 52 min — ▶/＋ act on the single track</div>
+    <div id="albTracks"></div>
   </div>
 </div>
 
-<div class="footnote">▶ = Play now (unchanged, one tap) · ＋ = opens the queue sheet below</div>
+<!-- ===== Playlists section with expand-right ===== -->
+<div class="section-label">Playlists</div>
+<div class="card">
+  <div class="card-head">
+    <div class="card-art pl">☕</div>
+    <div style="flex:1; min-width:0">
+      <div class="card-title">Sunday Coffee</div>
+      <div class="card-sub">42 tracks · 2 hr 48 min · yours · played 24 min ago</div>
+    </div>
+    <button class="btn-round play">▶</button>
+    <button class="btn-round plus" onclick="openSheet({title:'Sunday Coffee', sub:'playlist · 42 tracks · 2 hr 48 min', art:'☕'})">＋</button>
+    <button class="btn-expand" id="pl1ExpBtn" onclick="toggleExpand('pl1')">›</button>
+  </div>
+  <div class="expand-area" id="pl1Exp">
+    <div class="expand-meta">Sorted playlist order — ▶/＋ act on the single track</div>
+    <div id="pl1Tracks"></div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-head">
+    <div class="card-art pl">🔥</div>
+    <div style="flex:1; min-width:0">
+      <div class="card-title">Garage Burn</div>
+      <div class="card-sub">21 tracks · 1 hr 22 min · yours · played Thu</div>
+    </div>
+    <button class="btn-round play">▶</button>
+    <button class="btn-round plus" onclick="openSheet({title:'Garage Burn', sub:'playlist · 21 tracks · 1 hr 22 min', art:'🔥'})">＋</button>
+    <button class="btn-expand" id="pl2ExpBtn" onclick="toggleExpand('pl2')">›</button>
+  </div>
+  <div class="expand-area" id="pl2Exp">
+    <div class="expand-meta">Sorted playlist order — ▶/＋ act on the single track</div>
+    <div id="pl2Tracks"></div>
+  </div>
+</div>
+
+<div class="footnote">▶ = Play now (one tap, unchanged) · ＋ = queue sheet · › = expand tracks in place</div>
 
 <!-- ===== bottom sheet ===== -->
 <div class="sheet-scrim" id="scrim" onclick="closeSheet()"></div>
@@ -262,7 +315,7 @@
 
   <div id="verbList">
     <div class="verb" id="vNext" onclick="act('Play next')">
-      <span class="v-icon">⏭</span><span class="v-label">Play next <span class="v-hint">· after current track</span></span>
+      <span class="v-icon">⏭</span><span class="v-label">Play next <span class="v-hint" id="vNextHint">· after current track</span></span>
     </div>
     <div class="verb" id="vEnd" onclick="act('Add to end')">
       <span class="v-icon">⧺</span><span class="v-label">Add to end <span class="v-hint" id="vEndHint">· after 18 queued tracks</span></span>
@@ -318,6 +371,22 @@ const SCENARIOS = {
       more: 5
     }
   },
+  playlist: {
+    np: { title:'Vibrant Reds', artist:'BALTHVS · Cape of Good Hope', rooms:'Living Room Maury +2 · Spotify', art:'🎸', playing:true,
+          context:'Sunday Coffee — track 11 of 42' },
+    queue: {
+      exists:true, left:31, total:42, pos:11,
+      provenance:'Sunday Coffee (playlist)', loadedAgo:'loaded 24 min ago', stale:false,
+      playlist:true,
+      upnext:[
+        {t:'Vibrant Reds', a:'BALTHVS', now:true},
+        {t:'Maria También', a:'Khruangbin'},
+        {t:'Nimbes', a:'L\'Impératrice'},
+        {t:'Time (You and I)', a:'Khruangbin'},
+      ],
+      more: 27
+    }
+  },
   radio: {
     np: { title:'KEXP 90.3 Seattle', artist:'Live stream · John in the Morning', rooms:'Kitchen Green Move 2 · TuneIn', art:'📻', playing:true },
     queue: { exists:false, radio:true }
@@ -339,6 +408,46 @@ const SCENARIOS = {
 };
 let scenario = 'stale';
 
+// ---------- expandable track data ----------
+const ALB_TRACKS = [
+  {t:'Desert Convoy', d:'6:12'}, {t:'Rave in the Dunes', d:'4:48'}, {t:'Mirage Signal', d:'5:03'},
+  {t:'Sirāt Theme', d:'3:57'}, {t:'Tangier Dust', d:'4:22'}, {t:'Convoy II (Night)', d:'6:40'},
+  {t:'Static Bloom', d:'3:31'}, {t:'Qandisha', d:'5:15'}, {t:'Night Crossing', d:'7:02'}, {t:'Ashes in the Wind', d:'5:10'}
+];
+const PL1_TRACKS = [
+  {t:'Vibrant Reds', a:'BALTHVS', d:'3:44', now:true}, {t:'Maria También', a:'Khruangbin', d:'3:31'},
+  {t:'Nimbes', a:'L\'Impératrice', d:'4:02'}, {t:'Time (You and I)', a:'Khruangbin', d:'5:31'},
+  {t:'Cariño', a:'The Marías', d:'3:03'}, {t:'Golden Days', a:'Men I Trust', d:'3:38'}
+];
+const PL2_TRACKS = [
+  {t:'Dance, Dance, Dance', a:'BALTHVS', d:'3:19'}, {t:'People Everywhere', a:'Khruangbin', d:'3:47'},
+  {t:'Kimigayo', a:'Kikagaku Moyo', d:'4:11'}, {t:'Nuevo Comienzo', a:'BALTHVS', d:'3:56'}
+];
+
+function trackRowHTML(t, ownerArt, kind) {
+  const nowMark = t.now ? '<span class="track-new" style="color:var(--accent)">▶</span>' : (kind === 'alb' ? '<span class="track-new">✨</span>' : '');
+  const sub = t.a ? ` <span style="color:var(--text-dim)">· ${t.a}</span>` : '';
+  return `<div class="track-row">
+    ${nowMark}<span class="track-name">${t.t}${sub}</span><span class="t-dur">${t.d}</span>
+    <button class="btn-round play" onclick="act('Play now — ${t.t.replace(/'/g,"\\'")}')">▶</button>
+    <button class="btn-round plus" onclick='openSheet({title:${JSON.stringify(t.t)}, sub:${JSON.stringify((t.a?t.a+" · ":"Kangding Ray · ")+"track · "+t.d)}, art:${JSON.stringify(ownerArt)}})'>＋</button>
+  </div>`;
+}
+function renderExpandAreas() {
+  document.getElementById('albTracks').innerHTML = ALB_TRACKS.map(t => trackRowHTML(t, '🏜', 'alb')).join('');
+  document.getElementById('pl1Tracks').innerHTML =
+    PL1_TRACKS.map(t => trackRowHTML(t, '☕', 'pl')).join('') + `<div class="q-more">+ 36 more…</div>`;
+  document.getElementById('pl2Tracks').innerHTML =
+    PL2_TRACKS.map(t => trackRowHTML(t, '🔥', 'pl')).join('') + `<div class="q-more">+ 17 more…</div>`;
+}
+function toggleExpand(id) {
+  const area = document.getElementById(id + 'Exp');
+  const btn = document.getElementById(id + 'ExpBtn');
+  const open = !area.classList.contains('open');
+  area.classList.toggle('open', open);
+  btn.classList.toggle('open', open);
+}
+
 // ---------- render ----------
 function renderQueueLine() {
   const s = SCENARIOS[scenario];
@@ -351,6 +460,13 @@ function renderQueueLine() {
   document.getElementById('npRooms').textContent = s.np.rooms;
   document.getElementById('npArt').textContent = s.np.art;
   document.getElementById('npPlayBtn').textContent = s.np.playing ? '⏸' : '▶';
+  const chip = document.getElementById('npContextChip');
+  if (s.np.context) {
+    chip.style.display = '';
+    document.getElementById('npContextChipText').textContent = s.np.context;
+  } else {
+    chip.style.display = 'none';
+  }
   if (s.queue.radio) {
     el.innerHTML = 'Live stream — no queue';
     line.classList.add('radio-mode');
@@ -359,7 +475,8 @@ function renderQueueLine() {
     el.innerHTML = 'Queue: empty';
     badge.style.display = 'none';
   } else {
-    el.innerHTML = `Queue: <b>${s.queue.left} left</b> · ${s.queue.provenance} · ${s.queue.loadedAgo}`;
+    const icon = s.queue.playlist ? '☰ ' : '';
+    el.innerHTML = `Queue: <b>${s.queue.left} left</b> · ${icon}${s.queue.provenance} · ${s.queue.loadedAgo}`;
     badge.style.display = s.queue.stale ? '' : 'none';
   }
 }
@@ -367,7 +484,6 @@ function renderQueueLine() {
 function renderSheetContext(item) {
   const s = SCENARIOS[scenario];
   const q = s.queue;
-  // item block (null = opened from queue line → hide item, sheet is queue-only view)
   const itemBlock = document.getElementById('sheetItemBlock');
   const verbs = document.getElementById('verbList');
   if (item) {
@@ -385,6 +501,7 @@ function renderSheetContext(item) {
   const stale = document.getElementById('qStale');
   const up = document.getElementById('qUpnext');
   const vNext = document.getElementById('vNext');
+  const vNextHint = document.getElementById('vNextHint');
   const vEnd = document.getElementById('vEnd');
   const vEndHint = document.getElementById('vEndHint');
   const vReplace = document.getElementById('vReplace');
@@ -409,13 +526,16 @@ function renderSheetContext(item) {
   }
 
   vReplaceLabel.innerHTML = 'Replace queue <span class="v-hint">· start fresh</span>';
-  prov.textContent = `${q.provenance} · ${q.loadedAgo}`;
+  // playlist-aware hints: adding items to a playlist-fed queue breaks "pure playlist" provenance
+  vNextHint.textContent = q.playlist ? '· interrupts playlist order' : '· after current track';
+  prov.textContent = `${q.playlist ? '☰ ' : ''}${q.provenance} · ${q.loadedAgo}`;
   stale.style.display = q.stale ? '' : 'none';
-  vEndHint.textContent = `· after ${q.left} queued tracks`;
-  // Replace confirms only when actively playing (D3)
+  vEndHint.textContent = q.playlist
+    ? `· after ${q.left} playlist tracks`
+    : `· after ${q.left} queued tracks`;
   vReplaceChip.style.display = s.np.playing ? '' : 'none';
   if (q.idle) {
-    vTruncate.classList.add('disabled'); // nothing is "current" when idle
+    vTruncate.classList.add('disabled');
   }
 
   let html = `<div class="q-upnext-label">Up next · ${q.pos} of ${q.total} played</div>`;
@@ -441,7 +561,8 @@ function closeSheet() {
 function act(label) {
   closeSheet();
   const t = document.getElementById('toast');
-  t.textContent = `✓ ${label} — Main Floor group`;
+  const group = scenario === 'playlist' ? 'Living Room group' : (scenario === 'radio' ? 'Kitchen' : 'Main Floor group');
+  t.textContent = `✓ ${label} — ${group}`;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 1800);
 }
@@ -454,6 +575,7 @@ document.querySelectorAll('.mock-scenario').forEach(b => {
     closeSheet();
   });
 });
+renderExpandAreas();
 renderQueueLine();
 </script>
 </body>
