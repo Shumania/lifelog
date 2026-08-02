@@ -987,7 +987,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.90';
+const PAGE_VERSION = 'p2.91';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4871,7 +4871,18 @@ const SH = (() => {
   const MERGE_GAP_MS  = 30 * 60 * 1000; // D5: attach to newest published session if gap < 30 min
   const PRUNE_SLOP_MS = 120 * 1000;     // D6: published id-match window (belt-and-suspenders)
   const ORPHAN_MS     = 90 * 60 * 1000; // D9: unpublished after 90 min -> ⚠︎
-  function provKey(r) { return (r.id || r.u || (r.t + '|' + r.a)) + '|' + r.s; }
+  // p2.91: pending_session rows carry x-sonos-encoded URIs and rarely an id, while ring rows
+  // extract the bare id — same track produced two provKeys, duplicating every row present in
+  // both feeds (first observed 2026-08-02, day one of both feeds being alive post-p2.90).
+  // Normalize identity: always try to extract the bare spotify track id from u.
+  function bareTrackId(r) {
+    if (r.id) return r.id;
+    const u = r.u || '';
+    if (u.startsWith('spotify:track:')) return u.slice(14);
+    try { const m = decodeURIComponent(u).match(/spotify:track:([A-Za-z0-9]+)/i); if (m) return m[1]; } catch(e) {}
+    return null;
+  }
+  function provKey(r) { const id = bareTrackId(r); return (id || r.u || (r.t + '|' + r.a)) + '|' + r.s; }
   function hasSync(h) { return !!SYNC[h]; }
   function onPending(h, msg, evtTs) {
     const prev = SYNC[h];
@@ -4886,7 +4897,18 @@ const SH = (() => {
     for (const raw of (msg.pending_session || [])) {
       if (!raw || !raw.t || !raw.s) continue;
       const k = provKey(raw);
-      const old = PROV.get(k);
+      let old = PROV.get(k);
+      // p2.91: belt-and-suspenders vs ±2s started_at drift between ring and pending shapes
+      // (mirror of onRing's guard — pending is richer, so it evicts the matching ring row).
+      if (!old) {
+        const rid = bareTrackId(raw);
+        for (const [pk, p] of PROV.entries()) {
+          if (p.house === h && p.ring && Math.abs(p.s - raw.s) <= 2 &&
+              ((p.id && rid && p.id === rid) || normStr(p.t) === normStr(raw.t))) {
+            PROV.delete(pk); old = p; dirty = true; break;
+          }
+        }
+      }
       const nu = { ...raw, house: h, bootId: msg.boot_id || null, unconfirmed: old ? old.unconfirmed : false };
       if (!old || JSON.stringify(old) !== JSON.stringify(nu)) { PROV.set(k, nu); dirty = true; }
     }

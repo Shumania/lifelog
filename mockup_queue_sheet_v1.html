@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Queue Sheet Mockup v3</title>
+<title>Queue Sheet Mockup v3.1</title>
 <style>
   :root {
     --bg: #0a0e1a;
@@ -140,9 +140,14 @@
     z-index: 50; padding-bottom: env(safe-area-inset-bottom, 12px);
   }
   .sheet.open { transform: translate(-50%, 0); }
-  .sheet-grab { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 8px auto 4px; }
+  /* v3.1: grabber removed — it implied a draggable drawer. Explicit ✕ close instead. */
+  .sheet-close { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; z-index: 2; }
+  .sheet-close:active { background: rgba(255,255,255,0.12); }
+  .sheet { position: fixed; }  /* ensure containing block for .sheet-close (re-asserted) */
 
-  .sheet-item { display: flex; gap: 10px; align-items: center; padding: 8px 16px 10px; }
+  .sheet-item { display: flex; gap: 10px; align-items: center; padding: 12px 52px 10px 16px; } /* right pad clears the ✕ */
   .sheet-item-art { width: 44px; height: 44px; border-radius: 6px; background: linear-gradient(135deg, #5f2d3a, #35201a); display:flex; align-items:center; justify-content:center; font-size: 18px; }
   .sheet-item-title { font-size: 14px; font-weight: 700; }
   .sheet-item-sub { font-size: 12px; color: var(--text-dim); }
@@ -307,7 +312,7 @@
 <!-- ===== bottom sheet: commands first, queue at bottom ===== -->
 <div class="sheet-scrim" id="scrim" onclick="closeSheet()"></div>
 <div class="sheet" id="sheet">
-  <div class="sheet-grab"></div>
+  <div class="sheet-close" onclick="closeSheet()" title="Close">✕</div>
 
   <div class="sheet-item" id="sheetItemBlock">
     <div class="sheet-item-art" id="sheetArt">🏜</div>
