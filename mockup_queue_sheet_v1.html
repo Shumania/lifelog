@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Queue Sheet Mockup v2</title>
+<title>Queue Sheet Mockup v3</title>
 <style>
   :root {
     --bg: #0a0e1a;
@@ -70,7 +70,7 @@
   .np-transport { display: flex; gap: 18px; align-items: center; justify-content: center; margin-top: 10px; font-size: 22px; color: var(--text); }
   .np-transport span { cursor: pointer; }
 
-  /* ===== queue status line ===== */
+  /* ===== queue status line (now an inline expando) ===== */
   .queue-line {
     display: flex; align-items: center; gap: 8px;
     margin-top: 10px; padding: 8px 10px;
@@ -80,13 +80,17 @@
   .queue-line .q-icon { font-size: 13px; }
   .queue-line .q-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .queue-line .q-text b { color: var(--text); font-weight: 600; }
-  .queue-line .chev { color: var(--text-dim); font-size: 14px; }
   .stale-badge {
     font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 8px;
     background: rgba(245, 158, 11, 0.15); color: var(--radio); border: 1px solid rgba(245,158,11,0.4);
     flex-shrink: 0;
   }
-  .queue-line.radio-mode { color: var(--radio); }
+  .queue-line.radio-mode { color: var(--radio); cursor: default; }
+  .q-inline-expand {
+    display: none; margin-top: 6px; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .q-inline-expand.open { display: block; }
 
   /* ===== content cards ===== */
   .section-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; margin: 16px 16px 6px; }
@@ -108,7 +112,7 @@
   .btn-round.play { color: var(--accent); }
   .btn-round.plus { color: var(--accent2); }
 
-  /* expand-right chevron */
+  /* expand-right chevron (shared by albums, playlists, and the queue line) */
   .btn-expand {
     width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent;
     color: var(--text-dim); font-size: 16px; cursor: pointer; flex-shrink: 0;
@@ -143,9 +147,9 @@
   .sheet-item-title { font-size: 14px; font-weight: 700; }
   .sheet-item-sub { font-size: 12px; color: var(--text-dim); }
 
-  /* queue context block */
+  /* queue context block (bottom of sheet + inline expando reuse these) */
   .q-context {
-    margin: 0 12px 8px; padding: 10px 12px;
+    margin: 4px 12px 8px; padding: 10px 12px;
     background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
   }
   .q-context-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
@@ -162,6 +166,14 @@
   .q-more { font-size: 11px; color: var(--text-dim); padding: 4px 0 0 24px; }
   .q-empty { font-size: 12px; color: var(--text-dim); font-style: italic; }
 
+  /* compact queue-maintenance action (✂) that lives with the queue block */
+  .q-maint {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+    display: flex; gap: 16px; font-size: 12px;
+  }
+  .q-maint span { color: var(--danger); font-weight: 600; cursor: pointer; }
+  .q-maint span.disabled { opacity: 0.35; pointer-events: none; }
+
   /* verb rows */
   .verb { display: flex; align-items: center; gap: 12px; padding: 13px 18px; font-size: 15px; cursor: pointer; }
   .verb:active { background: var(--surface2); }
@@ -170,12 +182,10 @@
   .verb .v-hint { font-size: 11px; color: var(--text-dim); font-weight: 400; }
   .verb.disabled { opacity: 0.35; pointer-events: none; }
   .verb .v-confirm-chip { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 8px; background: rgba(248,113,113,0.12); color: var(--danger); border: 1px solid rgba(248,113,113,0.35); }
+  .verb.v-danger .v-label { color: var(--danger); }
+  .verb.v-danger .v-icon { color: var(--danger); }
 
   .sheet-divider { height: 1px; background: var(--border); margin: 4px 16px; }
-  .danger-zone { padding-bottom: 4px; }
-  .danger-zone .verb { font-size: 13.5px; }
-  .danger-zone .v-label { color: var(--danger); }
-  .danger-zone .verb .v-icon { color: var(--danger); }
 
   /* toast */
   .toast {
@@ -192,7 +202,7 @@
 <body>
 
 <div class="mock-bar">
-  <b>🎛 MOCKUP v2 — pick a scenario, tap ＋ anywhere, tap › to expand albums/playlists</b>
+  <b>🎛 MOCKUP v3 — queue expands in place like albums · ＋ sheet leads with commands</b>
   <div class="scenarios">
     <button class="mock-scenario active" data-s="stale">Stale queue (this morning)</button>
     <button class="mock-scenario" data-s="fresh">Fresh queue (album)</button>
@@ -213,7 +223,7 @@
   </div>
 </div>
 
-<!-- Now Playing card with queue line -->
+<!-- Now Playing card with expandable queue line -->
 <div class="np-card">
   <div class="np-row">
     <div class="np-art" id="npArt">🎷</div>
@@ -227,11 +237,14 @@
   <div class="np-transport">
     <span>⏮</span><span id="npPlayBtn">⏸</span><span>⏭</span><span style="font-size:16px">🔊</span>
   </div>
-  <div class="queue-line" id="queueLine" onclick="openSheet(null)">
+  <div class="queue-line" id="queueLine" onclick="toggleQueueExpand()">
     <span class="q-icon">☰</span>
     <span class="q-text" id="queueLineText"></span>
     <span class="stale-badge" id="staleBadge" style="display:none">⚠️ stale</span>
-    <span class="chev">›</span>
+    <button class="btn-expand" id="qExpBtn" onclick="event.stopPropagation(); toggleQueueExpand()">›</button>
+  </div>
+  <div class="q-inline-expand" id="qExp">
+    <div id="qInline"></div>
   </div>
 </div>
 
@@ -289,9 +302,9 @@
   </div>
 </div>
 
-<div class="footnote">▶ = Play now (one tap, unchanged) · ＋ = queue sheet · › = expand tracks in place</div>
+<div class="footnote">▶ = Play now (one tap, unchanged) · ＋ = queue sheet · › = expand in place (albums, playlists, queue)</div>
 
-<!-- ===== bottom sheet ===== -->
+<!-- ===== bottom sheet: commands first, queue at bottom ===== -->
 <div class="sheet-scrim" id="scrim" onclick="closeSheet()"></div>
 <div class="sheet" id="sheet">
   <div class="sheet-grab"></div>
@@ -304,37 +317,36 @@
     </div>
   </div>
 
-  <div class="q-context">
-    <div class="q-context-head">
-      <span class="q-label" id="qLabel">Queue</span>
-      <span class="q-prov" id="qProv"></span>
-      <span class="stale-badge" id="qStale" style="display:none">⚠️ stale</span>
-    </div>
-    <div class="q-upnext" id="qUpnext"></div>
-  </div>
-
   <div id="verbList">
     <div class="verb" id="vNext" onclick="act('Play next')">
       <span class="v-icon">⏭</span><span class="v-label">Play next <span class="v-hint" id="vNextHint">· after current track</span></span>
     </div>
     <div class="verb" id="vEnd" onclick="act('Add to end')">
-      <span class="v-icon">⧺</span><span class="v-label">Add to end <span class="v-hint" id="vEndHint">· after 18 queued tracks</span></span>
+      <span class="v-icon">⧺</span><span class="v-label">Add to end of queue <span class="v-hint" id="vEndHint">· after 18 queued tracks</span></span>
+    </div>
+    <div class="verb" id="vNow" onclick="act('Play now')">
+      <span class="v-icon">▶</span><span class="v-label">Play now <span class="v-hint" id="vNowHint">· immediately, queue survives</span></span>
     </div>
     <div class="verb" id="vReplace" onclick="act('Replace queue')">
       <span class="v-icon">♻</span><span class="v-label" id="vReplaceLabel">Replace queue <span class="v-hint">· start fresh</span></span>
       <span class="v-confirm-chip" id="vReplaceChip">confirms</span>
     </div>
-  </div>
-
-  <div class="sheet-divider"></div>
-  <div class="danger-zone" id="dangerZone">
-    <div class="verb" id="vTruncate" onclick="act('Cleared queue after current track')">
-      <span class="v-icon">✂</span><span class="v-label">Clear queue after current track</span>
-    </div>
-    <div class="verb" id="vClear" onclick="act('Queue cleared')">
+    <div class="verb v-danger" id="vClear" onclick="act('Queue cleared')">
       <span class="v-icon">🗑</span><span class="v-label">Clear queue…</span>
       <span class="v-confirm-chip">confirms</span>
     </div>
+  </div>
+
+  <div class="sheet-divider"></div>
+
+  <div class="q-context" id="sheetQContext">
+    <div class="q-context-head">
+      <span class="q-label">Queue</span>
+      <span class="q-prov" id="qProv"></span>
+      <span class="stale-badge" id="qStale" style="display:none">⚠️ stale</span>
+    </div>
+    <div class="q-upnext" id="qUpnext"></div>
+    <div class="q-maint" id="qMaintSheet"></div>
   </div>
 </div>
 
@@ -440,20 +452,56 @@ function renderExpandAreas() {
   document.getElementById('pl2Tracks').innerHTML =
     PL2_TRACKS.map(t => trackRowHTML(t, '🔥', 'pl')).join('') + `<div class="q-more">+ 17 more…</div>`;
 }
-function toggleExpand(id) {
-  const area = document.getElementById(id + 'Exp');
-  const btn = document.getElementById(id + 'ExpBtn');
-  const open = !area.classList.contains('open');
+
+// ---------- expand state, remembered like album/playlist chevrons ----------
+const expandState = JSON.parse(localStorage.getItem('mockExpandState') || '{}');
+function saveExpandState() { localStorage.setItem('mockExpandState', JSON.stringify(expandState)); }
+function applyExpand(id, open) {
+  const area = document.getElementById(id === 'q' ? 'qExp' : id + 'Exp');
+  const btn = document.getElementById(id === 'q' ? 'qExpBtn' : id + 'ExpBtn');
   area.classList.toggle('open', open);
   btn.classList.toggle('open', open);
+}
+function toggleExpand(id) {
+  expandState[id] = !expandState[id];
+  saveExpandState();
+  applyExpand(id, expandState[id]);
+}
+function toggleQueueExpand() {
+  const q = SCENARIOS[scenario].queue;
+  if (q.radio) return; // no queue to expand
+  toggleExpand('q');
+}
+
+// ---------- queue up-next + maintenance HTML (shared: inline expando + sheet bottom) ----------
+function upnextHTML(q, s) {
+  if (q.radio) return '<div class="q-empty">Streams have no queue — only Play is available.</div>';
+  if (!q.exists) return '<div class="q-empty">Queue is empty.</div>';
+  let html = `<div class="q-upnext-label">Up next · ${q.pos} of ${q.total} played</div>`;
+  for (const t of q.upnext) {
+    html += `<div class="q-track${t.now ? ' q-now' : ''}">
+      <span class="q-pos">${t.now ? '▶' : '·'}</span>
+      <span class="q-t">${t.t}</span><span class="q-a">${t.a}</span></div>`;
+  }
+  if (q.more) html += `<div class="q-more">+ ${q.more} more…</div>`;
+  return html;
+}
+function maintHTML(q, includeClear) {
+  const truncDisabled = (q.radio || !q.exists || q.idle) ? ' class="disabled"' : '';
+  const clearDisabled = (q.radio || !q.exists) ? ' class="disabled"' : '';
+  let html = `<span${truncDisabled} onclick="act('Cleared queue after current track')">✂ Clear after current track</span>`;
+  if (includeClear) html += `<span${clearDisabled} onclick="act('Queue cleared')">🗑 Clear queue…</span>`;
+  return html;
 }
 
 // ---------- render ----------
 function renderQueueLine() {
   const s = SCENARIOS[scenario];
+  const q = s.queue;
   const el = document.getElementById('queueLineText');
   const badge = document.getElementById('staleBadge');
   const line = document.getElementById('queueLine');
+  const expBtn = document.getElementById('qExpBtn');
   line.classList.remove('radio-mode');
   document.getElementById('npTitle').textContent = s.np.title;
   document.getElementById('npArtist').textContent = s.np.artist;
@@ -467,35 +515,35 @@ function renderQueueLine() {
   } else {
     chip.style.display = 'none';
   }
-  if (s.queue.radio) {
+  if (q.radio) {
     el.innerHTML = 'Live stream — no queue';
     line.classList.add('radio-mode');
     badge.style.display = 'none';
-  } else if (!s.queue.exists) {
+    expBtn.style.visibility = 'hidden';
+    applyExpand('q', false);
+  } else if (!q.exists) {
     el.innerHTML = 'Queue: empty';
     badge.style.display = 'none';
+    expBtn.style.visibility = 'hidden';
+    applyExpand('q', false);
   } else {
-    const icon = s.queue.playlist ? '☰ ' : '';
-    el.innerHTML = `Queue: <b>${s.queue.left} left</b> · ${icon}${s.queue.provenance} · ${s.queue.loadedAgo}`;
-    badge.style.display = s.queue.stale ? '' : 'none';
+    const icon = q.playlist ? '☰ ' : '';
+    el.innerHTML = `Queue: <b>${q.left} left</b> · ${icon}${q.provenance} · ${q.loadedAgo}`;
+    badge.style.display = q.stale ? '' : 'none';
+    expBtn.style.visibility = '';
+    applyExpand('q', !!expandState['q']); // remembered state, like album chevrons
   }
+  // inline expando content: up-next + both maintenance actions
+  document.getElementById('qInline').innerHTML =
+    upnextHTML(q, s) + `<div class="q-maint">${maintHTML(q, true)}</div>`;
 }
 
 function renderSheetContext(item) {
   const s = SCENARIOS[scenario];
   const q = s.queue;
-  const itemBlock = document.getElementById('sheetItemBlock');
-  const verbs = document.getElementById('verbList');
-  if (item) {
-    itemBlock.style.display = '';
-    verbs.style.display = '';
-    document.getElementById('sheetTitle').textContent = item.title;
-    document.getElementById('sheetSub').textContent = item.sub;
-    document.getElementById('sheetArt').textContent = item.art;
-  } else {
-    itemBlock.style.display = 'none';
-    verbs.style.display = 'none'; // queue-line tap = context + maintenance only
-  }
+  document.getElementById('sheetTitle').textContent = item.title;
+  document.getElementById('sheetSub').textContent = item.sub;
+  document.getElementById('sheetArt').textContent = item.art;
 
   const prov = document.getElementById('qProv');
   const stale = document.getElementById('qStale');
@@ -504,48 +552,39 @@ function renderSheetContext(item) {
   const vNextHint = document.getElementById('vNextHint');
   const vEnd = document.getElementById('vEnd');
   const vEndHint = document.getElementById('vEndHint');
+  const vNow = document.getElementById('vNow');
+  const vNowHint = document.getElementById('vNowHint');
   const vReplace = document.getElementById('vReplace');
   const vReplaceChip = document.getElementById('vReplaceChip');
   const vReplaceLabel = document.getElementById('vReplaceLabel');
-  const vTruncate = document.getElementById('vTruncate');
   const vClear = document.getElementById('vClear');
 
-  [vNext, vEnd, vReplace, vTruncate, vClear].forEach(v => v.classList.remove('disabled'));
+  [vNext, vEnd, vNow, vReplace, vClear].forEach(v => v.classList.remove('disabled'));
+
+  // queue block at the bottom (sheet keeps ✂ only; 🗑 is up in the verb list)
+  up.innerHTML = upnextHTML(q, s);
+  document.getElementById('qMaintSheet').innerHTML = maintHTML(q, false);
 
   if (q.radio) {
     prov.textContent = 'Live stream (TuneIn) — no queue';
     stale.style.display = 'none';
-    up.innerHTML = '<div class="q-empty">Streams have no queue — only Play is available.</div>';
     vNext.classList.add('disabled');
     vEnd.classList.add('disabled');
-    vTruncate.classList.add('disabled');
+    vReplace.classList.add('disabled');
     vClear.classList.add('disabled');
-    vReplaceLabel.innerHTML = 'Play <span class="v-hint">· replaces the stream</span>';
-    vReplaceChip.style.display = 'none';
+    vNowHint.textContent = '· replaces the stream';
     return;
   }
 
-  vReplaceLabel.innerHTML = 'Replace queue <span class="v-hint">· start fresh</span>';
-  // playlist-aware hints: adding items to a playlist-fed queue breaks "pure playlist" provenance
-  vNextHint.textContent = q.playlist ? '· interrupts playlist order' : '· after current track';
   prov.textContent = `${q.playlist ? '☰ ' : ''}${q.provenance} · ${q.loadedAgo}`;
   stale.style.display = q.stale ? '' : 'none';
+  vReplaceLabel.innerHTML = 'Replace queue <span class="v-hint">· start fresh</span>';
+  vNowHint.textContent = '· immediately, queue survives';
+  vNextHint.textContent = q.playlist ? '· interrupts playlist order' : '· after current track';
   vEndHint.textContent = q.playlist
     ? `· after ${q.left} playlist tracks`
     : `· after ${q.left} queued tracks`;
   vReplaceChip.style.display = s.np.playing ? '' : 'none';
-  if (q.idle) {
-    vTruncate.classList.add('disabled');
-  }
-
-  let html = `<div class="q-upnext-label">Up next · ${q.pos} of ${q.total} played</div>`;
-  for (const t of q.upnext) {
-    html += `<div class="q-track${t.now ? ' q-now' : ''}">
-      <span class="q-pos">${t.now ? '▶' : '·'}</span>
-      <span class="q-t">${t.t}</span><span class="q-a">${t.a}</span></div>`;
-  }
-  if (q.more) html += `<div class="q-more">+ ${q.more} more…</div>`;
-  up.innerHTML = html;
 }
 
 // ---------- interactions ----------
