@@ -987,7 +987,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.89';
+const PAGE_VERSION = 'p2.90';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -5853,6 +5853,7 @@ const SH = (() => {
   return { onShow, setZoom, toggle: toggleSession, toggleRun: toggleRunG, closePanel, zoomToDay, zoomToSession, expl: gotoExploration, loadMore, retryBoot, cycleAcct,
            onPending, onRing, hasSync, refreshHead };  // p2.81: SSE live history entry points; p2.89: +onRing
 })();
+window.SH = SH; // p2.90: top-level const is NOT a window property — without this, every `window.SH && ...` guard (onPending L4020, onRing L2560) silently no-ops
 
 // ══════════════════════════════════════════════════════════════════════════════
 (async () => {
