@@ -1014,8 +1014,8 @@
       <span class="sh-updated" id="sh-updated"></span>
       <!-- p2.81 D8: the ONE staleness chip — "synced HH:MM · N pending"; amber = behind/silent -->
       <span class="sh-syncchip" id="sh-syncchip" style="display:none"></span>
-      <!-- p2.72: account filter chip — cycles All accounts → hide TB-only → TB only (decision #1 Phase 3) -->
-      <button class="sh-acct-chip" id="sh-acctchip" onclick="SH.cycleAcct()" title="Filter sessions by Spotify account">👤 All</button>
+      <!-- p2.96: account filter chip REMOVED per Andrew (was p2.72 cycleAcct). ACCT forced 'all';
+           cycleAcct/acctVisible machinery kept intact for painless resurrection. -->
       <div class="sh-zoomseg" id="sh-zoomseg">
         <button id="sh-zoomT" onclick="SH.setZoom('tracks')">Tracks</button><!-- p2.83: legacy track-list view -->
         <button id="sh-zoomS" class="sh-on" onclick="SH.setZoom('sessions')">Sessions</button>
@@ -1087,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.95';
+const PAGE_VERSION = 'p2.96';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3245,6 +3245,30 @@ function updateCounts() {
   const pods = allItems.filter(i => i.type === 'podcast' && (i.duration_seconds || 0) > 0).length;
   document.getElementById('cnt-music').textContent = music || '';
   document.getElementById('cnt-podcasts').textContent = pods || '';
+  refreshTracksLedger(); // p2.96: keep the Tracks-zoom ledger row live as data loads
+}
+
+// p2.96: Tracks-zoom ledger row — mirrors the Sessions/Days summary line so the
+// Tracks|Sessions|Days toggles all keep the toolbar populated (was blank in Tracks).
+function tracksLedgerLine() {
+  let music = 0, radio = 0, pods = 0; const days = new Set();
+  for (const i of allItems) {
+    if (i.type === 'music') { music++; days.add(dayKey(i.timestamp)); }
+    else if (i.type === 'radio_session') { radio++; days.add(dayKey(i.timestamp)); }
+    else if (i.type === 'podcast' && (i.duration_seconds || 0) > 0) pods++;
+  }
+  let line = music + ' tracks' + (radio ? ' · ' + radio + ' radio sessions' : '')
+    + (pods ? ' · ' + pods + ' podcasts' : '') + ' · ' + days.size + ' days loaded';
+  if (data && data.generated_at) line += ' · updated ' + fmtRelative(new Date(data.generated_at));
+  return line;
+}
+// Writes the line into the SH toolbar's #sh-updated — but ONLY while Tracks zoom is showing
+// (Sessions/Days own that element via SH.setStatus; we never fight them).
+function refreshTracksLedger() {
+  const su = document.getElementById('sh-updated');
+  const tab = document.getElementById('tab-sessions'), hist = document.getElementById('tab-history');
+  if (!su || !tab || tab.hidden || !hist || hist.hidden) return;
+  su.textContent = tracksLedgerLine();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5608,7 +5632,9 @@ const SH = (() => {
   // "TB" shows only sessions with any non-main account involvement.
   // Sessions with no account data (some archive rows) are treated as main.
   let ACCT = 'all'; // 'all' | 'main' | 'tb'
-  try { const a0 = localStorage.getItem(LS_ACCT); if (a0 === 'main' || a0 === 'tb') ACCT = a0; } catch (e) {}
+  // p2.96: chip removed — ACCT pinned to 'all'. Stored preference deliberately ignored (a hidden
+  // sticky filter with no visible chip would silently eat sessions). Restore the localStorage line
+  // together with the chip if this comes back.
   function hasTB(s) { return (s.accounts || []).some(a => a && a !== 'main'); }
   function acctVisible(s) {
     if (ACCT === 'all') return true;
@@ -6219,7 +6245,7 @@ const SH = (() => {
     try { localStorage.setItem(LS_ZOOM, z); } catch (e) {}
     syncZoomSeg();
     applyZoomVis();   // p2.83: 'tracks' reveals the legacy track-list pane inside this tab
-    if (booted && z !== 'tracks') render();
+    if (booted && z !== 'tracks') { render(); setStatus(statusLine()); } // p2.96: restore sessions status after Tracks repurposed sh-updated
   }
   // p2.83: three-way seg — Tracks | Sessions | Days
   function syncZoomSeg() {
@@ -6239,9 +6265,17 @@ const SH = (() => {
     if (hist) hist.hidden = !trk;
     const mainPanel = document.getElementById('sh-main');
     if (mainPanel && mainPanel.parentElement) mainPanel.parentElement.style.display = trk ? 'none' : '';
-    for (const id of ['sh-updated', 'sh-syncchip', 'sh-acctchip']) {
-      const el = document.getElementById(id);
-      if (el) el.style.visibility = trk ? 'hidden' : '';
+    // p2.96: sh-updated stays VISIBLE in Tracks zoom, repurposed as the tracks ledger row
+    // (toggle-row consistency per Andrew). Only the sync chip hides (sessions-specific D8).
+    {
+      const sc = document.getElementById('sh-syncchip');
+      if (sc) sc.style.visibility = trk ? 'hidden' : '';
+      const su = document.getElementById('sh-updated');
+      if (su) {
+        su.style.visibility = '';
+        if (trk) su.textContent = (typeof tracksLedgerLine === 'function') ? tracksLedgerLine() : '';
+        // non-trk: SH.setStatus repopulates on the render() that follows setZoom
+      }
     }
   }
   function zoomToDay(k) { PENDING_SCROLL = k; PENDING_SCROLL_SESS = null; setZoom('sessions'); }
