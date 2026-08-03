@@ -788,6 +788,33 @@
   }
   @media (max-width: 520px) { .sh-trk .sh-ta { display: none; } }
   @media (max-width: 420px) { .sh-t1 .sh-time { width: 50px; } }
+/* ===== p2.92: queue expando (design_queue_management_v2 Phase 2) ===== */
+.queue-line {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 8px; padding: 7px 10px;
+  background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09)); border-radius: 8px;
+  font-size: 12px; color: var(--text-dim, #8a8fa3); cursor: pointer; user-select: none;
+}
+.queue-line .q-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-line .q-text b { color: var(--text, #e8eaf0); font-weight: 600; }
+.queue-line .q-chev { flex-shrink: 0; font-size: 14px; transition: transform 0.2s; color: var(--text-dim, #8a8fa3); }
+.queue-line .q-chev.open { transform: rotate(90deg); }
+.q-stale-badge {
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+  background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); flex-shrink: 0;
+}
+.q-inline-expand { display: none; margin-top: 5px; padding: 9px 12px;
+  background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09)); border-radius: 8px; }
+.q-inline-expand.open { display: block; }
+.q-upnext-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: var(--text-dim, #8a8fa3); text-transform: uppercase; margin-bottom: 4px; }
+.q-track { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; align-items: baseline; }
+.q-track .q-pos { color: var(--text-dim, #8a8fa3); font-size: 10px; width: 14px; text-align: right; flex-shrink: 0; }
+.q-track .q-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text, #e8eaf0); }
+.q-more { font-size: 11px; color: var(--text-dim, #8a8fa3); padding: 3px 0 0 22px; }
+.q-maint { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border, rgba(255,255,255,0.09)); display: flex; gap: 18px; font-size: 12px; }
+.q-maint span { color: #f87171; font-weight: 600; cursor: pointer; }
+.q-maint span.disabled { opacity: 0.35; pointer-events: none; }
+.q-freshness { font-size: 10px; color: var(--text-dim, #8a8fa3); margin-top: 6px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -834,6 +861,13 @@
     <div class="ctrl-settings-pop" id="ctrl-settings-caphill" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
+    <!-- p2.92: queue expando (Phase 2) -->
+    <div class="queue-line" id="qline-caphill" onclick="toggleQueueExpand('caphill')" hidden>
+      <span class="q-text" id="qtext-caphill"></span>
+      <span class="q-stale-badge" id="qstale-caphill" hidden>⚠️ stale</span>
+      <span class="q-chev" id="qchev-caphill">›</span>
+    </div>
+    <div class="q-inline-expand" id="qexp-caphill"></div>
     <div class="room-selector" id="rooms-caphill"></div>
     <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
     <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
@@ -866,6 +900,13 @@
     <div class="ctrl-settings-pop" id="ctrl-settings-vashon" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
+    <!-- p2.92: queue expando (Phase 2) -->
+    <div class="queue-line" id="qline-vashon" onclick="toggleQueueExpand('vashon')" hidden>
+      <span class="q-text" id="qtext-vashon"></span>
+      <span class="q-stale-badge" id="qstale-vashon" hidden>⚠️ stale</span>
+      <span class="q-chev" id="qchev-vashon">›</span>
+    </div>
+    <div class="q-inline-expand" id="qexp-vashon"></div>
     <div class="room-selector" id="rooms-vashon"></div>
     <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
     <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
@@ -987,7 +1028,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.91';
+const PAGE_VERSION = 'p2.92';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1663,6 +1704,89 @@ async function sendClearQueue(h) {
   if (!confirm('Clear the Sonos queue for ' + room + '?\nIf the queue is currently playing, playback will stop.')) return;
   showToast('🗑 Clearing queue · ' + room);
   await postNtfy({ action: 'clear_queue', room, rooms: [room], target_client_id: commanderId, t_requested: new Date().toISOString() });
+  setTimeout(_queueRefetch, 15000); setTimeout(_queueRefetch, 60000); setTimeout(_queueRefetch, 150000); // p2.92: expando catches up (Pages deploy lag ~1-3m)
+}
+
+// ===== p2.92: queue expando (design_queue_management_v2 Phase 2) =====
+// Renderer, not a state machine (Rule 27): renders from the latest fetched
+// state-{house}.json queue_summary (v2.57+). Re-fetches on demand; never infers.
+const _queueState = {};   // per house: {qs, last_updated, fetched_at}
+const _qexpOpen = {};     // per house: expando open state (persisted, U2)
+['caphill','vashon'].forEach(h => { try { _qexpOpen[h] = localStorage.getItem('ll_qexp_' + h) === '1'; } catch(e) { _qexpOpen[h] = false; } });
+const _qRefetchLast = {}; // per-house SSE-triggered refetch throttle
+
+function _queueOnStateFiles(stateFiles) {
+  for (const [h, state] of Object.entries(stateFiles || {})) {
+    if (!state || !state.queue_summary) continue; // pre-2.57 service or no data
+    _queueState[h] = { qs: state.queue_summary, last_updated: state.last_updated || '', fetched_at: Date.now() };
+    renderQueueLine(h);
+  }
+}
+function _queueRefetch() { fetchStateFiles().then(_queueOnStateFiles).catch(e => console.warn('[queue] refetch failed', e)); }
+
+// MG5-safe target resolver (design §2.3): selection → owning group's coordinator;
+// else single known queue; else live playing rooms' coordinator; else newest loaded_at.
+function _getQueueTargetGroup(h) {
+  const st = _queueState[h]; if (!st) return null;
+  const qs = st.qs || {}; const keys = Object.keys(qs);
+  if (!keys.length) return null;
+  const groups = _groupsByHouse[h] || [];
+  const coordOf = r => { const g = groups.find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; };
+  for (const r of (selectedRooms[h] || [])) { const c = coordOf(r); if (qs[c]) return c; }
+  if (keys.length === 1) return keys[0];
+  try { for (const r of (liveTargetRooms(h) || [])) { const c = coordOf(r); if (qs[c]) return c; } } catch(e) {}
+  return keys.sort((a, b) => String(qs[b].loaded_at || '').localeCompare(String(qs[a].loaded_at || '')))[0];
+}
+
+function renderQueueLine(h) {
+  const line = document.getElementById('qline-' + h); if (!line) return; // roaming has none
+  const exp = document.getElementById('qexp-' + h);
+  const st = _queueState[h];
+  const coord = st ? _getQueueTargetGroup(h) : null;
+  const e = coord ? (st.qs[coord] || null) : null;
+  if (!e || e.stream || !e.track_count) { line.hidden = true; exp.classList.remove('open'); return; } // U3: streams/empty hide the row
+  line.hidden = false;
+  const left = Math.max(0, (e.track_count || 0) - (e.current_pos || 0));
+  const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
+  const multi = Object.keys(st.qs).length > 1;
+  document.getElementById('qtext-' + h).innerHTML =
+    'Queue' + (multi ? ' — ' + esc(coord.replace(/^Main /, '')) : '') + ': <b>' + left + ' left</b> · ' +
+    esc(e.provenance_label || (e.track_count + ' tracks')) +
+    (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '');
+  document.getElementById('qstale-' + h).hidden = !(loadedMs != null && loadedMs > 12 * 3600 * 1000); // U5
+  const open = !!_qexpOpen[h];
+  document.getElementById('qchev-' + h).classList.toggle('open', open);
+  exp.classList.toggle('open', open);
+  if (!open) return;
+  let html = '<div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
+  const up = e.upcoming || [];
+  if (!up.length) html += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
+  for (const t of up) html += '<div class="q-track"><span class="q-pos">·</span><span class="q-t">' + esc(t) + '</span></div>';
+  const more = left - up.length;
+  if (more > 0) html += '<div class="q-more">+ ' + more + ' more…</div>';
+  html += '<div class="q-maint">' +
+    '<span onclick="event.stopPropagation();sendTruncateQueue(\'' + h + '\')">✂ Clear after current track</span>' +
+    '<span onclick="event.stopPropagation();sendClearQueue(\'' + h + '\')">🗑 Clear queue…</span></div>';
+  const ageMs = st.last_updated ? (Date.now() - new Date(st.last_updated).getTime()) : null;
+  if (ageMs != null && ageMs > 5 * 60000) { // F2: honest about age
+    html += '<div class="q-freshness">as of ' + new Date(st.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</div>';
+  }
+  exp.innerHTML = html;
+}
+
+function toggleQueueExpand(h) {
+  _qexpOpen[h] = !_qexpOpen[h];
+  try { localStorage.setItem('ll_qexp_' + h, _qexpOpen[h] ? '1' : '0'); } catch(e) {}
+  renderQueueLine(h);
+  if (_qexpOpen[h]) _queueRefetch(); // fresh numbers on open
+}
+
+async function sendTruncateQueue(h) {
+  const coord = _getQueueTargetGroup(h);
+  if (!coord) { showToast('No queue found', true); return; }
+  showToast('✂ Clearing after current · ' + coord);
+  await postNtfy({ action: 'truncate_queue', room: coord, rooms: [coord], target_client_id: commanderId, t_requested: new Date().toISOString() });
+  setTimeout(_queueRefetch, 15000); setTimeout(_queueRefetch, 60000); setTimeout(_queueRefetch, 150000); // U4: count updates on next push (Pages deploy lag ~1-3m)
 }
 
 let _lastNtfyTime = 0;
@@ -2558,6 +2682,7 @@ async function loadData(loadArchive) {
     // Apply state now_playing (before renderAll so Now Playing bar is correct)
     applyStateNowPlaying(stateFiles);
     if (window.SH && SH.onRing) SH.onRing(stateFiles);  // p2.89: Sessions middle-band backfill from state-file ring
+    _queueOnStateFiles(stateFiles);  // p2.92: queue expando (Phase 2)
     renderAll();
   } catch(e) {
     console.warn('[loadData] head fetch failed, keeping previous data:', e.message);
@@ -4031,6 +4156,16 @@ function connectSSE() {
       // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
       if (sseHouse && Array.isArray(msg.groups)) {
         _groupsByHouse[sseHouse] = msg.groups;
+        // p2.92: queue expando — track changes move current_pos; re-render from cached
+        // data now (age-honest) and re-fetch the state file throttled so numbers catch up.
+        try {
+          renderQueueLine(sseHouse);
+          if ((events.includes('now_playing') || events.includes('stopped')) &&
+              Date.now() - (_qRefetchLast[sseHouse] || 0) > 45000) {
+            _qRefetchLast[sseHouse] = Date.now();
+            setTimeout(_queueRefetch, 15000); // give service push + Pages deploy a head start
+          }
+        } catch(qe) { console.warn('[queue] sse hook failed', qe); }
         if (events.includes('topology')) {
           console.log('[sse] topology change for', sseHouse + ':',
             msg.groups.filter(g => (g.members || []).length > 1)
