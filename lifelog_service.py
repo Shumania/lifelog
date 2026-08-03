@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.56.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.57.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -378,6 +378,24 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         "didl_parent_id": track_info.get("didl_parent_id", ""),
         "didl_album_art_uri": track_info.get("didl_album_art_uri", ""),
     }
+    # v2.57 rider: ring rows feed the page's provisional sessions (p2.89 cold-load
+    # backfill) — give them the same context + duration fields the SSE pending
+    # rows carry, with the v2.55 provenance overlay applied for queue playback.
+    try:
+        _c = track_info.get("container") or {}
+        _ctx_uri = _c.get("container_uri", "")
+        _ctx_type = _c.get("container_type", "")
+        if (not _ctx_uri) or _ctx_uri.startswith("x-rincon-queue"):
+            _prov = _get_queue_provenance(track_info.get("coordinator")
+                                          or (rooms_list[0] if isinstance(rooms_list, list) and rooms_list else ""))
+            if _prov and _prov.get("uri"):
+                _ctx_uri, _ctx_type = _prov["uri"], _prov["type"]
+        entry["context_uri"] = _ctx_uri or ""
+        entry["context_type"] = _ctx_type or ""
+        _dur = track_info.get("duration_seconds") or 0
+        entry["duration_ms"] = int(_dur * 1000) if _dur else None
+    except Exception as _en_err:
+        log(f"[state-ring] enrichment failed (benign): {_en_err}")
     _state_ring_buffer.insert(0, entry)
     while len(_state_ring_buffer) > STATE_RING_MAX:
         _state_ring_buffer.pop()
@@ -398,6 +416,93 @@ def _update_state_ring_rooms(track_info, started_str, rooms_list):
         log(f"[state-ring] coalesce update: no matching entry for '{track_info.get('title','')}' @ {started_str} (benign no-op)")
     except Exception as e:
         log(f"[state-ring] coalesce update failed: {e}")
+
+# v2.57: stream-source URI prefixes (no queue to insert into). Shared by
+# play_next's stream detection and _build_queue_summary. x-sonos-vli = live
+# session source (Spotify Connect / AirPlay) — treated as a stream since v2.52.1.
+STREAM_URI_PREFIXES = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
+                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:",
+                       "x-sonos-vli:")
+# v2.57 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[queue-mgmt] v2.57 queue management active: replace_queue / truncate_queue / queue_summary")
+
+def _build_queue_summary():
+    """v2.57 queue management (design_queue_management_v2 §3.3, D7/MG4):
+    per-coordinator queue map for the state file. Level-triggered — published on
+    EVERY state push so it is self-healing (Rule 27: messages carry state).
+    Keyed by coordinator name so multiple simultaneous group queues are each
+    fully described (MG4). One entry per coordinator whose group is active
+    (PLAYING/PAUSED) or STOPPED with a non-empty queue; streams get
+    {"stream": true, "stream_label"} instead of queue fields.
+    NEVER raises — a queue read failure must not break the state push."""
+    out = {}
+    try:
+        for g in _poll_snapshot.get("groups", []):
+            cname = g.get("coordinator") or ""
+            state = g.get("state", "")
+            if not cname or state.startswith("ERROR"):
+                continue
+            dev = current_devices_by_name.get(cname)
+            if not dev:
+                continue
+            active = state in ("PLAYING", "PAUSED_PLAYBACK", "TRANSITIONING")
+            try:
+                if state == "PLAYING_TV":
+                    out[cname] = {"stream": True, "stream_label": "TV / line-in"}
+                    continue
+                if active:
+                    # Stream check only for active groups — stopped groups render
+                    # from their (possibly stale) queue, which is exactly what the
+                    # sheet needs for the stale-queue scenario.
+                    try:
+                        mi = dev.avTransport.GetMediaInfo([("InstanceID", 0)])
+                        cur_uri = (mi.get("CurrentURI") or "").lower()
+                        if any(cur_uri.startswith(p) for p in STREAM_URI_PREFIXES):
+                            ti = (room_state.get(cname) or {}).get("track_info") or {}
+                            out[cname] = {"stream": True,
+                                          "stream_label": ti.get("title") or ti.get("service") or "stream"}
+                            continue
+                    except Exception:
+                        pass  # can't read media info -> fall through to queue fields
+                qsize = dev.queue_size
+                if not qsize and not active:
+                    continue  # stopped + empty queue -> no entry (design §3.3)
+                cur_pos = 0
+                try:
+                    cur_pos = int(dev.get_current_track_info().get("playlist_position", 0))
+                except Exception:
+                    pass
+                upcoming = []
+                try:
+                    # get_queue start is 0-indexed; playlist_position is 1-indexed,
+                    # so start=cur_pos yields the tracks AFTER the current one.
+                    for it in dev.get_queue(start=cur_pos, max_items=4):
+                        t = getattr(it, "title", "") or ""
+                        if t:
+                            upcoming.append(t)
+                except Exception:
+                    pass
+                prov = _get_queue_provenance(cname) or {}
+                _pname, _ptype = prov.get("name", ""), prov.get("type", "")
+                _loaded = prov.get("loaded_at")
+                out[cname] = {
+                    # Absent/unknown provenance -> null label; the page renders
+                    # "Queue: N tracks - source unknown" (honest, design §3.3).
+                    "provenance_label": (f"{_pname} ({_ptype})" if _pname and _ptype
+                                         else (_pname or None)),
+                    "container_type": _ptype or None,
+                    "container_uri": prov.get("uri") or None,
+                    "loaded_at": (datetime.fromtimestamp(_loaded, tz=timezone.utc)
+                                  .strftime("%Y-%m-%dT%H:%M:%SZ") if _loaded else None),
+                    "track_count": qsize,
+                    "current_pos": cur_pos,
+                    "upcoming": upcoming,
+                }
+            except Exception as qe:
+                log(f"[queue-summary] {cname}: {qe}")
+    except Exception as e:
+        log(f"[queue-summary] build failed: {e}")
+    return out
 
 def _build_state_payload():
     """Build the state-{house}.json payload from current live state.
@@ -438,6 +543,7 @@ def _build_state_payload():
         "rooms_paused": list(_poll_snapshot.get("rooms_paused", [])),
         "paused_at": dict(_poll_snapshot.get("paused_at", {})),  # v2.54 rider
         "rooms_all": list(_poll_snapshot.get("rooms_all", [])),
+        "queue_summary": _build_queue_summary(),  # v2.57 queue management (§3.3)
         "recent_tracks": list(_state_ring_buffer),
     }
 
@@ -3038,7 +3144,7 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
 
 # v2.54: sync_rooms is now silent — its result travels over SSE only (see the
 # sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
 
@@ -3310,6 +3416,11 @@ def execute_command(cmd, source="unknown"):
             svc_name    = cmd.get("service", "Qobuz")
             query       = cmd.get("query", "")
             search_type = cmd.get("search_type", "albums")
+            # v2.57 P0-F4: queue_mode "next"|"end"|"play" (default "play" = legacy
+            # behavior). The sheet's Play-next/Add-to-end on a track with no
+            # resolvable URI falls back to THIS action — without queue_mode it
+            # would clear the queue and PLAY instead of queueing (Phase 0 finding).
+            queue_mode  = str(cmd.get("queue_mode", "play")).lower()
             dev = devices.get(room)
             if not dev:
                 result["message"] = f"Room '{room}' not found"
@@ -3341,15 +3452,48 @@ def execute_command(cmd, source="unknown"):
                     title = first.get("name", "?")
                     _sp_artist = (first.get("artists") or [{}])[0].get("name", "")
                     share_url = f"https://open.spotify.com/{sp_type}/{first.get('id','')}"
-                    log(f"search_and_play: Spotify Web API resolved '{query}' -> '{title}' by {_sp_artist} ({share_url})")
-                    with _queue_mutation_timeout():
-                        dev.clear_queue()
-                    ShareLinkPlugin(dev).add_share_link_to_queue(share_url)
-                    dev.play_from_queue(0)
-                    _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
-                    result["success"] = True
-                    result["message"] = f"Playing '{title}'{' by ' + _sp_artist if _sp_artist else ''} (Spotify, Web-API resolved) in {room}"
-                    result["data"]    = {"title": title, "artist": _sp_artist, "uri": first.get("uri", ""), "share_url": share_url, "service": "Spotify"}
+                    log(f"search_and_play: Spotify Web API resolved '{query}' -> '{title}' by {_sp_artist} ({share_url}) [queue_mode={queue_mode}]")
+                    if queue_mode in ("next", "end"):
+                        # v2.57 P0-F4: queue WITHOUT clearing or starting playback.
+                        # Coordinator-resolve, never regroup (sheet contract, D6).
+                        _sap_coord = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                        _sap_pos, _sap_plc = None, "direct"
+                        if queue_mode == "next":
+                            try:
+                                _sap_cur = int(_sap_coord.get_current_track_info().get("playlist_position", 0))
+                                _sap_ins = _sap_cur + 1
+                                _sap_pos, _sap_plc = _verified_queue_add(
+                                    _sap_coord,
+                                    lambda: ShareLinkPlugin(_sap_coord).add_share_link_to_queue(share_url, position=_sap_ins),
+                                    _sap_ins, label=" search_and_play(next)")
+                            except Exception as _sap_err:
+                                log(f"search_and_play: next-position add failed ({_sap_err}), appending instead")
+                                _sap_pos, _sap_plc = _verified_queue_add(
+                                    _sap_coord,
+                                    lambda: ShareLinkPlugin(_sap_coord).add_share_link_to_queue(share_url),
+                                    None, label=" search_and_play(end)")
+                        else:
+                            _sap_pos, _sap_plc = _verified_queue_add(
+                                _sap_coord,
+                                lambda: ShareLinkPlugin(_sap_coord).add_share_link_to_queue(share_url),
+                                None, label=" search_and_play(end)")
+                        result["success"] = True
+                        _sap_note = f" [WARNING: landed at queue slot {_sap_pos}]" if _sap_plc == "degraded" else ""
+                        result["message"] = f"Queued ({queue_mode}) '{title}'{' by ' + _sp_artist if _sp_artist else ''} (Spotify, Web-API resolved) in {room}{_sap_note}"
+                        result["data"]    = {"title": title, "artist": _sp_artist, "uri": first.get("uri", ""), "share_url": share_url, "service": "Spotify", "queue_mode": queue_mode, "queued_at": _sap_pos, "placement": _sap_plc}
+                        try:
+                            schedule_state_push()  # v2.57: refresh queue_summary
+                        except Exception:
+                            pass
+                    else:
+                        with _queue_mutation_timeout():
+                            dev.clear_queue()
+                        ShareLinkPlugin(dev).add_share_link_to_queue(share_url)
+                        dev.play_from_queue(0)
+                        _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
+                        result["success"] = True
+                        result["message"] = f"Playing '{title}'{' by ' + _sp_artist if _sp_artist else ''} (Spotify, Web-API resolved) in {room}"
+                        result["data"]    = {"title": title, "artist": _sp_artist, "uri": first.get("uri", ""), "share_url": share_url, "service": "Spotify"}
             else:
                 items = list(MusicService(svc_name).search(search_type, query, 0, 5))
                 if not items:
@@ -3359,7 +3503,22 @@ def execute_command(cmd, source="unknown"):
                     title = getattr(first, "title", str(first))
                     uri   = getattr(first, "uri", None)
                     meta  = getattr(first, "to_didl_string", lambda: "")()
-                    if uri:
+                    if uri and queue_mode in ("next", "end"):
+                        # v2.57 P0-F4 (sibling sweep): native-service queue-add without
+                        # starting playback. Coordinator-resolve, never regroup.
+                        _sap_coord = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                        try:
+                            _sap_pos = _sap_coord.add_to_queue(first, as_next=(queue_mode == "next"))
+                            result["success"] = True
+                            result["message"] = f"Queued ({queue_mode}) '{title}' ({svc_name}) in {room} at pos {_sap_pos}"
+                            result["data"]    = {"title": title, "uri": uri, "service": svc_name, "queue_mode": queue_mode, "queued_at": _sap_pos}
+                            try:
+                                schedule_state_push()  # v2.57: refresh queue_summary
+                            except Exception:
+                                pass
+                        except Exception as _sap_nq_err:
+                            result["message"] = f"Queue add failed for '{title}' ({svc_name}): {_sap_nq_err}"
+                    elif uri:
                         dev.play_uri(uri, meta=meta, title=title)
                         _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
                         result["success"] = True
@@ -3420,6 +3579,10 @@ def execute_command(cmd, source="unknown"):
             album_artist = cmd.get("artist", "")
             svc_name    = cmd.get("service", "Qobuz")
             queue_only  = cmd.get("queue_only", False)
+            # v2.57 (§3.1): replace mode — load-then-trim atomic queue replace for
+            # Qobuz/Apple/Spotify albums through this action's resolution pipeline.
+            # replace wins over queue_only if both are (wrongly) set.
+            replace_q   = bool(cmd.get("replace", False) or cmd.get("replace_queue", False))
             # v2.54 B2: direct Spotify album URI skips all resolution (Tier-0 path).
             # Accept either "album_uri" or "uri" carrying spotify:album:ID.
             spotify_album_uri = ""
@@ -3427,7 +3590,22 @@ def execute_command(cmd, source="unknown"):
                 if isinstance(_cand, str) and _cand.startswith("spotify:album:"):
                     spotify_album_uri = _cand
                     break
-            dev, rooms, was_grouped = _setup_rooms(cmd, devices)
+            # v2.57 P0-F1 FIX: queue mutations must NEVER regroup speakers.
+            # _setup_rooms regrouped even for queue_only=true adds (latent bug —
+            # "+ Queue" on a Qobuz/Apple album silently rebuilt the group around
+            # the selection). Sheet verbs (D6) operate on the CURRENT group of the
+            # selected room, so queue_only and replace resolve the device directly;
+            # only "play now" (neither flag) keeps the legacy regroup-to-selection.
+            if queue_only or replace_q:
+                _rooms_raw = cmd.get("rooms", [])
+                if isinstance(_rooms_raw, str):
+                    _rooms_raw = [_rooms_raw]
+                _room0 = cmd.get("room") or (_rooms_raw[0] if _rooms_raw else None)
+                dev = devices.get(_room0) if _room0 else None
+                rooms = _rooms_raw or ([_room0] if _room0 else [])
+                was_grouped = []
+            else:
+                dev, rooms, was_grouped = _setup_rooms(cmd, devices)
             if not dev:
                 result["message"] = f"Room '{(cmd.get('rooms') or ['?'])[0]}' not found. Available: {list(devices.keys())}"
             elif not album_title and not spotify_album_uri:
@@ -3629,7 +3807,34 @@ def execute_command(cmd, source="unknown"):
                         # reorder how many rows the album occupies (0/unknown -> no blind
                         # reorder, degraded instead).
                         _qa_placement = "direct"
-                        if queue_only:
+                        _rq_trim_failed = False  # v2.57 E12 tracking
+                        if replace_q:
+                            # v2.57 (§3.1) LOAD-THEN-TRIM (F1): append new album at the
+                            # end FIRST; only after the add is verified do we remove the
+                            # old rows. If the add fails, the outer except fires and the
+                            # old queue is untouched — old music keeps playing (E1).
+                            old_len = coordinator.queue_size  # raises -> outer except, queue untouched
+                            pos, _qa_placement = _verified_queue_add(
+                                coordinator, lambda: _enqueue(), None,
+                                label=" play_album(replace)", num_tracks=chosen_tracks or 0)
+                            first_new = pos or (old_len + 1)
+                            log(f"play_album: replace — appended at {first_new} (old queue {old_len} rows), trimming old rows")
+                            if old_len > 0:
+                                try:
+                                    coordinator.avTransport.RemoveTrackRangeFromQueue([
+                                        ("InstanceID", 0), ("UpdateID", 0),
+                                        ("StartingIndex", 1), ("NumberOfTracks", old_len)])
+                                except Exception as _tr_err:
+                                    # E12: add landed, trim failed — play the new content
+                                    # from where it actually lives; stale rows linger above
+                                    # and the next replace/clear sweeps them. Honest WARN.
+                                    _rq_trim_failed = True
+                                    log(f"play_album: replace WARNING — trim of {old_len} old rows failed ({_tr_err}); playing new content at {first_new}")
+                            if _rq_trim_failed:
+                                coordinator.play_from_queue(first_new - 1)
+                            else:
+                                coordinator.play_from_queue(0)
+                        elif queue_only:
                             # Insert after current track without interrupting playback
                             try:
                                 info = coordinator.get_current_track_info()
@@ -3673,7 +3878,7 @@ def execute_command(cmd, source="unknown"):
 
                         room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
-                        mode = "Queued" if queue_only else "Playing"
+                        mode = "Replaced queue with" if replace_q else ("Queued" if queue_only else "Playing")
                         tracks_note = f" ({chosen_tracks} tracks)" if chosen_tracks else ""
                         # v2.54 B1: honest placement reporting
                         _pl_note = ""
@@ -3681,6 +3886,8 @@ def execute_command(cmd, source="unknown"):
                             _pl_note = " [misfiled, recovered by reorder]"
                         elif _qa_placement == "degraded":
                             _pl_note = f" [WARNING: landed at queue slot {pos}]"
+                        if _rq_trim_failed:
+                            _pl_note += " [WARNING: old queue rows not removed — will be swept by next replace/clear]"
                         result["success"] = True
                         result["message"] = f"{mode} album '{chosen_title}' by {chosen_artist}{tracks_note} in {room_label}{grp_note}{_pl_note}"
                         result["data"] = {
@@ -3692,10 +3899,19 @@ def execute_command(cmd, source="unknown"):
                             "room": rooms[0],
                             "rooms": rooms,
                             "queue_only": queue_only,
+                            "replace": replace_q,           # v2.57
+                            "trim_failed": _rq_trim_failed, # v2.57 E12
                             "position": pos,
                             "queued_at": pos,
                             "placement": _qa_placement,
                         }
+                        # v2.57: refresh queue_summary in the state file after any
+                        # queue mutation (level-triggered; queue_only adds don't
+                        # change the track, so the poll loop won't push otherwise).
+                        try:
+                            schedule_state_push()
+                        except Exception:
+                            pass
                     except Exception as q_err:
                         log(f"play_album: add_to_queue failed: {q_err}")
                         meta = getattr(album_item, "to_didl_string", lambda: "n/a")()
@@ -3798,6 +4014,12 @@ def execute_command(cmd, source="unknown"):
                     # v2.54 rider: explicit mode param — "next" (default) | "end".
                     # Page sends mode explicitly; absent mode keeps old behavior.
                     as_next = (str(cmd.get("mode", "next")).lower() != "end")
+                    # v2.57 A1: log the mode on EVERY add, flagging defaulted mode.
+                    # P0-F2: no page callsite passed mode before the queue sheet —
+                    # every legacy "+" was silently insert-next. Explicit mode from
+                    # the sheet ends the ambiguity; this log line proves which.
+                    log(f"add_to_queue: mode={'next' if as_next else 'end'}"
+                        f"{' (DEFAULTED — caller sent no mode)' if 'mode' not in cmd else ' (explicit)'}")
 
                     def _do_queue(coord, spotify, pos=None, next_flag=False):
                         """Queue a track -- Spotify via ShareLinkPlugin, others via add_uri_to_queue with DIDL.
@@ -3889,6 +4111,11 @@ def execute_command(cmd, source="unknown"):
                     elif _qa_placement == "degraded":
                         _pl_note = f" [WARNING: landed at queue slot {_qa_actual}, reorder failed]"
                     result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items){_pl_note}"
+                    # v2.57: queue mutated without a track change — refresh queue_summary
+                    try:
+                        schedule_state_push()
+                    except Exception:
+                        pass
                 except Exception as e:
                     result["message"] = f"Queue error: {e}"
 
@@ -3949,14 +4176,13 @@ def execute_command(cmd, source="unknown"):
                     # Queue inserts are invisible on it and next() skips the PHONE's session
                     # instead of our queue (2026-07-20: played Walking On The Moon instead of
                     # 2 Klaxons). Treat it as a stream -> full play takes the transport back.
-                    stream_prefixes = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
-                                       "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:",
-                                       "x-sonos-vli:")
+                    # v2.57: prefix list hoisted to module-level STREAM_URI_PREFIXES
+                    # (shared with _build_queue_summary).
                     is_stream = False
                     try:
                         media_info = coordinator.avTransport.GetMediaInfo([('InstanceID', 0)])
                         current_uri = media_info.get('CurrentURI', '') or ''
-                        is_stream = any(current_uri.lower().startswith(p) for p in stream_prefixes)
+                        is_stream = any(current_uri.lower().startswith(p) for p in STREAM_URI_PREFIXES)
                         if is_stream:
                             log(f"play_next: stream detected ({current_uri[:60]}), using full play instead of queue insert")
                     except Exception as mi_err:
@@ -4610,6 +4836,136 @@ def execute_command(cmd, source="unknown"):
             except Exception as e:
                 result["message"] = f"refresh error: {e}"
 
+        elif action == "replace_queue":
+            # v2.57 queue management (§3.1): ATOMIC queue replace via LOAD-THEN-TRIM
+            # (F1). URI-carrying content only (spotify: track/album/playlist via
+            # ShareLink; raw Sonos URIs via DIDL). Qobuz/Apple named albums route
+            # through play_album with replace:true (same trim pattern, shared
+            # resolution). Sequence: append new content at END -> verify the add ->
+            # RemoveTrackRangeFromQueue(1, old_len) -> play position 1. On add
+            # failure the old queue is UNTOUCHED and old music keeps playing (E1).
+            # Sheet contract (D6): coordinator-resolve, NEVER regroup.
+            from soco.plugins.sharelink import ShareLinkPlugin
+            from xml.sax.saxutils import escape as _rq_xml_escape
+            room       = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            track_uri  = cmd.get("uri", "")
+            title      = cmd.get("title", track_uri)
+            rq_artist  = cmd.get("artist", "")
+            dev = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            elif not track_uri:
+                result["message"] = "No URI provided (named-album replace goes through play_album with replace:true)"
+            else:
+                track_uri = _decode_sonos_spotify_uri(track_uri)
+                is_spotify = track_uri.startswith("spotify:") or "open.spotify.com" in track_uri
+                if is_spotify:
+                    uri_type = "track" if ":track:" in track_uri else "album" if ":album:" in track_uri else "playlist"
+                    share_url = f"https://open.spotify.com/{uri_type}/{track_uri.split(':')[-1]}"
+                else:
+                    uri_type, share_url = "track", None
+                try:
+                    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    old_len = coordinator.queue_size  # must be readable — trim depends on it
+                    def _rq_add():
+                        if is_spotify:
+                            return ShareLinkPlugin(coordinator).add_share_link_to_queue(share_url)
+                        creator = ('<dc:creator>' + _rq_xml_escape(rq_artist) + '</dc:creator>') if rq_artist else ''
+                        meta = ('<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" '
+                                'xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" '
+                                'xmlns:r="urn:schemas-rinconnetworks-com:metadata-1-0/" '
+                                'xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/">'
+                                '<item id="R:0/0/0" parentID="R:0/0" restricted="true">'
+                                '<dc:title>' + _rq_xml_escape(title or "Unknown Track") + '</dc:title>'
+                                + creator +
+                                '<upnp:class>object.item.audioItem.musicTrack</upnp:class>'
+                                '<res protocolInfo="*:*:*:*">' + _rq_xml_escape(track_uri) + '</res>'
+                                '</item></DIDL-Lite>')
+                        return coordinator.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta)
+                    with _queue_mutation_timeout():
+                        _rq_pos, _rq_plc = _verified_queue_add(coordinator, _rq_add, None, label=" replace_queue")
+                    first_new = _rq_pos or (old_len + 1)
+                    log(f"replace_queue: appended at {first_new} (old queue {old_len} rows) on {coordinator.player_name}")
+                    _rq_trim_failed = False
+                    if old_len > 0:
+                        try:
+                            coordinator.avTransport.RemoveTrackRangeFromQueue([
+                                ("InstanceID", 0), ("UpdateID", 0),
+                                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
+                        except Exception as _tr_err:
+                            _rq_trim_failed = True  # E12: play new content where it lives
+                            log(f"replace_queue: WARNING — trim of {old_len} old rows failed ({_tr_err})")
+                    coordinator.play_from_queue(0 if not _rq_trim_failed else first_new - 1)
+                    _enforce_repeat_default(coordinator, cmd, room)  # house rule
+                    # Provenance: containers become the active context; a single
+                    # track wipes it (mirrors play_spotify_uri semantics, v2.55).
+                    if is_spotify and uri_type in ("album", "playlist"):
+                        _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                    else:
+                        _clear_queue_provenance(coordinator.player_name, "queue replaced by single track")
+                    result["success"] = True
+                    _rq_note = " [WARNING: old queue rows not removed — will be swept by next replace/clear]" if _rq_trim_failed else ""
+                    result["message"] = f"Replaced queue with '{title}' in {room} ({old_len} old rows removed){_rq_note}"
+                    result["data"] = {"title": title, "uri": track_uri, "room": room,
+                                      "coordinator": coordinator.player_name,
+                                      "old_len": old_len, "queued_at": _rq_pos,
+                                      "placement": _rq_plc, "trim_failed": _rq_trim_failed}
+                    try:
+                        publish_ui_event("status_update", {})
+                        schedule_state_push()  # refresh queue_summary
+                    except Exception as _rq_sse:
+                        log(f"replace_queue: SSE/state push failed: {_rq_sse}")
+                except Exception as e:
+                    # E1: add failed (or queue unreadable) — old queue untouched,
+                    # old music keeps playing. Honest error, no partial state.
+                    result["message"] = f"replace_queue error (queue untouched): {e}"
+
+        elif action == "truncate_queue":
+            # v2.57 queue management (§3.2): remove everything AFTER the current
+            # track. Idempotent (E3): nothing after current -> success, removed:0.
+            # Does NOT touch provenance (the queue head is unchanged).
+            room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
+            dev  = devices.get(room)
+            if not dev:
+                result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
+            else:
+                try:
+                    coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    qsize = coordinator.queue_size
+                    cur_pos = 0
+                    try:
+                        cur_pos = int(coordinator.get_current_track_info().get("playlist_position", 0))
+                    except Exception:
+                        pass
+                    if cur_pos <= 0:
+                        # Queue not the active source (stream/idle) — "after current"
+                        # is undefined; refuse to guess (idempotent no-op).
+                        result["success"] = True
+                        result["message"] = f"No current track in {room}'s queue — nothing truncated"
+                        result["data"] = {"room": room, "removed": 0, "queue_size": qsize}
+                    elif qsize > cur_pos:
+                        removed = qsize - cur_pos
+                        with _queue_mutation_timeout():
+                            coordinator.avTransport.RemoveTrackRangeFromQueue([
+                                ("InstanceID", 0), ("UpdateID", 0),
+                                ("StartingIndex", cur_pos + 1), ("NumberOfTracks", removed)])
+                        log(f"truncate_queue: {coordinator.player_name} removed {removed} rows after pos {cur_pos}")
+                        result["success"] = True
+                        result["message"] = f"Truncated queue in {room}: {removed} tracks after current removed"
+                        result["data"] = {"room": room, "coordinator": coordinator.player_name,
+                                          "removed": removed, "queue_size": cur_pos, "current_pos": cur_pos}
+                    else:
+                        result["success"] = True
+                        result["message"] = "Nothing after current track"
+                        result["data"] = {"room": room, "removed": 0, "queue_size": qsize, "current_pos": cur_pos}
+                    try:
+                        publish_ui_event("status_update", {})
+                        schedule_state_push()  # refresh queue_summary
+                    except Exception as _tq_sse:
+                        log(f"truncate_queue: SSE/state push failed: {_tq_sse}")
+                except Exception as e:
+                    result["message"] = f"truncate_queue error: {e}"
+
         elif action == "clear_queue":
             # v2.52: UI settings button — wipe the target room's Sonos queue.
             # If the queue is the active source, Sonos stops playback (expected).
@@ -4633,6 +4989,7 @@ def execute_command(cmd, source="unknown"):
                     result["data"] = {"room": room, "coordinator": coordinator.player_name, "tracks_removed": _q_before}
                     try:
                         publish_ui_event("status_update", {})
+                        schedule_state_push()  # v2.57: refresh queue_summary
                     except Exception as _cq_sse:
                         log(f"clear_queue: SSE push failed: {_cq_sse}")
                 except Exception as e:
@@ -4689,7 +5046,8 @@ def execute_command(cmd, source="unknown"):
 
     # Stamp t_playing immediately after successful play command execution
     if result.get("success") and action in ("play_spotify_uri", "play_album", "play", "play_radio",
-                                             "play_next", "play_uri", "queue_next", "queue", "add_to_queue", "search_and_play"):
+                                             "play_next", "play_uri", "queue_next", "queue", "add_to_queue", "search_and_play",
+                                             "replace_queue"):  # v2.57
         result["t_playing"] = now_iso()
 
     # Brief delay so speakers transition to PLAYING state before we query
