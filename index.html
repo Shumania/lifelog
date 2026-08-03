@@ -815,12 +815,55 @@
 .q-maint span { color: #f87171; font-weight: 600; cursor: pointer; }
 .q-maint span.disabled { opacity: 0.35; pointer-events: none; }
 .q-freshness { font-size: 10px; color: var(--text-dim, #8a8fa3); margin-top: 6px; font-style: italic; }
+/* ===== p2.94: ＋ queue sheet (design_queue_management_v2 Phase 3, mockup v3.1) ===== */
+.sheet-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.55); opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 240; }
+.sheet-scrim.open { opacity: 1; pointer-events: auto; }
+.qsheet { position: fixed; left: 50%; transform: translate(-50%, 105%); bottom: 0; width: 100%; max-width: 560px;
+  background: var(--panel, #171a26); border: 1px solid var(--border, rgba(255,255,255,0.09)); border-bottom: none;
+  border-radius: 18px 18px 0 0; transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1); z-index: 250;
+  padding-bottom: env(safe-area-inset-bottom, 12px); max-height: 85dvh; overflow-y: auto; }
+.qsheet.open { transform: translate(-50%, 0); }
+/* v3.1: no grabber — the sheet is not a drawer; explicit ✕ close */
+.qs-close { position: absolute; top: 10px; right: 12px; width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border, rgba(255,255,255,0.09)); color: var(--text-dim, #8a8fa3);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; z-index: 2; }
+.qs-item { display: flex; gap: 10px; align-items: center; padding: 14px 52px 10px 16px; }
+.qs-item-art { width: 44px; height: 44px; border-radius: 6px; background: var(--card, rgba(255,255,255,0.06));
+  display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; overflow: hidden; }
+.qs-item-art img { width: 100%; height: 100%; object-fit: cover; }
+.qs-item-title { font-size: 14px; font-weight: 700; color: var(--text, #e8eaf0); }
+.qs-item-sub { font-size: 12px; color: var(--text-dim, #8a8fa3); }
+.qs-verb { display: flex; align-items: center; gap: 12px; padding: 13px 18px; font-size: 15px; cursor: pointer; color: var(--text, #e8eaf0); }
+.qs-verb:active { background: var(--card, rgba(255,255,255,0.06)); }
+.qs-verb .v-icon { width: 24px; text-align: center; font-size: 17px; flex-shrink: 0; }
+.qs-verb .v-label { flex: 1; font-weight: 600; min-width: 0; }
+.qs-verb .v-hint { font-size: 11px; color: var(--text-dim, #8a8fa3); font-weight: 400; }
+.qs-verb.disabled { opacity: 0.35; pointer-events: none; }
+.qs-verb .v-confirm-chip { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 8px;
+  background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.35); flex-shrink: 0; }
+.qs-verb.v-danger .v-label, .qs-verb.v-danger .v-icon { color: #f87171; }
+.qs-divider { height: 1px; background: var(--border, rgba(255,255,255,0.09)); margin: 4px 16px; }
+.qs-qcontext { margin: 8px 12px 10px; padding: 10px 12px; background: var(--card, rgba(255,255,255,0.04));
+  border: 1px solid var(--border, rgba(255,255,255,0.09)); border-radius: 10px; }
+.qs-qcontext-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.qs-qcontext-head .q-label { color: var(--text, #e8eaf0); font-weight: 700; flex-shrink: 0; }
+.qs-qcontext-head .q-prov { color: var(--text-dim, #8a8fa3); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-upnext { margin-top: 8px; border-top: 1px solid var(--border, rgba(255,255,255,0.09)); padding-top: 6px; }
+.qs-empty { font-size: 12px; color: var(--text-dim, #8a8fa3); font-style: italic; }
+.qs-choose { margin: 8px 16px; padding: 10px 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35); border-radius: 10px; font-size: 13px; color: var(--text, #e8eaf0); }
+.qs-choose-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.qs-choose-btns button { padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border, rgba(255,255,255,0.2));
+  background: var(--card, rgba(255,255,255,0.06)); color: var(--text, #e8eaf0); font-size: 12px; font-weight: 600; cursor: pointer; }
 </style>
 </head>
 <body>
 
 <!-- Toast -->
 <div id="toast" class="toast" style="display:none;opacity:0;"></div>
+
+<!-- p2.94: ＋ queue sheet (Phase 3) — content rendered by openQueueSheet() -->
+<div class="sheet-scrim" id="qs-scrim" onclick="closeQueueSheet()"></div>
+<div class="qsheet" id="qsheet"></div>
 
 <!-- ==================== TOP SECTION ==================== -->
 <div class="top-section">
@@ -1028,7 +1071,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.93';
+const PAGE_VERSION = 'p2.94';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1719,7 +1762,7 @@ function _queueOnStateFiles(stateFiles) {
   _hdrFromStateFiles(stateFiles); // p2.93: header versions ride every state-file fetch
   for (const [h, state] of Object.entries(stateFiles || {})) {
     if (!state || !state.queue_summary) continue; // pre-2.57 service or no data
-    _queueState[h] = { qs: state.queue_summary, last_updated: state.last_updated || '', fetched_at: Date.now() };
+    _queueState[h] = { qs: state.queue_summary, version: state.version || '', np: state.now_playing || null, last_updated: state.last_updated || '', fetched_at: Date.now() }; // version feeds the F4 skew gate; np.rooms is the cold-load group-membership fallback (p2.94)
     renderQueueLine(h);
   }
 }
@@ -1814,12 +1857,178 @@ function toggleQueueExpand(h) {
   if (_qexpOpen[h]) _queueRefetch(); // fresh numbers on open
 }
 
-async function sendTruncateQueue(h) {
-  const coord = _getQueueTargetGroup(h);
+async function sendTruncateQueue(h, coordOverride) {
+  const coord = coordOverride || _getQueueTargetGroup(h);
   if (!coord) { showToast('No queue found', true); return; }
   showToast('✂ Clearing after current · ' + coord);
   await postNtfy({ action: 'truncate_queue', room: coord, rooms: [coord], target_client_id: commanderId, t_requested: new Date().toISOString() });
   setTimeout(_queueRefetch, 15000); setTimeout(_queueRefetch, 60000); setTimeout(_queueRefetch, 150000); // U4: count updates on next push (Pages deploy lag ~1-3m)
+}
+
+// ===== p2.94: ＋ queue sheet (design_queue_management_v2 Phase 3, mockup v3.1) =====
+// F6: every ＋ opens this sheet (Sonos houses only — F3 keeps roaming's direct add).
+// Verbs replay through the SAME funnel that opened the sheet (directPlay/playDiscovery/
+// playContext) with sheetOpts {mode, coord, members}, so URI resolution, search
+// fallbacks, and Qobuz/Apple routing are reused, never duplicated. D6: sheet verbs
+// NEVER regroup — coordinator-resolving actions get rooms:[coord]; play-now paths
+// send the target group's FULL member list so the service's incremental _setup_rooms
+// is a structural no-op (desired == current). Rule 27: renders only from the latest
+// state-file queue_summary; no optimistic queue state.
+let _sheetCtx = null; // {h, item, kind, canEnd, send, target, choices}
+
+function _qsCoordOf(h, r) { const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; }
+function _qsMembers(h, coord) {
+  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord);
+  if (g && g.members && g.members.length) return g.members;
+  // Cold-load fallback (state files don't carry groups yet — see line ~2847 hydration
+  // awaiting a service-side field): now_playing.rooms covers the PLAYING group, which
+  // is exactly the case where a short member list would let _setup_rooms unjoin rooms.
+  const st = _queueState[h];
+  if (st && st.np && Array.isArray(st.np.rooms) && st.np.rooms.includes(coord)) return st.np.rooms;
+  return [coord];
+}
+// true/false when topology known; null = unknown (D3 fails safe: unknown → confirm)
+function _qsPlaying(h, coord) { const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord); return g ? String(g.state || '').indexOf('PLAYING') === 0 : null; }
+// F4 version-skew gate: replace/truncate need service ≥ 2.57
+function _qsVerOk(h) { const st = _queueState[h]; const m = String((st && st.version) || '').match(/^(\d+)\.(\d+)/); return !!m && (+m[1] > 2 || (+m[1] === 2 && +m[2] >= 57)); }
+
+// Target resolution (§2.3 MG5-safe + E4). Returns {coord} | {choices:[..]} | {}
+function _qsResolveTarget(h) {
+  const st = _queueState[h]; const qs = (st && st.qs) || {};
+  const selCoords = [...new Set((selectedRooms[h] || []).map(r => _qsCoordOf(h, r)))];
+  if (selCoords.length === 1) return { coord: selCoords[0] };
+  if (selCoords.length > 1) {
+    const live = selCoords.filter(c => qs[c]);
+    if (live.length === 1) return { coord: live[0] };
+    if (live.length === 0) return { coord: selCoords[0] };
+    return { choices: live }; // E4: selection spans 2+ live queues
+  }
+  // No selection: fall back to known queues — never silently rooms_playing[0] (MG5/S26)
+  const keys = Object.keys(qs).filter(c => !(qs[c] || {}).stream);
+  if (keys.length === 1) return { coord: keys[0] };
+  if (keys.length > 1) {
+    const playing = keys.filter(c => _qsPlaying(h, c) === true);
+    if (playing.length === 1) return { coord: playing[0] };
+    return { choices: playing.length ? playing : keys }; // E4/S26
+  }
+  const streams = Object.keys(qs);
+  if (streams.length === 1) return { coord: streams[0] }; // lone stream group (S16)
+  return {};
+}
+
+function openQueueSheet(ctx) {
+  const r = _qsResolveTarget(ctx.h);
+  ctx.target = r.coord || null; ctx.choices = r.choices || null;
+  _sheetCtx = ctx;
+  _renderQueueSheet();
+  document.getElementById('qs-scrim').classList.add('open');
+  document.getElementById('qsheet').classList.add('open');
+  _queueRefetch(); // fresh numbers while the sheet is up
+}
+function closeQueueSheet() {
+  document.getElementById('qs-scrim').classList.remove('open');
+  document.getElementById('qsheet').classList.remove('open');
+  _sheetCtx = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _sheetCtx) closeQueueSheet(); });
+
+function _qsChoose(coord) { if (!_sheetCtx) return; _sheetCtx.target = coord; _sheetCtx.choices = null; _renderQueueSheet(); }
+
+function _renderQueueSheet() {
+  const c = _sheetCtx; if (!c) return;
+  const st = _queueState[c.h]; const qs = (st && st.qs) || {};
+  const t = c.target;
+  const e = t ? (qs[t] || null) : null;
+  const stream = !!(e && e.stream);
+  const playing = t ? _qsPlaying(c.h, t) : null;
+  const verOk = _qsVerOk(c.h);
+  const left = e ? Math.max(0, (e.track_count || 0) - (e.current_pos || 0)) : 0;
+  const isPl = !!(e && e.container_type === 'playlist');
+  const needTarget = !t;
+  const dis = cond => cond ? ' disabled' : '';
+  const art = c.item.art
+    ? '<img src="' + esc(c.item.art) + '" alt="">'
+    : (c.kind === 'playlist' ? '☰' : (c.kind === 'track' ? '🎵' : '💿'));
+
+  let html = '<div class="qs-close" onclick="closeQueueSheet()" title="Close">✕</div>' +
+    '<div class="qs-item"><div class="qs-item-art">' + art + '</div>' +
+    '<div style="flex:1;min-width:0"><div class="qs-item-title">' + esc(c.item.title) + '</div>' +
+    '<div class="qs-item-sub">' + esc(c.item.sub) + '</div></div></div>';
+
+  if (c.choices) { // E4: pause-and-ask — no command until answered
+    html += '<div class="qs-choose">Selected speakers are in ' + c.choices.length + ' groups — which queue?' +
+      '<div class="qs-choose-btns">' + c.choices.map(g =>
+        '<button onclick="_qsChoose(\'' + esc(g).replace(/'/g, "\\'") + '\')">' + esc(g.replace(/^Main /, '')) + '</button>').join('') + '</div></div>';
+  } else if (needTarget) {
+    html += '<div class="qs-choose">Tap a speaker first — no active queue found.</div>';
+  }
+
+  const lock = c.choices || needTarget;
+  // Verb hints (mockup v3.1 + F5 + E2/E7 copy)
+  const nextHint = stream ? '· stream has no queue' : (isPl ? '· interrupts playlist order' : '· after current track');
+  const endHint = stream ? '' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's'));
+  const nowHint = stream ? '· replaces the stream' : (playing === false ? '· starts playback' : '· immediately, queue survives');
+  const repHint = verOk ? '· start fresh' : '· needs speaker update';
+  const truncHint = (e && !stream && left > 0) ? ' · drops ' + left + ' upcoming' : '';
+  const chip = (playing !== false && !stream) ? '<span class="v-confirm-chip">confirms</span>' : ''; // D3
+
+  html += '<div id="qs-verbs">' +
+    '<div class="qs-verb' + dis(lock || stream) + '" onclick="_qsVerb(\'next\')"><span class="v-icon">⏭</span><span class="v-label">Play next <span class="v-hint">' + nextHint + '</span></span></div>' +
+    '<div class="qs-verb' + dis(lock || stream || c.canEnd === false) + '" onclick="_qsVerb(\'end\')"><span class="v-icon">⧺</span><span class="v-label">Add to end of queue <span class="v-hint">' + (c.canEnd === false ? '· inserts next only for this service' : endHint) + '</span></span></div>' +
+    '<div class="qs-verb' + dis(lock) + '" onclick="_qsVerb(\'now\')"><span class="v-icon">▶</span><span class="v-label">Play now <span class="v-hint">' + nowHint + '</span></span></div>' +
+    '<div class="qs-verb' + dis(lock || stream || !verOk || c.canReplace === false) + '" onclick="_qsVerb(\'replace\')"><span class="v-icon">♻</span><span class="v-label">Replace queue <span class="v-hint">' + (c.canReplace === false ? '· needs a resolvable URI' : repHint) + '</span></span>' + (verOk ? chip : '') + '</div>' +
+    '<div class="qs-verb v-danger' + dis(lock || stream || !e) + '" onclick="_qsClearVerb()"><span class="v-icon">🗑</span><span class="v-label">Clear queue…</span><span class="v-confirm-chip">confirms</span></div>' +
+    '</div><div class="qs-divider"></div>';
+
+  // Queue context block (bottom) — reuses expando vocabulary; sheet keeps ✂ only
+  let qb = '<div class="qs-qcontext-head"><span class="q-label">Queue' +
+    (t && Object.keys(qs).length > 1 ? ' — ' + esc(t.replace(/^Main /, '')) : '') + '</span>';
+  if (stream) {
+    qb += '<span class="q-prov">Live stream' + (e.stream_label ? ' (' + esc(e.stream_label) + ')' : '') + ' — no queue</span></div>';
+  } else if (e) {
+    const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
+    qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + esc(e.provenance_label || (e.track_count + ' tracks')) +
+      (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '') + '</span>' +
+      (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">⚠️ stale</span>' : '') + '</div>';
+    qb += '<div class="qs-upnext"><div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
+    const up = e.upcoming || [];
+    if (!up.length) qb += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
+    for (const tt of up) qb += '<div class="q-track"><span class="q-pos">·</span><span class="q-t">' + esc(tt) + '</span></div>';
+    if (left - up.length > 0) qb += '<div class="q-more">+ ' + (left - up.length) + ' more…</div>';
+    qb += '</div>';
+    qb += '<div class="q-maint"><span' + ((lock || !verOk) ? ' class="disabled"' : '') + ' onclick="_qsTruncVerb()">✂ Clear after current track' + esc(truncHint) + '</span></div>';
+    const ageMs = st && st.last_updated ? (Date.now() - new Date(st.last_updated).getTime()) : null;
+    if (ageMs != null && ageMs > 5 * 60000) qb += '<div class="q-freshness">as of ' + new Date(st.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</div>'; // F2
+  } else {
+    qb += '<span class="q-prov">' + (st ? 'Queue is empty.' : 'Queue: unknown') + '</span></div>'; // E2 / F2-missing
+  }
+  html += '<div class="qs-qcontext">' + qb + '</div>';
+  document.getElementById('qsheet').innerHTML = html;
+}
+
+async function _qsVerb(mode) {
+  const c = _sheetCtx; if (!c || !c.target) return;
+  if (mode === 'replace') {
+    const playing = _qsPlaying(c.h, c.target);
+    if (playing !== false && !confirm('Replace the queue for ' + c.target + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
+  }
+  const send = c.send, t = c.target, members = _qsMembers(c.h, c.target);
+  closeQueueSheet(); // E9: close on first tap
+  await send(mode, t, members);
+}
+function _qsClearVerb() {
+  const c = _sheetCtx; if (!c || !c.target) return;
+  const t = c.target;
+  if (!confirm('Clear the Sonos queue for ' + t + '?\nIf the queue is currently playing, playback will stop.')) return;
+  closeQueueSheet();
+  showToast('🗑 Clearing queue · ' + t);
+  postNtfy({ action: 'clear_queue', room: t, rooms: [t], target_client_id: commanderId, t_requested: new Date().toISOString() });
+}
+function _qsTruncVerb() {
+  const c = _sheetCtx; if (!c || !c.target) return;
+  const h = c.h, t = c.target;
+  closeQueueSheet();
+  sendTruncateQueue(h, t);
 }
 
 let _lastNtfyTime = 0;
@@ -3333,11 +3542,22 @@ function formatNarrative(text) {
 // DIRECT PLAY / QUEUE / EXPLORE
 // ══════════════════════════════════════════════════════════════════════════════
 let _lastDirectPlayTime = 0;
-async function directPlay(action, encodedData) {
+async function directPlay(action, encodedData, sheetOpts) {
   const now = Date.now();
-  if (now - _lastDirectPlayTime < 600) { console.log('[directPlay] throttled'); return; }
-  _lastDirectPlayTime = now;
+  if (!sheetOpts) { // sheet verb replays skip the tap throttle (sheet close is the guard, E9)
+    if (now - _lastDirectPlayTime < 600) { console.log('[directPlay] throttled'); return; }
+    _lastDirectPlayTime = now;
+  }
   const info = JSON.parse(decodeURIComponent(encodedData));
+  // p2.94 F6: ＋ on a Sonos house opens the queue sheet; verbs replay this funnel
+  // with sheetOpts {mode, coord, members}. Roaming keeps its direct add (F3).
+  if (action === 'queue' && house !== 'roaming' && !sheetOpts) {
+    openQueueSheet({ h: house, kind: 'track',
+      item: { title: info.title || 'Track', sub: (info.artist ? info.artist + ' · ' : '') + 'track', art: info.image || info.art || null },
+      canReplace: (info.uri || info.sonos_uri || info.track_id || hasSpotifyAuth()) ? undefined : false, // replace needs a resolvable URI (no service-search replace)
+      send: (mode, coord, members) => directPlay('queue', encodedData, { mode, coord, members }) });
+    return;
+  }
   let uri = info.uri;
   // p2.55: x-sonos-vli session URIs are ephemeral (UPnP 804 on replay) — never send them.
   // The old guard only checked info.sonos_uri; info.uri slipped through unguarded.
@@ -3358,11 +3578,19 @@ async function directPlay(action, encodedData) {
 
   // --- SONOS PATH (Cap Hill / Vashon) ---
   if (house !== 'roaming') {
-    // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
-    const selNow = selectedRooms[house] || [];
-    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
-    const rooms = filterOfflineRooms(selNow);
-    if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    let rooms;
+    if (sheetOpts) {
+      // p2.94: sheet verbs operate on the resolved target group (D6: never regroup).
+      // play-now sends the FULL member list (incremental _setup_rooms no-ops);
+      // coordinator-resolving actions get [coord].
+      rooms = sheetOpts.mode === 'now' ? sheetOpts.members : [sheetOpts.coord];
+    } else {
+      // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+      const selNow = selectedRooms[house] || [];
+      if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+      rooms = filterOfflineRooms(selNow);
+      if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    }
 
     // [DESIGN NOTE] play_next handles ALL services (Spotify, Qobuz, Apple Music).
     // Service-side: Spotify URIs use ShareLinkPlugin, raw Sonos URIs use add_uri_to_queue.
@@ -3392,21 +3620,42 @@ async function directPlay(action, encodedData) {
           }
         } catch(e) {
           console.log('[directPlay] Client search failed, falling back to service search');
-          const ok = await postNtfy({ action: 'search_and_play', query: q, service: 'Spotify', search_type: 'tracks', rooms, target_client_id: commanderId });
-          if (ok) showToast('✓ Searching & playing: ' + (info.title || '') + ' → ' + rooms.join(', '));
+          if (sheetOpts && sheetOpts.mode === 'replace') { showToast('✗ Replace needs a resolvable URI', true); return; } // P0-F4: no service-search replace
+          const _qm = sheetOpts ? ({ next: 'next', end: 'end', now: 'play' })[sheetOpts.mode] : undefined;
+          const ok = await postNtfy({ action: 'search_and_play', query: q, service: 'Spotify', search_type: 'tracks', rooms, target_client_id: commanderId, ...(_qm ? { queue_mode: _qm } : {}) });
+          if (ok) showToast('✓ Searching & ' + (_qm && _qm !== 'play' ? 'queueing' : 'playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
           return;
         }
       } else {
         console.log('[directPlay] No PKCE auth — falling back to search_and_play on service');
-        const ok = await postNtfy({ action: 'search_and_play', query: q, service: 'Spotify', search_type: 'tracks', rooms, target_client_id: commanderId });
-        if (ok) showToast('✓ Searching & playing: ' + (info.title || '') + ' → ' + rooms.join(', '));
+        if (sheetOpts && sheetOpts.mode === 'replace') { showToast('✗ Replace needs a resolvable URI', true); return; }
+        const _qm2 = sheetOpts ? ({ next: 'next', end: 'end', now: 'play' })[sheetOpts.mode] : undefined;
+        const ok = await postNtfy({ action: 'search_and_play', query: q, service: 'Spotify', search_type: 'tracks', rooms, target_client_id: commanderId, ...(_qm2 ? { queue_mode: _qm2 } : {}) });
+        if (ok) showToast('✓ Searching & ' + (_qm2 && _qm2 !== 'play' ? 'queueing' : 'playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
         return;
       }
     }
     const finalUri = playUri || uri;
-    const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-    const ok = await postNtfy({ action: ntfyAction, uri: finalUri, title: info.title || '', artist: info.artist || '', album: info.album || '', rooms, target_client_id: commanderId });
-    if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + (info.title || '') + ' → ' + rooms.join(', '));
+    let payload, verbToast;
+    if (sheetOpts) {
+      // p2.94: explicit sheet verbs (P0-F2 closed — mode always explicit here)
+      if (sheetOpts.mode === 'replace') {
+        payload = { action: 'replace_queue', uri: finalUri, title: info.title || '', artist: info.artist || '', room: rooms[0], rooms };
+        verbToast = '♻ Replacing queue: ';
+      } else if (sheetOpts.mode === 'now') {
+        payload = { action: 'play_next', uri: finalUri, title: info.title || '', artist: info.artist || '', album: info.album || '', rooms };
+        verbToast = '▶ Playing now: ';
+      } else {
+        payload = { action: 'add_to_queue', mode: sheetOpts.mode, uri: finalUri, title: info.title || '', artist: info.artist || '', album: info.album || '', rooms };
+        verbToast = sheetOpts.mode === 'next' ? '⏭ Playing next: ' : '⧺ Added to end: ';
+      }
+    } else {
+      payload = { action: action === 'queue' ? 'add_to_queue' : 'play_next', uri: finalUri, title: info.title || '', artist: info.artist || '', album: info.album || '', rooms };
+      verbToast = action === 'queue' ? '✓ Queued: ' : '✓ Playing: ';
+    }
+    payload.target_client_id = commanderId;
+    const ok = await postNtfy(payload);
+    if (ok) showToast(verbToast + (info.title || '') + ' → ' + rooms.join(', '));
     return;
   }
 
@@ -3700,7 +3949,7 @@ async function lookupPlaylistName(playlistUri) {
   return null;
 }
 
-async function playContext(action, encodedData) {
+async function playContext(action, encodedData, sheetOpts) {
   const info = JSON.parse(decodeURIComponent(encodedData));
   let contextUri = info.context_uri;
   const svc = (info.service || '').toLowerCase();
@@ -3713,14 +3962,31 @@ async function playContext(action, encodedData) {
   // Detect by service name OR by sonos_uri pattern (sid=31 = Qobuz, sid=204 = Apple Music)
   const isQobuz = svc.includes('qobuz') || sonosUri.includes('sid=31');
   const isApple = svc.includes('apple') || sonosUri.includes('sid=204');
+
+  // p2.94 F6: ＋ opens the queue sheet (Sonos only — F3); verbs replay with sheetOpts.
+  if (action === 'queue' && house !== 'roaming' && !sheetOpts) {
+    const isNamedAlbum = (isQobuz || isApple) && info.album;
+    const isPl = !!info.playlist_name;
+    openQueueSheet({ h: house, kind: isPl ? 'playlist' : 'album',
+      item: { title: info.playlist_name || info.album || 'Album', sub: (info.artist ? info.artist + ' · ' : '') + (isPl ? 'playlist' : 'album') + (isNamedAlbum ? ' · ' + (isQobuz ? 'Qobuz' : 'Apple Music') : ''), art: info.image || info.art || null },
+      canEnd: isNamedAlbum ? false : undefined, // play_album has no end mode — inserts after current only
+      send: (mode, coord, members) => playContext('queue', encodedData, { mode, coord, members }) });
+    return;
+  }
+
   if ((isQobuz || isApple) && info.album && house !== 'roaming') {
-    // p2.62: content-start requires explicit selection
-    const selNow = selectedRooms[house] || [];
-    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
-    const rooms = filterOfflineRooms(selNow);
-    if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    let rooms;
+    if (sheetOpts) {
+      rooms = sheetOpts.mode === 'now' ? sheetOpts.members : [sheetOpts.coord]; // D6: never regroup
+    } else {
+      // p2.62: content-start requires explicit selection
+      const selNow = selectedRooms[house] || [];
+      if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+      rooms = filterOfflineRooms(selNow);
+      if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    }
     const service = isQobuz ? 'Qobuz' : 'Apple Music';
-    console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist);
+    console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist, sheetOpts ? 'sheetMode=' + sheetOpts.mode : '');
     const label = info.album;
     showToast('Searching ' + service + '…');
     const payload = {
@@ -3731,9 +3997,17 @@ async function playContext(action, encodedData) {
       rooms,
       target_client_id: commanderId
     };
-    if (action === 'queue') payload.queue_only = true;
+    let ctxToast = '✓ ' + (action === 'queue' ? 'Queuing' : 'Playing') + ' album: ';
+    if (sheetOpts) {
+      // p2.94 sheet verbs: next→queue_only (inserts after current), replace→replace:true,
+      // now→plain play_album (rooms = full member list, _setup_rooms no-ops). 'end' is
+      // greyed in the sheet for named albums (no end mode in play_album).
+      if (sheetOpts.mode === 'replace') { payload.replace = true; ctxToast = '♻ Replacing queue with album: '; }
+      else if (sheetOpts.mode === 'now') { ctxToast = '▶ Playing album: '; }
+      else { payload.queue_only = true; ctxToast = '⏭ Album next: '; }
+    } else if (action === 'queue') payload.queue_only = true;
     const ok = await postNtfy(payload);
-    if (ok) showToast('✓ ' + (action === 'queue' ? 'Queuing' : 'Playing') + ' album: ' + label + ' → ' + rooms.join(', '));
+    if (ok) showToast(ctxToast + label + ' → ' + rooms.join(', '));
     return;
   }
 
@@ -3748,15 +4022,22 @@ async function playContext(action, encodedData) {
       // the queued album — a true queue-only Spotify album path needs a play_album
       // Spotify branch service-side (v2.54 candidate, see backlog).
       if (house !== 'roaming') {
-        const selNow = selectedRooms[house] || [];
-        if (!selNow.length) { showToast('Tap a speaker first', true); return; }
-        const rooms = filterOfflineRooms(selNow);
-        if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+        let rooms;
+        if (sheetOpts) {
+          if (sheetOpts.mode === 'replace') { showToast('✗ Replace needs a resolvable URI', true); return; } // no service-search replace
+          rooms = sheetOpts.mode === 'now' ? sheetOpts.members : [sheetOpts.coord];
+        } else {
+          const selNow = selectedRooms[house] || [];
+          if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+          rooms = filterOfflineRooms(selNow);
+          if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+        }
         const q = [info.album, info.artist].filter(Boolean).join(' ');
-        const ntfyAction = action === 'queue' ? 'search_and_queue' : 'search_and_play';
-        console.log('[playContext] No PKCE auth — falling back to ' + ntfyAction + ' on service, q=' + q);
-        const ok = await postNtfy({ action: ntfyAction, query: q, service: 'Spotify', search_type: 'albums', rooms, target_client_id: commanderId });
-        if (ok) showToast('✓ Searching & ' + (action === 'queue' ? 'queueing' : 'playing') + ' album: ' + info.album + ' → ' + rooms.join(', '));
+        const _cqm = sheetOpts ? ({ next: 'next', end: 'end', now: 'play' })[sheetOpts.mode] : undefined;
+        const ntfyAction = (sheetOpts || action !== 'queue') ? 'search_and_play' : 'search_and_queue';
+        console.log('[playContext] No PKCE auth — falling back to ' + ntfyAction + ' on service, q=' + q + (_cqm ? ' queue_mode=' + _cqm : ''));
+        const ok = await postNtfy({ action: ntfyAction, query: q, service: 'Spotify', search_type: 'albums', rooms, target_client_id: commanderId, ...(_cqm ? { queue_mode: _cqm } : {}) });
+        if (ok) showToast('✓ Searching & ' + ((_cqm && _cqm !== 'play') || (!sheetOpts && action === 'queue') ? 'queueing' : 'playing') + ' album: ' + info.album + ' → ' + rooms.join(', '));
         return;
       }
       showToast('Connect Spotify first', true); return;
@@ -3776,14 +4057,24 @@ async function playContext(action, encodedData) {
 
   // --- SONOS PATH ---
   if (house !== 'roaming') {
-    // p2.62: content-start requires explicit selection
-    const selNow = selectedRooms[house] || [];
-    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
-    const rooms = filterOfflineRooms(selNow);
-    if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
-    const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-    await postNtfy({ action: ntfyAction, uri: contextUri, title: label, rooms, target_client_id: commanderId });
-    showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + rooms.join(', '));
+    let rooms, payload, ctxVerbToast;
+    if (sheetOpts) {
+      rooms = sheetOpts.mode === 'now' ? sheetOpts.members : [sheetOpts.coord]; // D6: never regroup
+      if (sheetOpts.mode === 'replace') { payload = { action: 'replace_queue', uri: contextUri, title: label, room: rooms[0], rooms }; ctxVerbToast = '♻ Replacing queue: '; }
+      else if (sheetOpts.mode === 'now') { payload = { action: 'play_next', uri: contextUri, title: label, rooms }; ctxVerbToast = '▶ Playing now: '; }
+      else { payload = { action: 'add_to_queue', mode: sheetOpts.mode, uri: contextUri, title: label, rooms }; ctxVerbToast = sheetOpts.mode === 'next' ? '⏭ Playing next: ' : '⧺ Added to end: '; }
+    } else {
+      // p2.62: content-start requires explicit selection
+      const selNow = selectedRooms[house] || [];
+      if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+      rooms = filterOfflineRooms(selNow);
+      if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+      payload = { action: action === 'queue' ? 'add_to_queue' : 'play_next', uri: contextUri, title: label, rooms };
+      ctxVerbToast = action === 'queue' ? '✓ Queued: ' : '✓ Playing: ';
+    }
+    payload.target_client_id = commanderId;
+    await postNtfy(payload);
+    showToast(ctxVerbToast + label + ' → ' + rooms.join(', '));
     return;
   }
 
@@ -3812,12 +4103,23 @@ async function playContext(action, encodedData) {
 }
 
 let _lastDiscoveryPlay = 0;
-async function playDiscovery(action, uri, label) {
+async function playDiscovery(action, uri, label, sheetOpts) {
   if (!uri) { showToast('No URI', true); return; }
-  // Throttle: prevent rapid taps (600ms)
-  const now = Date.now();
-  if (now - _lastDiscoveryPlay < 600) { console.log('[playDiscovery] throttled'); return; }
-  _lastDiscoveryPlay = now;
+  if (!sheetOpts) { // sheet verb replays skip the tap throttle (E9: sheet close is the guard)
+    // Throttle: prevent rapid taps (600ms)
+    const now = Date.now();
+    if (now - _lastDiscoveryPlay < 600) { console.log('[playDiscovery] throttled'); return; }
+    _lastDiscoveryPlay = now;
+  }
+  // p2.94 F6: ＋ opens the queue sheet (Sonos only — F3). P0-F5: discovery URIs can be
+  // containers through this funnel — kind derives from the URI, hints never assume track.
+  if (action === 'queue' && house !== 'roaming' && !sheetOpts) {
+    const kind = uri.includes(':album:') ? 'album' : uri.includes(':playlist:') ? 'playlist' : 'track';
+    openQueueSheet({ h: house, kind,
+      item: { title: label || kind, sub: kind, art: null },
+      send: (mode, coord, members) => playDiscovery('queue', uri, label, { mode, coord, members }) });
+    return;
+  }
 
   if (house === 'roaming') {
     if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
@@ -3856,15 +4158,25 @@ async function playDiscovery(action, uri, label) {
   }
 
   // Sonos
-  // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
-  const selNow = selectedRooms[house] || [];
-  if (!selNow.length) { showToast('Tap a speaker first', true); return; }
-  const rooms = filterOfflineRooms(selNow);
-  if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
-  // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
-  const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-  const ok = await postNtfy({ action: ntfyAction, uri, title: label, rooms, target_client_id: commanderId });
-  if (ok) showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label + ' → ' + house + ':' + rooms.join(', '));
+  let rooms, payload, dVerbToast;
+  if (sheetOpts) {
+    rooms = sheetOpts.mode === 'now' ? sheetOpts.members : [sheetOpts.coord]; // D6: never regroup
+    if (sheetOpts.mode === 'replace') { payload = { action: 'replace_queue', uri, title: label, room: rooms[0], rooms }; dVerbToast = '♻ Replacing queue: '; }
+    else if (sheetOpts.mode === 'now') { payload = { action: 'play_next', uri, title: label, rooms }; dVerbToast = '▶ Playing now: '; }
+    else { payload = { action: 'add_to_queue', mode: sheetOpts.mode, uri, title: label, rooms }; dVerbToast = sheetOpts.mode === 'next' ? '⏭ Playing next: ' : '⧺ Added to end: '; }
+  } else {
+    // p2.62: content-start requires explicit selection — no inferred targeting (hijack fix)
+    const selNow = selectedRooms[house] || [];
+    if (!selNow.length) { showToast('Tap a speaker first', true); return; }
+    rooms = filterOfflineRooms(selNow);
+    if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
+    payload = { action: action === 'queue' ? 'add_to_queue' : 'play_next', uri, title: label, rooms };
+    dVerbToast = action === 'queue' ? '✓ Queued: ' : '✓ Playing: ';
+  }
+  payload.target_client_id = commanderId;
+  const ok = await postNtfy(payload);
+  if (ok) showToast(dVerbToast + label + ' → ' + house + ':' + rooms.join(', '));
 }
 
 // Find existing exploration card for an artist. Returns card index or -1.
@@ -4962,12 +5274,11 @@ function handleDeepLink() {
       if (action === 'queue') await playDiscovery('queue', uri, label);
       else await playDiscovery('play', uri, label);
     } else {
-      // p2.62: content-start requires explicit selection — deep links included
-      const rooms = selectedRooms[house] || [];
-      if (!rooms.length) { showToast('Tap a speaker first', true); return; }
-      const ntfyAction = action === 'queue' ? 'add_to_queue' : 'play_next';
-      const ok = await postNtfy({ action: ntfyAction, uri, title: decodeURIComponent(label), rooms, target_client_id: commanderId });
-      if (ok) showToast('✓ ' + decodeURIComponent(label) + ' → ' + rooms.join(', '));
+      // p2.94 P0-F3: route through directPlay — gains the offline-room filter,
+      // selection checks, search fallback, and the ＋ sheet (F6), like every
+      // other callsite. (Was: raw postNtfy that bypassed all of them.)
+      const info = { uri, title: decodeURIComponent(label) };
+      await directPlay(action === 'queue' ? 'queue' : 'play', encodeURIComponent(JSON.stringify(info)));
     }
   }, 500);
 }
