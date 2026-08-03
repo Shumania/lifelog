@@ -1028,7 +1028,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.92';
+const PAGE_VERSION = 'p2.93';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1716,6 +1716,7 @@ const _qexpOpen = {};     // per house: expando open state (persisted, U2)
 const _qRefetchLast = {}; // per-house SSE-triggered refetch throttle
 
 function _queueOnStateFiles(stateFiles) {
+  _hdrFromStateFiles(stateFiles); // p2.93: header versions ride every state-file fetch
   for (const [h, state] of Object.entries(stateFiles || {})) {
     if (!state || !state.queue_summary) continue; // pre-2.57 service or no data
     _queueState[h] = { qs: state.queue_summary, last_updated: state.last_updated || '', fetched_at: Date.now() };
@@ -1723,6 +1724,38 @@ function _queueOnStateFiles(stateFiles) {
   }
 }
 function _queueRefetch() { fetchStateFiles().then(_queueOnStateFiles).catch(e => console.warn('[queue] refetch failed', e)); }
+
+// p2.93 fix 1: any queue-mutating command sent from THIS page schedules refetches so the
+// expando follows its own edits (bug: ＋-added tracks invisible until manual reload).
+// Pacing: service debounce-hb pushes state ~75s post-command; Pages deploy adds ~1-3m.
+const _QUEUE_VERBS = new Set(['add_to_queue','play_album','play_track','play_playlist','play_uri',
+  'play_spotify_uri','search_and_play','replace_queue','truncate_queue','clear_queue','play_next']);
+let _qCatchupTimers = [];
+function _queueScheduleCatchup() {
+  _qCatchupTimers.forEach(clearTimeout);
+  _qCatchupTimers = [20000, 100000, 220000].map(ms => setTimeout(_queueRefetch, ms));
+  console.log('[queue] catch-up refetches scheduled (20s/100s/220s)');
+}
+
+// p2.93 fix 2: header machine version + liveness read from state files (service→GitHub
+// direct path). Rule 27: level-triggered — an open agent session queueing heartbeat
+// processing can no longer make the header lie (2026-08-02 incident: Mind showed red
+// v2.56.0 while live on v2.57.0). last_seen only ever moves forward.
+function _hdrFromStateFiles(stateFiles) {
+  if (!data || !data.client_status) return;
+  let dirty = false;
+  for (const [h, st] of Object.entries(stateFiles)) {
+    if (!st || !st.version) continue;
+    const c = data.client_status.find(s => s.house === h && s.sonos_commander) ||
+              data.client_status.find(s => s.house === h);
+    if (!c) continue;
+    if (c.version !== st.version) { c.version = st.version; dirty = true; }
+    const ts = st.last_updated ? new Date(st.last_updated).getTime() : 0;
+    const prev = c.last_seen ? new Date(c.last_seen).getTime() : 0;
+    if (ts > prev) { c.last_seen = new Date(ts).toISOString(); dirty = true; }
+  }
+  if (dirty) { console.log('[hdr] patched from state files'); renderStatusBar(); }
+}
 
 // MG5-safe target resolver (design §2.3): selection → owning group's coordinator;
 // else single known queue; else live playing rooms' coordinator; else newest loaded_at.
@@ -1809,6 +1842,7 @@ async function postNtfy(payload) {
     console.log('[postNtfy] ntfy status=' + r.status);
     showToast('→ ' + house + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (_QUEUE_VERBS.has(payload.action)) _queueScheduleCatchup(); // p2.93: expando follows queue edits
     return true;
   } catch(e) {
     console.error('[postNtfy] FAILED:', e);
@@ -4160,8 +4194,8 @@ function connectSSE() {
         // data now (age-honest) and re-fetch the state file throttled so numbers catch up.
         try {
           renderQueueLine(sseHouse);
-          if ((events.includes('now_playing') || events.includes('stopped')) &&
-              Date.now() - (_qRefetchLast[sseHouse] || 0) > 45000) {
+          if ((events.includes('now_playing') || events.includes('stopped') || events.includes('status_update')) &&
+              Date.now() - (_qRefetchLast[sseHouse] || 0) > 45000) { // p2.93: +status_update (post-command pushes)
             _qRefetchLast[sseHouse] = Date.now();
             setTimeout(_queueRefetch, 15000); // give service push + Pages deploy a head start
           }
