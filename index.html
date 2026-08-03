@@ -46,16 +46,18 @@
   .status-dot.yellow { background: #eab308; }
   .status-dot.red { background: #f87171; }
 
-  .house-tabs { display: flex; gap: 0; padding: 10px 16px 0; }
-  .house-tab {
-    padding: 8px 20px; font-size: 13px; font-weight: 600;
-    cursor: pointer; border: 1px solid var(--border); border-bottom: none;
-    border-radius: 8px 8px 0 0; background: transparent;
-    color: var(--tab-inactive); transition: all 0.15s;
+  /* p2.95: house tabs row replaced by a compact dropdown next to the title (vertical space) */
+  .house-select {
+    -webkit-appearance: none; appearance: none;
+    background: var(--surface2) url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center;
+    color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; font-weight: 600; padding: 4px 24px 4px 9px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
-  .house-tab.active { background: var(--surface2); color: var(--tab-active); border-color: var(--tab-active); border-bottom: 1px solid var(--surface2); }
-  .house-tab:not(.active):hover { color: var(--text); background: var(--surface2); }
-
+  .house-select:focus { outline: none; border-color: var(--accent2); }
+  /* Another house is playing — tint the border as the cue (replaces the old tab ▶ dot) */
+  .house-select.other-playing { border-color: var(--accent); }
+  .th-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .house-panel { background: var(--surface2); border-top: 1px solid var(--border); padding: 12px 16px 14px; }
   .house-panel[hidden] { display: none; }
 
@@ -150,6 +152,9 @@
   .pc-ghost-btn.primary { border-color: var(--accent2); color: var(--accent2); }
   /* p2.82: durable API-block note on Spotify-owned ghost cards */
   .pc-ghost-blocked { color: var(--text-dim); font-size: 12px; opacity: 0.85; cursor: help; }
+  /* p2.95: blocked cards get a doorway — deep-link into the Spotify app/web */
+  .pc-open-spotify { color: var(--accent2); text-decoration: none; white-space: nowrap; }
+  .pc-open-spotify:hover { text-decoration: underline; }
   /* p2.86: blocked ghost cards render compact — less visual weight than real playlists */
   .playlist-card.blocked { opacity: 0.7; }
   .playlist-card.blocked .pc-header { padding: 5px 12px; min-height: 40px; gap: 10px; }
@@ -173,7 +178,11 @@
   /* p2.72: Days-ledger locus icons (multi-locus days only, GAP B) */
   .sh-dr-loci { font-size: 11px; opacity: 0.65; margin-left: 5px; white-space: nowrap; }
 
-  .room-selector { display: flex; flex-wrap: wrap; gap: 10px 7px; align-items: center; margin: 10px 0 4px; }
+  /* p2.95: chips + ⊙ Playing/Grouped buttons share ONE flex-wrap flow — buttons sit inline
+     after the last chip when there's room, wrap to their own line when there isn't.
+     display:contents flattens the render container so its chips join the row's flow. */
+  .room-selector-row { display: flex; flex-wrap: wrap; gap: 10px 7px; align-items: center; margin: 10px 0 4px; }
+  .room-selector { display: contents; }
   .room-chip {
     font-size: 12px; padding: 5px 12px; border-radius: 16px;
     border: 1px solid var(--border); background: var(--surface);
@@ -204,11 +213,9 @@
   .demoted-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-left: 4px; user-select: none; }
   .sync-rooms-btn.select-playing { border-color: var(--text-dim); color: var(--text-dim); background: transparent; margin-right: 8px; }
   .sync-rooms-btn.select-playing:hover { border-color: var(--accent); color: var(--accent); background: rgba(74,222,128,0.10); }
-  /* p2.62: ▶ dot on an INACTIVE house tab whose speakers are playing (replaces removed auto-flip) */
-  .house-tab .tab-play-dot { display: none; margin-left: 4px; font-size: 9px; color: var(--accent); }
-  .house-tab.has-playing:not(.active) .tab-play-dot { display: inline; }
+  /* p2.95: old .house-tab ▶ dot rules removed — cue now lives on .house-select.other-playing */
   .sync-rooms-btn {
-    margin-top: 8px; padding: 6px 16px; border-radius: 16px;
+    padding: 6px 16px; border-radius: 16px; /* p2.95: margin-top dropped — row gap spaces it inline with chips */
     border: 1px solid var(--accent); background: rgba(74,222,128,0.10);
     color: var(--accent); font-size: 12px; cursor: pointer;
     transition: all 0.15s; -webkit-tap-highlight-color: transparent;
@@ -868,13 +875,16 @@
 <!-- ==================== TOP SECTION ==================== -->
 <div class="top-section">
   <div class="top-header">
-    <h1>🎵 Listening Log</h1>
+    <!-- p2.95: house tabs row folded into a dropdown beside the title (reclaims a vertical line) -->
+    <div class="th-left">
+      <h1>🎵 Listening Log</h1>
+      <select class="house-select" id="house-select" onchange="setHouse(this.value,true)" title="Switch house">
+        <option value="caphill">🏠 Cap Hill</option>
+        <option value="vashon">🏝 Vashon</option>
+        <option value="roaming">📱 Roaming</option>
+      </select>
+    </div>
     <div class="status-dots" id="status-bar"></div>
-  </div>
-  <div class="house-tabs">
-    <div class="house-tab active" data-house="caphill" onclick="setHouse('caphill',true)">🏠 Cap Hill<span class="tab-play-dot">▶</span></div>
-    <div class="house-tab" data-house="vashon" onclick="setHouse('vashon',true)">🏝 Vashon<span class="tab-play-dot">▶</span></div>
-    <div class="house-tab" data-house="roaming" onclick="setHouse('roaming',true)">📱 Roaming</div>
   </div>
 
   <!-- Cap Hill panel -->
@@ -911,9 +921,12 @@
       <span class="q-chev" id="qchev-caphill">›</span>
     </div>
     <div class="q-inline-expand" id="qexp-caphill"></div>
-    <div class="room-selector" id="rooms-caphill"></div>
-    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
-    <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
+    <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
+    <div class="room-selector-row">
+      <div class="room-selector" id="rooms-caphill"></div>
+      <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
+      <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
+    </div>
   </div>
 
   <!-- Vashon panel -->
@@ -950,9 +963,12 @@
       <span class="q-chev" id="qchev-vashon">›</span>
     </div>
     <div class="q-inline-expand" id="qexp-vashon"></div>
-    <div class="room-selector" id="rooms-vashon"></div>
-    <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
-    <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
+    <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
+    <div class="room-selector-row">
+      <div class="room-selector" id="rooms-vashon"></div>
+      <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
+      <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
+    </div>
   </div>
 
   <!-- Roaming panel -->
@@ -1071,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.94';
+const PAGE_VERSION = 'p2.95';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1409,7 +1425,9 @@ async function spotifyApi(method, path, body, _authRetries) {
 function setHouse(h, isUserClick) {
   house = h;
   localStorage.setItem('ll_house', h);
-  document.querySelectorAll('.house-tab').forEach(t => t.classList.toggle('active', t.dataset.house === h));
+  // p2.95: tabs row → dropdown; keep the select in sync when setHouse is called programmatically
+  var _hsel = document.getElementById('house-select');
+  if (_hsel && _hsel.value !== h) _hsel.value = h;
   document.querySelectorAll('.house-panel').forEach(p => p.hidden = true);
   document.getElementById('panel-' + h).hidden = false;
   updateCommander();
@@ -1563,16 +1581,25 @@ function selectPlaying(h) {
   selectedRooms[h] = target;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
   renderRooms(h);
+  _queueRefetch(); // p2.95: ⊙ doubles as "sync my view to reality" — refresh queue/state view too
   showToast('\u2299 Selected: ' + target.join(', '));
 }
 
-// p2.62: ▶ dot on inactive house tabs with live playback (replaces removed auto tab flip)
+// p2.62: ▶ cue for a house with live playback (was tab dots; p2.95: now the dropdown).
+// Option labels get a ▶ suffix (visible when the picker is open); if a NON-selected
+// house is playing, the closed select's border tints accent as the at-a-glance cue.
 function updateHouseTabDots() {
-  document.querySelectorAll('.house-tab').forEach(t => {
-    const th = t.dataset.house;
-    if (th === 'roaming') return;
-    t.classList.toggle('has-playing', (_roomsPlayingByHouse[th] || []).length > 0);
-  });
+  const sel = document.getElementById('house-select');
+  if (!sel) return;
+  const labels = { caphill: '🏠 Cap Hill', vashon: '🏝 Vashon', roaming: '📱 Roaming' };
+  let otherPlaying = false;
+  for (const opt of sel.options) {
+    const th = opt.value;
+    const playing = th !== 'roaming' && (_roomsPlayingByHouse[th] || []).length > 0;
+    opt.textContent = labels[th] + (playing ? ' ▶' : '');
+    if (playing && th !== house) otherPlaying = true;
+  }
+  sel.classList.toggle('other-playing', otherPlaying);
 }
 
 function toggleRoom(h, room) {
@@ -5161,8 +5188,14 @@ function renderPlaylists() {
     // p2.86: API-blocked ghosts render as compact low-emphasis cards — the 🚫 note lives
     // in the meta line instead of a separate actions row (they grabbed the eye but are
     // the least interesting cards on the tab).
-    var isBlocked = isGhost && !!p.fetch_error;
-    var meta = isBlocked ? '\ud83d\udeab Spotify blocks apps' : (isGhost ? 'public playlist' : (p.tracks_total || 0) + ' tracks');
+    // p2.95: PRE-stamp Spotify-owned editorial/algorithmic ghosts — every Spotify-generated
+    // playlist ID starts with '37i9dQZ' ("This Is …", "… Radio", mixes, Discover Weekly).
+    // The read API blocks them all (late 2024), so don't wait for a doomed fetch to fail.
+    var isBlocked = isGhost && (!!p.fetch_error || /^37i9dQZ/.test(p.id || ''));
+    // p2.95: blocked ≠ dead end — deep-link to the Spotify app/web, which still shows them fine.
+    var meta = isBlocked
+      ? '\ud83d\udeab Spotify blocks apps \u00b7 <a class="pc-open-spotify" href="https://open.spotify.com/playlist/' + esc(p.id) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open in Spotify \u2197</a>'
+      : (isGhost ? 'public playlist' : (p.tracks_total || 0) + ' tracks');
     if (p.created_approx) {
       var d = new Date(p.created_approx);
       meta += ' \u00b7 ' + d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
@@ -5199,7 +5232,7 @@ function renderPlaylists() {
       // p2.82: Spotify-owned editorial/algorithmic playlists are API-blocked (late 2024) —
       // show the durable failure instead of doomed Fetch/Add buttons. Play/Queue still work
       // (playback goes through Sonos, not the blocked read API).
-      if (p.fetch_error) {
+      if (isBlocked) { // p2.95: covers both stamped fetch_error AND pre-stamped 37i9dQZ editorial IDs
         // p2.86: no actions row for blocked ghosts — 🚫 note folded into the meta line above,
         // full explanation lives in the header title tooltip. Compact card, less eye-grab.
       } else if (_ghostPending(p.id)) {
