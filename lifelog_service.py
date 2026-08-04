@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.57.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.58.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -337,6 +337,86 @@ try:
 except Exception as _qp_err:
     print(f"[queue-prov] WARNING: failed to load queue_provenance.json: {_qp_err}")
 
+# --- STALE-QUEUE GUARD (v2.58 Phase B) ----------------------------------------
+# DESIGN (design_v258_release_plan.md SS4, decisions LOCKED 2026-08-04):
+# Insert verbs (play_next, add_to_queue insert-next mode, play_album non-replace)
+# on a STOPPED coordinator whose queue has been untouched > 24h silently convert
+# the insert into a queue REPLACE (proven load-then-trim), so playback can never
+# flow into forgotten leftovers. Live incident 2026-08-03: a day-old 9-row queue
+# swallowed an album insert and leaked Sister Sledge/MJQ when the album ended.
+# "Touched" = last service queue mutation on that coordinator OR last observed
+# PLAYING transport activity, whichever is newer. Persisted per-coordinator so
+# it survives service restarts. When age is unknowable (no record), treat as
+# STALE -- unknown old queues are exactly the hazard (D1 = 24h).
+# D2 (locked): add_to_queue in end/append mode NEVER converts -- stays literal.
+queue_touched_at        = {}   # coordinator name -> epoch of last queue touch
+QUEUE_TOUCHED_PATH      = INSTALL_DIR / "queue_touched.json"
+STALE_QUEUE_THRESHOLD_S = 24 * 3600   # D1 (locked 2026-08-04): 24 hours
+_queue_touched_lock     = threading.Lock()
+_queue_touched_last_persist = 0.0
+
+def _persist_queue_touched():
+    """Write the per-coordinator touch stamps to disk. Callers hold
+    _queue_touched_lock. Failure is loud but non-fatal (worst case: a stamp
+    is lost across restart and the guard errs toward STALE, the safe side)."""
+    global _queue_touched_last_persist
+    try:
+        QUEUE_TOUCHED_PATH.write_text(json.dumps(queue_touched_at), encoding="utf-8")
+        _queue_touched_last_persist = time.time()
+    except Exception as _qt_err:
+        log(f"[stale-guard] WARNING: persist of queue_touched.json did not succeed: {_qt_err}")
+
+def _touch_queue(coord_name, reason="", persist=True):
+    """Stamp coord_name's queue as freshly touched (service queue mutation or
+    observed PLAYING transport). persist=False (poll-loop PLAYING observations,
+    every ~15s) throttles disk writes to one per 60s -- a stamp that is 60s
+    stale on disk is irrelevant against a 24h threshold."""
+    if not coord_name:
+        return
+    with _queue_touched_lock:
+        queue_touched_at[coord_name] = time.time()
+        if persist or (time.time() - _queue_touched_last_persist) > 60:
+            _persist_queue_touched()
+    if reason:
+        log(f"[stale-guard] {coord_name}: queue touched ({reason})")
+
+def _fmt_queue_age(age_s):
+    """Human age string for stale-guard honesty lines, e.g. '2d 4h' / '3h 12m'."""
+    try:
+        age_s = int(age_s)
+        d, rem = divmod(age_s, 86400)
+        h, rem = divmod(rem, 3600)
+        m = rem // 60
+        if d > 0:
+            return f"{d}d {h}h"
+        if h > 0:
+            return f"{h}h {m}m"
+        return f"{m}m"
+    except Exception:
+        return "?"
+
+def _queue_is_stale(coord_name):
+    """Return (is_stale, age_str). Stale = untouched > STALE_QUEUE_THRESHOLD_S.
+    No record at all -> (True, 'unknown age') -- the unknown-old-queue hazard."""
+    with _queue_touched_lock:
+        ts = queue_touched_at.get(coord_name)
+    if not ts:
+        return True, "unknown age"
+    age = time.time() - ts
+    return (age > STALE_QUEUE_THRESHOLD_S), _fmt_queue_age(age)
+
+try:
+    if QUEUE_TOUCHED_PATH.exists():
+        _qt_loaded = json.loads(QUEUE_TOUCHED_PATH.read_text(encoding="utf-8"))
+        if isinstance(_qt_loaded, dict):
+            queue_touched_at.update({k: float(v) for k, v in _qt_loaded.items()})
+    print(f"[stale-guard] loaded {len(queue_touched_at)} queue-touch stamp(s) from disk")
+except Exception as _qt_err:
+    print(f"[stale-guard] WARNING: failed to load queue_touched.json: {_qt_err} (all queues treated as stale until touched)")
+# v2.58 boot banner (Rule 24 SS3 / release checklist: verify a log line UNIQUE
+# to the new version post-update). Deterministic -- do not reword.
+print("[stale-guard] armed: threshold=24h")
+
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
 # Browser loads this on cold start for instant cross-device now-playing and recent tracks.
@@ -543,6 +623,10 @@ def _build_state_payload():
         "rooms_paused": list(_poll_snapshot.get("rooms_paused", [])),
         "paused_at": dict(_poll_snapshot.get("paused_at", {})),  # v2.54 rider
         "rooms_all": list(_poll_snapshot.get("rooms_all", [])),
+        # v2.58 A6: full group topology (coordinator + members + transport state)
+        # so cold-load UIs stop falling back to now_playing.rooms for member
+        # chips. Level-triggered: published on EVERY push (Rule 27).
+        "groups": list(_poll_snapshot.get("groups", [])),
         "queue_summary": _build_queue_summary(),  # v2.57 queue management (§3.3)
         "recent_tracks": list(_state_ring_buffer),
     }
@@ -666,8 +750,12 @@ _CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the deb
 _command_results = deque(maxlen=_CMD_RESULTS_MAX)
 _command_results_lock = threading.Lock()
 
-def record_command_result(action, success, message, cmd_ts=None, detail=None):
-    """Append a structured command outcome to the ring buffer."""
+def record_command_result(action, success, message, cmd_ts=None, detail=None, queue_op=None):
+    """Append a structured command outcome to the ring buffer.
+    v2.58 A7: queue_op (optional dict) carries coordinator / group_members /
+    transport_state / queue_before / queue_after / pos_landed / converted_from
+    for queue-affecting verbs, so heartbeat command_results are self-describing
+    about WHOSE queue was touched (silent verbs never POST a full result)."""
     entry = {
         "action": action,
         "status": "ok" if success else "error",
@@ -678,12 +766,21 @@ def record_command_result(action, success, message, cmd_ts=None, detail=None):
         entry["cmd_ts"] = cmd_ts
     if detail:
         entry["detail"] = detail
-    with _command_results_lock:
-        _command_results.append(entry)
-    # v2.49 delta delivery: count every appended result
+    if queue_op:
+        entry["queue_op"] = queue_op
+    # v2.58 A4 FIX (lost clear_queue result, 2026-08-04 03:12Z): seq is assigned
+    # AND the entry appended under ONE _delta_lock hold, so build_delta_fields
+    # (which snapshots counters + deque under the same lock) can never observe a
+    # counted-but-absent entry. Root cause of the loss: the delta builder sliced
+    # the deque by COUNT (all_cmds[-cship:]) -- a result appended between the
+    # counter snapshot and the deque read displaced an older undelivered entry,
+    # which was then committed as delivered without ever shipping.
     global _cmd_total
     with _delta_lock:
         _cmd_total += 1
+        entry["seq"] = _cmd_total
+        with _command_results_lock:
+            _command_results.append(entry)
 
 def get_command_results():
     """Return recent command results for embedding in heartbeats."""
@@ -726,6 +823,11 @@ def build_delta_fields(boot=False):
     with _delta_lock:
         lt, et, ct = _log_total, _err_total, _cmd_total
         ld, ed, cd = _log_delivered, _err_delivered, _cmd_delivered
+        # v2.58 A4: snapshot the results deque under the SAME lock hold as the
+        # counters -- entries are appended with their seq under this lock, so
+        # every seq <= ct is guaranteed present in this snapshot.
+        with _command_results_lock:
+            _cmds_snapshot = list(_command_results)
     fields = {}
     delta_meta = {}
     # Logs
@@ -747,14 +849,18 @@ def build_delta_fields(boot=False):
     delta_meta["errors_new"] = err_new
     if err_new > eship:
         delta_meta["errors_suppressed"] = err_new - eship
-    # Command results
+    # Command results -- v2.58 A4: seq-windowed selection replaces count-based
+    # slicing. Only entries with cd < seq <= ct ship; entries appended DURING
+    # payload assembly (seq > ct) are excluded here and excluded from the
+    # commit, so they ship on the next POST instead of being silently skipped.
     cmd_new = max(0, ct - cd)
-    cship = min(cmd_new, _CMD_DELTA_MAX)
-    all_cmds = get_command_results()
-    fields["command_results"] = all_cmds[-cship:] if cship else []
+    _cmd_undelivered = [e for e in _cmds_snapshot if cd < e.get("seq", 0) <= ct]
+    cship = min(len(_cmd_undelivered), _CMD_DELTA_MAX)
+    fields["command_results"] = _cmd_undelivered[-cship:] if cship else []
     delta_meta["cmds_new"] = cmd_new
     if cmd_new > cship:
         delta_meta["cmds_suppressed"] = cmd_new - cship
+        log(f"[delta] command results over cap or evicted: shipping {cship} of {cmd_new} undelivered (get_logs dump has the full ring)")
     fields["delta"] = delta_meta
     return fields, (lt, et, ct)
 
@@ -1111,6 +1217,10 @@ def _build_poll_snapshot(coordinators):
                     modes[name] = mode
                 except Exception:
                     pass
+                # v2.58 Phase B: observed PLAYING transport counts as a queue
+                # touch (a playing queue is by definition not stale). persist=False
+                # -> in-memory stamp every poll, disk write throttled to 60s.
+                _touch_queue(name, persist=False)
                 # Coordinator is playing -- add it and all grouped members.
                 # v2.36: Simplified — use dev.group.members directly (same as get_track_info).
                 # Old IP-verification code silently dropped members when SoCo cache was stale.
@@ -2078,6 +2188,13 @@ def backup_thread():
 
 def _backup_thread_inner():
     extract = INSTALL_DIR / "lifelog_extract.py"
+    # v2.58 A5: the iPhone-backup pipeline is on hold (2026-07-28), so
+    # lifelog_extract.py prints "ERROR: No iPhone backup found" EVERY hourly run
+    # -- pure log noise that lands in the error ring. Demote to a once-per-boot
+    # informational note (worded to dodge _ERROR_KEYWORDS). The extractor itself
+    # (cursor/hash/mtime/config) is protected and deliberately untouched; we
+    # only filter the echo on the service side.
+    _no_backup_noted = {"done": False}
 
     def run_extract():
         if not extract.exists():
@@ -2092,8 +2209,15 @@ def _backup_thread_inner():
             )
             output = ((result.stdout or "") + (result.stderr or "")).strip()
             for line in output.split("\n"):
-                if line.strip():
-                    log(f"  [extract] {line}")
+                if not line.strip():
+                    continue
+                if "No iPhone backup found" in line:
+                    # v2.58 A5: hourly noise -> once-per-boot note (see above)
+                    if not _no_backup_noted["done"]:
+                        _no_backup_noted["done"] = True
+                        log("  [extract] note: no iPhone backup present -- extractor idle (further hourly repeats suppressed this boot)")
+                    continue
+                log(f"  [extract] {line}")
             if result.returncode not in (0, 1):
                 post_error(
                     f"lifelog_extract.py exited {result.returncode}",
@@ -2205,6 +2329,13 @@ def _verified_queue_add(coord, add_fn, intended_pos, label="", num_tracks=1):
     N. Pass 0/None for unknown count -> mismatch becomes degraded (no blind move).
     """
     actual = add_fn()
+    # v2.58 Phase B: any successful service queue add freshens the stale-guard
+    # stamp for this coordinator (add_fn raises on failure, so we only get here
+    # when the mutation landed).
+    try:
+        _touch_queue(coord.player_name)
+    except Exception as _tq_err:
+        log(f"[stale-guard] touch after add did not succeed (benign no-op): {_tq_err}")
     try:
         actual = int(actual)
     except (TypeError, ValueError):
@@ -2217,6 +2348,28 @@ def _verified_queue_add(coord, add_fn, intended_pos, label="", num_tracks=1):
     if not num_tracks:
         log(f"[queue-verify]{label} unknown track count for container; NOT reordering -> degraded")
         return actual, "degraded"
+    # v2.58 A9: container adds expand ASYNCHRONOUSLY -- FirstTrackNumberEnqueued
+    # can return before all N rows exist, and a reorder issued then moves a
+    # PARTIAL span. Verify the expansion is complete (queue holds rows through
+    # actual+num_tracks-1) before reordering; on timeout skip the reorder and
+    # say so, rather than guessing.
+    if int(num_tracks) > 1:
+        _want_end = actual + int(num_tracks) - 1
+        _exp_deadline = time.time() + 5.0
+        _got_size = None
+        while time.time() < _exp_deadline:
+            try:
+                _got_size = int(coord.queue_size)
+            except Exception as _qs_err:
+                log(f"[queue-verify]{label} expansion check read of queue_size did not succeed: {_qs_err}")
+                _got_size = None
+            if _got_size is not None and _got_size >= _want_end:
+                break
+            time.sleep(0.5)
+        if _got_size is None or _got_size < _want_end:
+            _have = max(0, (_got_size or 0) - actual + 1)
+            log(f"[queue-op] reorder skipped: expansion incomplete ({_have}/{num_tracks})")
+            return actual, "degraded"
     try:
         coord.avTransport.ReorderTracksInQueue([
             ("InstanceID", 0),
@@ -2230,6 +2383,70 @@ def _verified_queue_add(coord, add_fn, intended_pos, label="", num_tracks=1):
     except Exception as re_err:
         log(f"[queue-verify]{label} reorder FAILED ({re_err}); track(s) remain at {actual} -> degraded")
         return actual, "degraded"
+
+
+def _queue_op_log(verb, target, coordinator, transport_state="", queue_before=None,
+                  queue_after=None, pos_requested=None, pos_landed=None):
+    """v2.58 A7 (coordinator transparency, awareness half): one consistent
+    [queue-op] log line on every queue-affecting verb, and the same fields
+    returned as a dict for the command-result payload. When target != acting
+    coordinator (slaved room), the result SAYS so -- any future UX warning is a
+    pure rendering decision over these fields (Rule 27: messages carry state).
+    NEVER raises -- transparency must not break the verb."""
+    try:
+        cname = getattr(coordinator, "player_name", "?")
+        members = [cname]
+        try:
+            if coordinator.group:
+                members = sorted(set(m.player_name for m in coordinator.group.members
+                                     if getattr(m, "is_visible", True)))
+        except Exception as _gm_err:
+            log(f"[queue-op] group member read did not succeed (using coordinator only): {_gm_err}")
+        if not transport_state:
+            try:
+                transport_state = coordinator.get_current_transport_info().get("current_transport_state", "?")
+            except Exception:
+                transport_state = "?"
+        log(f"[queue-op] verb={verb} target={target} coordinator={cname} group={members} "
+            f"transport={transport_state} queue_before={queue_before} queue_after={queue_after} "
+            f"pos_requested={pos_requested} pos_landed={pos_landed}")
+        return {"coordinator": cname, "group_members": members,
+                "transport_state": transport_state, "queue_before": queue_before,
+                "queue_after": queue_after, "pos_requested": pos_requested,
+                "pos_landed": pos_landed}
+    except Exception as _qol_err:
+        log(f"[queue-op] transparency logging did not succeed (benign no-op): {_qol_err}")
+        return {}
+
+
+def _load_then_trim(coordinator, add_fn, label="", num_tracks=1):
+    """v2.58: shared LOAD-THEN-TRIM queue replace -- the exact pattern proven in
+    v2.57 replace_queue (append new content at the END first, so an add failure
+    leaves the old queue untouched; then remove the old rows; then play the new
+    content). Used by the Phase B stale-queue conversion paths so they reuse the
+    proven internals instead of reimplementing.
+    Returns (first_new_pos, placement, trim_failed). Raises if the add fails
+    (old queue untouched in that case -- caller's outer except reports it)."""
+    old_len = coordinator.queue_size
+    with _queue_mutation_timeout():
+        pos, placement = _verified_queue_add(coordinator, add_fn, None,
+                                             label=label, num_tracks=num_tracks)
+    first_new = pos or (old_len + 1)
+    log(f"[queue-op]{label} load-then-trim: appended at {first_new} (old queue {old_len} rows), trimming old rows")
+    trim_failed = False
+    if old_len > 0:
+        try:
+            coordinator.avTransport.RemoveTrackRangeFromQueue([
+                ("InstanceID", 0), ("UpdateID", 0),
+                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
+        except Exception as _tr_err:
+            # E12 pattern: add landed, trim failed -- play the new content from
+            # where it actually lives; stale rows linger above and the next
+            # replace/clear sweeps them. Honest WARN, never a green lie.
+            trim_failed = True
+            log(f"[queue-op]{label} WARNING -- trim of {old_len} old rows failed ({_tr_err}); playing new content at {first_new}")
+    coordinator.play_from_queue(0 if not trim_failed else first_new - 1)
+    return first_new, placement, trim_failed
 
 
 # v2.54 B2: Spotify Web API client-credentials app token.
@@ -2988,6 +3205,28 @@ def _find_coordinator(cmd, devices):
     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
     return coordinator, rooms
 
+def _verify_group_settle(dev, intended_coord, timeout=5.0, interval=0.5):
+    """v2.58 A8: replace the old fixed 1s settle sleep + single coordinator read.
+    SoCo group state can lag a join/unjoin, so a fast follow-up verb could act
+    on the OLD coordinator's queue (finding #9). Poll until the observed
+    coordinator matches the intended one; if it never converges, WARN loudly
+    and proceed anyway (the caller re-reads the coordinator after this)."""
+    deadline = time.time() + timeout
+    observed = "?"
+    while time.time() < deadline:
+        try:
+            observed = (dev.group.coordinator.player_name
+                        if dev.group and dev.group.coordinator else dev.player_name)
+            if observed == intended_coord:
+                log(f"_setup_rooms: settle verified -- coordinator={observed}")
+                return True
+        except Exception as _sv_err:
+            observed = f"read-issue:{_sv_err}"
+        time.sleep(interval)
+    log(f"_setup_rooms: WARNING -- group settle never converged after {timeout:.0f}s "
+        f"(observed coordinator={observed}, intended={intended_coord}); proceeding anyway")
+    return False
+
 def _setup_rooms(cmd, devices):
     """Incremental room grouping. Returns (coordinator, rooms_list, was_grouped_with).
     Compares current group state vs desired rooms — only unjoins/joins deltas.
@@ -3030,6 +3269,7 @@ def _setup_rooms(cmd, devices):
     if not dev: return None, rooms, []
 
     was_grouped = []
+    _topo_changed = False  # v2.58 A7c: any join/unjoin performed this call
 
     # Get current group state
     try:
@@ -3054,6 +3294,7 @@ def _setup_rooms(cmd, devices):
             # Primary is a member but not coordinator — unjoin it first so it becomes independent
             try:
                 dev.unjoin()
+                _topo_changed = True
                 time.sleep(0.5)
             except Exception as e:
                 log(f"_setup_rooms: unjoin {primary} from old coordinator: {e}")
@@ -3066,6 +3307,7 @@ def _setup_rooms(cmd, devices):
                 try:
                     d.unjoin()
                     was_grouped.append(r)
+                    _topo_changed = True
                 except Exception as e:
                     log(f"_setup_rooms: failed to unjoin {r}: {e}")
 
@@ -3082,10 +3324,14 @@ def _setup_rooms(cmd, devices):
                 try:
                     d.join(dev)
                     joined.append(r)
+                    _topo_changed = True
                 except Exception as e:
                     log(f"_setup_rooms: failed to join {r} to {primary}: {e}")
         if joined or to_remove:
-            time.sleep(1)
+            # v2.58 A8: verify-poll (up to 5s) until the observed coordinator is
+            # the intended one, instead of a blind 1s sleep + single read -- a
+            # fast follow-up verb could land on the OLD coordinator's queue.
+            _verify_group_settle(dev, primary)
         if joined:
             log(f"_setup_rooms: incremental group update -- {primary} + {joined} (removed: {list(to_remove)})")
         else:
@@ -3105,7 +3351,9 @@ def _setup_rooms(cmd, devices):
                     for member in list(dev.group.members):
                         if member != dev:
                             member.unjoin()
-                time.sleep(1)
+                _topo_changed = True
+                # v2.58 A8: verify-poll instead of blind 1s sleep (see above)
+                _verify_group_settle(dev, primary)
             except Exception:
                 pass
             log(f"_setup_rooms: isolated {primary} from {was_grouped}")
@@ -3115,6 +3363,25 @@ def _setup_rooms(cmd, devices):
         coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
     except Exception:
         coordinator = dev
+    # v2.58 A7c: topology delta logging -- whenever this call joined/unjoined
+    # anything, log the before/after group maps, and ALWAYS call out a
+    # coordinator switch explicitly (the event that made the 2026-08-03
+    # Kaytranada interruption hard to reconstruct). Never raises.
+    try:
+        _new_coord = getattr(coordinator, "player_name", primary)
+        if _topo_changed:
+            try:
+                _after_members = sorted(m.player_name for m in dev.group.members
+                                        if getattr(m, "is_visible", True)) if dev.group else [primary]
+            except Exception:
+                _after_members = [primary]
+            log(f"[topology-delta] _setup_rooms: before coordinator={current_coordinator} "
+                f"members={sorted(current_members)} -> after coordinator={_new_coord} "
+                f"members={_after_members}")
+        if _new_coord != current_coordinator:
+            log(f"[topology-delta] coordinator switched: {current_coordinator} -> {_new_coord}")
+    except Exception as _td_err:
+        log(f"[topology-delta] logging did not succeed (benign no-op): {_td_err}")
     return coordinator, rooms, was_grouped
 
 
@@ -3612,6 +3879,29 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = "No album title provided"
             else:
                 coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                # v2.58 Phase B: STALE-QUEUE GUARD. A non-replace play_album on a
+                # STOPPED coordinator whose queue is stale (>24h untouched, or
+                # unknown age) silently converts to REPLACE -- the album must
+                # never land inside forgotten leftovers (2026-08-03: El Bueno
+                # inserted into a day-old 9-row queue leaked Sister Sledge/MJQ).
+                # Playing or stopped-but-fresh queues keep literal insert.
+                # D2: queue_only ("+ Queue" = add-to-end flavor) is EXEMPT --
+                # it never converts and never starts playback on its own.
+                _b_converted_from, _b_queue_age = None, ""
+                if not replace_q and not queue_only:
+                    try:
+                        _sg_state = coordinator.get_current_transport_info().get("current_transport_state", "")
+                        if _sg_state in ("STOPPED", "NO_MEDIA_PRESENT") and int(coordinator.queue_size) > 0:
+                            _sg_stale, _sg_age = _queue_is_stale(coordinator.player_name)
+                            if _sg_stale:
+                                log(f"[stale-guard] play_album: {coordinator.player_name} stopped + queue stale ({_sg_age}) -- converting insert to REPLACE")
+                                _b_converted_from = "play_album"
+                                _b_queue_age = _sg_age
+                                replace_q, queue_only = True, False
+                            else:
+                                log(f"[stale-guard] play_album: {coordinator.player_name} stopped, queue fresh ({_sg_age}) -- literal insert")
+                    except Exception as _sg_err:
+                        log(f"[stale-guard] play_album: staleness check skipped ({_sg_err}); literal insert")
                 query_str = f"{album_title} {album_artist}".strip()
 
                 # Per-service resolution fills these. album_item stays None on
@@ -3808,6 +4098,12 @@ def execute_command(cmd, source="unknown"):
                         # reorder, degraded instead).
                         _qa_placement = "direct"
                         _rq_trim_failed = False  # v2.57 E12 tracking
+                        # v2.58 A7: capture queue shape before the mutation
+                        try:
+                            _qo_before = int(coordinator.queue_size)
+                        except Exception:
+                            _qo_before = None
+                        _qo_pos_req = None
                         if replace_q:
                             # v2.57 (§3.1) LOAD-THEN-TRIM (F1): append new album at the
                             # end FIRST; only after the add is verified do we remove the
@@ -3840,6 +4136,7 @@ def execute_command(cmd, source="unknown"):
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
+                                _qo_pos_req = insert_pos
                                 pos, _qa_placement = _verified_queue_add(
                                     coordinator, lambda: _enqueue(insert_pos), insert_pos,
                                     label=" play_album", num_tracks=chosen_tracks or 0)
@@ -3856,6 +4153,7 @@ def execute_command(cmd, source="unknown"):
                                 info = coordinator.get_current_track_info()
                                 current_pos = int(info.get('playlist_position', 0))
                                 insert_pos = current_pos + 1
+                                _qo_pos_req = insert_pos
                                 pos, _qa_placement = _verified_queue_add(
                                     coordinator, lambda: _enqueue(insert_pos), insert_pos,
                                     label=" play_album", num_tracks=chosen_tracks or 0)
@@ -3905,6 +4203,24 @@ def execute_command(cmd, source="unknown"):
                             "queued_at": pos,
                             "placement": _qa_placement,
                         }
+                        # v2.58 Phase B: honesty line + result fields on conversion
+                        if _b_converted_from:
+                            result["data"]["converted_from"] = _b_converted_from
+                            result["data"]["queue_age"] = _b_queue_age
+                            result["message"] += f" [queue was stale ({_b_queue_age}) -- replaced instead of inserted]"
+                        # v2.58 A7: one [queue-op] line + coordinator/group/queue
+                        # shape fields in the result payload (never raises)
+                        try:
+                            _qo_after = int(coordinator.queue_size)
+                        except Exception:
+                            _qo_after = None
+                        _qo_verb = ("play_album->replace_queue" if _b_converted_from else
+                                    ("play_album(replace)" if replace_q else
+                                     ("play_album(queue_only)" if queue_only else "play_album")))
+                        result["data"].update(_queue_op_log(
+                            _qo_verb, rooms[0] if rooms else "?", coordinator,
+                            queue_before=_qo_before, queue_after=_qo_after,
+                            pos_requested=_qo_pos_req, pos_landed=pos))
                         # v2.57: refresh queue_summary in the state file after any
                         # queue mutation (level-triggered; queue_only adds don't
                         # change the track, so the poll loop won't push otherwise).
@@ -3952,6 +4268,8 @@ def execute_command(cmd, source="unknown"):
                         raise
                 with _queue_mutation_timeout():
                     dev.play_from_queue(0)
+                # v2.58 Phase B: fresh queue load -> freshen the stale-guard stamp
+                _touch_queue(dev.player_name, "play_spotify_uri queue load")
                 # v2.55: queue provenance — this queue now came from this container.
                 # Playlists/albums get remembered (session naming); a bare track
                 # replaces the queue with no container, so clear instead.
@@ -4065,11 +4383,48 @@ def execute_command(cmd, source="unknown"):
                     # branch produced the 2026-07-29 Gravity's Angel misfile (appended to
                     # a stale queue tail while reporting success).
                     _qa_actual, _qa_placement = None, "direct"
-                    if as_next:
+                    _qo_pos_req = None
+                    _b_converted_from, _b_queue_age, _b_trim_failed = None, "", False
+                    # v2.58: read transport + queue shape BEFORE mutating — the
+                    # stale-guard and the A1 auto-play fix both need the pre-state.
+                    try:
+                        _pre_state = coordinator.get_current_transport_info().get('current_transport_state', '')
+                    except Exception as _ts_err:
+                        log(f"add_to_queue: pre-add transport read did not succeed ({_ts_err}); treating as not-stopped")
+                        _pre_state = ""
+                    try:
+                        _qo_before = int(coordinator.queue_size)
+                    except Exception:
+                        _qo_before = None
+                    # v2.58 Phase B: STALE-QUEUE GUARD — insert-next mode on a
+                    # STOPPED coordinator with a stale (>24h or unknown-age) queue
+                    # converts to a full REPLACE via the proven load-then-trim.
+                    # End/append mode is EXEMPT per D2 (locked): stays literal.
+                    if as_next and _pre_state in ('STOPPED', 'NO_MEDIA_PRESENT') and (_qo_before or 0) > 0:
+                        _sg_stale, _sg_age = _queue_is_stale(coordinator.player_name)
+                        if _sg_stale:
+                            log(f"[stale-guard] add_to_queue: {coordinator.player_name} stopped + queue stale ({_sg_age}, {_qo_before} rows) -- converting insert to REPLACE")
+                            _b_converted_from, _b_queue_age = "add_to_queue", _sg_age
+                        else:
+                            log(f"[stale-guard] add_to_queue: {coordinator.player_name} stopped, queue fresh ({_sg_age}) -- literal insert")
+                    if _b_converted_from:
+                        # Conversion path: reuse replace_queue's proven internals
+                        # (_load_then_trim appends, trims old rows, and PLAYS the
+                        # new content — G2: auto-play starts the INSERTED track).
+                        _qa_actual, _qa_placement, _b_trim_failed = _load_then_trim(
+                            coordinator, lambda: _do_queue(coordinator, is_spotify),
+                            label=" add_to_queue(stale->replace)")
+                        if is_spotify and uri_type in ("album", "playlist"):
+                            _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                        else:
+                            _clear_queue_provenance(coordinator.player_name, "stale queue replaced by add_to_queue")
+                        verb = "Replaced stale queue; playing"
+                    elif as_next:
                         try:
                             info = coordinator.get_current_track_info()
                             current_pos = int(info.get('playlist_position', 0))
                             insert_pos = current_pos + 1
+                            _qo_pos_req = insert_pos
                             log(f"Queueing as NEXT at position {insert_pos} (current={current_pos})")
                             _qa_actual, _qa_placement = _verified_queue_add(
                                 coordinator, lambda: _do_queue(coordinator, is_spotify, pos=insert_pos),
@@ -4083,18 +4438,23 @@ def execute_command(cmd, source="unknown"):
                         _qa_actual, _qa_placement = _verified_queue_add(
                             coordinator, lambda: _do_queue(coordinator, is_spotify),
                             None, label=" add_to_queue")
-                    # Auto-play if nothing is currently playing
-                    transport = coordinator.get_current_transport_info()
-                    state = transport.get('current_transport_state', '')
-                    if state in ('STOPPED', 'NO_MEDIA_PRESENT'):
-                        queue_size = coordinator.queue_size
-                        if queue_size > 0:
-                            coordinator.play_from_queue(queue_size - 1)
-                            verb = "Queued + started"
+                    if not _b_converted_from:
+                        # Auto-play if nothing was playing before the add
+                        if _pre_state in ('STOPPED', 'NO_MEDIA_PRESENT'):
+                            queue_size = coordinator.queue_size
+                            if queue_size > 0:
+                                # v2.58 A1 FIX (P1 finding #1): play the track we JUST
+                                # ADDED (verified landed slot _qa_actual), NOT
+                                # queue_size-1 — the old code started the TAIL of
+                                # whatever stale queue existed.
+                                _ap_slot = int(_qa_actual) if _qa_actual else queue_size
+                                log(f"add_to_queue: transport {_pre_state} -> auto-playing landed slot {_ap_slot} of {queue_size} (A1: inserted track, not tail)")
+                                coordinator.play_from_queue(_ap_slot - 1)
+                                verb = "Queued + started"
+                            else:
+                                verb = "Queued next" if as_next else "Queued"
                         else:
                             verb = "Queued next" if as_next else "Queued"
-                    else:
-                        verb = "Queued next" if as_next else "Queued"
                     # Verify queue after add
                     try:
                         qsize = coordinator.queue_size
@@ -4110,6 +4470,22 @@ def execute_command(cmd, source="unknown"):
                         _pl_note = " [misfiled, recovered by reorder]"
                     elif _qa_placement == "degraded":
                         _pl_note = f" [WARNING: landed at queue slot {_qa_actual}, reorder failed]"
+                    # v2.58 Phase B: honesty line + result fields on conversion
+                    if _b_converted_from:
+                        result["data"]["converted_from"] = _b_converted_from
+                        result["data"]["queue_age"] = _b_queue_age
+                        result["data"]["trim_failed"] = _b_trim_failed
+                        _pl_note += f" [queue was stale ({_b_queue_age}) -- replaced instead of inserted]"
+                        if _b_trim_failed:
+                            _pl_note += " [WARNING: old queue rows not removed -- will be swept by next replace/clear]"
+                    # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
+                    result["data"].update(_queue_op_log(
+                        "add_to_queue->replace_queue" if _b_converted_from else
+                        ("add_to_queue(next)" if as_next else "add_to_queue(end)"),
+                        room, coordinator, transport_state=_pre_state,
+                        queue_before=_qo_before,
+                        queue_after=result["data"].get("queue_size"),
+                        pos_requested=_qo_pos_req, pos_landed=_qa_actual))
                     result["message"] = f"{verb} '{title}' in {room} (queue: {result['data'].get('queue_size', '?')} items){_pl_note}"
                     # v2.57: queue mutated without a track change — refresh queue_summary
                     try:
@@ -4236,6 +4612,9 @@ def execute_command(cmd, source="unknown"):
                     is_playlist_container = is_spotify and uri_type == "playlist"
 
                     _qa_actual, _qa_placement = None, "direct"  # v2.54 B1
+                    # v2.58: Phase B conversion + A7 transparency tracking
+                    _b_converted_from, _b_queue_age, _b_trim_failed = None, "", False
+                    _qo_before, _qo_pos_req, _pre_state = None, None, ""
                     if is_playlist_container:
                         try:
                             _q_before = coordinator.queue_size
@@ -4249,11 +4628,17 @@ def execute_command(cmd, source="unknown"):
                     elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
-                            # Spotify: clear queue + add via ShareLinkPlugin + play from queue
-                            with _queue_mutation_timeout():
-                                coordinator.clear_queue()
-                            _qa_actual, _qa_placement = _add_with_verify(coordinator, before_size=0)
-                            coordinator.play_from_queue(0)
+                            # v2.58 A2 FIX (finding #5): the old path cleared the ENTIRE
+                            # queue to take the transport back from a Spotify Connect /
+                            # AirPlay session (x-sonos-vli) -- destructive to a queue the
+                            # user may want back. Now: LOAD-THEN-TRIM (the proven
+                            # replace_queue pattern): append, play, then trim -- an add
+                            # failure leaves the old queue fully intact.
+                            _qa_actual, _qa_placement, _pn_trim_failed = _load_then_trim(
+                                coordinator, lambda: _add_to_queue(coordinator),
+                                label=" play_next(stream)")
+                            if _pn_trim_failed:
+                                log("play_next: stream takeover trim failed -- old rows remain above the new track (honest WARN, will be swept by next replace/clear)")
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
@@ -4263,16 +4648,53 @@ def execute_command(cmd, source="unknown"):
                             coordinator.play_uri(track_uri, meta, title=title or '')
                     else:
                         # Queue-based source -- insert at next position and skip
-                        info = coordinator.get_current_track_info()
-                        current_pos = int(info.get('playlist_position', 0))
-                        insert_pos = current_pos + 1
                         try:
                             _q_before = coordinator.queue_size
                         except Exception:
                             _q_before = None
-                        log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
-                        _qa_actual, _qa_placement = _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
-                        if _qa_placement == "degraded" and _qa_actual:
+                        _qo_before = _q_before
+                        # v2.58 Phase B: STALE-QUEUE GUARD -- play_next on a STOPPED
+                        # coordinator with a stale (>24h or unknown-age) queue converts
+                        # to a full REPLACE (load-then-trim), so the track can never
+                        # land inside forgotten leftovers (the exact geometry of the
+                        # 2026-08-03 El Bueno -> Sister Sledge incident). Playing or
+                        # stopped-but-fresh queues keep literal insert semantics.
+                        try:
+                            _pre_state = coordinator.get_current_transport_info().get('current_transport_state', '')
+                        except Exception as _ts_err:
+                            log(f"play_next: pre-insert transport read did not succeed ({_ts_err}); treating as not-stopped")
+                            _pre_state = ""
+                        if _pre_state in ('STOPPED', 'NO_MEDIA_PRESENT') and (_q_before or 0) > 0:
+                            _sg_stale, _sg_age = _queue_is_stale(coordinator.player_name)
+                            if _sg_stale:
+                                log(f"[stale-guard] play_next: {coordinator.player_name} stopped + queue stale ({_sg_age}, {_q_before} rows) -- converting insert to REPLACE")
+                                _b_converted_from, _b_queue_age = "play_next", _sg_age
+                            else:
+                                log(f"[stale-guard] play_next: {coordinator.player_name} stopped, queue fresh ({_sg_age}) -- literal insert")
+                        if _b_converted_from:
+                            # Conversion: reuse replace_queue's proven internals
+                            # (append -> trim old rows -> play the new content).
+                            # NOTE: pos is passed EXPLICITLY (queue_size+1 = append)
+                            # because _add_to_queue(pos=None) uses as_next=True for
+                            # non-Spotify URIs -- a mid-queue insert would fall
+                            # inside the trim range and be removed with the old rows.
+                            _qa_actual, _qa_placement, _b_trim_failed = _load_then_trim(
+                                coordinator, lambda: _add_to_queue(coordinator, pos=coordinator.queue_size + 1),
+                                label=" play_next(stale->replace)")
+                            if is_spotify and uri_type in ("album", "playlist"):
+                                _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                            else:
+                                _clear_queue_provenance(coordinator.player_name, "stale queue replaced by play_next")
+                        else:
+                            info = coordinator.get_current_track_info()
+                            current_pos = int(info.get('playlist_position', 0))
+                            insert_pos = current_pos + 1
+                            _qo_pos_req = insert_pos
+                            log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
+                            _qa_actual, _qa_placement = _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
+                        if _b_converted_from:
+                            pass  # playback already started by _load_then_trim
+                        elif _qa_placement == "degraded" and _qa_actual:
                             # v2.54 B1: misfiled AND reorder failed — next() would play
                             # whatever occupies insert_pos, not our track. Play from the
                             # slot where the track ACTUALLY landed.
@@ -4313,7 +4735,7 @@ def execute_command(cmd, source="unknown"):
                     room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                     grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
                     result["success"] = True
-                    mode_note = "queue replace (playlist)" if is_playlist_container else ("full play (was stream)" if is_stream else "queue insert")
+                    mode_note = "queue replace (playlist)" if is_playlist_container else ("full play (was stream)" if is_stream else ("queue replace (stale)" if _b_converted_from else "queue insert"))
                     svc_note = "spotify" if is_spotify else "native"
 
                     # DESIGN NOTE: If title is still a raw URI (e.g. "spotify:track:xxx"),
@@ -4340,10 +4762,31 @@ def execute_command(cmd, source="unknown"):
                         _pl_note = " [misfiled, recovered by reorder]"
                     elif _qa_placement == "degraded":
                         _pl_note = f" [WARNING: landed at queue slot {_qa_actual}]"
+                    # v2.58 Phase B: honesty line on stale-queue conversion
+                    if _b_converted_from:
+                        _pl_note += f" [queue was stale ({_b_queue_age}) -- replaced instead of inserted]"
+                        if _b_trim_failed:
+                            _pl_note += " [WARNING: old queue rows not removed -- will be swept by next replace/clear]"
                     result["message"] = f"Playing next: '{title}' in {room_label} [{mode_note}, {svc_note}]{grp_note}{_pl_note}"
                     result["data"] = {"title": title, "uri": track_uri, "share_url": share_url or track_uri,
                                       "was_grouped_with": was_grouped, "room": rooms[0], "rooms": rooms,
                                       "queued_at": _qa_actual, "placement": _qa_placement}
+                    if _b_converted_from:
+                        result["data"]["converted_from"] = _b_converted_from
+                        result["data"]["queue_age"] = _b_queue_age
+                        result["data"]["trim_failed"] = _b_trim_failed
+                    # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
+                    try:
+                        _qo_after = int(coordinator.queue_size)
+                    except Exception:
+                        _qo_after = None
+                    result["data"].update(_queue_op_log(
+                        "play_next->replace_queue" if _b_converted_from else
+                        ("play_next(playlist-replace)" if is_playlist_container else
+                         ("play_next(stream)" if is_stream else "play_next")),
+                        rooms[0] if rooms else "?", coordinator, transport_state=_pre_state,
+                        queue_before=_qo_before, queue_after=_qo_after,
+                        pos_requested=_qo_pos_req, pos_landed=_qa_actual))
                     # DESIGN NOTE: For non-Spotify URIs, Sonos may not report track metadata
                     # (shows "No Content" in Sonos app). The polling loop's get_track_info()
                     # returns None for empty titles -> no SSE now_playing fires.
@@ -4910,6 +5353,15 @@ def execute_command(cmd, source="unknown"):
                                       "coordinator": coordinator.player_name,
                                       "old_len": old_len, "queued_at": _rq_pos,
                                       "placement": _rq_plc, "trim_failed": _rq_trim_failed}
+                    # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
+                    try:
+                        _qo_after = int(coordinator.queue_size)
+                    except Exception:
+                        _qo_after = None
+                    result["data"].update(_queue_op_log(
+                        "replace_queue", room, coordinator,
+                        queue_before=old_len, queue_after=_qo_after,
+                        pos_requested=1, pos_landed=_rq_pos))
                     try:
                         publish_ui_event("status_update", {})
                         schedule_state_push()  # refresh queue_summary
@@ -4958,6 +5410,15 @@ def execute_command(cmd, source="unknown"):
                         result["success"] = True
                         result["message"] = "Nothing after current track"
                         result["data"] = {"room": room, "removed": 0, "queue_size": qsize, "current_pos": cur_pos}
+                    # v2.58 Phase B: an actual truncation is a queue mutation ->
+                    # freshen the stale-guard stamp (no-op branches don't touch)
+                    if result["data"].get("removed"):
+                        _touch_queue(coordinator.player_name, "truncate_queue")
+                    # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
+                    result["data"].update(_queue_op_log(
+                        "truncate_queue", room, coordinator,
+                        queue_before=qsize,
+                        queue_after=qsize - result["data"].get("removed", 0)))
                     try:
                         publish_ui_event("status_update", {})
                         schedule_state_push()  # refresh queue_summary
@@ -4983,10 +5444,16 @@ def execute_command(cmd, source="unknown"):
                     with _queue_mutation_timeout():
                         coordinator.clear_queue()
                     _clear_queue_provenance(coordinator.player_name, "clear_queue command")  # v2.55
+                    _touch_queue(coordinator.player_name, "clear_queue")  # v2.58 Phase B: mutation -> touch
                     log(f"clear_queue: {coordinator.player_name} queue cleared ({_q_before} tracks removed)")
                     result["success"] = True
                     result["message"] = f"Queue cleared in {room} ({_q_before} tracks removed)"
                     result["data"] = {"room": room, "coordinator": coordinator.player_name, "tracks_removed": _q_before}
+                    # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
+                    result["data"].update(_queue_op_log(
+                        "clear_queue", room, coordinator,
+                        queue_before=_q_before if isinstance(_q_before, int) else None,
+                        queue_after=0))
                     try:
                         publish_ui_event("status_update", {})
                         schedule_state_push()  # v2.57: refresh queue_summary
@@ -5071,12 +5538,21 @@ def execute_command(cmd, source="unknown"):
     result["t_result_sent"] = now_iso()
 
     # Record structured command outcome (ALL commands, silent or not)
+    # v2.58 A7: queue-affecting verbs stamp coordinator/group/queue-shape fields
+    # into result["data"]; lift them into the ring entry so heartbeats carry them
+    # (queue verbs are silent -- the ring is their only delivery channel).
+    _qo_ring = None
+    if isinstance(result.get("data"), dict):
+        _qo_keys = ("coordinator", "group_members", "transport_state", "queue_before",
+                    "queue_after", "pos_requested", "pos_landed", "converted_from", "queue_age")
+        _qo_ring = {k: result["data"][k] for k in _qo_keys if k in result["data"]} or None
     record_command_result(
         action=action,
         success=result.get("success", False),
         message=result.get("message", ""),
         cmd_ts=cmd.get("cmd_ts"),
         detail=result.get("data", {}).get("room") if isinstance(result.get("data"), dict) else None,
+        queue_op=_qo_ring,
     )
 
     # v2.52: push command FAILURES to the UI over SSE so the page can show a red
