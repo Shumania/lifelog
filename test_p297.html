@@ -3428,7 +3428,7 @@ function _discUnplayedOnly() { try { return localStorage.getItem('discUnplayedOn
 function toggleDiscUnplayed() {
   const on = !_discUnplayedOnly();
   try { localStorage.setItem('discUnplayedOnly', on ? '1' : '0'); } catch(e) {}
-  if (on && !_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
+  if (on && (!_heardTracks || _heardStale())) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
   renderDiscovery();
 }
 
@@ -3440,7 +3440,7 @@ function renderDiscovery() {
   }
   const cmds = data.play_commands;
   // p2.60: heard dots + Unplayed filter need rollups — load once, then re-render so dots/filter appear
-  if (!_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
+  if (!_heardTracks || _heardStale()) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
   document.body.classList.toggle('disc-unplayed', _discUnplayedOnly());
   // Stat line
   const lastDate = new Date(cmds[0].timestamp);
@@ -4713,6 +4713,10 @@ let _heardTracks = null, _heardAlbums = null, _heardLoading = null;
 // heard data forever (the kiosk gets the nightly self-reload; this covers everything else).
 let _heardFetchedAt = 0;
 const HEARD_TTL_MS = 6 * 3600000;
+// True when a completed heard load has aged past the TTL. Call sites that gate on
+// `!_heardTracks` must ALSO check this — otherwise a warm cache short-circuits before
+// loadHeardData's entry check can ever clear it (the long-lived-tab case F7 exists for).
+function _heardStale() { return !!(_heardTracks && _heardFetchedAt && (Date.now() - _heardFetchedAt) > HEARD_TTL_MS); }
 // p2.87: heard_recent.json — nightly 14-day bridge between weekly rollups and the
 // 75-item head (fixes the "played it days ago, card still says ✨ new" blind spot).
 let _heardRecentT = {}, _heardRecentA = {};
