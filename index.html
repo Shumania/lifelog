@@ -1087,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.96';
+const PAGE_VERSION = 'p2.97';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3428,7 +3428,7 @@ function _discUnplayedOnly() { try { return localStorage.getItem('discUnplayedOn
 function toggleDiscUnplayed() {
   const on = !_discUnplayedOnly();
   try { localStorage.setItem('discUnplayedOnly', on ? '1' : '0'); } catch(e) {}
-  if (on && !_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
+  if (on && (!_heardTracks || _heardStale())) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) {} } });
   renderDiscovery();
 }
 
@@ -3440,7 +3440,7 @@ function renderDiscovery() {
   }
   const cmds = data.play_commands;
   // p2.60: heard dots + Unplayed filter need rollups — load once, then re-render so dots/filter appear
-  if (!_heardTracks) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
+  if (!_heardTracks || _heardStale()) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
   document.body.classList.toggle('disc-unplayed', _discUnplayedOnly());
   // Stat line
   const lastDate = new Date(cmds[0].timestamp);
@@ -4709,12 +4709,26 @@ async function loadLikedData() {
 // once client-side keeps dots always-current with zero publish cost (chunks are
 // immutable, so heard state must NOT be stamped into them at publish time).
 let _heardTracks = null, _heardAlbums = null, _heardLoading = null;
+// p2.97 P-5 (F7): fetch timestamp for the 6h TTL — long-lived tabs (phones) otherwise hold
+// heard data forever (the kiosk gets the nightly self-reload; this covers everything else).
+let _heardFetchedAt = 0;
+const HEARD_TTL_MS = 6 * 3600000;
+// True when a completed heard load has aged past the TTL. Call sites that gate on
+// `!_heardTracks` must ALSO check this — otherwise a warm cache short-circuits before
+// loadHeardData's entry check can ever clear it (the long-lived-tab case F7 exists for).
+function _heardStale() { return !!(_heardTracks && _heardFetchedAt && (Date.now() - _heardFetchedAt) > HEARD_TTL_MS); }
 // p2.87: heard_recent.json — nightly 14-day bridge between weekly rollups and the
 // 75-item head (fixes the "played it days ago, card still says ✨ new" blind spot).
 let _heardRecentT = {}, _heardRecentA = {};
 const ROLLUPS_URL = 'https://shumania.github.io/lifelog/rollups.json';
 const HEARD_RECENT_URL = 'https://shumania.github.io/lifelog/heard_recent.json';
 async function loadHeardData() {
+  // p2.97 P-5 (F7): stale cache (> 6h, mirrors the archive's policy) → clear and refetch.
+  // Only when a completed load exists (_heardTracks set) — never clears an in-flight load.
+  if (_heardTracks && _heardFetchedAt && (Date.now() - _heardFetchedAt) > HEARD_TTL_MS) {
+    console.log('[heard] cache > 6h old — clearing for refetch');
+    _heardTracks = null; _heardAlbums = null; _heardRecentT = {}; _heardRecentA = {}; _heardLoading = null;
+  }
   if (_heardTracks) return true;
   if (_heardLoading) return _heardLoading;  // dedupe concurrent callers
   _heardLoading = (async () => {
@@ -4730,6 +4744,7 @@ async function loadHeardData() {
       const d = await r.json();
       _heardTracks = d.tracks || {};
       _heardAlbums = d.albums || {};
+      _heardFetchedAt = Date.now();  // p2.97 P-5: start the 6h TTL clock
       console.log('[heard] rollups loaded: ' + Object.keys(_heardTracks).length + ' tracks, ' + Object.keys(_heardAlbums).length + ' albums');
       await recentP;
       return true;
@@ -4787,8 +4802,15 @@ function _heardInfo(uriOrId, kind) {
   const id = _heardExtractId(uriOrId, kind || 'track');
   if (!id) return null;
   const rec = _heardTracks ? (kind === 'album' ? _heardAlbums : _heardTracks)[id] : null;
-  if (rec && rec.n) return { n: rec.n, last: rec.last || null };
   const rcnt = (kind === 'album' ? _heardRecentA : _heardRecentT)[id];
+  if (rec && rec.n) {
+    // p2.97 P-4 (F6): rollups rebuild weekly, so rec.last can lag plays the nightly 14-day
+    // recent overlay already knows about. Keep n from rollups (all-time, deduped) but take
+    // the NEWER `last` of the two (ISO date strings → lexicographic compare is date compare).
+    let last = rec.last || null;
+    if (rcnt && rcnt.last && (!last || String(rcnt.last) > String(last))) last = rcnt.last;
+    return { n: rec.n, last };
+  }
   if (rcnt && rcnt.n) return { n: rcnt.n, last: rcnt.last || null };
   const live = _heardLiveMap();
   const n = (kind === 'album' ? live.albums : live.tracks)[id];
@@ -5531,7 +5553,18 @@ const SH = (() => {
         __prov: true, __orphan: !!r.unconfirmed || (now - r.s * 1000 > ORPHAN_MS)
       }));
       const ctxCount = new Map();
-      for (const r of rows) if (r.cx) { const c = ctxCount.get(r.cx) || { uri: r.cu || '', name: r.cx, n: 0, art: null }; c.n++; if (!c.uri && r.cu) c.uri = r.cu; ctxCount.set(r.cx, c); }
+      // p2.97 P-2 (C2): stale-container guard — a live row whose container uri is ALBUM-typed
+      // but names a DIFFERENT album than the row itself is the Bug-1 stale-Enqueued geometry;
+      // skip aggregating its cx. Fail-open: absent cu or absent al → aggregate as before
+      // (playlist names legitimately differ from track albums — never suppress on a hunch).
+      // NOTE: pre-v2.59 the service drops x-* container uris from the wire, so cu is absent
+      // on the primary case and this guard is INERT until v2.59's V-2 sends spotify_context
+      // as cu (plan Tune T5). Defense-in-depth, not the primary fix.
+      for (const r of rows) {
+        if (!r.cx) continue;
+        if (/album%3a|album:/i.test(r.cu || '') && r.al && normStr(r.cx) !== normStr(r.al)) { console.log('[prov] stale album container suppressed:', r.cx, '≠', r.al); continue; }
+        const c = ctxCount.get(r.cx) || { uri: r.cu || '', name: r.cx, n: 0, art: null }; c.n++; if (!c.uri && r.cu) c.uri = r.cu; ctxCount.set(r.cx, c);
+      }
       const newest = out.find(s => !s.isQuickLedger && !s.isRadio && s.locus === h);
       const minTs = tracks[0].ts;
       const last = tracks[tracks.length - 1];
@@ -5936,13 +5969,25 @@ const SH = (() => {
     if (!document.getElementById('disc-' + ci)) { showToast('Exploration card not found in Discovery', true); return; }
     navigateToExploration(ci);
   }
+  // p2.97 P-1 (C1): exploration_id is stable identity; cardIndex is a POSITION stamped at
+  // publish time that rots as new cards land in data-head (off-by-one links). Resolve by id
+  // against the currently loaded play_commands; fall back to legacy cardIndex for pre-regen
+  // chunks (or an id absent from the loaded head). Both sides Number()-coerced to survive
+  // string ids in old chunks. Final < 0 → plain span (no dead link), same as today.
+  function resolveExplIdx(e) {
+    if (e && e.exploration_id != null && data && Array.isArray(data.play_commands)) {
+      const i = data.play_commands.findIndex(pc => Number(pc.exploration_id) === Number(e.exploration_id));
+      if (i >= 0) return i;
+    }
+    return Number(e.cardIndex);
+  }
   function explRowsG(s) {
     if (!s.explorations || !s.explorations.length) return '';
     const seen = new Set(); let out = '';
     for (const e of s.explorations) {
       const k = normStr(e.artist);
       if (!k || seen.has(k)) continue; seen.add(k);
-      const ci = Number(e.cardIndex);
+      const ci = resolveExplIdx(e);
       out += Number.isFinite(ci) && ci >= 0
         ? `<a class="sh-explnk" href="#" onclick="event.preventDefault();event.stopPropagation();SH.expl(${ci})">🔍 Part of your ${esc(e.artist)} exploration →</a>`
         : `<span class="sh-explnk">🔍 Part of your ${esc(e.artist)} exploration</span>`;
@@ -6424,6 +6469,52 @@ const SH = (() => {
 })();
 window.SH = SH; // p2.90: top-level const is NOT a window property — without this, every `window.SH && ...` guard (onPending L4020, onRing L2560) silently no-ops
 
+// ── p2.97 P-3 (C5): nightly kiosk self-reload ────────────────────────────────
+// The iPad kiosk holds one tab for weeks — it never picks up page releases and its
+// heard/liked/playlist data ages indefinitely. Once per day, in the 04:45–04:59 local
+// window (clears the 3:00 nightly poll AND the long Sunday 3:30 weekly rebuild with
+// margin — release plan Tune T1), an old, idle page reloads itself.
+// Guards (all must hold): page age ≥ 8h (a freshly reloaded page cannot re-trigger even
+// if storage is blocked), no pointer/key activity for 30 min, per-day stamp not yet set
+// for today (written BEFORE reload; sessionStorage fallback for private mode).
+// ?reloadTest=<minutes>: window becomes [now, now+min], ignores day stamp + age gate,
+// idle gate shortened to 10s. Once-only per tab (sessionStorage flag survives the reload
+// while the query param persists — without it the param would loop the reload forever).
+const _pageLoadedAt = Date.now();
+let _lastUserActivityTs = Date.now();
+addEventListener('pointerdown', () => { _lastUserActivityTs = Date.now(); }, { passive: true });
+addEventListener('keydown', () => { _lastUserActivityTs = Date.now(); }, { passive: true });
+const _reloadTestUntil = (() => {
+  const m = Number(new URLSearchParams(location.search).get('reloadTest'));
+  if (!(Number.isFinite(m) && m > 0)) return 0;
+  try { if (sessionStorage.getItem('p_reloadTestDone')) { console.log('[reload] test override already consumed in this tab'); return 0; } } catch (e) {}
+  console.log('[reload] test mode armed: window closes in ' + m + ' min');
+  return Date.now() + m * 60000;
+})();
+function _reloadStampGet() { try { const v = localStorage.getItem('p_autoReloadDay'); if (v) return v; } catch (e) {} try { return sessionStorage.getItem('p_autoReloadDay'); } catch (e) {} return null; }
+function _reloadStampSet(v) { try { localStorage.setItem('p_autoReloadDay', v); } catch (e) {} try { sessionStorage.setItem('p_autoReloadDay', v); } catch (e) {} }
+function maybeKioskReload() {
+  const now = Date.now();
+  const idleMs = now - _lastUserActivityTs;
+  if (_reloadTestUntil) {  // test path — never touches the real gates
+    if (now <= _reloadTestUntil && idleMs >= 10000) {
+      try { sessionStorage.setItem('p_reloadTestDone', '1'); } catch (e) {}
+      console.log('[reload] test-mode self-reload firing');
+      location.reload();
+    }
+    return;
+  }
+  const d = new Date();
+  if (!(d.getHours() === 4 && d.getMinutes() >= 45)) return;          // 04:45–04:59 local
+  if (now - _pageLoadedAt < 8 * 3600000) return;                      // fresh page → not the kiosk case
+  if (idleMs < 30 * 60000) return;                                    // someone is using it
+  const today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  if (_reloadStampGet() === today) return;                            // once per day
+  _reloadStampSet(today);                                             // stamp BEFORE reloading (loop guard)
+  console.log('[reload] nightly kiosk self-reload firing');
+  location.reload();
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 (async () => {
   applyInitialTab();  // p2.77: apply #hash tab (default sessions) before anything renders
@@ -6453,8 +6544,8 @@ window.SH = SH; // p2.90: top-level const is NOT a window property — without t
   loadLikedData();  // p2.47: fire-and-forget — badges pop in when the asset lands
   await loadData(true);
   if (!didAuth) handleDeepLink();
-  // Auto-refresh head every 60s
-  setInterval(() => loadData(false), 60000);
+  // Auto-refresh head every 60s (p2.97: same tick also drives the kiosk self-reload check — no new timer to leak)
+  setInterval(() => { loadData(false); maybeKioskReload(); }, 60000);
 })();
 </script>
 </body>
