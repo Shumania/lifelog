@@ -1087,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.97';
+const PAGE_VERSION = 'p2.98';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1574,15 +1574,41 @@ function toggleMore(h, open) { _moreRevealed[h] = open; renderRooms(h); }
 
 // p2.62: ⊙ — the ONLY one-tap way to grab live rooms (replaces all removed auto-select).
 // Selection-only; Group Speakers remains the sole grouping send path.
+// p2.98 C2: with 2+ groups playing, selecting the UNION was a bug (IMG_0306) — no send
+// path ever wants "both groups at once". ⊙ now selects ONE group per tap (biggest
+// first) and repeat taps within 15s cycle to the next playing group. After 15s the
+// cycle resets to group 0.
+let _playingCycle = { house: null, idx: 0, ts: 0 };
 function selectPlaying(h) {
   const never = NEVER_SHOW_ROOMS[h] || [];
-  const target = expandViaGroups(h, liveTargetRooms(h)).filter(r => !never.includes(r));
-  if (!target.length) { showToast('Nothing playing right now', true); return; }
+  // Playing GROUPS from live topology; fallback (topology unknown): liveTargetRooms
+  // expanded via groups acts as one pseudo-group (previous behavior).
+  let sets = (_groupsByHouse[h] || [])
+    .filter(g => String(g.state || '').indexOf('PLAYING') === 0)
+    .map(g => ((g.members && g.members.length) ? g.members : [g.coordinator]).filter(r => r && !never.includes(r)))
+    .filter(m => m.length);
+  if (!sets.length) {
+    const fb = expandViaGroups(h, liveTargetRooms(h)).filter(r => !never.includes(r));
+    if (!fb.length) { showToast('Nothing playing right now', true); return; }
+    sets = [fb];
+  }
+  sets.sort((a, b) => b.length - a.length); // biggest group first
+  let idx = 0;
+  if (sets.length > 1) {
+    const now = Date.now();
+    if (_playingCycle.house === h && (now - _playingCycle.ts) < 15000) idx = (_playingCycle.idx + 1) % sets.length;
+    _playingCycle = { house: h, idx, ts: now };
+    console.log('[\u2299] ' + sets.length + ' playing groups for ' + h + '; selecting group ' + (idx + 1) + ' of ' + sets.length + ': ' + sets[idx].join(', '));
+  } else {
+    _playingCycle = { house: null, idx: 0, ts: 0 };
+  }
+  const target = sets[idx];
   selectedRooms[h] = target;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
   renderRooms(h);
   _queueRefetch(); // p2.95: ⊙ doubles as "sync my view to reality" — refresh queue/state view too
-  showToast('\u2299 Selected: ' + target.join(', '));
+  if (sets.length > 1) showToast('\u2299 Group ' + (idx + 1) + ' of ' + sets.length + ': ' + target.join(', ') + ' \u2014 tap \u2299 again for the next group');
+  else showToast('\u2299 Selected: ' + target.join(', '));
 }
 
 // p2.62: ▶ cue for a house with live playback (was tab dots; p2.95: now the dropdown).
@@ -1784,6 +1810,11 @@ const _queueState = {};   // per house: {qs, last_updated, fetched_at}
 const _qexpOpen = {};     // per house: expando open state (persisted, U2)
 ['caphill','vashon'].forEach(h => { try { _qexpOpen[h] = localStorage.getItem('ll_qexp_' + h) === '1'; } catch(e) { _qexpOpen[h] = false; } });
 const _qRefetchLast = {}; // per-house SSE-triggered refetch throttle
+// p2.98 C3 (Rule 27 №2): publish-delay honesty. _sseFreshByHouse tracks the newest
+// fresh SSE event ts per house; when the published state file is >30 min old while SSE
+// is demonstrably newer, the F2 footer says "publish delayed" instead of quietly aging.
+const _sseFreshByHouse = {}; // house -> ms epoch of newest fresh SSE event
+const _freshWarnLast = {};   // house -> ms epoch of last [freshness] console.warn (10-min throttle)
 
 function _queueOnStateFiles(stateFiles) {
   _hdrFromStateFiles(stateFiles); // p2.93: header versions ride every state-file fetch
@@ -1829,15 +1860,19 @@ function _hdrFromStateFiles(stateFiles) {
 
 // MG5-safe target resolver (design §2.3): selection → owning group's coordinator;
 // else single known queue; else live playing rooms' coordinator; else newest loaded_at.
+// p2.98 C1: returns the queue_summary ENTRY KEY — which may be a PRIOR-epoch coordinator
+// label when the snapshot is older than a coordinator change (_qsEntryKey group fallback).
+// Callers read qs[] with it directly; command senders (truncate/clear) resolve the LIVE
+// coordinator via _qsLiveCoordFor before sending.
 function _getQueueTargetGroup(h) {
   const st = _queueState[h]; if (!st) return null;
   const qs = st.qs || {}; const keys = Object.keys(qs);
   if (!keys.length) return null;
   const groups = _groupsByHouse[h] || [];
   const coordOf = r => { const g = groups.find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; };
-  for (const r of (selectedRooms[h] || [])) { const c = coordOf(r); if (qs[c]) return c; }
+  for (const r of (selectedRooms[h] || [])) { const k = _qsEntryKey(h, coordOf(r)); if (k) return k; }
   if (keys.length === 1) return keys[0];
-  try { for (const r of (liveTargetRooms(h) || [])) { const c = coordOf(r); if (qs[c]) return c; } } catch(e) {}
+  try { for (const r of (liveTargetRooms(h) || [])) { const k = _qsEntryKey(h, coordOf(r)); if (k) return k; } } catch(e) {}
   return keys.sort((a, b) => String(qs[b].loaded_at || '').localeCompare(String(qs[a].loaded_at || '')))[0];
 }
 
@@ -1845,8 +1880,9 @@ function renderQueueLine(h) {
   const line = document.getElementById('qline-' + h); if (!line) return; // roaming has none
   const exp = document.getElementById('qexp-' + h);
   const st = _queueState[h];
-  const coord = st ? _getQueueTargetGroup(h) : null;
-  const e = coord ? (st.qs[coord] || null) : null;
+  const coord = st ? _getQueueTargetGroup(h) : null; // p2.98 C1: this is the qs ENTRY KEY
+  const ek = coord ? _qsEntryKey(h, coord) : null;   // defensive: identity for entry keys
+  const e = ek ? (st.qs[ek] || null) : null;
   if (!e || e.stream || !e.track_count) { line.hidden = true; exp.classList.remove('open'); return; } // U3: streams/empty hide the row
   line.hidden = false;
   const left = Math.max(0, (e.track_count || 0) - (e.current_pos || 0));
@@ -1872,7 +1908,16 @@ function renderQueueLine(h) {
     '<span onclick="event.stopPropagation();sendClearQueue(\'' + h + '\')">🗑 Clear queue…</span></div>';
   const ageMs = st.last_updated ? (Date.now() - new Date(st.last_updated).getTime()) : null;
   if (ageMs != null && ageMs > 5 * 60000) { // F2: honest about age
-    html += '<div class="q-freshness">as of ' + new Date(st.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</div>';
+    // p2.98 C3 (Rule 27 №2): if the publish pipeline is stalled (>30 min old) while SSE
+    // has delivered anything newer for this house, say so — amber tint + suffix.
+    const delayed = ageMs > 30 * 60000 && (_sseFreshByHouse[h] || 0) > new Date(st.last_updated).getTime();
+    html += '<div class="q-freshness"' + (delayed ? ' style="color:#c98a00" title="GitHub Pages deploys are delayed; live controls unaffected"' : '') +
+      '>as of ' + new Date(st.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) +
+      (delayed ? ' · publish delayed' : '') + '</div>';
+    if (delayed && Date.now() - (_freshWarnLast[h] || 0) > 600000) { // once per 10 min per house
+      _freshWarnLast[h] = Date.now();
+      console.warn('[freshness] state file for ' + h + ' is ' + Math.round(ageMs / 60000) + ' min old; SSE is live');
+    }
   }
   exp.innerHTML = html;
 }
@@ -1885,8 +1930,9 @@ function toggleQueueExpand(h) {
 }
 
 async function sendTruncateQueue(h, coordOverride) {
-  const coord = coordOverride || _getQueueTargetGroup(h);
-  if (!coord) { showToast('No queue found', true); return; }
+  const key = coordOverride || _getQueueTargetGroup(h);
+  if (!key) { showToast('No queue found', true); return; }
+  const coord = _qsLiveCoordFor(h, key); // p2.98 C1: key may be a prior-epoch label; send to the LIVE coordinator
   showToast('✂ Clearing after current · ' + coord);
   await postNtfy({ action: 'truncate_queue', room: coord, rooms: [coord], target_client_id: commanderId, t_requested: new Date().toISOString() });
   setTimeout(_queueRefetch, 15000); setTimeout(_queueRefetch, 60000); setTimeout(_queueRefetch, 150000); // U4: count updates on next push (Pages deploy lag ~1-3m)
@@ -1904,8 +1950,37 @@ async function sendTruncateQueue(h, coordOverride) {
 let _sheetCtx = null; // {h, item, kind, canEnd, send, target, choices}
 
 function _qsCoordOf(h, r) { const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; }
+// p2.98 C1: a group's queue survives coordinator changes — the published queue_summary
+// may still be keyed by a PRIOR-epoch coordinator while live SSE topology has moved the
+// coordinator label (2026-08-06 Pages-outage incident: snapshot keyed "…Maury", live
+// coordinator "…Kitchen" → queue panel fell back to Shed Arc's stale test queue).
+// If the resolved coordinator has no queue_summary entry, any entry keyed by a MEMBER
+// of its group is that group's queue. Returns the qs ENTRY KEY (read key), or null.
+function _qsEntryKey(h, coord) {
+  const st = _queueState[h]; const qs = (st && st.qs) || {};
+  if (qs[coord]) return coord;
+  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord || (g.members || []).includes(coord));
+  if (g) {
+    for (const m of (g.members || [])) if (qs[m]) {
+      console.log('[queue] coordinator epoch mismatch: qs key "' + m + '" vs live coord "' + coord + '" — using group fallback');
+      return m;
+    }
+  }
+  return null;
+}
+// p2.98 C1: command sends must target the LIVE coordinator even when the qs entry key
+// is a stale prior-epoch label — map an entry key to its group's live coordinator.
+function _qsLiveCoordFor(h, key) {
+  if (!key) return key;
+  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === key || (g.members || []).includes(key));
+  const live = (g && g.coordinator) ? g.coordinator : key;
+  if (live !== key) console.log('[queue] coordinator epoch mismatch: qs key "' + key + '" vs live coord "' + live + '" — sending to live coordinator');
+  return live;
+}
 function _qsMembers(h, coord) {
-  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord);
+  // p2.98 C1: membership-aware — coord may be a prior-epoch entry key that is now a
+  // plain member; its group's full member list is still the right D6 send list.
+  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord || (g.members || []).includes(coord));
   if (g && g.members && g.members.length) return g.members;
   // Cold-load fallback (state files don't carry groups yet — see line ~2847 hydration
   // awaiting a service-side field): now_playing.rooms covers the PLAYING group, which
@@ -1915,17 +1990,21 @@ function _qsMembers(h, coord) {
   return [coord];
 }
 // true/false when topology known; null = unknown (D3 fails safe: unknown → confirm)
-function _qsPlaying(h, coord) { const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord); return g ? String(g.state || '').indexOf('PLAYING') === 0 : null; }
+// p2.98 C1: membership-aware — coord may be a prior-epoch entry key (see _qsEntryKey).
+function _qsPlaying(h, coord) { const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord || (g.members || []).includes(coord)); return g ? String(g.state || '').indexOf('PLAYING') === 0 : null; }
 // F4 version-skew gate: replace/truncate need service ≥ 2.57
 function _qsVerOk(h) { const st = _queueState[h]; const m = String((st && st.version) || '').match(/^(\d+)\.(\d+)/); return !!m && (+m[1] > 2 || (+m[1] === 2 && +m[2] >= 57)); }
 
 // Target resolution (§2.3 MG5-safe + E4). Returns {coord} | {choices:[..]} | {}
+// p2.98 C1: qs-membership tests go through _qsEntryKey so a group whose queue is keyed
+// by a prior-epoch coordinator still counts as "has a queue". Returned coord/choices are
+// qs ENTRY KEYS when an entry exists (senders resolve live coord via _qsLiveCoordFor).
 function _qsResolveTarget(h) {
   const st = _queueState[h]; const qs = (st && st.qs) || {};
   const selCoords = [...new Set((selectedRooms[h] || []).map(r => _qsCoordOf(h, r)))];
-  if (selCoords.length === 1) return { coord: selCoords[0] };
+  if (selCoords.length === 1) return { coord: _qsEntryKey(h, selCoords[0]) || selCoords[0] };
   if (selCoords.length > 1) {
-    const live = selCoords.filter(c => qs[c]);
+    const live = [...new Set(selCoords.map(c => _qsEntryKey(h, c)).filter(Boolean))];
     if (live.length === 1) return { coord: live[0] };
     if (live.length === 0) return { coord: selCoords[0] };
     return { choices: live }; // E4: selection spans 2+ live queues
@@ -1965,7 +2044,7 @@ function _renderQueueSheet() {
   const c = _sheetCtx; if (!c) return;
   const st = _queueState[c.h]; const qs = (st && st.qs) || {};
   const t = c.target;
-  const e = t ? (qs[t] || null) : null;
+  const e = t ? (qs[_qsEntryKey(c.h, t) || t] || null) : null; // p2.98 C1: group-member fallback read
   const stream = !!(e && e.stream);
   const playing = t ? _qsPlaying(c.h, t) : null;
   const verOk = _qsVerOk(c.h);
@@ -2039,13 +2118,15 @@ async function _qsVerb(mode) {
     const playing = _qsPlaying(c.h, c.target);
     if (playing !== false && !confirm('Replace the queue for ' + c.target + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
   }
-  const send = c.send, t = c.target, members = _qsMembers(c.h, c.target);
+  // p2.98 C1: target may be a prior-epoch qs entry key — D6 sends carry the LIVE
+  // coordinator + full member list (membership-aware _qsMembers).
+  const send = c.send, t = _qsLiveCoordFor(c.h, c.target), members = _qsMembers(c.h, c.target);
   closeQueueSheet(); // E9: close on first tap
   await send(mode, t, members);
 }
 function _qsClearVerb() {
   const c = _sheetCtx; if (!c || !c.target) return;
-  const t = c.target;
+  const t = _qsLiveCoordFor(c.h, c.target); // p2.98 C1: send to the LIVE coordinator
   if (!confirm('Clear the Sonos queue for ' + t + '?\nIf the queue is currently playing, playback will stop.')) return;
   closeQueueSheet();
   showToast('🗑 Clearing queue · ' + t);
@@ -4461,6 +4542,9 @@ function connectSSE() {
         if (outer.topic.includes('caphill')) sseHouse = 'caphill';
         else if (outer.topic.includes('vashon')) sseHouse = 'vashon';
       }
+      // p2.98 C3: track newest FRESH SSE event per house (replays >10 min old don't
+      // count) — feeds the "publish delayed" honesty check in the queue F2 footer.
+      if (sseHouse && evtAge < EVT_FRESH_MS && evtTs > (_sseFreshByHouse[sseHouse] || 0)) _sseFreshByHouse[sseHouse] = evtTs;
 
       // p2.85: retireTrackToHistory deleted (Rule 27). It stamped rows with the
       // end-of-play event time; the published row carried the start time → dupes.
