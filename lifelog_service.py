@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.59.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.59.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -333,6 +333,34 @@ def _get_queue_provenance(coord_name):
         return None
     return p
 
+def _overlay_prov_guard(prov, track_album, coord_name):
+    """v2.59.2 OVERLAY GUARD (Rule 27): the v2.55 provenance overlay previously
+    stamped the remembered pointer with NO validation against the observed
+    track -- a stale album-typed pointer poisoned every subsequent queue play
+    (2026-08-06 Shed Arc incident: Beastie Boys pointer stamped on Zappa and
+    Shuggie Otis organic plays; sanitize_container guards only the CAPTURED
+    DIDL container, never the overlay).
+    Album-typed provenance is verifiable at stamp time: if the pointer's album
+    name mismatches the track's own DIDL album, the pointer is provably stale
+    -> skip the overlay AND clear the pointer (level-triggered self-heal on
+    the next poll; no manual scrub needed). Returns True when the overlay must
+    be skipped. Fails open (False) when either name is missing or on internal
+    error. Playlist/station-typed pointers are not verifiable this way and
+    pass through unchanged (setter-side fix v2.59.1 covers those)."""
+    try:
+        if ((prov.get("type") or "").lower() == "album" and track_album
+                and prov.get("name")
+                and _norm_ctx_str(prov["name"]) != _norm_ctx_str(track_album)):
+            log(f"[overlay-guard] {coord_name}: STALE album provenance "
+                f"'{prov.get('name','')}' vs track album '{track_album}' -- "
+                f"overlay SKIPPED, pointer CLEARED (self-heal)")
+            _clear_queue_provenance(coord_name,
+                                    f"overlay-guard album mismatch (track_album='{track_album}')")
+            return True
+    except Exception as _og_err:
+        log(f"[overlay-guard] ERROR (fail-open, overlay allowed): {type(_og_err).__name__}: {_og_err}")
+    return False
+
 try:
     if QUEUE_PROV_PATH.exists():
         _qp_loaded = json.loads(QUEUE_PROV_PATH.read_text(encoding="utf-8"))
@@ -504,6 +532,7 @@ print("[stale-guard] armed: threshold=24h")
 print("[v2.59] capture sanitize active (L1/L2/L3) + cu wire + svc-name normalize")
 # v2.59.1 boot banner (Rule 24 §3: log line UNIQUE to this version)
 print("[v2.59.1] play_next provenance fix active: playlist REPLACE + stream takeover now set/clear queue provenance")
+print("[v2.59.2] overlay guard active: album-typed provenance validated at stamp time (skip + self-heal on mismatch)")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -559,9 +588,13 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
         # exactly as post_history does (honest no-context on all surfaces).
         if (((not _ctx_uri) or _ctx_uri.startswith("x-rincon-queue"))
                 and track_info.get("context_source") != "inserted_track"):
-            _prov = _get_queue_provenance(track_info.get("coordinator")
-                                          or (rooms_list[0] if isinstance(rooms_list, list) and rooms_list else ""))
-            if _prov and _prov.get("uri"):
+            _rg_coord = (track_info.get("coordinator")
+                         or (rooms_list[0] if isinstance(rooms_list, list) and rooms_list else ""))
+            _prov = _get_queue_provenance(_rg_coord)
+            # v2.59.2 overlay guard: never stamp a provably-stale album pointer
+            # (guard also self-heals by clearing it; see _overlay_prov_guard).
+            if (_prov and _prov.get("uri")
+                    and not _overlay_prov_guard(_prov, track_info.get("album", ""), _rg_coord)):
                 _ctx_uri, _ctx_type = _prov["uri"], _prov["type"]
         entry["context_uri"] = _ctx_uri or ""
         entry["context_type"] = _ctx_type or ""
@@ -3361,8 +3394,18 @@ def post_history(track, room, started_at, ended_at):
     _cur_container = item.get("container_uri", "")
     if (((not _cur_container) or _cur_container.startswith("x-rincon-queue"))
             and item.get("context_source") != "inserted_track"):
-        _prov = _get_queue_provenance(track.get("coordinator") or room)
-        if _prov and _prov.get("uri"):
+        _pg_coord = track.get("coordinator") or room
+        _prov = _get_queue_provenance(_pg_coord)
+        # v2.59.2: validate the pointer against the observed track BEFORE
+        # stamping (overlay guard). Stale album-typed pointer -> honest
+        # no-context + archaeology fields, pointer self-heals (cleared).
+        if (_prov and _prov.get("uri")
+                and _overlay_prov_guard(_prov, track.get("album", ""), _pg_coord)):
+            item["suppressed_container_name"] = _prov.get("name", "")
+            item["suppressed_container_uri"]  = _prov.get("uri", "")
+            item["suppressed_container_type"] = _prov.get("type", "")
+            item["context_suppressed_reason"] = "overlay_album_mismatch"
+        elif _prov and _prov.get("uri"):
             item["container_uri"]  = _prov["uri"]
             item["container_name"] = _prov["name"]
             item["container_type"] = _prov["type"]
