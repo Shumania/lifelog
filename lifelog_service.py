@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.58.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.59.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -311,11 +311,18 @@ def _set_queue_provenance(coord_name, uri, name, ctype):
                                     "type": ctype or "", "loaded_at": time.time()}
     _save_queue_provenance()
     log(f"[queue-prov] {coord_name}: queue loaded from {ctype} '{name}' ({uri})")
+    # v2.59 C3: a queue load/replace invalidates any stale-Enqueued marker for
+    # this coordinator. (Insert-play paths that WANT a marker set it AFTER this
+    # call — order matters there.) Defined below; resolved at call time.
+    _clear_stale_enqueued(coord_name, "queue provenance replaced")
 
 def _clear_queue_provenance(coord_name, reason=""):
     if queue_provenance.pop(coord_name, None) is not None:
         _save_queue_provenance()
         log(f"[queue-prov] {coord_name}: provenance cleared ({reason})")
+    # v2.59 C3: queue clears/replaces also invalidate the stale-Enqueued marker
+    # (runs even when there was no provenance to pop — the marker is independent).
+    _clear_stale_enqueued(coord_name, f"queue cleared/replaced ({reason})")
 
 def _get_queue_provenance(coord_name):
     """Return live provenance for a coordinator, or None (expired entries pruned)."""
@@ -336,6 +343,82 @@ try:
     print(f"[queue-prov] v2.55 queue provenance active: {len(queue_provenance)} entry(ies) loaded")
 except Exception as _qp_err:
     print(f"[queue-prov] WARNING: failed to load queue_provenance.json: {_qp_err}")
+
+# --- v2.59 STALE-ENQUEUED MARKER (C3 L1) ---------------------------------------
+# DESIGN (review_impl_v1.md §C3): AVTransport's EnqueuedTransportURI is only
+# rewritten by SetAVTransportURI (queue replaces via native app, direct loads,
+# radio tunes). Our own queue INSERTS (play_album play-now, play_next) and
+# play_from_queue do NOT touch it — so after an insert-play, Sonos keeps
+# reporting the PREVIOUS load's container while our content plays (Bug 1).
+# At insert-play command time we KNOW the Enqueued value just went stale, and
+# we know the exact stale URI. Remember it here so capture (sanitize_container)
+# can suppress the stale container. Two marker kinds:
+#   "insert_album"   — play-now album insert. Suppress only while the OBSERVED
+#                      track album matches expected_album; when the album ends
+#                      and the old queue resumes, the old container is again
+#                      CORRECT for those tracks and L1 must release (T-C3.4).
+#   "inserted_track" — single-track play_next injection (Q6, signed off):
+#                      suppress with NO overlay fallback — honest "no context"
+#                      instead of stamping the surrounding playlist on a one-off.
+# Cleared when: a genuinely NEW Enqueued URI is observed at capture (a real
+# load happened — ours or native), any queue replace/clear that goes through
+# _set/_clear_queue_provenance (all of ours do), or 24h TTL (Rule 11).
+# Persisted beside queue_provenance.json so a service restart never reverts
+# capture to the old (stale-stamping) behavior mid-listen.
+stale_enqueued          = {}   # coordinator name -> {"uri","kind","expected_album","expected_uri","ts"}
+STALE_ENQ_PATH          = INSTALL_DIR / "stale_enqueued.json"
+STALE_ENQ_TTL_SECONDS   = 24 * 3600  # Rule 11: every guard needs a release
+
+def _save_stale_enqueued():
+    try:
+        STALE_ENQ_PATH.write_text(json.dumps(stale_enqueued), encoding="utf-8")
+    except Exception as _se_err:
+        log(f"[stale-enq] WARNING: persist failed: {_se_err}")
+
+def _set_stale_enqueued(coord_name, uri, kind, expected_album="", expected_uri=""):
+    """Mark coord_name's EnqueuedTransportURI as known-stale after an insert-play."""
+    stale_enqueued[coord_name] = {"uri": uri or "", "kind": kind,
+                                  "expected_album": expected_album or "",
+                                  "expected_uri": expected_uri or "",
+                                  "ts": time.time()}
+    _save_stale_enqueued()
+    log(f"[stale-enq] {coord_name}: marker SET kind={kind} stale_uri='{(uri or '')[:80]}' "
+        f"expected_album='{expected_album}' expected_uri='{(expected_uri or '')[:80]}'")
+
+def _clear_stale_enqueued(coord_name, reason=""):
+    if stale_enqueued.pop(coord_name, None) is not None:
+        _save_stale_enqueued()
+        log(f"[stale-enq] {coord_name}: marker cleared ({reason})")
+
+def _get_stale_enqueued(coord_name):
+    """Return the live stale-Enqueued marker for a coordinator, or None (TTL-pruned)."""
+    m = stale_enqueued.get(coord_name)
+    if not m: return None
+    if time.time() - m.get("ts", 0) > STALE_ENQ_TTL_SECONDS:
+        _clear_stale_enqueued(coord_name, "TTL expired")
+        return None
+    return m
+
+def _read_enqueued_uri(device):
+    """Read the CURRENT EnqueuedTransportURI from a coordinator (marker capture).
+    Inserts don't touch this variable, so reading at marker-set time (just after
+    the insert) still yields the previous load's URI. Fail-open: '' on error."""
+    try:
+        pos = device.avTransport.GetPositionInfo(InstanceID=0)
+        return pos.get("EnqueuedTransportURI", "") or ""
+    except Exception as _re_err:
+        log(f"[stale-enq] EnqueuedTransportURI read failed on {getattr(device, 'player_name', '?')}: {_re_err}")
+        return ""
+
+try:
+    if STALE_ENQ_PATH.exists():
+        _se_loaded = json.loads(STALE_ENQ_PATH.read_text(encoding="utf-8"))
+        _se_cut = time.time() - STALE_ENQ_TTL_SECONDS
+        stale_enqueued.update({k: v for k, v in _se_loaded.items()
+                               if v.get("ts", 0) > _se_cut})
+        print(f"[stale-enq] loaded {len(stale_enqueued)} stale-Enqueued marker(s) from disk")
+except Exception as _se_err:
+    print(f"[stale-enq] WARNING: failed to load stale_enqueued.json: {_se_err}")
 
 # --- STALE-QUEUE GUARD (v2.58 Phase B) ----------------------------------------
 # DESIGN (design_v258_release_plan.md SS4, decisions LOCKED 2026-08-04):
@@ -416,6 +499,9 @@ except Exception as _qt_err:
 # v2.58 boot banner (Rule 24 SS3 / release checklist: verify a log line UNIQUE
 # to the new version post-update). Deterministic -- do not reword.
 print("[stale-guard] armed: threshold=24h")
+# v2.59 boot banner (Rule 24 §3: verify a log line UNIQUE to the new version
+# post-update). Deterministic -- do not reword.
+print("[v2.59] capture sanitize active (L1/L2/L3) + cu wire + svc-name normalize")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -461,11 +547,16 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
     # v2.57 rider: ring rows feed the page's provisional sessions (p2.89 cold-load
     # backfill) — give them the same context + duration fields the SSE pending
     # rows carry, with the v2.55 provenance overlay applied for queue playback.
+    # v2.59 F9: track_info["container"] arrives PRE-SANITIZED (sanitize_container
+    # runs upstream in get_track_info) — ring context fields are clean at source.
     try:
         _c = track_info.get("container") or {}
         _ctx_uri = _c.get("container_uri", "")
         _ctx_type = _c.get("container_type", "")
-        if (not _ctx_uri) or _ctx_uri.startswith("x-rincon-queue"):
+        # v2.59 Q6: injected one-offs carry NO context — block the overlay here
+        # exactly as post_history does (honest no-context on all surfaces).
+        if (((not _ctx_uri) or _ctx_uri.startswith("x-rincon-queue"))
+                and track_info.get("context_source") != "inserted_track"):
             _prov = _get_queue_provenance(track_info.get("coordinator")
                                           or (rooms_list[0] if isinstance(rooms_list, list) and rooms_list else ""))
             if _prov and _prov.get("uri"):
@@ -1745,7 +1836,11 @@ def _compact_pending_rows():
             if art.startswith("https://"):
                 row["art"] = art  # public URLs only; speaker-LAN getaa URLs are dead off-LAN
             cx = it.get("container_name") or ""
-            cu = it.get("container_uri") or ""
+            # v2.59 V-2 (C2/Q4): prefer the decoded spotify_context as cu so the
+            # page's stale-container guard can judge x-rincon-cpcontainer loads
+            # (S1: real Enqueued containers are x-* and were dropped from the
+            # wire, blinding the guard). Never send raw x-* URIs as cu.
+            cu = it.get("spotify_context") or it.get("container_uri") or ""
             if cx: row["cx"] = cx
             if cu and not cu.startswith("x-"): row["cu"] = cu
             rows.append(row)
@@ -2492,6 +2587,51 @@ def _spotify_pick_album(items, want_title):
     return chosen
 
 
+# --- v2.59 G8: CASE-INSENSITIVE MUSIC-SERVICE NAME RESOLUTION ------------------
+# SoCo's MusicService(name) lookup is case-SENSITIVE against the subscribed
+# service list — a caller's 'qobuz' matches nothing and fails with a confusing
+# error (G8 gate finding, design_v258_release_plan.md T2). Resolve every
+# caller-supplied service name to its canonical casing BEFORE use; WARN when
+# normalization was needed so sloppy callers are visible in the logs.
+_MUSIC_SERVICE_CANONICAL = {"qobuz": "Qobuz", "spotify": "Spotify",
+                            "apple music": "Apple Music", "applemusic": "Apple Music",
+                            "tunein": "TuneIn", "sonos radio": "Sonos Radio"}
+
+def _resolve_music_service_name(name):
+    """v2.59 G8: return the canonically-cased music service name for `name`.
+    Order: exact match against the device's live service list wins; else
+    case-insensitive match against that list; else the static canonical map;
+    else return the input unchanged (fail-open — MusicService() then raises its
+    own descriptive error, which is more useful than us guessing)."""
+    if not name or not isinstance(name, str):
+        return name
+    raw = name.strip()
+    # Fast path: already-canonical names skip the live SoCo service-list call
+    # (one SMAPI/registry read per command otherwise — needless on every send).
+    if raw in _MUSIC_SERVICE_CANONICAL.values():
+        return raw
+    try:
+        available = []
+        try:
+            from soco.music_services import MusicService
+            available = list(MusicService.get_all_music_services_names())
+        except Exception as _ms_err:
+            log(f"[svc-name] live service list unavailable ({_ms_err}); using static map")
+        if raw in available:
+            return raw
+        low = raw.lower()
+        for _cand in available:
+            if _cand.lower() == low:
+                log(f"[svc-name] WARN: normalized service name '{raw}' -> '{_cand}' (case-insensitive live match)")
+                return _cand
+        _canon = _MUSIC_SERVICE_CANONICAL.get(low)
+        if _canon and _canon != raw:
+            log(f"[svc-name] WARN: normalized service name '{raw}' -> '{_canon}' (static map)")
+            return _canon
+    except Exception as _rs_err:
+        log(f"[svc-name] resolution failed for '{raw}' (fail-open): {_rs_err}")
+    return raw
+
 # v2.54 B3: nightly auth canary — one cheap SMAPI search per music service.
 # Catches per-device service-token expiry while idle so expired credentials
 # surface as an error-ring badge instead of a mystery toast days later.
@@ -2706,6 +2846,141 @@ def get_container_context(device):
         # for months, nulling container context on every track. Never swallow silently.
         log(f"[container] get_container_context failed: {type(_cc_err).__name__}: {_cc_err}")
         return None
+
+
+# --- v2.59 C3: CAPTURE-SIDE CONTAINER SANITIZE (L1/L2/L3) ----------------------
+# Sanitize ONCE, at the source (get_track_info, right after get_container_context)
+# so every downstream consumer — history buffer, SSE pending rows, state ring
+# (F9), room_state — receives the same cleaned container. Design:
+# review_impl_v1.md §C3(c). Every layer FAILS OPEN: when it cannot judge
+# (missing DIDL album — Qobuz; no marker; no cu) it keeps the container.
+# Suppression nulls the whole ctx (including spotify_context — S2) and stamps
+# archaeology fields so the first week of v2.59 is auditable via one SQL query
+# over raw_metadata instead of a shadow-mode release.
+
+def _norm_ctx_str(s):
+    """Normalize a name for album/container comparison (mirrors the sessionizer
+    read-guard's normStr semantics: lowercase, alnum runs only)."""
+    return re.sub(r'[^a-z0-9]+', ' ', (s or '').lower()).strip()
+
+def _spotify_track_id(u):
+    """Extract a spotify track id from either native (spotify:track:ID) or
+    sonos-encoded (x-sonos-spotify:spotify%3atrack%3aID?...) URI forms."""
+    if not u: return ""
+    ul = u.replace("%3a", ":").replace("%3A", ":").lower()
+    m = re.search(r'spotify:track:([a-z0-9]+)', ul)
+    return m.group(1) if m else ""
+
+def _same_track_uri(u1, u2):
+    """True when two URIs name the same track (exact match, or same spotify id
+    across native/sonos encodings)."""
+    if not u1 or not u2: return False
+    if u1 == u2: return True
+    t1, t2 = _spotify_track_id(u1), _spotify_track_id(u2)
+    return bool(t1) and t1 == t2
+
+def _is_album_container(cu, ctype):
+    """Album-typed container: upnp class mentions album, or the URI carries a
+    spotify/encoded album id (x-rincon-cpcontainer:...album%3a... / spotify:album:)."""
+    cul = (cu or "").lower()
+    return ("album" in (ctype or "").lower()) or ("album%3a" in cul) or ("album:" in cul)
+
+def _is_station_container(cu, ctype):
+    """Station/broadcast container, or a container URI that is itself a stream
+    URI (self-describing) — L3 must never strip these (T-C3.5 radio)."""
+    ctl = (ctype or "").lower()
+    if "audiobroadcast" in ctl or "radio" in ctl:
+        return True
+    cul = (cu or "").lower()
+    return any(cul.startswith(p) for p in STREAM_URI_PREFIXES)
+
+def _suppression_fields(ctx, reason):
+    """Archaeology fields stamped onto track_info (and thus buffer rows /
+    raw_metadata) whenever a layer suppresses a container."""
+    return {"suppressed_container_name": (ctx or {}).get("container_name", ""),
+            "suppressed_container_uri":  (ctx or {}).get("container_uri", ""),
+            "suppressed_container_type": (ctx or {}).get("container_type", ""),
+            "context_suppressed_reason": reason}
+
+def sanitize_container(ctx, track_uri, track_album, coord_name):
+    """v2.59 C3: decide whether the captured container context is STALE and must
+    be suppressed. Returns (ctx_or_None, extra_track_fields).
+    L1 — insert-marker: at insert-play time the command path recorded the exact
+         Enqueued URI it knew had just gone stale (see _set_stale_enqueued).
+         Album kind fires only while the observed track album MATCHES the
+         inserted album — when the album ends and the old queue resumes, the
+         old container is again correct and L1 releases (T-C3.4). Track kind
+         (Q6) fires on the injected track itself and blocks the provenance
+         overlay too (honest no-context).
+    L2 — album-typed container whose name mismatches the track's own DIDL album
+         (capture-side mirror of the shipped sessionizer read guard).
+    L3 — stream playback (STREAM_URI_PREFIXES incl. x-sonos-vli) carrying a
+         non-station container that isn't the stream itself: the container
+         describes the WRONG thing (a leftover queue).
+    Level-triggered (Rule 27): the marker is compared against observed state on
+    EVERY poll, never consumed as a one-shot event. NEVER raises — any internal
+    error fails open and keeps the container."""
+    fields = {}
+    try:
+        cu    = (ctx or {}).get("container_uri", "") or ""
+        cname = (ctx or {}).get("container_name", "") or ""
+        ctype = (ctx or {}).get("container_type", "") or ""
+        m = _get_stale_enqueued(coord_name)
+        # Marker lifecycle: a genuinely NEW non-queue Enqueued URI means a real
+        # load happened (ours or native-app) — the marker's staleness claim no
+        # longer describes reality, so release it (Rule 11).
+        if (m and cu and not cu.startswith("x-rincon-queue")
+                and cu != m.get("uri", "") and not _same_track_uri(cu, m.get("uri", ""))):
+            _clear_stale_enqueued(coord_name, f"new Enqueued observed ({cu[:60]})")
+            m = None
+        # L1 (Q6 kind) — injected one-off track: suppress with NO overlay
+        # fallback. context_source='inserted_track' is the overlay-blocking flag
+        # (post_history and _retire_to_state_ring both honor it). This check
+        # runs even when ctx is None so the flag still blocks the overlay.
+        if (m and m.get("kind") == "inserted_track"
+                and _same_track_uri(track_uri, m.get("expected_uri", ""))):
+            fields["context_source"] = "inserted_track"
+            if ctx:
+                fields.update(_suppression_fields(ctx, "inserted_track"))
+                log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
+                    f"reason=inserted_track (injected one-off, honest no-context)")
+                return None, fields
+            log(f"[sanitize] {coord_name}: inserted_track flag set (no container present) — overlay blocked")
+            return ctx, fields
+        if not ctx:
+            return ctx, fields
+        # L1 (album kind) — the exact stale URI we predicted, while the track's
+        # album matches the album we insert-played: suppress; the v2.55
+        # provenance overlay then stamps the CORRECT context (the album).
+        if (m and m.get("kind") == "insert_album" and cu and cu == m.get("uri", "")
+                and track_album and m.get("expected_album")
+                and _norm_ctx_str(track_album) == _norm_ctx_str(m.get("expected_album", ""))):
+            fields.update(_suppression_fields(ctx, "stale_enqueued_after_insert"))
+            log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
+                f"reason=stale_enqueued_after_insert (insert-play marker, track_album='{track_album}')")
+            return None, fields
+        # L2 — album-typed container, name mismatch vs the track's own DIDL
+        # album. Fails open when either name is missing (Qobuz empty DIDL).
+        if (_is_album_container(cu, ctype) and track_album and cname
+                and _norm_ctx_str(cname) != _norm_ctx_str(track_album)):
+            fields.update(_suppression_fields(ctx, "album_name_mismatch"))
+            log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
+                f"reason=album_name_mismatch (track_album='{track_album}')")
+            return None, fields
+        # L3 — stream playback carrying a non-station container that isn't the
+        # stream itself (e.g. leftover queue container during Spotify Connect /
+        # AirPlay / line-in). Station containers and self-describing URIs pass.
+        if (track_uri and any(track_uri.lower().startswith(p) for p in STREAM_URI_PREFIXES)
+                and not _is_station_container(cu, ctype) and cu != track_uri):
+            fields.update(_suppression_fields(ctx, "stream_playback_queue_container"))
+            log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
+                f"reason=stream_playback_queue_container (stream uri='{track_uri[:60]}')")
+            return None, fields
+        return ctx, fields
+    except Exception as _san_err:
+        # Fail open: a sanitize bug must never strip legitimate context.
+        log(f"[sanitize] ERROR (fail-open, keeping container): {type(_san_err).__name__}: {_san_err}")
+        return ctx, fields
 
 
 def get_track_info(device):
@@ -2957,18 +3232,26 @@ def get_track_info(device):
                 log(f"[DIDL-safety] No valid title after clearing non-string on {name}")
                 return None
         ctx = get_container_context(device)
-        return {"title": title, "artist": artist_raw,
-                "album": album_raw, "uri": uri,
-                "service": detect_service(uri, metadata),
-                "duration_seconds": dur_secs, "rooms": members,
-                "coordinator": device.player_name,
-                "container": ctx,
-                "didl_parent_id": didl_parent_id,
-                "didl_album_art_uri": didl_album_art_uri,
-                # v2.54 rider: raw DIDL travels to history so per-service metadata
-                # archaeology (containers, art, full titles) is possible later.
-                # Capped at 4 KB — classical DIDL can be huge.
-                "didl_raw": (metadata[:4096] if isinstance(metadata, str) else "")}
+        # v2.59 C3: sanitize ONCE at the source — history buffer, SSE rows,
+        # state ring (F9) and room_state all receive the same cleaned container.
+        # _san_fields carries suppression archaeology (+ Q6 inserted_track flag)
+        # onto track_info so buffer rows land them in raw_metadata.
+        ctx, _san_fields = sanitize_container(ctx, uri, album_raw, device.player_name)
+        _ti = {"title": title, "artist": artist_raw,
+               "album": album_raw, "uri": uri,
+               "service": detect_service(uri, metadata),
+               "duration_seconds": dur_secs, "rooms": members,
+               "coordinator": device.player_name,
+               "container": ctx,
+               "didl_parent_id": didl_parent_id,
+               "didl_album_art_uri": didl_album_art_uri,
+               # v2.54 rider: raw DIDL travels to history so per-service metadata
+               # archaeology (containers, art, full titles) is possible later.
+               # Capped at 4 KB — classical DIDL can be huge.
+               "didl_raw": (metadata[:4096] if isinstance(metadata, str) else "")}
+        if _san_fields:
+            _ti.update(_san_fields)
+        return _ti
     except Exception as e:
         failures = speaker_failures.get(name, 0) + 1
         speaker_failures[name] = failures
@@ -3048,7 +3331,14 @@ def post_history(track, room, started_at, ended_at):
         "_fp": fp,                # coalesce match key (internal; server ignores)
         "_ended_epoch": ended_epoch,  # coalesce tolerance check (internal)
     }
+    # v2.59 C3: suppression archaeology rides the buffer row into raw_metadata
+    # (one SQL query audits the first week of v2.59 — no shadow-mode release).
+    for _sk in ("suppressed_container_name", "suppressed_container_uri",
+                "suppressed_container_type", "context_suppressed_reason"):
+        if track.get(_sk):
+            item[_sk] = track[_sk]
     # Add container context (playlist/album/station) if available
+    # (v2.59: track["container"] arrives pre-sanitized by sanitize_container)
     container = track.get("container")
     if container:
         item["container_uri"] = container.get("container_uri", "")
@@ -3060,8 +3350,15 @@ def post_history(track, room, started_at, ended_at):
     # (queue playback reports x-rincon-queue / nothing), stamp the remembered
     # load context so sessions can be named after the playlist/album. A real
     # EnqueuedTransportURI from Sonos always WINS over the overlay.
+    # v2.59 Q6 (signed off): an injected one-off (play_next single track) gets
+    # NO container and must NOT inherit the surrounding queue's provenance —
+    # stamping the playlist on a one-off is the small lie v2.55 accepted and
+    # C3 stops telling. context_source='inserted_track' blocks the overlay.
+    if track.get("context_source") == "inserted_track":
+        item["context_source"] = "inserted_track"
     _cur_container = item.get("container_uri", "")
-    if (not _cur_container) or _cur_container.startswith("x-rincon-queue"):
+    if (((not _cur_container) or _cur_container.startswith("x-rincon-queue"))
+            and item.get("context_source") != "inserted_track"):
         _prov = _get_queue_provenance(track.get("coordinator") or room)
         if _prov and _prov.get("uri"):
             item["container_uri"]  = _prov["uri"]
@@ -3659,7 +3956,7 @@ def execute_command(cmd, source="unknown"):
 
         elif action == "search":
             from soco.music_services import MusicService
-            svc_name    = cmd.get("service", "Qobuz")
+            svc_name    = _resolve_music_service_name(cmd.get("service", "Qobuz"))  # v2.59 G8
             query       = cmd.get("query", "")
             search_type = cmd.get("search_type", "albums")
             n           = int(cmd.get("n", 5))
@@ -3680,7 +3977,7 @@ def execute_command(cmd, source="unknown"):
         elif action == "search_and_play":
             from soco.music_services import MusicService
             room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
-            svc_name    = cmd.get("service", "Qobuz")
+            svc_name    = _resolve_music_service_name(cmd.get("service", "Qobuz"))  # v2.59 G8
             query       = cmd.get("query", "")
             search_type = cmd.get("search_type", "albums")
             # v2.57 P0-F4: queue_mode "next"|"end"|"play" (default "play" = legacy
@@ -3798,7 +4095,7 @@ def execute_command(cmd, source="unknown"):
             # Like search_and_play but uses add_to_queue(DidlObject) instead of play_uri
             from soco.music_services import MusicService
             room        = cmd.get("room") or (cmd.get("rooms") or [None])[0]
-            svc_name    = cmd.get("service", "Qobuz")
+            svc_name    = _resolve_music_service_name(cmd.get("service", "Qobuz"))  # v2.59 G8
             query       = cmd.get("query", "")
             search_type = cmd.get("search_type", "albums")
             dev = devices.get(room)
@@ -3844,7 +4141,7 @@ def execute_command(cmd, source="unknown"):
             QOBUZ_APP_ID = "712109809"
             album_title = cmd.get("title", "")
             album_artist = cmd.get("artist", "")
-            svc_name    = cmd.get("service", "Qobuz")
+            svc_name    = _resolve_music_service_name(cmd.get("service", "Qobuz"))  # v2.59 G8
             queue_only  = cmd.get("queue_only", False)
             # v2.57 (§3.1): replace mode — load-then-trim atomic queue replace for
             # Qobuz/Apple/Spotify albums through this action's resolution pipeline.
@@ -4173,6 +4470,26 @@ def execute_command(cmd, source="unknown"):
                             _prov_uri = spotify_album_uri or share_link_url or getattr(album_item, "uri", "") or ""
                             _set_queue_provenance(coordinator.player_name, _prov_uri,
                                                   chosen_title or album_title, "album")
+                            # v2.59 C3 L1: our add went in via AddURIToQueue, which does
+                            # NOT rewrite AVTransport's EnqueuedTransportURI — Sonos will
+                            # keep reporting the PREVIOUS load's container while this
+                            # album plays. Record that now-stale URI so capture suppresses
+                            # it and the provenance overlay (just set above) stamps the
+                            # truth. expected_album is the false-positive killer: when the
+                            # album ends and the old queue resumes, the album no longer
+                            # matches and L1 releases (T-C3.4). NOTE: must run AFTER
+                            # _set_queue_provenance (which clears markers for this coord).
+                            try:
+                                _stale_enq = _read_enqueued_uri(coordinator)
+                                if (_stale_enq and not _stale_enq.startswith("x-rincon-queue:")
+                                        and _stale_enq != _prov_uri):
+                                    _set_stale_enqueued(coordinator.player_name, _stale_enq,
+                                                        "insert_album",
+                                                        expected_album=chosen_title or album_title)
+                                else:
+                                    log(f"play_album: no stale Enqueued to mark (enq='{_stale_enq[:60]}')")
+                            except Exception as _se_err:
+                                log(f"play_album: stale-Enqueued marker set failed (benign): {_se_err}")
 
                         room_label = " + ".join(rooms) if len(rooms) > 1 else rooms[0]
                         grp_note = f" (unlinked from {', '.join(was_grouped)})" if was_grouped else ""
@@ -4692,6 +5009,34 @@ def execute_command(cmd, source="unknown"):
                             _qo_pos_req = insert_pos
                             log(f"play_next: inserting at position {insert_pos} (current={current_pos}, queue_size={_q_before})")
                             _qa_actual, _qa_placement = _add_with_verify(coordinator, pos=insert_pos, before_size=_q_before)
+                            # v2.59 C3 L1/Q6: queue inserts don't rewrite EnqueuedTransportURI,
+                            # so capture will keep seeing the previous load's container.
+                            # - Spotify ALBUM insert-play -> "insert_album" marker (same
+                            #   geometry as play_album play-now; expected_album releases
+                            #   L1 when the old queue resumes, T-C3.4).
+                            # - Single track (spotify track or raw Sonos URI) ->
+                            #   "inserted_track" marker (Q6, signed off): the injected
+                            #   one-off gets NO container and NO provenance overlay —
+                            #   honest no-context instead of the surrounding playlist.
+                            #   Marker set even when Enqueued is empty/queue-typed: the
+                            #   flag must still block the overlay for the injected track.
+                            try:
+                                _stale_enq = _read_enqueued_uri(coordinator)
+                                if is_spotify and uri_type == "album":
+                                    if (_stale_enq and not _stale_enq.startswith("x-rincon-queue:")
+                                            and _stale_enq != track_uri):
+                                        _set_stale_enqueued(coordinator.player_name, _stale_enq,
+                                                            "insert_album",
+                                                            expected_album=cmd.get("album") or title)
+                                    else:
+                                        log(f"play_next: no stale Enqueued to mark (enq='{_stale_enq[:60]}')")
+                                else:
+                                    _set_stale_enqueued(coordinator.player_name, _stale_enq,
+                                                        "inserted_track",
+                                                        expected_album=cmd.get("album", ""),
+                                                        expected_uri=track_uri)
+                            except Exception as _se_err:
+                                log(f"play_next: stale-Enqueued marker set failed (benign): {_se_err}")
                         if _b_converted_from:
                             pass  # playback already started by _load_then_trim
                         elif _qa_placement == "degraded" and _qa_actual:
