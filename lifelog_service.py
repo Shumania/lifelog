@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.59.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.59.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -502,6 +502,8 @@ print("[stale-guard] armed: threshold=24h")
 # v2.59 boot banner (Rule 24 §3: verify a log line UNIQUE to the new version
 # post-update). Deterministic -- do not reword.
 print("[v2.59] capture sanitize active (L1/L2/L3) + cu wire + svc-name normalize")
+# v2.59.1 boot banner (Rule 24 §3: log line UNIQUE to this version)
+print("[v2.59.1] play_next provenance fix active: playlist REPLACE + stream takeover now set/clear queue provenance")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -4942,6 +4944,14 @@ def execute_command(cmd, source="unknown"):
                             coordinator.clear_queue()
                         _qa_actual, _qa_placement = _add_with_verify(coordinator, before_size=0)
                         coordinator.play_from_queue(0)
+                        # v2.59.1: queue provenance — the playlist is now the active
+                        # listening context. This branch predates v2.55 and never set
+                        # it (2026-08-06 wes-alumni incident: a 2.5h-old play_album
+                        # provenance pointer survived the replace and the overlay
+                        # stamped a stale Apple Music album onto all 5 playlist plays).
+                        # Mirrors play_spotify_uri / replace_queue container semantics;
+                        # _set_queue_provenance also clears stale-Enqueued markers.
+                        _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
                     elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
@@ -4956,6 +4966,16 @@ def execute_command(cmd, source="unknown"):
                                 label=" play_next(stream)")
                             if _pn_trim_failed:
                                 log("play_next: stream takeover trim failed -- old rows remain above the new track (honest WARN, will be swept by next replace/clear)")
+                            # v2.59.1 sibling fix (Rule 10 sweep with the playlist-REPLACE
+                            # branch above): stream takeover replaces the queue content,
+                            # so the old container is no longer the context. Albums keep
+                            # provenance; a single track wipes it (play_spotify_uri
+                            # semantics, v2.55). Playlists can't reach here (handled by
+                            # is_playlist_container above).
+                            if uri_type in ("album", "playlist"):
+                                _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                            else:
+                                _clear_queue_provenance(coordinator.player_name, "stream takeover by single track")
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
