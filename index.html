@@ -855,6 +855,7 @@
 .qs-qcontext-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .qs-qcontext-head .q-label { color: var(--text, #e8eaf0); font-weight: 700; flex-shrink: 0; }
 .qs-qcontext-head .q-prov { color: var(--text-dim, #8a8fa3); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qs-grouprow { font-size: 11px; color: var(--text-dim, #8a8fa3); margin: 4px 0 2px; line-height: 1.5; } /* p3.02: full group membership under queue header */
 .qs-upnext { margin-top: 8px; border-top: 1px solid var(--border, rgba(255,255,255,0.09)); padding-top: 6px; }
 .qs-empty { font-size: 12px; color: var(--text-dim, #8a8fa3); font-style: italic; }
 .qs-choose { margin: 8px 16px; padding: 10px 12px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35); border-radius: 10px; font-size: 13px; color: var(--text, #e8eaf0); }
@@ -1087,7 +1088,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.01';
+const PAGE_VERSION = 'p3.02';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1932,7 +1933,7 @@ function renderQueueLine(h) {
   const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
   const multi = Object.keys(st.qs).length > 1;
   document.getElementById('qtext-' + h).innerHTML =
-    'Queue' + (multi ? ' — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) : '') + ': <b>' + left + ' left</b> · ' +
+    'Queue' + (multi ? ' — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) + (() => { const n = _qsMembers(h, coord).length - 1; return n > 0 ? ' +' + n : ''; })() : '') + ': <b>' + left + ' left</b> · ' +
     esc(e.provenance_label || (e.track_count + ' tracks')) +
     (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '');
   document.getElementById('qstale-' + h).hidden = !(loadedMs != null && loadedMs > 12 * 3600 * 1000); // U5
@@ -2131,17 +2132,24 @@ function _renderQueueSheet() {
     '</div><div class="qs-divider"></div>';
 
   // Queue context block (bottom) — reuses expando vocabulary; sheet keeps ✂ only
+  const liveCoord = t ? _qsLiveCoordFor(c.h, t) : null; // p3.01: LIVE coordinator, not prior-epoch entry key
+  const grpMem = liveCoord ? _qsMembers(c.h, t).filter(r => r !== liveCoord) : []; // p3.02: full group membership
+  const grpRow = grpMem.length
+    ? '<div class="qs-grouprow">🔊 with ' + grpMem.map(r => esc(r.replace(/^Main /, ''))).join(' · ') + '</div>'
+    : '';
   let qb = '<div class="qs-qcontext-head"><span class="q-label">Queue' +
-    (t && Object.keys(qs).length > 1 ? ' — ' + esc(_qsLiveCoordFor(c.h, t).replace(/^Main /, '')) : '') + '</span>'; // p3.01: label with LIVE coordinator, not prior-epoch entry key
+    (liveCoord && (grpMem.length || Object.keys(qs).length > 1)
+      ? ' — ' + esc(liveCoord.replace(/^Main /, '')) + (grpMem.length ? ' +' + grpMem.length : '')
+      : '') + '</span>';
   if (stream) {
-    qb += '<span class="q-prov">Live stream' + (e.stream_label ? ' (' + esc(e.stream_label) + ')' : '') + ' — no queue</span></div>';
+    qb += '<span class="q-prov">Live stream' + (e.stream_label ? ' (' + esc(e.stream_label) + ')' : '') + ' — no queue</span></div>' + grpRow;
   } else if (qPending) { // p3.01: don't show pre-command counts or claim "empty" from a stale snapshot
-    qb += '<span class="q-prov" style="color:#c98a00">updating… · syncing after your change</span></div>';
+    qb += '<span class="q-prov" style="color:#c98a00">updating… · syncing after your change</span></div>' + grpRow;
   } else if (e) {
     const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
     qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + esc(e.provenance_label || (e.track_count + ' tracks')) +
       (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '') + '</span>' +
-      (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">⚠️ stale</span>' : '') + '</div>';
+      (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">⚠️ stale</span>' : '') + '</div>' + grpRow;
     qb += '<div class="qs-upnext"><div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
     const up = e.upcoming || [];
     if (!up.length) qb += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
@@ -2152,7 +2160,7 @@ function _renderQueueSheet() {
     const ageMs = st && st.last_updated ? (Date.now() - new Date(st.last_updated).getTime()) : null;
     if (ageMs != null && ageMs > 5 * 60000) qb += '<div class="q-freshness">as of ' + new Date(st.last_updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '</div>'; // F2
   } else {
-    qb += '<span class="q-prov">' + (st ? 'Queue is empty.' : 'Queue: unknown') + '</span></div>'; // E2 / F2-missing
+    qb += '<span class="q-prov">' + (st ? 'Queue is empty.' : 'Queue: unknown') + '</span></div>' + grpRow; // E2 / F2-missing
   }
   html += '<div class="qs-qcontext">' + qb + '</div>';
   document.getElementById('qsheet').innerHTML = html;
