@@ -1087,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p2.98';
+const PAGE_VERSION = 'p2.99';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2285,19 +2285,32 @@ async function fetchSpotifyDevices() {
 
 async function fetchSpotifyNowPlaying() {
   try {
-    const d = await spotifyApi('GET', '/me/player?additional_types=track,episode');
+    let d = await spotifyApi('GET', '/me/player?additional_types=track,episode');
+    let _npFellBack = false;
+    if (!d || !d.item) {
+      // p2.99: /me/player is broken in dev mode (Feb 2026 Spotify change) and often
+      // returns empty while music plays. currently-playing still works — use it as
+      // fallback. It lacks the device field; borrow the active device from the list.
+      try {
+        d = await spotifyApi('GET', '/me/player/currently-playing?additional_types=track,episode');
+        _npFellBack = true;
+        if (d && d.item) console.log('[roaming p2.99] /me/player empty; currently-playing fallback served:', d.item.name);
+      } catch(e2) { console.log('[roaming p2.99] currently-playing fallback failed:', e2); d = null; }
+    }
     if (!d || !d.item) { spotifyNowPlaying = null; }
     else {
+      const _activeDev = _npFellBack ? (spotifyDevices.find(x => x.is_active) || null) : null;
       spotifyNowPlaying = {
         title: d.item.name,
         artist: d.item.type === 'track' ? (d.item.artists||[]).map(a=>a.name).join(', ') : (d.item.show?.name||''),
         album: d.item.type === 'track' ? (d.item.album?.name||'') : '',
-        device: d.device?.name || '',
+        device: d.device?.name || _activeDev?.name || '',
         progress_ms: d.progress_ms || 0, duration_ms: d.item.duration_ms || 0,
         is_playing: d.is_playing, uri: d.item.uri,
         context_type: d.context?.type || '', context_uri: d.context?.uri || ''
       };
-      if (d.device?.id && !_manualPinActive()) { spotifySelectedDeviceId = d.device.id; localStorage.setItem('ll_spotify_device', d.device.id); }
+      const _npDevId = d.device?.id || _activeDev?.id || null;
+      if (_npDevId && !_manualPinActive()) { spotifySelectedDeviceId = _npDevId; localStorage.setItem('ll_spotify_device', _npDevId); }
     }
   } catch(e) { spotifyNowPlaying = null; }
   if (house === 'roaming') renderNowPlayingRoaming();
