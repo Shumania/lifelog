@@ -862,6 +862,23 @@
 .qs-choose-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .qs-choose-btns button { padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border, rgba(255,255,255,0.2));
   background: var(--card, rgba(255,255,255,0.06)); color: var(--text, #e8eaf0); font-size: 12px; font-weight: 600; cursor: pointer; }
+  /* ── p3.03 items 1+2: Tracks & Playlists inherit the Sessions gutter (#sh-main 620px
+     pattern, widened to 720px — track/playlist rows carry more metadata: room lists,
+     owner badges). Centered column keeps per-row action buttons (▶/+/♥/💿/⋯ and ▶/+/›)
+     near the content on wide screens; ≤720px viewports are unaffected. Date headers and
+     the Music|Podcasts toggle row live inside the constrained containers so alignment holds. */
+  #tab-history .sub-tabs, #tab-history .history-toolbar, #tab-history .history-list,
+  #tab-playlists .playlist-controls, #tab-playlists .playlist-list {
+    max-width: 720px; margin-left: auto; margin-right: auto;
+  }
+
+  /* p3.03 item 3: ✨ New badge — never-played playlist created/edited ≤7 days ago,
+     shown under the Recently Listened sort only (floated to top by the comparator). */
+  .pc-new-badge {
+    display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px;
+    border-radius: 8px; background: rgba(240,185,64,0.12); color: #f0b940;
+    border: 1px solid rgba(240,185,64,0.3); margin-left: 4px; vertical-align: 1px;
+  }
 </style>
 </head>
 <body>
@@ -1043,7 +1060,7 @@
     </div>
     <!-- p2.42 deep-refresh banner: NON-BLOCKING by design (AD-032). Commands (pause/volume/rooms)
          go browser→ntfy→client and SSE stays live, so the page must never modal-block during refresh. -->
-    <div id="refresh-banner" hidden style="margin:6px 0;padding:8px 12px;border:1px solid #e0a02055;background:#e0a02011;border-radius:8px;font-size:12px;color:var(--text-dim)">
+    <div id="refresh-banner" hidden style="max-width:720px;margin:6px auto;padding:8px 12px;border:1px solid #e0a02055;background:#e0a02011;border-radius:8px;font-size:12px;color:var(--text-dim)">
       ⏳ Double-checking cached data — flushing speakers &amp; polling roaming Spotify. History will update in a few minutes; playback controls still work. <span id="refresh-elapsed" style="font-variant-numeric:tabular-nums;font-weight:600">0:00</span>
     </div>
     <div class="content-panel" id="subtab-music">
@@ -1088,7 +1105,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.02';
+const PAGE_VERSION = 'p3.03';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1865,7 +1882,13 @@ function _queueScheduleCatchup() {
 // 10-min cap: if publishes stall that long, fall back to the honest-age display (C3).
 const _qCmdTs = {};
 ['caphill','vashon'].forEach(h => { try { _qCmdTs[h] = +localStorage.getItem('ll_qcmdts_' + h) || 0; } catch(e) { _qCmdTs[h] = 0; } });
-function _qMarkCmd(h) { _qCmdTs[h] = Date.now(); try { localStorage.setItem('ll_qcmdts_' + h, String(_qCmdTs[h])); } catch(e) {} console.log('[queue p3.01] cmd stamp for ' + h + ' — snapshots older than now render as updating…'); }
+// p3.03 item 4: the stamp also records WHAT the command inserted ('album' | 'playlist' |
+// 'track') — container URIs expand asynchronously on the speaker, so the pending UI can
+// say "Expanding album…" instead of flashing a single unexpanded container row that looks
+// broken. Persisted alongside the timestamp so a reload keeps the right wording.
+const _qCmdKind = {};
+['caphill','vashon'].forEach(h => { try { _qCmdKind[h] = localStorage.getItem('ll_qcmdkind_' + h) || 'track'; } catch(e) { _qCmdKind[h] = 'track'; } });
+function _qMarkCmd(h, kind) { _qCmdTs[h] = Date.now(); _qCmdKind[h] = kind || 'track'; try { localStorage.setItem('ll_qcmdts_' + h, String(_qCmdTs[h])); localStorage.setItem('ll_qcmdkind_' + h, _qCmdKind[h]); } catch(e) {} console.log('[queue p3.01] cmd stamp for ' + h + ' (' + _qCmdKind[h] + ') — snapshots older than now render as updating…'); }
 function _qSnapshotPending(h) {
   const cmd = _qCmdTs[h] || 0;
   if (!cmd || Date.now() - cmd > 10 * 60000) return false;
@@ -1921,10 +1944,20 @@ function renderQueueLine(h) {
   const e = ek ? (st.qs[ek] || null) : null;
   if (_qSnapshotPending(h)) { // p3.01: snapshot predates this page's own last queue edit — don't show pre-command counts
     line.hidden = false;
-    document.getElementById('qtext-' + h).innerHTML = 'Queue: <b>updating…</b> · <span style="color:#c98a00">syncing after your change</span>';
+    // p3.03 item 4: container inserts (album/playlist) expand asynchronously on the speaker —
+    // say so, and keep an already-open expando open with one dim status row (it used to
+    // force-close; a stale snapshot could also flash a single unexpanded container row that
+    // looked broken). Same lifecycle as the p3.01 "syncing" state: clears when a post-edit
+    // snapshot lands; the 10-min cap in _qSnapshotPending applies.
+    const kind = _qCmdKind[h], expanding = (kind === 'album' || kind === 'playlist');
+    document.getElementById('qtext-' + h).innerHTML = 'Queue: <b>updating…</b> · <span style="color:#c98a00">' +
+      (expanding ? '⏳ expanding ' + kind + '…' : 'syncing after your change') + '</span>';
     document.getElementById('qstale-' + h).hidden = true;
-    document.getElementById('qchev-' + h).classList.remove('open');
-    exp.classList.remove('open');
+    const pOpen = !!_qexpOpen[h];
+    document.getElementById('qchev-' + h).classList.toggle('open', pOpen);
+    exp.classList.toggle('open', pOpen);
+    if (pOpen) exp.innerHTML = '<div class="q-more" style="padding-left:0;opacity:0.75">' +
+      (expanding ? '⏳ Expanding ' + kind + '… tracks appear once the speaker unpacks it' : '⏳ Syncing after your change…') + '</div>';
     return;
   }
   if (!e || e.stream || !e.track_count) { line.hidden = true; exp.classList.remove('open'); return; } // U3: streams/empty hide the row
@@ -2213,7 +2246,14 @@ async function postNtfy(payload) {
     console.log('[postNtfy] ntfy status=' + r.status);
     showToast('→ ' + house + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    if (_QUEUE_VERBS.has(payload.action)) { _qMarkCmd(house); _queueScheduleCatchup(); } // p2.93 catch-up + p3.01 freshness stamp
+    if (_QUEUE_VERBS.has(payload.action)) { // p2.93 catch-up + p3.01 freshness stamp
+      // p3.03 item 4: derive the insert kind from the payload — container URIs (album/
+      // playlist) and album searches expand asynchronously on the speaker.
+      const _u = String(payload.uri || '');
+      const _kind = _u.includes(':album:') ? 'album' : _u.includes(':playlist:') ? 'playlist'
+        : (payload.search_type === 'albums' ? 'album' : 'track');
+      _qMarkCmd(house, _kind); _queueScheduleCatchup();
+    }
     return true;
   } catch(e) {
     console.error('[postNtfy] FAILED:', e);
@@ -2291,6 +2331,7 @@ async function spotifyCmd(action) {
     if (!['volume_up','volume_down'].includes(action)) showToast('✓ ' + action);
     setTimeout(fetchSpotifyNowPlaying, 500);
   } catch(e) {
+    if (_roamingNoDevice(e)) return; // p3.03 item 5
     showToast(e.message?.includes('429') ? 'Slow down! Try again' : '✗ ' + e.message, true);
   }
 }
@@ -2301,6 +2342,21 @@ async function spotifyCmd(action) {
 const PHONE_TYPES = new Set(['Smartphone', 'Tablet']);
 function deviceIcon(type) {
   return { Computer:'💻', Smartphone:'📱', Speaker:'🔊', TV:'📺', AVR:'🎛️', Tablet:'📱', Automobile:'🚗' }[type] || '🎵';
+}
+
+// p3.03 item 5: roaming "no active device" dead-end → actionable toast + one-shot device
+// refetch (page-only surfacing, not a cure). The iPhone Spotify app drops off
+// /me/player/devices when backgrounded (dev mode aggravates this), so plays fail with an
+// unactionable "Player command failed". The refetch means that if the app just woke up,
+// the next ▶ tap works without a page reload. Returns true when it handled the error;
+// callers fall through to their generic toast otherwise.
+function _roamingNoDevice(e) {
+  const m = ((e && e.message) || '').toLowerCase();
+  if (!m.includes('no active device') && !m.includes('device not found')) return false;
+  showToast('📵 Spotify can\'t see your phone — open the Spotify app, then tap ▶ again.', true);
+  console.log('[roaming p3.03] no active device — refetching device list for the retry');
+  fetchSpotifyDevices(); // one-shot refetch so the retry can target the woken device
+  return true;
 }
 
 async function fetchSpotifyDevices() {
@@ -3892,7 +3948,7 @@ async function directPlay(action, encodedData, sheetOpts) {
       showToast('✓ Playing: ' + (info.title || ''));
     }
     setTimeout(fetchSpotifyNowPlaying, 1000);
-  } catch(e) { showToast('✗ ' + e.message, true); }
+  } catch(e) { if (!_roamingNoDevice(e)) showToast('✗ ' + e.message, true); } // p3.03 item 5
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -4303,9 +4359,9 @@ async function playContext(action, encodedData, sheetOpts) {
         showToast('✓ Playing: ' + label);
         setTimeout(fetchSpotifyNowPlaying, 1000);
         return;
-      } catch(e2) { showToast('✗ Player command failed: ' + e2.message, true); return; }
+      } catch(e2) { if (!_roamingNoDevice(e2)) showToast('✗ Player command failed: ' + e2.message, true); return; } // p3.03 item 5
     }
-    showToast('✗ Player command failed: ' + e.message, true);
+    if (!_roamingNoDevice(e)) showToast('✗ Player command failed: ' + e.message, true); // p3.03 item 5
   }
 }
 
@@ -4357,9 +4413,9 @@ async function playDiscovery(action, uri, label, sheetOpts) {
           showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label);
           setTimeout(fetchSpotifyNowPlaying, 1000);
           return;
-        } catch(e2) { showToast('✗ ' + e2.message, true); return; }
+        } catch(e2) { if (!_roamingNoDevice(e2)) showToast('✗ ' + e2.message, true); return; } // p3.03 item 5
       }
-      showToast('✗ ' + e.message, true);
+      if (!_roamingNoDevice(e)) showToast('✗ ' + e.message, true); // p3.03 item 5
     }
     return;
   }
@@ -5254,10 +5310,43 @@ async function loadPlaylistData() {
     _plAccountOwnerId = Object.keys(ownerCounts).sort((a, b) => ownerCounts[b] - ownerCounts[a])[0] || null;
     computePlaylistLastListened();
     renderPlaylists();
+    _plDeriveMissingDates(); // p3.03 item 3: fire-and-forget — re-renders when dates land
   } catch(e) {
     console.error('[playlists] Failed to load metadata:', e);
     document.getElementById('playlist-list').innerHTML = '<div class="empty-state">⚠️ Could not load playlists</div>';
   }
+}
+
+// p3.03 item 3 fallback: playlists.json leaves created_approx/last_modified NULL until the
+// nightly library sync catches up — exactly the window where a playlist the nightly builder
+// made THIS morning needs to float as ✨ New (2026-08-07 "Covered" hide-and-seek: all three
+// date fields null on creation day). For date-less NEVER-PLAYED playlists that have a
+// published track chunk, derive created/modified from the chunk's added_at stamps — real
+// data, one small fetch each (currently 2 playlists qualify). Successful derivations are
+// memoized in localStorage; failures are NOT cached, so a chunk that publishes later still
+// gets picked up on a future load (Rule 11: every guard needs a release).
+async function _plDeriveMissingDates() {
+  var cache = {};
+  try { cache = JSON.parse(localStorage.getItem('ll_pl_derived_dates') || '{}'); } catch(e) {}
+  var touched = false, dirty = false;
+  for (var i = 0; i < _playlists.length; i++) {
+    var p = _playlists[i];
+    if (p.created_approx || p.last_modified || p.last_played) continue;
+    if (p.played_only || !((p.tracks_total || 0) > 0)) continue; // ghosts/blocked have no chunk
+    var hit = cache[p.id];
+    if (hit && hit.c) { p.created_approx = hit.c; p.last_modified = hit.m || hit.c; touched = true; continue; }
+    try {
+      var r = await fetch(PL_TRACKS_BASE + p.id + '.json?t=' + (Date.now()>>16));
+      if (!r.ok) continue;
+      var ts = ((await r.json()) || []).map(function(t) { return t.added_at || ''; }).filter(Boolean).sort();
+      if (!ts.length) continue;
+      p.created_approx = ts[0]; p.last_modified = ts[ts.length - 1];
+      cache[p.id] = { c: p.created_approx, m: p.last_modified };
+      touched = true; dirty = true;
+    } catch(e) { console.warn('[playlists p3.03] date derivation failed for', p.id, e); }
+  }
+  if (dirty) { try { localStorage.setItem('ll_pl_derived_dates', JSON.stringify(cache)); } catch(e) {} }
+  if (touched) renderPlaylists();
 }
 
 function computePlaylistLastListened() {
@@ -5350,6 +5439,18 @@ function renderPlaylists() {
     return s > c ? s : c;
   }
 
+  // p3.03 item 3: ✨ New — never-played playlists created/edited within the last 7 days
+  // (locked decision 2026-08-07: 7, not 14) float to the very top under Recently Listened,
+  // newest first. The nightly builder creates one playlist every morning; without this they
+  // sorted dead last. Older never-played playlists keep sinking to the bottom as before,
+  // and once played a playlist re-enters normal recency ordering (badge gone).
+  function plNewTs(p) { var c = p.created_approx || '', m = p.last_modified || ''; return m > c ? m : c; }
+  function plIsNew(p) {
+    if (plLastAny(p)) return false;
+    var ts = plNewTs(p);
+    return !!ts && (Date.now() - new Date(ts).getTime()) < 7 * 86400000;
+  }
+
   let filtered = _playlists.filter(function(p) {
     return p.name.toLowerCase().includes(q) || (p.owner && p.owner.toLowerCase().includes(q));
   });
@@ -5357,6 +5458,9 @@ function renderPlaylists() {
   filtered.sort(function(a, b) {
     if (sortKey === 'alpha') return a.name.localeCompare(b.name);
     if (sortKey === 'recent') {
+      var aN = plIsNew(a), bN = plIsNew(b); // p3.03: ✨ New float — see plIsNew above
+      if (aN !== bN) return aN ? -1 : 1;
+      if (aN && bN) return plNewTs(b).localeCompare(plNewTs(a)); // newest first
       var aT = plLastAny(a);
       var bT = plLastAny(b);
       if (aT && !bT) return -1;
@@ -5421,7 +5525,8 @@ function renderPlaylists() {
     // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
     card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + (isBlocked ? ' title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play."' : '') + '>';
     card += artHtml;
-    card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) + '</div>';
+    card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) +
+      (sortKey === 'recent' && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + '</div>'; // p3.03 item 3
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div></div>';
     card += '<div class="pc-actions">';
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
