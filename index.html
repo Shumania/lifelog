@@ -813,6 +813,12 @@
 .q-inline-expand { display: none; margin-top: 5px; padding: 9px 12px;
   background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09)); border-radius: 8px; }
 .q-inline-expand.open { display: block; }
+/* p3.04: speaker hub lives INSIDE the expando — Speakers section above Up next.
+   Chips render into a persistent child (q-rooms-wrap); queue rows into a sibling
+   (q-rows-wrap) so the two renderers never fight over innerHTML. */
+.qexp-sec-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: var(--text-dim, #8a8fa3); text-transform: uppercase; margin-bottom: 2px; }
+.q-rooms-wrap .room-selector-row { margin: 4px 0 2px; }
+.q-rows-wrap:not(:empty) { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border, rgba(255,255,255,0.09)); }
 .q-upnext-label { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: var(--text-dim, #8a8fa3); text-transform: uppercase; margin-bottom: 4px; }
 .q-track { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; align-items: baseline; }
 .q-track .q-pos { color: var(--text-dim, #8a8fa3); font-size: 10px; width: 14px; text-align: right; flex-shrink: 0; }
@@ -932,18 +938,27 @@
     <div class="ctrl-settings-pop" id="ctrl-settings-caphill" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
     </div>
-    <!-- p2.92: queue expando (Phase 2) -->
-    <div class="queue-line" id="qline-caphill" onclick="toggleQueueExpand('caphill')" hidden>
-      <span class="q-text" id="qtext-caphill"></span>
+    <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
+         with no queue it reads "Speakers — <selection> ›" -->
+    <div class="queue-line" id="qline-caphill" onclick="toggleQueueExpand('caphill')">
+      <span class="q-text" id="qtext-caphill">Speakers</span>
       <span class="q-stale-badge" id="qstale-caphill" hidden>⚠️ stale</span>
       <span class="q-chev" id="qchev-caphill">›</span>
     </div>
-    <div class="q-inline-expand" id="qexp-caphill"></div>
-    <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
-    <div class="room-selector-row">
-      <div class="room-selector" id="rooms-caphill"></div>
-      <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
-      <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
+    <div class="q-inline-expand" id="qexp-caphill">
+      <!-- p3.04: chip garden moved inside the expando (Speakers ABOVE Up next, locked design).
+           Chips live in a PERSISTENT child (renderRooms targets rooms-caphill); the queue
+           renderer writes ONLY into qrows-caphill so the two renderers never fight. -->
+      <div class="q-rooms-wrap" id="qrooms-wrap-caphill">
+        <div class="qexp-sec-label">Speakers</div>
+        <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
+        <div class="room-selector-row">
+          <div class="room-selector" id="rooms-caphill"></div>
+          <button class="sync-rooms-btn select-playing" onclick="selectPlaying('caphill')" title="Select the rooms that are playing right now">⊙ Playing</button>
+          <button class="sync-rooms-btn disabled" id="sync-btn-caphill" onclick="syncRooms('caphill')">✓ Grouped</button>
+        </div>
+      </div>
+      <div class="q-rows-wrap" id="qrows-caphill"></div>
     </div>
   </div>
 
@@ -974,18 +989,27 @@
     <div class="ctrl-settings-pop" id="ctrl-settings-vashon" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
     </div>
-    <!-- p2.92: queue expando (Phase 2) -->
-    <div class="queue-line" id="qline-vashon" onclick="toggleQueueExpand('vashon')" hidden>
-      <span class="q-text" id="qtext-vashon"></span>
+    <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
+         with no queue it reads "Speakers — <selection> ›" -->
+    <div class="queue-line" id="qline-vashon" onclick="toggleQueueExpand('vashon')">
+      <span class="q-text" id="qtext-vashon">Speakers</span>
       <span class="q-stale-badge" id="qstale-vashon" hidden>⚠️ stale</span>
       <span class="q-chev" id="qchev-vashon">›</span>
     </div>
-    <div class="q-inline-expand" id="qexp-vashon"></div>
-    <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
-    <div class="room-selector-row">
-      <div class="room-selector" id="rooms-vashon"></div>
-      <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
-      <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
+    <div class="q-inline-expand" id="qexp-vashon">
+      <!-- p3.04: chip garden moved inside the expando (Speakers ABOVE Up next, locked design).
+           Chips live in a PERSISTENT child (renderRooms targets rooms-vashon); the queue
+           renderer writes ONLY into qrows-vashon so the two renderers never fight. -->
+      <div class="q-rooms-wrap" id="qrooms-wrap-vashon">
+        <div class="qexp-sec-label">Speakers</div>
+        <!-- p2.95: chips + buttons share one wrap flow (buttons inline when room allows) -->
+        <div class="room-selector-row">
+          <div class="room-selector" id="rooms-vashon"></div>
+          <button class="sync-rooms-btn select-playing" onclick="selectPlaying('vashon')" title="Select the rooms that are playing right now">⊙ Playing</button>
+          <button class="sync-rooms-btn disabled" id="sync-btn-vashon" onclick="syncRooms('vashon')">✓ Grouped</button>
+        </div>
+      </div>
+      <div class="q-rows-wrap" id="qrows-vashon"></div>
     </div>
   </div>
 
@@ -1053,15 +1077,9 @@
     </div>
     <div class="history-toolbar">
       <span class="updated-label" id="updated-label">Loading...</span>
-      <!-- p2.84: ⟳ Refresh hidden per Andrew (nightly head-publish + SSE live history cover freshness); deepRefresh() kept intact for resurrection -->
-      <button class="sync-btn" id="deep-refresh-btn" style="display:none" onclick="deepRefresh()" title="Flush speaker buffers + poll roaming Spotify + republish">⟳ Refresh</button>
       <!-- p2.57: ↻ Sync removed — topology refresh lives in 🔄, wellness checks in weekly rebuild -->
-
-    </div>
-    <!-- p2.42 deep-refresh banner: NON-BLOCKING by design (AD-032). Commands (pause/volume/rooms)
-         go browser→ntfy→client and SSE stays live, so the page must never modal-block during refresh. -->
-    <div id="refresh-banner" hidden style="max-width:720px;margin:6px auto;padding:8px 12px;border:1px solid #e0a02055;background:#e0a02011;border-radius:8px;font-size:12px;color:var(--text-dim)">
-      ⏳ Double-checking cached data — flushing speakers &amp; polling roaming Spotify. History will update in a few minutes; playback controls still work. <span id="refresh-elapsed" style="font-variant-numeric:tabular-nums;font-weight:600">0:00</span>
+      <!-- p3.04: ⟳ Refresh button + AD-032 banner DELETED (hidden since p2.84; nobody missed it —
+           freshness is covered by nightly head-publish + SSE + p3.01 stamps) -->
     </div>
     <div class="content-panel" id="subtab-music">
       <div class="history-list" id="music-list">
@@ -1105,7 +1123,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.03';
+const PAGE_VERSION = 'p3.04';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1580,6 +1598,7 @@ function renderRooms(h) {
   container.innerHTML = html;
   updateSyncButton(h);
   updateHouseTabDots();
+  renderQueueLine(h); // p3.04: the no-queue line shows the current selection — keep it live with chip taps (renderQueueLine never calls back here)
 }
 
 // p2.62: cluster tap = treat as ONE speaker. none/partial -> select all members; all -> none.
@@ -1935,9 +1954,19 @@ function _getQueueTargetGroup(h) {
   return keys.sort((a, b) => String(qs[b].loaded_at || '').localeCompare(String(qs[a].loaded_at || '')))[0];
 }
 
+// p3.04: selection summary for the no-queue line state — "Shed Arc +2" style, mirroring
+// the queue line's coord +N shorthand. With no queue the line still shows (locked design:
+// "Speakers — <selection> ›") so the chip garden inside the expando always has a handle.
+function _spkSelSummary(h) {
+  const sel = selectedRooms[h] || [];
+  if (!sel.length) return 'no speakers selected';
+  return sel[0].replace(/^Main /, '') + (sel.length > 1 ? ' +' + (sel.length - 1) : '');
+}
+
 function renderQueueLine(h) {
   const line = document.getElementById('qline-' + h); if (!line) return; // roaming has none
   const exp = document.getElementById('qexp-' + h);
+  const qrows = document.getElementById('qrows-' + h); // p3.04: queue renderer writes ONLY here — chips live in the persistent sibling qrooms-wrap
   const st = _queueState[h];
   const coord = st ? _getQueueTargetGroup(h) : null; // p2.98 C1: this is the qs ENTRY KEY
   const ek = coord ? _qsEntryKey(h, coord) : null;   // defensive: identity for entry keys
@@ -1956,11 +1985,24 @@ function renderQueueLine(h) {
     const pOpen = !!_qexpOpen[h];
     document.getElementById('qchev-' + h).classList.toggle('open', pOpen);
     exp.classList.toggle('open', pOpen);
-    if (pOpen) exp.innerHTML = '<div class="q-more" style="padding-left:0;opacity:0.75">' +
-      (expanding ? '⏳ Expanding ' + kind + '… tracks appear once the speaker unpacks it' : '⏳ Syncing after your change…') + '</div>';
+    qrows.innerHTML = pOpen ? '<div class="q-more" style="padding-left:0;opacity:0.75">' +
+      (expanding ? '⏳ Expanding ' + kind + '… tracks appear once the speaker unpacks it' : '⏳ Syncing after your change…') + '</div>' : '';
     return;
   }
-  if (!e || e.stream || !e.track_count) { line.hidden = true; exp.classList.remove('open'); return; } // U3: streams/empty hide the row
+  if (!e || e.stream || !e.track_count) {
+    // p3.04: U3 hide RETIRED — the line is always visible for Sonos houses (it's the one
+    // speaker surface now). No queue → it reads "Speakers — <selection> ›"; the expando
+    // still opens to the chip garden, with a dim empty-queue note in the rows section.
+    line.hidden = false;
+    document.getElementById('qtext-' + h).innerHTML = 'Speakers — <b>' + esc(_spkSelSummary(h)) + '</b>';
+    document.getElementById('qstale-' + h).hidden = true;
+    const sOpen = !!_qexpOpen[h];
+    document.getElementById('qchev-' + h).classList.toggle('open', sOpen);
+    exp.classList.toggle('open', sOpen);
+    qrows.innerHTML = sOpen ? '<div class="q-more" style="padding-left:0;">' +
+      (e && e.stream ? '📻 Streaming radio — no track queue.' : 'No queue loaded.') + '</div>' : '';
+    return;
+  }
   line.hidden = false;
   const left = Math.max(0, (e.track_count || 0) - (e.current_pos || 0));
   const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
@@ -1973,7 +2015,7 @@ function renderQueueLine(h) {
   const open = !!_qexpOpen[h];
   document.getElementById('qchev-' + h).classList.toggle('open', open);
   exp.classList.toggle('open', open);
-  if (!open) return;
+  if (!open) { qrows.innerHTML = ''; return; }
   let html = '<div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
   const up = e.upcoming || [];
   if (!up.length) html += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
@@ -1996,7 +2038,7 @@ function renderQueueLine(h) {
       console.warn('[freshness] state file for ' + h + ' is ' + Math.round(ageMs / 60000) + ' min old; SSE is live');
     }
   }
-  exp.innerHTML = html;
+  qrows.innerHTML = html; // p3.04: rows section only — never the whole expando (chips persist above)
 }
 
 function toggleQueueExpand(h) {
@@ -2637,6 +2679,9 @@ function renderNowPlayingSonos(h) {
   }
 
   let title = '—', artist = '—', label = 'No recent activity', isPlaying = false;
+  // p3.04: rooms is COMPUTED but no longer rendered in np-label (speaker display
+  // consolidated onto the queue line + expando). Kept for console debugging and cheap
+  // resurrection; the _qsMembers cold-load fallback reads _queueState[h].np.rooms, not this.
   let rooms = '';
 
   // Check published now_playing from data.json (bridge between SSE and history)
@@ -2738,7 +2783,7 @@ function renderNowPlayingSonos(h) {
         <img src="${logoUrl}" alt="${esc(svc)}" style="width:36px;height:36px;border-radius:6px;object-fit:contain;background:#1a1a2e;flex-shrink:0;"
              onerror="this.style.display='none'">
         <div class="np-info" style="flex:1;min-width:0;">
-          <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
+          <div class="np-label">${esc(label)}${repeatBadge ? ' · ' + repeatBadge : ''}</div><!-- p3.04: rooms removed — queue line is the only speaker surface -->
           <div class="np-track" style="color:var(--accent2);">📻 ${esc(title)}</div>
           <div class="np-artist">${esc(artist)}</div>
         </div>
@@ -2767,7 +2812,7 @@ function renderNowPlayingSonos(h) {
   el.innerHTML = `
     <div class="np-indicator"></div>
     <div class="np-info">
-      <div class="np-label">${esc(label)}${rooms ? ' · ' + esc(rooms) : ''}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div>
+      <div class="np-label">${esc(label)}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div><!-- p3.04: rooms removed — queue line is the only speaker surface -->
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
     </div>${npLikeBtn}${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
@@ -4513,77 +4558,14 @@ async function exploreArtist(btn, encodedData) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SYNC
 // ══════════════════════════════════════════════════════════════════════════════
-// ── p2.42 Deep refresh (AD-032) ─────────────────────────────────────────────
-// Fires the manual_refresh webhook (agent: flush both houses → roaming Spotify poll →
-// head-only republish), then polls data-head.json until generated_at advances.
-// DESIGN NOTES:
-// - NON-BLOCKING: playback commands go browser→ntfy→client and SSE stays live during
-//   refresh; the banner informs, it never blocks. Do not turn this into a modal.
-// - Reuses SYNC_WEBHOOK with body {action:'manual_refresh'} — the agent dispatches on
-//   that field (empty body = classic full Spotify sync from the other button).
-// - Guard release (Rule 11): _dr clears on success OR 10-min timeout, re-enabling the button.
-// - Latency telemetry: start/done/timeout logged to console with ISO timestamps;
-//   server-side event_metrics row is written by the agent.
-let _dr = null;
-async function deepRefresh() {
-  if (_dr) return; // already running
-  const btn = document.getElementById('deep-refresh-btn');
-  const t0 = Date.now();
-  const baseline = (data && data.generated_at) || '';
-  console.log('[deepRefresh] START ' + new Date(t0).toISOString() + ' baseline generated_at=' + baseline);
-  try {
-    await fetch(SYNC_WEBHOOK, { method: 'POST', mode: 'no-cors',
-      body: JSON.stringify({ action: 'manual_refresh', t_requested: new Date(t0).toISOString(), page_version: PAGE_VERSION }) });
-  } catch(e) {
-    console.warn('[deepRefresh] webhook POST failed:', e && e.message);
-    showToast('⚠️ Refresh request failed — check connection');
-    return;
-  }
-  _dr = { t0, baseline };
-  btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Refreshing…';
-  document.getElementById('refresh-banner').hidden = false;
-  _dr.timer = setInterval(() => {
-    if (!_dr) return;
-    const s = Math.floor((Date.now() - _dr.t0) / 1000);
-    const el = document.getElementById('refresh-elapsed');
-    if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-  }, 1000);
-  _dr.pollTimer = setInterval(_drPoll, 20000);
-}
-async function _drPoll() {
-  if (!_dr) return;
-  const elapsed = Date.now() - _dr.t0;
-  try {
-    const r = await fetch(DATA_HEAD_URL + '?t=' + Date.now());
-    if (r.ok) {
-      const head = await r.json();
-      if (head && head.generated_at && head.generated_at > _dr.baseline) {
-        const secs = Math.round(elapsed / 1000);
-        console.log('[deepRefresh] DONE in ' + secs + 's — new generated_at=' + head.generated_at);
-        _drFinish();
-        await loadData(true);
-        showToast('✓ Data refreshed (' + Math.floor(secs / 60) + 'm ' + (secs % 60) + 's)');
-        return;
-      }
-    }
-  } catch(e) { console.warn('[deepRefresh] poll error:', e && e.message); }
-  if (elapsed > 10 * 60 * 1000) {
-    console.warn('[deepRefresh] TIMEOUT after 10 min — releasing button (agent may still finish; label will update on next reload)');
-    _drFinish();
-    showToast('⚠️ Refresh is taking longer than expected — data will appear when ready');
-  }
-}
-function _drFinish() {
-  if (!_dr) return;
-  clearInterval(_dr.timer); clearInterval(_dr.pollTimer); _dr = null;
-  const btn = document.getElementById('deep-refresh-btn');
-  btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '⟳ Refresh';
-  document.getElementById('refresh-banner').hidden = true;
-}
+// p3.04: the p2.42 deep-refresh path (AD-032: manual_refresh webhook + head-poll +
+// banner) DELETED — hidden since p2.84, nobody missed it. Freshness is covered by
+// nightly head-publish + SSE + p3.01 stamps. The agent-side manual_refresh trigger
+// still exists; only the page caller is gone.
 
 // p2.57: syncNow() removed (↻ Sync button retired — blind-timer pattern, jobs superseded)
 
-// p2.57: syncSpotifyHistory() removed (redundant with deepRefresh's roaming poll; full-rebuild path was heavyweight + blind timer)
+// p2.57: syncSpotifyHistory() removed (redundant with the retired deep-refresh's roaming poll; full-rebuild path was heavyweight + blind timer)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SWITCHING
