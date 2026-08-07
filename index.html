@@ -1087,7 +1087,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.00';
+const PAGE_VERSION = 'p3.01';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1855,6 +1855,24 @@ function _queueScheduleCatchup() {
   console.log('[queue] catch-up refetches scheduled (20s/100s/220s)');
 }
 
+// p3.01: freshness guard — a queue snapshot OLDER than this page's own last queue-
+// mutating command must not be trusted for counts (2026-08-07 incident: user hit
+// Clear queue, panel kept showing the pre-clear "37 left" from a stale state file).
+// Rule 27 compliant: level-triggered comparison of two timestamps (snapshot
+// last_updated vs command send time) — no event inference, no optimistic state.
+// Persisted per house so a PWA reload can't resurrect stale numbers post-clear.
+// 10-min cap: if publishes stall that long, fall back to the honest-age display (C3).
+const _qCmdTs = {};
+['caphill','vashon'].forEach(h => { try { _qCmdTs[h] = +localStorage.getItem('ll_qcmdts_' + h) || 0; } catch(e) { _qCmdTs[h] = 0; } });
+function _qMarkCmd(h) { _qCmdTs[h] = Date.now(); try { localStorage.setItem('ll_qcmdts_' + h, String(_qCmdTs[h])); } catch(e) {} console.log('[queue p3.01] cmd stamp for ' + h + ' — snapshots older than now render as updating…'); }
+function _qSnapshotPending(h) {
+  const cmd = _qCmdTs[h] || 0;
+  if (!cmd || Date.now() - cmd > 10 * 60000) return false;
+  const st = _queueState[h];
+  const ts = st && st.last_updated ? new Date(st.last_updated).getTime() : 0;
+  return ts < cmd;
+}
+
 // p2.93 fix 2: header machine version + liveness read from state files (service→GitHub
 // direct path). Rule 27: level-triggered — an open agent session queueing heartbeat
 // processing can no longer make the header lie (2026-08-02 incident: Mind showed red
@@ -1900,13 +1918,21 @@ function renderQueueLine(h) {
   const coord = st ? _getQueueTargetGroup(h) : null; // p2.98 C1: this is the qs ENTRY KEY
   const ek = coord ? _qsEntryKey(h, coord) : null;   // defensive: identity for entry keys
   const e = ek ? (st.qs[ek] || null) : null;
+  if (_qSnapshotPending(h)) { // p3.01: snapshot predates this page's own last queue edit — don't show pre-command counts
+    line.hidden = false;
+    document.getElementById('qtext-' + h).innerHTML = 'Queue: <b>updating…</b> · <span style="color:#c98a00">syncing after your change</span>';
+    document.getElementById('qstale-' + h).hidden = true;
+    document.getElementById('qchev-' + h).classList.remove('open');
+    exp.classList.remove('open');
+    return;
+  }
   if (!e || e.stream || !e.track_count) { line.hidden = true; exp.classList.remove('open'); return; } // U3: streams/empty hide the row
   line.hidden = false;
   const left = Math.max(0, (e.track_count || 0) - (e.current_pos || 0));
   const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
   const multi = Object.keys(st.qs).length > 1;
   document.getElementById('qtext-' + h).innerHTML =
-    'Queue' + (multi ? ' — ' + esc(coord.replace(/^Main /, '')) : '') + ': <b>' + left + ' left</b> · ' +
+    'Queue' + (multi ? ' — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) : '') + ': <b>' + left + ' left</b> · ' +
     esc(e.provenance_label || (e.track_count + ' tracks')) +
     (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '');
   document.getElementById('qstale-' + h).hidden = !(loadedMs != null && loadedMs > 12 * 3600 * 1000); // U5
@@ -2087,12 +2113,13 @@ function _renderQueueSheet() {
   }
 
   const lock = c.choices || needTarget;
+  const qPending = _qSnapshotPending(c.h); // p3.01: snapshot predates this page's last queue edit
   // Verb hints (mockup v3.1 + F5 + E2/E7 copy)
   const nextHint = stream ? '· stream has no queue' : (isPl ? '· interrupts playlist order' : '· after current track');
-  const endHint = stream ? '' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's'));
+  const endHint = stream ? '' : (qPending ? '· queue syncing…' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's')));
   const nowHint = stream ? '· replaces the stream' : (playing === false ? '· starts playback' : '· immediately, queue survives');
   const repHint = verOk ? '· start fresh' : '· needs speaker update';
-  const truncHint = (e && !stream && left > 0) ? ' · drops ' + left + ' upcoming' : '';
+  const truncHint = (e && !stream && left > 0 && !qPending) ? ' · drops ' + left + ' upcoming' : '';
   const chip = (playing !== false && !stream) ? '<span class="v-confirm-chip">confirms</span>' : ''; // D3
 
   html += '<div id="qs-verbs">' +
@@ -2105,9 +2132,11 @@ function _renderQueueSheet() {
 
   // Queue context block (bottom) — reuses expando vocabulary; sheet keeps ✂ only
   let qb = '<div class="qs-qcontext-head"><span class="q-label">Queue' +
-    (t && Object.keys(qs).length > 1 ? ' — ' + esc(t.replace(/^Main /, '')) : '') + '</span>';
+    (t && Object.keys(qs).length > 1 ? ' — ' + esc(_qsLiveCoordFor(c.h, t).replace(/^Main /, '')) : '') + '</span>'; // p3.01: label with LIVE coordinator, not prior-epoch entry key
   if (stream) {
     qb += '<span class="q-prov">Live stream' + (e.stream_label ? ' (' + esc(e.stream_label) + ')' : '') + ' — no queue</span></div>';
+  } else if (qPending) { // p3.01: don't show pre-command counts or claim "empty" from a stale snapshot
+    qb += '<span class="q-prov" style="color:#c98a00">updating… · syncing after your change</span></div>';
   } else if (e) {
     const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
     qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + esc(e.provenance_label || (e.track_count + ' tracks')) +
@@ -2176,7 +2205,7 @@ async function postNtfy(payload) {
     console.log('[postNtfy] ntfy status=' + r.status);
     showToast('→ ' + house + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    if (_QUEUE_VERBS.has(payload.action)) _queueScheduleCatchup(); // p2.93: expando follows queue edits
+    if (_QUEUE_VERBS.has(payload.action)) { _qMarkCmd(house); _queueScheduleCatchup(); } // p2.93 catch-up + p3.01 freshness stamp
     return true;
   } catch(e) {
     console.error('[postNtfy] FAILED:', e);
