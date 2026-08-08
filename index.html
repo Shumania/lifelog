@@ -1128,7 +1128,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.06';
+const PAGE_VERSION = 'p3.07';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2797,10 +2797,14 @@ function renderNowPlayingSonos(h) {
   }
 
   // Build explore button data from whatever source gave us the track
+  // p3.07: include listening context (album/playlist) so the Discovery card's
+  // "Started from" row can unfold what was on when explore was clicked.
+  const npCtxForExplore = npCtxInfo(h);
   const exploreData = (title && title !== '—') ? encodeURIComponent(JSON.stringify({
     title, artist: (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : ''))),
     album: (sse && isLive ? sse.album : (dataNp ? dataNp.album : (latestItem ? latestItem.album : ''))),
-    source: svc || '', uri: ''
+    source: svc || '', uri: '',
+    ctx: npCtxForExplore || undefined
   })).replace(/'/g,'%27') : '';
   const npArtist = (sse && isLive ? sse.artist : (dataNp ? dataNp.artist : (latestItem ? latestItem.artist : '')));
   // p2.79: ♥ on Now Playing — reuse likeButton (pre-filled liked state, SSE confirmation, local-like fallback for non-Spotify)
@@ -2811,7 +2815,7 @@ function renderNowPlayingSonos(h) {
     ? `<button class="np-explore" onclick="navigateToExploration(${npCardIdx})" title="View exploration">📖</button>`
     : `<button class="np-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore artist">🔍</button>`) : '';
   // p2.68: NP context expansion (album/playlist unfold). Re-render closes the panel — honest on track change.
-  const npInfo = npCtxInfo(h);
+  const npInfo = npCtxForExplore;
   const npCtxId = 'npctx-' + h;
   const ctxBtn = npInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('${npCtxId}',this,'${encodeURIComponent(JSON.stringify(npInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
   el.innerHTML = `
@@ -2830,7 +2834,6 @@ function renderNowPlayingRoaming() {
   if (spotifyNowPlaying && spotifyNowPlaying.is_playing) {
     const np = spotifyNowPlaying;
     const pct = np.duration_ms > 0 ? Math.round(np.progress_ms / np.duration_ms * 100) : 0;
-    const rExplore = encodeURIComponent(JSON.stringify({title:np.title,artist:np.artist,album:np.album||'',source:'Spotify',uri:''})).replace(/'/g,'%27');
     // p2.68: NP context expansion — roaming already has a bare track uri + Spotify context
     let rInfo = {
       uri: (np.uri && np.uri.startsWith('spotify:track:')) ? np.uri : '',
@@ -2844,6 +2847,8 @@ function renderNowPlayingRoaming() {
       if (rm) rInfo.album_id = rm.album_id;
     }
     if (!rInfo.album && !rInfo.uri && !rInfo.context_uri && !rInfo.album_id) rInfo = null;
+    // p3.07: rExplore built after rInfo so the explore payload can carry listening context
+    const rExplore = encodeURIComponent(JSON.stringify({title:np.title,artist:np.artist,album:np.album||'',source:'Spotify',uri:'',ctx:rInfo||undefined})).replace(/'/g,'%27');
     const rCtxBtn = rInfo ? `<button class="np-explore ctx-toggle" onclick="toggleCtxPanel('npctx-roaming',this,'${encodeURIComponent(JSON.stringify(rInfo)).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '';
     el.className = 'now-playing';
     el.innerHTML = `
@@ -3331,7 +3336,8 @@ function renderRadioSession(item) {
     for (const t of item.tracks) {
       const childSvc = item.source || 'sonos_radio';
       const playData = t.uri ? encodeURIComponent(JSON.stringify({uri:t.uri,title:t.title,artist:t.artist||'',album:t.album||'',service:childSvc})).replace(/'/g,'%27') : '';
-      const exploreData = encodeURIComponent(JSON.stringify({title:t.title,artist:t.artist||'',album:t.album||'',source:childSvc,uri:t.uri||''})).replace(/'/g,'%27');
+      const exploreData = encodeURIComponent(JSON.stringify({title:t.title,artist:t.artist||'',album:t.album||'',source:childSvc,uri:t.uri||'',
+        /* p3.07: minimal ctx from radio enrichment */ ctx:(t.album && t.album !== 'KCRW' && t.album !== 'KEXP') ? {uri:t.uri||'',album:t.album,artist:t.artist||'',title:t.title||'',context_type:'',context_uri:'',service:childSvc,sonos_uri:'',album_id:''} : undefined})).replace(/'/g,'%27');
       tracksHtml += `<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;">
         ${t.album_image ? `<img src="${esc(t.album_image)}" style="width:28px;height:28px;border-radius:4px;object-fit:cover;flex-shrink:0;">` : '<div style="width:28px;height:28px;border-radius:4px;background:var(--surface);flex-shrink:0;"></div>'}
         <div style="min-width:0;flex:1;">
@@ -3442,7 +3448,9 @@ function renderHistory() {
     // CRITICAL: encodeURIComponent does NOT encode single quotes — they break onclick='...' attributes.
     // Any track with an apostrophe (e.g. "School's Out") would silently fail without this .replace().
     const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:item.sonos_uri||'',track_id:item.track_id||'',title:item.title,artist:item.artist||'',album:item.album||'',service:item.service||''})).replace(/'/g,'%27');
-    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||''})).replace(/'/g,'%27');
+    const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:item.album,source:item.source,uri:item.uri||'',
+      // p3.07: listening context for the Discovery card's "Started from" expand
+      ctx:{uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''}})).replace(/'/g,'%27');
     const ctxId = 'ctx-' + (item.timestamp||'').replace(/\W/g,'');
     // Has album or context → show expand button
     const hasCtx = item.album || item.context_uri || item.album_id;
@@ -3749,7 +3757,19 @@ function renderDiscovery() {
       const stAlbumUriRaw = sourceTrack.album_uri ||
         ((sourceTrack.uri || '').startsWith('spotify:album:') ? sourceTrack.uri : '');
       const hasExpl2 = cmd.exploration_id !== undefined && cmd.exploration_id !== null;
-      const stCanExpand = !!(stAlbumUriRaw && hasExpl2);
+      // p3.07: full listening-context expand — the album/playlist that was on when
+      // explore was clicked (captured in source_track metadata.ctx). Reuses the
+      // history-row ctx panel (album row + tracklist + playlists). Wins over the
+      // legacy album-only expand when present.
+      const stCtx = (sourceTrack.ctx && typeof sourceTrack.ctx === 'object') ? sourceTrack.ctx : null;
+      const stHasCtx = !!(stCtx && (stCtx.album || stCtx.album_id || stCtx.uri || stCtx.context_uri));
+      const stCtxId = 'discctx-' + (hasExpl2 ? cmd.exploration_id : 'i' + i);
+      const stCtxInfo = stHasCtx ? encodeURIComponent(JSON.stringify({
+        uri: stCtx.uri || '', album: stCtx.album || '', artist: stCtx.artist || cmd.artist || '',
+        title: stCtx.title || '', context_type: stCtx.context_type || '', context_uri: stCtx.context_uri || '',
+        service: stCtx.service || '', sonos_uri: stCtx.sonos_uri || '', album_id: stCtx.album_id || ''
+      })).replace(/'/g, '%27') : '';
+      const stCanExpand = !stHasCtx && !!(stAlbumUriRaw && hasExpl2);
       const stAlbumUri = stAlbumUriRaw.replace(/'/g, "\\'");
       const stAlbumId = stCanExpand ? stAlbumUriRaw.split(':').pop() : '';
       if (stCanExpand) html += '<div class="sugg-with-tracks">';
@@ -3763,9 +3783,11 @@ function renderDiscovery() {
           ${sourceTrack.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">▶</button>
           <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${stUri}'),decodeURIComponent('${stLbl}'))">+</button>` : ''}
           ${(sourceTrack.uri && (sourceTrack.uri.startsWith('spotify:track:') || sourceTrack.uri.startsWith('spotify:album:'))) ? likeButton(sourceTrack.uri.startsWith('spotify:album:') ? 'album' : 'track', sourceTrack.uri, sourceTrack.label || '', cmd.artist || '', 'discovery_source', 'spotify') : ''}
+          ${stHasCtx ? `<button class="sugg-btn sugg-btn-expand ctx-toggle" onclick="toggleCtxPanel('${stCtxId}',this,'${stCtxInfo}')" title="Album &amp; Playlists">▾</button>` : ''}
           ${stCanExpand ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${cmd.exploration_id},decodeURIComponent('${stAlbumUri}'),this)">▾</button>` : ''}
         </div>
       </div>`;
+      if (stHasCtx) html += `<div class="ctx-panel" id="${stCtxId}"></div>`;
       if (stCanExpand) html += `<div class="album-tracks-panel" id="at-${cmd.exploration_id}s-${stAlbumId}"></div></div>`;
     }
 
@@ -5589,7 +5611,9 @@ function renderPlaylists() {
         card += '<button class="tr-btn queue" onclick="playPlTrack(\'queue\',' + ti + ',\'' + p.id + '\')" title="Queue">+</button>';
         // p2.68: explore affordance on playlist tracks (same shared helper as history rows)
         var priArtist = (t.artists && t.artists.length) ? t.artists[0].name : '';
-        var exData = encodeURIComponent(JSON.stringify({title:t.track_name,artist:priArtist,album:t.album_name||'',source:'spotify',uri:t.track_uri||''})).replace(/'/g,'%27');
+        // p3.07: ctx = this playlist — the Discovery card's "Started from" row can unfold it
+        var exData = encodeURIComponent(JSON.stringify({title:t.track_name,artist:priArtist,album:t.album_name||'',source:'spotify',uri:t.track_uri||'',
+          ctx:{uri:t.track_uri||'',album:t.album_name||'',artist:priArtist,title:t.track_name||'',context_type:'playlist',context_uri:'spotify:playlist:'+p.id,service:'spotify',sonos_uri:'',album_id:(t.album_uri||'').split(':').pop()||''}})).replace(/'/g,'%27');
         if (priArtist) card += exploreButton(priArtist, exData);
         card += '</div></div>';
       }
@@ -6211,7 +6235,8 @@ const SH = (() => {
   function trackBtns(t) {
     const like = likeButton('track', t.track_id || '', t.title, t.artist, 'sessions', t.source || '');
     const ex = t.artist && t.artist !== 'Unknown artist'
-      ? exploreButton(t.artist, encodeURIComponent(JSON.stringify({ title: t.title, artist: t.artist, album: t.album || '', source: t.source || 'sessions', uri: t.track_id ? 'spotify:track:' + t.track_id : '' })).replace(/'/g, '%27'))
+      ? exploreButton(t.artist, encodeURIComponent(JSON.stringify({ title: t.title, artist: t.artist, album: t.album || '', source: t.source || 'sessions', uri: t.track_id ? 'spotify:track:' + t.track_id : '',
+        /* p3.07: minimal ctx — subagent resolves album_id */ ctx: (t.album || t.track_id) ? { uri: t.track_id ? 'spotify:track:' + t.track_id : '', album: t.album || '', artist: t.artist || '', title: t.title || '', context_type: '', context_uri: '', service: t.source || '', sonos_uri: '', album_id: '' } : undefined })).replace(/'/g, '%27'))
       : '';
     return like + ex + trackPlayBtns(t);
   }
