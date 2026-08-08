@@ -417,6 +417,11 @@
   .disc-hinfo { flex: 1; min-width: 0; }
   .disc-title { font-size: 15px; font-weight: 600; }
   .disc-meta { font-size: 12px; color: var(--text-dim); }
+  /* p3.06: deep-dive badge + Go Deeper footer button */
+  .disc-deep-badge { color: var(--accent2); font-weight: 600; white-space: nowrap; }
+  .disc-deeper-row { margin-top: 10px; text-align: center; }
+  .disc-deeper-btn { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--accent); cursor: pointer; padding: 5px 14px; font-size: 12px; }
+  .disc-deeper-btn.exploring { opacity: 0.6; }
   .disc-expand { margin-left: auto; color: var(--text-dim); font-size: 14px; transition: transform 0.2s; }
 
   .disc-body { padding: 0 16px 14px; display: none; }
@@ -1123,7 +1128,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.05';
+const PAGE_VERSION = 'p3.06';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3722,11 +3727,14 @@ function renderDiscovery() {
     // Use source track label for "from" text instead of "Exploring: Artist"
     const fromText = sourceTrack ? sourceTrack.label : cmd.title;
 
+    // p3.06: deep-dive cards carry mode/dive_level in the suggestions JSON top level
+    const isDeep = !Array.isArray(rawSuggs) && rawSuggs.mode === 'deep';
+    const diveLevel = isDeep ? (rawSuggs.dive_level || 2) : 0;
     html += `<div class="discovery-card${isOpen ? ' open' : ''}" id="disc-${i}">`;
     html += `<div class="disc-header" onclick="document.getElementById('disc-${i}').classList.toggle('open')">`;
     html += `<div class="disc-artist-badge">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div class="disc-hinfo">`;
-    html += `<div class="disc-meta">from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
+    html += `<div class="disc-meta">${isDeep ? `<span class="disc-deep-badge">🔬 Deep Dive ${diveLevel}</span> · ` : ''}from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
     html += `</div><div class="disc-expand">›</div></div>`;
 
     // Body
@@ -3802,6 +3810,15 @@ function renderDiscovery() {
           html += renderSuggRow(s, cmd.exploration_id);
         }
       }
+    }
+    // p3.06: Go Deeper — fires the explore webhook in deep mode (deep cuts, sidemen,
+    // producers' other work; prior suggestions excluded by the subagent's Step 0b set).
+    const deepArtist = cmd.artist || cmd.title || '';
+    if (deepArtist) {
+      const deepData = encodeURIComponent(JSON.stringify({
+        title: '', artist: deepArtist, album: '', source: 'discovery_deep', uri: '', mode: 'deep'
+      })).replace(/'/g, '%27');
+      html += `<div class="disc-deeper-row"><button class="disc-deeper-btn" onclick="event.stopPropagation();exploreArtist(this,'${deepData}')" title="Deeper exploration: deep cuts, sidemen, producers — no repeats">🔬 Go Deeper</button></div>`;
     }
     html += '</div></div>';
   }
@@ -4539,6 +4556,7 @@ function exploreButton(artist, exploreData) {
 
 async function exploreArtist(btn, encodedData) {
   const trackData = JSON.parse(decodeURIComponent(encodedData));
+  const orig = btn.textContent; // p3.06: restore the button's own label (🔍 vs 🔬 Go Deeper)
   btn.classList.add('exploring');
   btn.textContent = '⏳';
   try {
@@ -4548,10 +4566,10 @@ async function exploreArtist(btn, encodedData) {
     });
     if (!r.ok) throw new Error('HTTP ' + r.status); // U-M5: 4xx/5xx must not show ✓
     btn.textContent = '✓'; btn.classList.remove('exploring');
-    setTimeout(() => { btn.textContent = '🔍'; }, 3000);
+    setTimeout(() => { btn.textContent = orig; }, 3000);
   } catch(e) {
     btn.textContent = '✗'; btn.classList.remove('exploring');
-    setTimeout(() => { btn.textContent = '🔍'; }, 3000);
+    setTimeout(() => { btn.textContent = orig; }, 3000);
   }
 }
 
@@ -4883,6 +4901,7 @@ let _playlists = [];
 // ── p2.47: Phase 4 — Liked Songs ♥ ─────────────────────────────────────────
 // One compact asset fetched once; Set lookups → zero per-row cost.
 let _likedMain = new Set(), _likedTeen = new Set();
+let _likedMainAlbums = new Set(), _likedTeenAlbums = new Set(); // p3.06: album saves from liked.json (ledger-sourced)
 const LIKED_URL = 'https://shumania.github.io/lifelog/liked.json';
 async function loadLikedData() {
   try {
@@ -4891,11 +4910,14 @@ async function loadLikedData() {
     const d = await r.json();
     _likedMain = new Set(d.main || []);
     _likedTeen = new Set(d.teenbloods || []);
-    console.log('[liked] loaded ' + _likedMain.size + ' main + ' + _likedTeen.size + ' teenbloods liked track ids (generated ' + (d.generated_at || '?') + ')');
+    _likedMainAlbums = new Set(d.main_albums || []);   // p3.06: album pre-fill (Likes Phase B)
+    _likedTeenAlbums = new Set(d.teenbloods_albums || []);
+    console.log('[liked] loaded ' + _likedMain.size + ' main + ' + _likedTeen.size + ' teenbloods liked track ids + ' + _likedMainAlbums.size + '/' + _likedTeenAlbums.size + ' albums (generated ' + (d.generated_at || '?') + ')');
     // Re-render views that may already be on screen (badges appear once data lands)
     try {
       renderHistory();
       if (!document.getElementById('tab-playlists').hidden) renderPlaylists();
+      if (!document.getElementById('tab-discovery').hidden) renderDiscovery(); // p3.06: explore-card ♥s pre-fill
     } catch(e) { console.warn('[liked] post-load re-render failed:', e && e.message); }
   } catch(e) {
     console.error('[liked] Failed to load liked.json:', e);
@@ -5093,8 +5115,8 @@ function _likeKey(itemType, id, title, artist) {
 }
 
 // Renders the ♥ button. Track liked-state comes from liked.json sets (live truth for ALL
-// cards, old and new) + session state; album liked-state is session-only in v1 (liked.json
-// carries tracks only — re-saving an already-saved album is a harmless no-op at Spotify).
+// cards, old and new) + session state; p3.06: album liked-state now ALSO pre-fills from
+// liked.json main_albums/teenbloods_albums (ledger-sourced via nightly publish_liked.ts).
 function likeButton(itemType, uriOrId, title, artist, sourceContext, originService) {
   const id = _likeExtractId(uriOrId, itemType);
   const key = _likeKey(itemType, id, title, artist);
@@ -5104,7 +5126,7 @@ function likeButton(itemType, uriOrId, title, artist, sourceContext, originServi
     artist: artist || '', origin_service: originService || '', source_context: sourceContext || ''
   })).replace(/'/g, '%27');
   let cls = 'like-btn', glyph = '♡', tip = itemType === 'album' ? 'Save album to Spotify library' : 'Save to Spotify Liked Songs';
-  if ((id && itemType === 'track' && _likedMain.has(id)) || _sessionLiked.has(key)) {
+  if ((id && itemType === 'track' && _likedMain.has(id)) || (id && itemType === 'album' && _likedMainAlbums.has(id)) || _sessionLiked.has(key)) {
     cls += ' liked'; glyph = '♥'; tip = 'In your Spotify library';
   } else if (_localLiked.has(key)) {
     cls += ' localliked'; glyph = '♥'; tip = 'Saved locally — will sync to Spotify later';
