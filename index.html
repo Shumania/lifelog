@@ -475,6 +475,7 @@
   .sugg-btn-play { background: #2563eb; color: #fff; }
   .sugg-btn-queue { background: #374151; color: #93c5fd; border: 1px solid #4b5563; }
   .sugg-btn-expand { background: var(--surface); color: var(--text-dim); border: 1px solid var(--border); font-size: 9px; }
+  .sugg-btn-explore { background: var(--surface); color: var(--accent); border: 1px solid var(--border); font-size: 11px; } /* p3.09 */
   .sugg-btn-expand.open { color: var(--accent2); border-color: var(--accent2); }
   .sugg-with-tracks { border-bottom: 1px solid rgba(35,41,64,0.3); }
   .album-tracks-panel { display: none; padding: 0 0 4px 16px; }
@@ -1128,7 +1129,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.08';
+const PAGE_VERSION = 'p3.09';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3555,7 +3556,44 @@ function saveExpandedAlbums(set) {
   try { localStorage.setItem('albumExpanded', JSON.stringify([...set])); } catch {}
 }
 
-function renderSuggRow(s, explorationId) {
+// p3.09: parse "Title (1999) — Artist" labels; artist field is empty on many rows
+function suggRowArtist(s) {
+  const a = (s.artist || '').trim();
+  if (a) return a;
+  const lbl = s.label || '';
+  const idx = lbl.lastIndexOf(' — ');
+  return idx >= 0 ? lbl.slice(idx + 3).trim() : '';
+}
+function suggRowWorkTitle(s) {
+  const lbl = s.label || '';
+  const idx = lbl.lastIndexOf(' — ');
+  const head = (idx >= 0 ? lbl.slice(0, idx) : lbl).trim();
+  return head.replace(/\s*\(\d{4}\)\s*$/, '').trim();
+}
+// p3.09: explore-from-a-card — 🔍 on suggestion rows whose artist differs from the
+// card's own artist (chains like Meshell → Joe Henry → …). Same-artist rows stay
+// clean: the card-level 🔬 Go Deeper covers them. Fresh existing card ⇒ 📖 jump.
+function suggExploreBtn(s, cardArtist, isTrack, isAlbum) {
+  const rowArtist = suggRowArtist(s);
+  if (!rowArtist) return '';
+  const norm = x => (x || '').toLowerCase().trim();
+  if (norm(rowArtist) === norm(cardArtist)) return '';
+  const cardIdx = findExploredCard(rowArtist);
+  if (cardIdx >= 0 && exploredCardIsFresh(cardIdx)) {
+    return `<button class="sugg-btn sugg-btn-explore" onclick="navigateToExploration(${cardIdx})" title="View exploration">📖</button>`;
+  }
+  const work = suggRowWorkTitle(s);
+  const payload = {
+    title: isTrack ? work : '',
+    artist: rowArtist,
+    album: isAlbum ? work : (s.album || ''),
+    source: 'discovery',
+    uri: s.uri || ''
+  };
+  const exploreData = encodeURIComponent(JSON.stringify(payload)).replace(/'/g, '%27');
+  return `<button class="sugg-btn sugg-btn-explore" onclick="exploreArtist(this,'${exploreData}')" title="Explore ${esc(rowArtist)}">🔍</button>`;
+}
+function renderSuggRow(s, explorationId, cardArtist) {
   const uri = (s.uri || '').replace(/'/g, "\\'");
   const lbl = (s.label || '').replace(/'/g, "\\'");
   // p2.43 minor: explorationId can legitimately be 0 — don't treat it as falsy
@@ -3577,6 +3615,7 @@ function renderSuggRow(s, explorationId) {
       ${s.uri ? `<button class="sugg-btn sugg-btn-play" onclick="playDiscovery('play',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">▶</button>
       <button class="sugg-btn sugg-btn-queue" onclick="playDiscovery('queue',decodeURIComponent('${uri}'),decodeURIComponent('${lbl}'))">+</button>` : ''}
       ${likeBtn}
+      ${suggExploreBtn(s, cardArtist, isTrack, isAlbum)}
       ${isAlbum ? `<button class="sugg-btn sugg-btn-expand" onclick="toggleAlbumTracks(${explorationId},decodeURIComponent('${uri}'),this)">▾</button>` : ''}
     </div>
   </div>`;
@@ -3829,7 +3868,7 @@ function renderDiscovery() {
               html += `<div class="suggestion-section-label">${section}</div>`;
             }
           }
-          html += renderSuggRow(s, cmd.exploration_id);
+          html += renderSuggRow(s, cmd.exploration_id, cmd.artist || cmd.title || '');
         }
       }
     }
@@ -3872,7 +3911,7 @@ function renderClassicalSuggestions(suggs, cmd) {
     } else if (s.type === 'narrative') {
       html += `<div class="disc-narrative">${formatNarrative(s.text || '')}</div>`;
     } else {
-      html += renderSuggRow(s, cmd.exploration_id);
+      html += renderSuggRow(s, cmd.exploration_id, cmd.artist || cmd.title || '');
     }
   }
   return html;
