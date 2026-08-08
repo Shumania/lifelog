@@ -1123,7 +1123,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.04';
+const PAGE_VERSION = 'p3.05';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3462,7 +3462,7 @@ function renderHistory() {
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', item.source || item.service || '')}
         ${exploreButton(item.artist, exploreData)}
-        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : ''}
+        ${hasCtx ? `<button class="action-btn ctx-toggle" onclick="toggleCtxPanel('${ctxId}',this,'${encodeURIComponent(JSON.stringify({uri:item.uri||'',album:item.album||'',artist:item.artist||'',title:item.title||'',context_type:item.context_type||'',context_uri:item.context_uri||'',service:item.service||item.source||'',sonos_uri:item.sonos_uri||'',album_id:item.album_id||''})).replace(/'/g,'%27')}')" title="Album &amp; Playlists">▾</button>` : '<span class="action-btn ctx-spacer" style="visibility:hidden;pointer-events:none">▾</span>'}
       </div>
     </div>
     ${hasCtx ? `<div class="ctx-panel" id="${ctxId}"></div>` : ''}`;
