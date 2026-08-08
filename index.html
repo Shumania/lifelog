@@ -1128,7 +1128,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.07';
+const PAGE_VERSION = 'p3.08';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4232,6 +4232,8 @@ async function populateCtxPanel(panelId, info) {
       for (const pl of playlists) {
         // Skip if already shown as context playlist
         if (info.context_type === 'playlist' && info.context_uri === pl.playlist_uri) continue;
+        // p3.08: index key drift — weekly sync writes `playlist_name`, older builds wrote `name`. Accept both.
+        const plIdxName = pl.name || pl.playlist_name || 'Playlist';
         const hasRealUri = pl.playlist_uri && !pl.playlist_uri.startsWith('archive:');
         if (hasRealUri) {
           const plData = encodeURIComponent(JSON.stringify({
@@ -4240,12 +4242,12 @@ async function populateCtxPanel(panelId, info) {
             artist: info.artist,
             album: info.album || '',
             service: info.service,
-            playlist_name: pl.name,
+            playlist_name: plIdxName,
             sonos_uri: ''
           })).replace(/'/g, '%27');
           plRows += `<div class="ctx-row">
             <span class="ctx-icon">📋</span>
-            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
+            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(plIdxName)}</span>
             <span class="ctx-actions">
               <button class="action-btn" onclick="playContext('play','${plData}')" title="Play Playlist">▶</button>
               <button class="action-btn" onclick="playContext('queue','${plData}')" title="Queue Playlist">+</button>
@@ -4255,7 +4257,7 @@ async function populateCtxPanel(panelId, info) {
           // Archive playlist — no real URI yet, display only
           plRows += `<div class="ctx-row">
             <span class="ctx-icon">📋</span>
-            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(pl.name)}</span>
+            <span class="ctx-label"><span class="ctx-type">Playlist</span>${esc(plIdxName)}</span>
           </div>`;
         }
       }
@@ -4280,7 +4282,7 @@ async function lookupPlaylistName(playlistUri) {
   if (idx) {
     for (const trackUri in idx) {
       for (const pl of idx[trackUri]) {
-        _playlistNameCache[pl.playlist_uri] = pl.name;
+        _playlistNameCache[pl.playlist_uri] = pl.name || pl.playlist_name || '';
       }
     }
     if (_playlistNameCache[playlistUri]) return _playlistNameCache[playlistUri];
