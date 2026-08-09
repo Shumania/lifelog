@@ -1,8 +1,8 @@
 {
-  "service_version": "2.59.2",
+  "service_version": "2.60.0",
   "clients": {
-    "lifelog_mind": "2.59.2",
-    "lifelog_shumaframe": "2.59.2"
+    "lifelog_mind": "2.60.0",
+    "lifelog_shumaframe": "2.60.0"
   },
-  "page_version": "p3.09"
+  "page_version": "p3.10"
 }

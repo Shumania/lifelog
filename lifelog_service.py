@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.59.2"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.60.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -448,6 +448,86 @@ try:
 except Exception as _se_err:
     print(f"[stale-enq] WARNING: failed to load stale_enqueued.json: {_se_err}")
 
+# --- QUEUE SOURCES (v2.60) ------------------------------------------------------
+# DESIGN (queue preview enrichment, 2026-08-08): the preview's provenance line
+# only knows the container that LOADED the queue; anything added afterwards
+# (an album queued behind a playlist, one-off tracks) is invisible. This module
+# keeps a small per-coordinator ADDITIVE list of what went into the queue so the
+# page can render "Dusk & Dinner (playlist) · +Remain in Light (album) · +3 tracks".
+# Deliberately INDEPENDENT of queue_provenance (which stamps history context —
+# see the 2026-08-06 overlay-guard lore): a rendering nicety must never be able
+# to poison history. Track adds merge into a trailing {"type":"tracks","count":N}
+# accumulator. Replace/clear verbs RESET the list; truncate keeps only the head
+# entry (adds after current are dropped); 24h TTL (Rule 11); capped at 8 entries.
+# LIMITATION (accepted, same as provenance): queue mutations via the native
+# Sonos/Spotify apps are undetectable — this list describes OUR adds only.
+queue_sources          = {}   # coordinator name -> {"entries":[...], "updated_at": epoch}
+QUEUE_SOURCES_PATH     = INSTALL_DIR / "queue_sources.json"
+QUEUE_SOURCES_TTL_S    = 24 * 3600
+QUEUE_SOURCES_MAX      = 8
+
+def _save_queue_sources():
+    try:
+        QUEUE_SOURCES_PATH.write_text(json.dumps(queue_sources), encoding="utf-8")
+    except Exception as _qsrc_err:
+        log(f"[queue-sources] WARNING: persist failed: {_qsrc_err}")
+
+def _reset_queue_sources(coord_name, entries, reason=""):
+    """Queue replaced/cleared: the sources list starts over. NEVER raises —
+    a bookkeeping failure must not break a playback verb."""
+    try:
+        queue_sources[coord_name] = {"entries": list(entries or []), "updated_at": time.time()}
+        _save_queue_sources()
+        log(f"[queue-sources] {coord_name}: RESET -> {len(entries or [])} entry(ies) ({reason})")
+    except Exception as _qsrc_err:
+        log(f"[queue-sources] reset failed on {coord_name} (benign): {_qsrc_err}")
+
+def _append_queue_source(coord_name, ctype, name="", uri=""):
+    """Something was ADDED to an existing queue. Containers append an entry;
+    tracks merge into a trailing {"type":"tracks","count":N} accumulator.
+    NEVER raises."""
+    try:
+        rec = queue_sources.get(coord_name) or {}
+        entries = list(rec.get("entries", []))
+        if ctype == "track":
+            if entries and entries[-1].get("type") == "tracks":
+                entries[-1] = dict(entries[-1], count=int(entries[-1].get("count", 0)) + 1)
+            else:
+                entries.append({"type": "tracks", "count": 1})
+        else:
+            entries.append({"type": ctype or "container", "name": name or "", "uri": uri or ""})
+        queue_sources[coord_name] = {"entries": entries[-QUEUE_SOURCES_MAX:], "updated_at": time.time()}
+        _save_queue_sources()
+        log(f"[queue-sources] {coord_name}: +{ctype} '{name or ''}' ({len(entries)} entry(ies))")
+    except Exception as _qsrc_err:
+        log(f"[queue-sources] append failed on {coord_name} (benign): {_qsrc_err}")
+
+def _get_queue_sources(coord_name):
+    """Live sources entries for a coordinator, or [] (TTL-pruned, Rule 11).
+    NEVER raises — called from the state-push path."""
+    try:
+        rec = queue_sources.get(coord_name)
+        if not rec: return []
+        if time.time() - rec.get("updated_at", 0) > QUEUE_SOURCES_TTL_S:
+            queue_sources.pop(coord_name, None)
+            _save_queue_sources()
+            log(f"[queue-sources] {coord_name}: TTL expired -> cleared")
+            return []
+        return rec.get("entries", [])
+    except Exception:
+        return []
+
+try:
+    if QUEUE_SOURCES_PATH.exists():
+        _qsrc_loaded = json.loads(QUEUE_SOURCES_PATH.read_text(encoding="utf-8"))
+        _qsrc_cut = time.time() - QUEUE_SOURCES_TTL_S
+        queue_sources.update({k: v for k, v in _qsrc_loaded.items()
+                              if v.get("updated_at", 0) > _qsrc_cut})
+    # v2.60 boot marker (Rule 24: verify a log line UNIQUE to the new version)
+    print(f"[queue-sources] v2.60 queue sources active: {len(queue_sources)} entry(ies) loaded")
+except Exception as _qsrc_err:
+    print(f"[queue-sources] WARNING: failed to load queue_sources.json: {_qsrc_err}")
+
 # --- STALE-QUEUE GUARD (v2.58 Phase B) ----------------------------------------
 # DESIGN (design_v258_release_plan.md SS4, decisions LOCKED 2026-08-04):
 # Insert verbs (play_next, add_to_queue insert-next mode, play_album non-replace)
@@ -682,10 +762,14 @@ def _build_queue_summary():
                 try:
                     # get_queue start is 0-indexed; playlist_position is 1-indexed,
                     # so start=cur_pos yields the tracks AFTER the current one.
-                    for it in dev.get_queue(start=cur_pos, max_items=4):
+                    # v2.60: depth 4 -> 8, and items become {"title","artist"} objects
+                    # (creator rides along free in the same queue read). Page p3.10+
+                    # renders both shapes; older pages only ever saw strings.
+                    for it in dev.get_queue(start=cur_pos, max_items=8):
                         t = getattr(it, "title", "") or ""
                         if t:
-                            upcoming.append(t)
+                            upcoming.append({"title": t,
+                                             "artist": getattr(it, "creator", "") or ""})
                 except Exception:
                     pass
                 prov = _get_queue_provenance(cname) or {}
@@ -703,6 +787,8 @@ def _build_queue_summary():
                     "track_count": qsize,
                     "current_pos": cur_pos,
                     "upcoming": upcoming,
+                    # v2.60: additive sources chain (what our verbs put in this queue)
+                    "sources": _get_queue_sources(cname),
                 }
             except Exception as qe:
                 log(f"[queue-summary] {cname}: {qe}")
@@ -4164,6 +4250,16 @@ def execute_command(cmd, source="unknown"):
                         log(f"search_and_queue: add_to_queue returned position={pos}")
                         dev.play_from_queue(pos - 1)  # 0-indexed
                         _enforce_repeat_default(dev, cmd, room)  # v2.48.5 house rule
+                        # v2.60 queue sources: append (keyed by coordinator, like all hooks)
+                        try:
+                            _saq_coord = (dev.group.coordinator.player_name
+                                          if dev.group and dev.group.coordinator else dev.player_name)
+                        except Exception:
+                            _saq_coord = dev.player_name
+                        if search_type.startswith("album"):
+                            _append_queue_source(_saq_coord, "album", title, uri or "")
+                        else:
+                            _append_queue_source(_saq_coord, "track")
                         result["success"] = True
                         result["message"] = f"Queued+playing '{title}' ({svc_name}) in {room} at pos {pos}"
                         result["data"] = {"title": title, "uri": uri, "service": svc_name, "item_class": item_class, "position": pos}
@@ -4506,6 +4602,18 @@ def execute_command(cmd, source="unknown"):
                                 log(f"play_album: appended at position {pos}, playing from there")
                                 coordinator.play_from_queue(pos - 1)
 
+                        # v2.60 queue sources (preview enrichment): record what this verb
+                        # did to the queue — replace RESETS the chain, inserts APPEND.
+                        # Runs for all three modes; provenance below stays play-now-only.
+                        _qsrc_uri = spotify_album_uri or share_link_url or getattr(album_item, "uri", "") or ""
+                        if replace_q:
+                            _reset_queue_sources(coordinator.player_name,
+                                [{"type": "album", "name": chosen_title or album_title, "uri": _qsrc_uri}],
+                                "play_album replace")
+                        else:
+                            _append_queue_source(coordinator.player_name, "album",
+                                                 chosen_title or album_title, _qsrc_uri)
+
                         if not queue_only:
                             _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
                             # v2.55: queue provenance — "play now" makes this album the
@@ -4637,8 +4745,14 @@ def execute_command(cmd, source="unknown"):
                 # replaces the queue with no container, so clear instead.
                 if uri_type in ("playlist", "album"):
                     _set_queue_provenance(dev.player_name, spotify_uri, title, uri_type)
+                    # v2.60 queue sources: fresh load -> chain restarts at this container
+                    _reset_queue_sources(dev.player_name,
+                        [{"type": uri_type, "name": title, "uri": spotify_uri}],
+                        "play_spotify_uri load")
                 else:
                     _clear_queue_provenance(dev.player_name, "queue replaced by single track")
+                    _reset_queue_sources(dev.player_name,
+                        [{"type": "tracks", "count": 1}], "play_spotify_uri single track")
                 # Set play mode: shuffle + repeat controlled independently
                 shuffle = cmd.get("shuffle", False)
                 repeat = cmd.get("repeat", False)  # v2.45: default False (house rule: repeat off unless requested)
@@ -4778,8 +4892,14 @@ def execute_command(cmd, source="unknown"):
                             label=" add_to_queue(stale->replace)")
                         if is_spotify and uri_type in ("album", "playlist"):
                             _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                            # v2.60 queue sources: conversion = replace -> chain restarts
+                            _reset_queue_sources(coordinator.player_name,
+                                [{"type": uri_type, "name": title, "uri": track_uri}],
+                                "add_to_queue stale->replace")
                         else:
                             _clear_queue_provenance(coordinator.player_name, "stale queue replaced by add_to_queue")
+                            _reset_queue_sources(coordinator.player_name,
+                                [{"type": "tracks", "count": 1}], "add_to_queue stale->replace")
                         verb = "Replaced stale queue; playing"
                     elif as_next:
                         try:
@@ -4827,6 +4947,13 @@ def execute_command(cmd, source="unknown"):
                     result["data"]["queued_at"] = _qa_actual
                     result["data"]["placement"] = _qa_placement
                     result["success"] = True
+                    # v2.60 queue sources: non-conversion adds APPEND to the chain
+                    # (the stale->replace branch already RESET it at replace time).
+                    if not _b_converted_from:
+                        if is_spotify and uri_type in ("album", "playlist"):
+                            _append_queue_source(coordinator.player_name, uri_type, title, track_uri)
+                        else:
+                            _append_queue_source(coordinator.player_name, "track")
                     _pl_note = ""
                     if _qa_placement == "reordered":
                         _pl_note = " [misfiled, recovered by reorder]"
@@ -4995,6 +5122,10 @@ def execute_command(cmd, source="unknown"):
                         # Mirrors play_spotify_uri / replace_queue container semantics;
                         # _set_queue_provenance also clears stale-Enqueued markers.
                         _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                        # v2.60 queue sources: playlist replace -> chain restarts
+                        _reset_queue_sources(coordinator.player_name,
+                            [{"type": uri_type, "name": title, "uri": track_uri}],
+                            "play_next playlist replace")
                     elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
@@ -5017,8 +5148,14 @@ def execute_command(cmd, source="unknown"):
                             # is_playlist_container above).
                             if uri_type in ("album", "playlist"):
                                 _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                                # v2.60 queue sources: stream takeover replaced the queue
+                                _reset_queue_sources(coordinator.player_name,
+                                    [{"type": uri_type, "name": title, "uri": track_uri}],
+                                    "play_next stream takeover")
                             else:
                                 _clear_queue_provenance(coordinator.player_name, "stream takeover by single track")
+                                _reset_queue_sources(coordinator.player_name,
+                                    [{"type": "tracks", "count": 1}], "play_next stream takeover")
                         else:
                             # Non-Spotify (Qobuz, Apple Music, etc.): play_uri() is more reliable
                             # than clear_queue + DIDL + play_from_queue which can silently fail
@@ -5063,8 +5200,14 @@ def execute_command(cmd, source="unknown"):
                                 label=" play_next(stale->replace)")
                             if is_spotify and uri_type in ("album", "playlist"):
                                 _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                                # v2.60 queue sources: conversion = replace -> chain restarts
+                                _reset_queue_sources(coordinator.player_name,
+                                    [{"type": uri_type, "name": title, "uri": track_uri}],
+                                    "play_next stale->replace")
                             else:
                                 _clear_queue_provenance(coordinator.player_name, "stale queue replaced by play_next")
+                                _reset_queue_sources(coordinator.player_name,
+                                    [{"type": "tracks", "count": 1}], "play_next stale->replace")
                         else:
                             info = coordinator.get_current_track_info()
                             current_pos = int(info.get('playlist_position', 0))
@@ -5100,6 +5243,11 @@ def execute_command(cmd, source="unknown"):
                                                         expected_uri=track_uri)
                             except Exception as _se_err:
                                 log(f"play_next: stale-Enqueued marker set failed (benign): {_se_err}")
+                            # v2.60 queue sources: literal insert APPENDS to the chain
+                            if is_spotify and uri_type in ("album", "playlist"):
+                                _append_queue_source(coordinator.player_name, uri_type, title, track_uri)
+                            else:
+                                _append_queue_source(coordinator.player_name, "track")
                         if _b_converted_from:
                             pass  # playback already started by _load_then_trim
                         elif _qa_placement == "degraded" and _qa_actual:
@@ -5752,8 +5900,14 @@ def execute_command(cmd, source="unknown"):
                     # track wipes it (mirrors play_spotify_uri semantics, v2.55).
                     if is_spotify and uri_type in ("album", "playlist"):
                         _set_queue_provenance(coordinator.player_name, track_uri, title, uri_type)
+                        # v2.60 queue sources: replace -> chain restarts
+                        _reset_queue_sources(coordinator.player_name,
+                            [{"type": uri_type, "name": title, "uri": track_uri}],
+                            "replace_queue")
                     else:
                         _clear_queue_provenance(coordinator.player_name, "queue replaced by single track")
+                        _reset_queue_sources(coordinator.player_name,
+                            [{"type": "tracks", "count": 1}], "replace_queue single track")
                     result["success"] = True
                     _rq_note = " [WARNING: old queue rows not removed — will be swept by next replace/clear]" if _rq_trim_failed else ""
                     result["message"] = f"Replaced queue with '{title}' in {room} ({old_len} old rows removed){_rq_note}"
@@ -5822,6 +5976,11 @@ def execute_command(cmd, source="unknown"):
                     # freshen the stale-guard stamp (no-op branches don't touch)
                     if result["data"].get("removed"):
                         _touch_queue(coordinator.player_name, "truncate_queue")
+                        # v2.60 queue sources: everything AFTER current was dropped —
+                        # later adds are gone; only the head (loaded) entry stays honest.
+                        _reset_queue_sources(coordinator.player_name,
+                            _get_queue_sources(coordinator.player_name)[:1],
+                            "truncate_queue (adds after current dropped)")
                     # v2.58 A7: [queue-op] line + coordinator/group fields (never raises)
                     result["data"].update(_queue_op_log(
                         "truncate_queue", room, coordinator,
@@ -5852,6 +6011,7 @@ def execute_command(cmd, source="unknown"):
                     with _queue_mutation_timeout():
                         coordinator.clear_queue()
                     _clear_queue_provenance(coordinator.player_name, "clear_queue command")  # v2.55
+                    _reset_queue_sources(coordinator.player_name, [], "clear_queue command")  # v2.60
                     _touch_queue(coordinator.player_name, "clear_queue")  # v2.58 Phase B: mutation -> touch
                     log(f"clear_queue: {coordinator.player_name} queue cleared ({_q_before} tracks removed)")
                     result["success"] = True

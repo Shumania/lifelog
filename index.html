@@ -829,6 +829,10 @@
 .q-track { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; align-items: baseline; }
 .q-track .q-pos { color: var(--text-dim, #8a8fa3); font-size: 10px; width: 14px; text-align: right; flex-shrink: 0; }
 .q-track .q-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text, #e8eaf0); }
+/* p3.10: dim artist on up-next rows + sources-chain typography */
+.q-track .q-a { color: var(--text-dim); font-size: 11px; }
+.q-src-type { color: var(--text-dim); font-size: 0.85em; }
+.q-src-sep { opacity: 0.55; }
 .q-more { font-size: 11px; color: var(--text-dim, #8a8fa3); padding: 3px 0 0 22px; }
 .q-maint { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border, rgba(255,255,255,0.09)); display: flex; gap: 18px; font-size: 12px; }
 .q-maint span { color: #f87171; font-weight: 600; cursor: pointer; }
@@ -1129,7 +1133,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.09';
+const PAGE_VERSION = 'p3.10';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1969,6 +1973,30 @@ function _spkSelSummary(h) {
   return sel[0].replace(/^Main /, '') + (sel.length > 1 ? ' +' + (sel.length - 1) : '');
 }
 
+// p3.10: upcoming items are strings from ≤v2.59 services or {title,artist}
+// objects from v2.60+ — render both shapes (fleet updates are not atomic).
+function _qUpRowHtml(t) {
+  const isObj = t && typeof t === 'object';
+  const title = isObj ? (t.title || '') : (t || '');
+  const artist = isObj ? (t.artist || '') : '';
+  return '<div class="q-track"><span class="q-pos">·</span><span class="q-t">' + esc(title) +
+    (artist ? ' <span class="q-a">— ' + esc(artist) + '</span>' : '') + '</span></div>';
+}
+// p3.10: v2.60 additive sources chain — "Dusk & Dinner (playlist) · +Album (album)
+// · +3 tracks". Returns null when absent (older service) → caller falls back to
+// provenance_label (exact pre-p3.10 behavior).
+function _qSourcesHtml(e) {
+  const src = (e && e.sources) || [];
+  if (!src.length) return null;
+  return src.map((s, i) => {
+    if (s.type === 'tracks') {
+      const n = s.count || 1;
+      return (i === 0 ? '' : '+') + n + ' track' + (n === 1 ? '' : 's');
+    }
+    return (i === 0 ? '' : '+') + esc(s.name || '(unknown)') +
+      ' <span class="q-src-type">(' + esc(s.type || '') + ')</span>';
+  }).join(' <span class="q-src-sep">·</span> ');
+}
 function renderQueueLine(h) {
   const line = document.getElementById('qline-' + h); if (!line) return; // roaming has none
   const exp = document.getElementById('qexp-' + h);
@@ -2013,9 +2041,11 @@ function renderQueueLine(h) {
   const left = Math.max(0, (e.track_count || 0) - (e.current_pos || 0));
   const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
   const multi = Object.keys(st.qs).length > 1;
+  // p3.10: sources chain (v2.60+) beats the single provenance label; falls back cleanly
+  const _srcHtml = _qSourcesHtml(e);
   document.getElementById('qtext-' + h).innerHTML =
     'Queue' + (multi ? ' — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) + (() => { const n = _qsMembers(h, coord).length - 1; return n > 0 ? ' +' + n : ''; })() : '') + ': <b>' + left + ' left</b> · ' +
-    esc(e.provenance_label || (e.track_count + ' tracks')) +
+    (_srcHtml || esc(e.provenance_label || (e.track_count + ' tracks'))) +
     (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '');
   document.getElementById('qstale-' + h).hidden = !(loadedMs != null && loadedMs > 12 * 3600 * 1000); // U5
   const open = !!_qexpOpen[h];
@@ -2025,7 +2055,7 @@ function renderQueueLine(h) {
   let html = '<div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
   const up = e.upcoming || [];
   if (!up.length) html += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
-  for (const t of up) html += '<div class="q-track"><span class="q-pos">·</span><span class="q-t">' + esc(t) + '</span></div>';
+  for (const t of up) html += _qUpRowHtml(t); // p3.10: handles string + {title,artist}
   const more = left - up.length;
   if (more > 0) html += '<div class="q-more">+ ' + more + ' more…</div>';
   html += '<div class="q-maint">' +
@@ -2228,13 +2258,14 @@ function _renderQueueSheet() {
     qb += '<span class="q-prov" style="color:#c98a00">updating… · syncing after your change</span></div>' + grpRow;
   } else if (e) {
     const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
-    qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + esc(e.provenance_label || (e.track_count + ' tracks')) +
+    const _shSrc = _qSourcesHtml(e); // p3.10: sources chain beats single label
+    qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + (_shSrc || esc(e.provenance_label || (e.track_count + ' tracks'))) +
       (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '') + '</span>' +
       (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">⚠️ stale</span>' : '') + '</div>' + grpRow;
     qb += '<div class="qs-upnext"><div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
     const up = e.upcoming || [];
     if (!up.length) qb += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
-    for (const tt of up) qb += '<div class="q-track"><span class="q-pos">·</span><span class="q-t">' + esc(tt) + '</span></div>';
+    for (const tt of up) qb += _qUpRowHtml(tt); // p3.10: handles string + {title,artist}
     if (left - up.length > 0) qb += '<div class="q-more">+ ' + (left - up.length) + ' more…</div>';
     qb += '</div>';
     qb += '<div class="q-maint"><span' + ((lock || !verOk) ? ' class="disabled"' : '') + ' onclick="_qsTruncVerb()">✂ Clear after current track' + esc(truncHint) + '</span></div>';
