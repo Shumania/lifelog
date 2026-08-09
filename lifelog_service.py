@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.60.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.61.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -350,7 +350,9 @@ def _overlay_prov_guard(prov, track_album, coord_name):
     try:
         if ((prov.get("type") or "").lower() == "album" and track_album
                 and prov.get("name")
-                and _norm_ctx_str(prov["name"]) != _norm_ctx_str(track_album)):
+                # v2.61: fuzzy match (was strict equality) — decorated sender
+                # titles ('🎛️ Album (2005) — Artist') are NOT stale (Rule 10).
+                and not _ctx_names_match(prov["name"], track_album)):
             log(f"[overlay-guard] {coord_name}: STALE album provenance "
                 f"'{prov.get('name','')}' vs track album '{track_album}' -- "
                 f"overlay SKIPPED, pointer CLEARED (self-heal)")
@@ -613,6 +615,8 @@ print("[v2.59] capture sanitize active (L1/L2/L3) + cu wire + svc-name normalize
 # v2.59.1 boot banner (Rule 24 §3: log line UNIQUE to this version)
 print("[v2.59.1] play_next provenance fix active: playlist REPLACE + stream takeover now set/clear queue provenance")
 print("[v2.59.2] overlay guard active: album-typed provenance validated at stamp time (skip + self-heal on mismatch)")
+# v2.61 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.61] fuzzy ctx-name match active: decorated container names no longer read as stale; stream hidden-queue watch on")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -709,6 +713,9 @@ def _update_state_ring_rooms(track_info, started_str, rooms_list):
 STREAM_URI_PREFIXES = ("x-rincon-mp3radio:", "x-sonosapi-stream:", "x-sonosapi-radio:",
                        "x-sonos-htastream:", "x-rincon-stream:", "aac:", "x-sonosapi-hls:",
                        "x-sonos-vli:")
+# v2.61: last-logged hidden-queue depth per coordinator during stream playback
+# (change-only logging for the queue_rows_hidden watch; in-memory only).
+_stream_qrows_seen = {}
 # v2.57 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[queue-mgmt] v2.57 queue management active: replace_queue / truncate_queue / queue_summary")
 
@@ -745,8 +752,23 @@ def _build_queue_summary():
                         cur_uri = (mi.get("CurrentURI") or "").lower()
                         if any(cur_uri.startswith(p) for p in STREAM_URI_PREFIXES):
                             ti = (room_state.get(cname) or {}).get("track_info") or {}
-                            out[cname] = {"stream": True,
-                                          "stream_label": ti.get("title") or ti.get("service") or "stream"}
+                            _st_entry = {"stream": True,
+                                         "stream_label": ti.get("title") or ti.get("service") or "stream"}
+                            # v2.61 watch (backlog "queue rows=0 during x-sonos-vli
+                            # casts"): a live-session cast often coexists with a real
+                            # queue the user wants back. Carry the hidden depth in
+                            # state (Rule 27: state, not events); log only on change.
+                            try:
+                                _st_q = int(dev.queue_size)
+                                if _st_q:
+                                    _st_entry["queue_rows_hidden"] = _st_q
+                                if _stream_qrows_seen.get(cname) != _st_q:
+                                    _stream_qrows_seen[cname] = _st_q
+                                    log(f"[queue-summary] {cname}: stream active, "
+                                        f"{_st_q}-row queue retained behind it")
+                            except Exception:
+                                pass
+                            out[cname] = _st_entry
                             continue
                     except Exception:
                         pass  # can't read media info -> fall through to queue fields
@@ -2984,6 +3006,31 @@ def _norm_ctx_str(s):
     read-guard's normStr semantics: lowercase, alnum runs only)."""
     return re.sub(r'[^a-z0-9]+', ' ', (s or '').lower()).strip()
 
+def _ctx_names_match(container_name, track_album):
+    """v2.61 FUZZY ctx-name match (Rule 10 class fix, 2026-08-08 Bettye LaVette
+    incident): senders decorate display titles ('🎛️ Album (2005) — Artist') and
+    that decorated string flows into queue provenance / stale-Enqueued markers /
+    captured DIDL. A decorated-but-CORRECT name must never read as a MISMATCH
+    in a staleness guard (the old strict equality skipped the overlay AND
+    self-heal-cleared legit provenance -> organic album plays lost context).
+    Match when: equal after normalization, OR either normalized name contains
+    the other (>=4 chars on the contained side, so year fragments like '1989'
+    inside '(1989)' decoration can't false-match short album titles).
+    Missing either name -> True (fail open: absence is not proof of staleness;
+    every call site separately requires both names present before suppressing).
+    Used by: _overlay_prov_guard, sanitize_container L1 + L2."""
+    a = _norm_ctx_str(container_name)
+    b = _norm_ctx_str(track_album)
+    if not a or not b:
+        return True
+    if a == b:
+        return True
+    if len(b) >= 4 and b in a:
+        return True
+    if len(a) >= 4 and a in b:
+        return True
+    return False
+
 def _spotify_track_id(u):
     """Extract a spotify track id from either native (spotify:track:ID) or
     sonos-encoded (x-sonos-spotify:spotify%3atrack%3aID?...) URI forms."""
@@ -3075,7 +3122,9 @@ def sanitize_container(ctx, track_uri, track_album, coord_name):
         # provenance overlay then stamps the CORRECT context (the album).
         if (m and m.get("kind") == "insert_album" and cu and cu == m.get("uri", "")
                 and track_album and m.get("expected_album")
-                and _norm_ctx_str(track_album) == _norm_ctx_str(m.get("expected_album", ""))):
+                # v2.61: fuzzy match — a decorated expected_album must still
+                # fire the suppression while the inserted album plays (Rule 10).
+                and _ctx_names_match(m.get("expected_album", ""), track_album)):
             fields.update(_suppression_fields(ctx, "stale_enqueued_after_insert"))
             log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
                 f"reason=stale_enqueued_after_insert (insert-play marker, track_album='{track_album}')")
@@ -3083,7 +3132,9 @@ def sanitize_container(ctx, track_uri, track_album, coord_name):
         # L2 — album-typed container, name mismatch vs the track's own DIDL
         # album. Fails open when either name is missing (Qobuz empty DIDL).
         if (_is_album_container(cu, ctype) and track_album and cname
-                and _norm_ctx_str(cname) != _norm_ctx_str(track_album)):
+                # v2.61: fuzzy match (was strict) — decorated container names
+                # must not suppress their own legit context (Rule 10).
+                and not _ctx_names_match(cname, track_album)):
             fields.update(_suppression_fields(ctx, "album_name_mismatch"))
             log(f"[sanitize] {coord_name}: SUPPRESSED container '{cname}' ({ctype}) "
                 f"reason=album_name_mismatch (track_album='{track_album}')")
