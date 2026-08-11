@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "generated_at": "2026-08-11T01:45:00Z",
+  "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time.",
+  "shortcuts": [
+    {
+      "id": "kcrw-e24-shedarc",
+      "label": "KCRW Eclectic 24 → Shed Arc",
+      "sub": "24-hour music stream",
+      "icon": "📻",
+      "house": "vashon",
+      "steps": [
+        { "action": "play_uri", "room": "Shed Arc", "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn", "title": "KCRW Eclectic 24", "artist": "KCRW" }
+      ]
+    },
+    {
+      "id": "kcrw-e24-caphill-main",
+      "label": "KCRW Eclectic 24 → Main Floor",
+      "sub": "Dining Room · Kitchen · Living Room",
+      "icon": "📻",
+      "house": "caphill",
+      "steps": [
+        { "action": "sync_rooms", "rooms": ["Living Room", "Dining Room", "Kitchen"], "delay_after_ms": 6000 },
+        { "action": "play_uri", "room": "Living Room", "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn", "title": "KCRW Eclectic 24", "artist": "KCRW" }
+      ]
+    },
+    {
+      "id": "vol1-caphill",
+      "label": "All volume → 1%",
+      "sub": "Every room in the house",
+      "icon": "🔉",
+      "house": "caphill",
+      "steps": [
+        { "action": "set_volume", "volume": 1, "resolve": { "each_room": true } }
+      ]
+    },
+    {
+      "id": "vol1-vashon",
+      "label": "All volume → 1%",
+      "sub": "Every room in the house",
+      "icon": "🔉",
+      "house": "vashon",
+      "steps": [
+        { "action": "set_volume", "volume": 1, "resolve": { "each_room": true } }
+      ]
+    },
+    {
+      "id": "latest-garage-burn",
+      "label": "Latest Garage Burn → Garage",
+      "sub": "Replace queue & play",
+      "icon": "🏋️",
+      "house": "vashon",
+      "steps": [
+        { "action": "play_next", "resolve": { "newest_playlist": "^Garage Burn", "group_of": "Garage" } }
+      ]
+    }
+  ]
+}
