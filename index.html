@@ -545,6 +545,22 @@
     padding: 12px 16px; display: flex; flex-direction: column;
     gap: 8px; overflow-y: auto; flex: 1;
   }
+  /* p3.11: Shortcuts tab cards — design_shortcuts_v1.md */
+  .shortcut-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 14px; margin-bottom: 8px;
+    cursor: pointer; user-select: none; transition: border-color 0.15s;
+  }
+  .shortcut-card:hover { border-color: var(--text-dim); }
+  .shortcut-card:active { transform: scale(0.985); }
+  .shortcut-card.sc-running { border-color: rgba(74, 222, 128, 0.4); opacity: 0.75; pointer-events: none; }
+  .sc-icon { font-size: 22px; flex-shrink: 0; }
+  .sc-body { flex: 1; min-width: 0; }
+  .sc-label { font-size: 14px; font-weight: 600; }
+  .sc-sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .sc-house { font-size: 11px; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+
   .playlist-card {
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden; transition: border-color 0.15s; flex-shrink: 0;
@@ -1058,6 +1074,7 @@
     <div class="content-tab active" data-tab="sessions" onclick="setContentTab('sessions')">History</div><!-- p2.83: renamed (Tracks|Sessions|Days live inside) -->
     <div class="content-tab" data-tab="discovery" onclick="setContentTab('discovery')">Discovery</div>
     <div class="content-tab" data-tab="playlists" onclick="setContentTab('playlists')">Playlists</div>
+    <div class="content-tab" data-tab="shortcuts" onclick="setContentTab('shortcuts')">Shortcuts</div><!-- p3.11: rightmost per design_shortcuts_v1.md D1 -->
   </div>
 
   <!-- p2.70: Sessions tab (Session History v2, variant G pass 2.7b). Lazy — nothing fetched until first opened. -->
@@ -1127,13 +1144,21 @@
       </div>
     </div>
   </div>
+
+  <div id="tab-shortcuts" hidden><!-- p3.11: Shortcuts tab — design_shortcuts_v1.md; direct commands only, zero LLM at tap time -->
+    <div class="content-panel">
+      <div id="shortcut-list">
+        <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;font-size:13px;">Loading shortcuts…</p></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.10';
+const PAGE_VERSION = 'p3.11';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2307,9 +2332,12 @@ function _qsTruncVerb() {
 
 let _lastNtfyTime = 0;
 
-async function postNtfy(payload) {
-  const topic = NTFY[house];
-  if (!topic) { showToast('No ntfy topic for ' + house, true); return false; }
+async function postNtfy(payload, houseOverride) {
+  // p3.11: optional houseOverride lets Shortcuts target a specific house regardless of the
+  // page's current house selection. All existing callers pass one arg — behavior unchanged.
+  const h = houseOverride || house;
+  const topic = NTFY[h];
+  if (!topic) { showToast('No ntfy topic for ' + h, true); return false; }
   // Global ntfy throttle: prevent any two POSTs within 300ms
   const now = Date.now();
   if (now - _lastNtfyTime < 300) { console.log('[postNtfy] global throttle, skipping:', payload.action); showToast('⚡ Too fast — try again', true); return false; }
@@ -2318,12 +2346,12 @@ async function postNtfy(payload) {
   if (!payload.cmd_ts) payload.cmd_ts = new Date().toISOString(); // p2.46: Rule 22 — every command carries a fresh cmd_ts (fixes dedup + ledger reconciliation)
   payload.source_house = house;
   const body = JSON.stringify(payload);
-  console.log('[postNtfy] → ' + topic + ' house=' + house + ' body=' + body.substring(0, 200));
+  console.log('[postNtfy] → ' + topic + ' house=' + h + ' body=' + body.substring(0, 200));
   try {
     const hdrs = NTFY_TOKEN ? { 'Authorization': 'Bearer ' + NTFY_TOKEN } : {};
     const r = await fetch(topic, { method: 'POST', body, headers: hdrs });
     console.log('[postNtfy] ntfy status=' + r.status);
-    showToast('→ ' + house + ' [' + r.status + ']');
+    showToast('→ ' + h + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     if (_QUEUE_VERBS.has(payload.action)) { // p2.93 catch-up + p3.01 freshness stamp
       // p3.03 item 4: derive the insert kind from the payload — container URIs (album/
@@ -2331,7 +2359,7 @@ async function postNtfy(payload) {
       const _u = String(payload.uri || '');
       const _kind = _u.includes(':album:') ? 'album' : _u.includes(':playlist:') ? 'playlist'
         : (payload.search_type === 'albums' ? 'album' : 'track');
-      _qMarkCmd(house, _kind); _queueScheduleCatchup();
+      _qMarkCmd(h, _kind); _queueScheduleCatchup();  // p3.11: h = actual target house
     }
     return true;
   } catch(e) {
@@ -4682,7 +4710,7 @@ async function exploreArtist(btn, encodedData) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB SWITCHING
 // ══════════════════════════════════════════════════════════════════════════════
-const CONTENT_TABS = ['history', 'sessions', 'discovery', 'playlists'];  // p2.77: 'history' hidden from bar but still valid via #history hash
+const CONTENT_TABS = ['history', 'sessions', 'discovery', 'playlists', 'shortcuts'];  // p2.77: 'history' hidden from bar but still valid via #history hash; p3.11: shortcuts
 
 function setContentTab(tab, fromPop) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
@@ -4690,11 +4718,13 @@ function setContentTab(tab, fromPop) {
   document.getElementById('tab-sessions').hidden = tab !== 'sessions';
   document.getElementById('tab-discovery').hidden = tab !== 'discovery';
   document.getElementById('tab-playlists').hidden = tab !== 'playlists';
+  document.getElementById('tab-shortcuts').hidden = tab !== 'shortcuts';  // p3.11
   // p2.77: content tabs participate in browser history so Back works (installed-app back arrow included)
   if (!fromPop && (location.hash || '').replace('#', '') !== tab) {
     history.pushState({ ctab: tab }, '', '#' + tab);
   }
   if (tab === 'playlists' && !_playlists.length) loadPlaylistData();
+  if (tab === 'shortcuts' && !_shortcuts.length) loadShortcuts();  // p3.11: lazy — nothing fetched before first open
   if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
 }
 
@@ -5386,6 +5416,142 @@ let _plTrackError = new Set();
 let _plOpenIds = new Set();
 let _plLastListened = {};  // playlist_id → ISO timestamp of last listen
 let _plAccountOwnerId = null;  // p2.43: modal owner_id across playlists = account owner
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHORTCUTS TAB (p3.11) — design_shortcuts_v1.md
+// One-tap direct commands: every tap computes concrete ntfy payloads from
+// published shortcuts.json + live state file + playlists.json — ZERO LLM at
+// tap time (D3). Steps with a `resolve` object are expanded client-side by the
+// resolver library below; unknown resolvers fail loudly and never send.
+// ═══════════════════════════════════════════════════════════════════════════
+const SHORTCUTS_URL = 'https://shumania.github.io/lifelog/shortcuts.json';
+let _shortcuts = [];
+let _scBusy = null;  // id of currently-running shortcut (one at a time)
+const _scSleep = ms => new Promise(r => setTimeout(r, ms));
+const _SC_HOUSE_BADGE = { caphill: '🏠 Cap Hill', vashon: '🌲 Vashon' };
+
+async function loadShortcuts() {
+  try {
+    const r = await fetch(SHORTCUTS_URL + '?t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _shortcuts = (d && d.shortcuts) || [];
+    console.log('[shortcuts] loaded ' + _shortcuts.length + ' shortcuts (file v' + (d && d.version) + ')');
+  } catch (e) {
+    console.error('[shortcuts] load failed:', e);
+    showToast('✗ Shortcuts load failed: ' + e.message, true);
+  }
+  renderShortcuts();
+}
+
+function renderShortcuts() {
+  const el = document.getElementById('shortcut-list');
+  if (!el) return;
+  if (!_shortcuts.length) {
+    el.innerHTML = '<div class="empty-state"><p style="font-size:13px;">No shortcuts yet — ask the agent to add one.</p></div>';
+    return;
+  }
+  el.innerHTML = _shortcuts.map(s => {
+    const running = _scBusy === s.id;
+    return '<div class="shortcut-card' + (running ? ' sc-running' : '') + '" id="sc-' + esc(s.id) + '" onclick="runShortcut(\'' + esc(s.id) + '\')">' +
+      '<span class="sc-icon">' + esc(s.icon || '⚡') + '</span>' +
+      '<span class="sc-body"><div class="sc-label">' + esc(s.label) + '</div>' +
+      (s.sub ? '<div class="sc-sub">' + esc(s.sub) + '</div>' : '') + '</span>' +
+      '<span class="sc-house">' + (_SC_HOUSE_BADGE[s.house] || esc(s.house || '')) + '</span>' +
+      (running ? '<span class="hr-spin" style="font-size:16px">⟳</span>' : '') +
+      '</div>';
+  }).join('');
+}
+
+async function _scFetchState(h) {
+  const url = STATE_URLS[h];
+  if (!url) throw new Error('no state file URL for house ' + h);
+  const r = await fetch(url + '?t=' + Date.now());
+  if (!r.ok) throw new Error('state-' + h + '.json HTTP ' + r.status);
+  return await r.json();
+}
+
+// Resolver library: expands one declarative step into 1..N concrete payloads.
+// Pure data in → payloads out. Any resolution failure THROWS (never sends).
+async function _scExpandStep(step, h) {
+  const s = JSON.parse(JSON.stringify(step));
+  const resolve = s.resolve;
+  delete s.resolve; delete s.delay_after_ms;
+  if (!resolve) return [s];
+
+  const known = ['each_room', 'newest_playlist', 'group_of'];
+  const unknown = Object.keys(resolve).filter(k => !known.includes(k));
+  if (unknown.length) throw new Error('unknown resolver(s): ' + unknown.join(', ') + ' — update the app');
+
+  if (resolve.each_room) {
+    // One send per room in the house, from the LIVE state file (freshest truth).
+    const st = await _scFetchState(h);
+    const rooms = st.rooms_all || [];
+    if (!rooms.length) throw new Error('no rooms_all in state-' + h + '.json');
+    console.log('[shortcuts] each_room(' + h + ') → ' + rooms.length + ' rooms: ' + rooms.join(', '));
+    return rooms.map(rm => Object.assign({}, s, { room: rm }));
+  }
+
+  if (resolve.newest_playlist) {
+    // Newest playlist whose name matches the pattern (created_approx desc).
+    if (!_playlists.length) await loadPlaylistData();
+    if (!_playlists.length) throw new Error('playlists.json unavailable');
+    const re = new RegExp(resolve.newest_playlist, 'i');
+    const cand = _playlists.filter(p => re.test(p.name || ''))
+      .sort((a, b) => String(b.created_approx || '').localeCompare(String(a.created_approx || '')));
+    if (!cand.length) throw new Error('no playlist matching /' + resolve.newest_playlist + '/');
+    const p = cand[0];
+    s.uri = 'spotify:playlist:' + p.id;
+    if (!s.title) s.title = p.name;
+    console.log('[shortcuts] newest_playlist /' + resolve.newest_playlist + '/ → "' + p.name + '" (' + p.id + ', created ' + p.created_approx + ')');
+  }
+
+  if (resolve.group_of) {
+    // play.ts group-topology rule: default to the target room's FULL current
+    // group membership (coordinator first) so we never silently ungroup rooms.
+    const st = await _scFetchState(h);
+    const g = (st.groups || []).find(gr => (gr.members || []).includes(resolve.group_of));
+    const rooms = g ? [g.coordinator].concat((g.members || []).filter(m => m !== g.coordinator))
+                    : [resolve.group_of];
+    s.rooms = rooms;
+    console.log('[shortcuts] group_of(' + resolve.group_of + ') → [' + rooms.join(', ') + ']');
+  }
+
+  return [s];
+}
+
+async function runShortcut(id) {
+  if (_scBusy) { showToast('⏳ A shortcut is already running', true); return; }
+  const sc = _shortcuts.find(s => s.id === id);
+  if (!sc) { console.error('[shortcuts] unknown id: ' + id); return; }
+  _scBusy = id; renderShortcuts();
+  console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + sc.house + ' steps=' + (sc.steps || []).length + ' ═══');
+  try {
+    for (let i = 0; i < (sc.steps || []).length; i++) {
+      const step = sc.steps[i];
+      const payloads = await _scExpandStep(step, sc.house);
+      console.log('[shortcuts] step ' + (i + 1) + '/' + sc.steps.length + ' (' + step.action + ') → ' + payloads.length + ' send(s)');
+      for (const p of payloads) {
+        p.cmd_ts = new Date().toISOString();  // Rule 22: fresh cmd_ts on every send
+        p.shortcut_id = id;                   // provenance breadcrumb in the command body
+        const ok = await postNtfy(p, sc.house);
+        if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
+        await _scSleep(400);                  // respect postNtfy's 300ms global throttle
+      }
+      if (step.delay_after_ms && i < sc.steps.length - 1) {
+        console.log('[shortcuts] waiting ' + step.delay_after_ms + 'ms before next step');
+        showToast('⏳ ' + Math.round(step.delay_after_ms / 1000) + 's — setting up…');
+        await _scSleep(step.delay_after_ms);
+      }
+    }
+    console.log('[shortcuts] ═══ DONE "' + sc.label + '" ═══');
+    showToast('✓ ' + sc.label);
+  } catch (e) {
+    console.error('[shortcuts] ═══ FAILED "' + sc.label + '":', e, '═══');
+    showToast('✗ ' + sc.label + ': ' + e.message, true);
+  }
+  _scBusy = null; renderShortcuts();
+}
 
 const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlists.json'; // p2.46: Phase 3 cutover — new-schema asset (both accounts, owned+followed, server recency)
 const PL_TRACKS_BASE  = 'https://shumania.github.io/lifelog/playlist_tracks/';
