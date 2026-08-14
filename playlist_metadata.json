@@ -259,9 +259,9 @@
   "owner_id": "shuzamin",
   "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0236615a0a60523dd62135ab3aab67616d00001e02498ab3813bf458fb836c8822ab67616d00001e0280ed8fe3bc537839f250ee8aab67616d00001e02f91223caafb7c1dccd24f97e",
   "followers_total": 1,
-  "tracks_total": 36,
+  "tracks_total": 37,
   "created_approx": "2026-03-17T00:09:26Z",
-  "last_modified": "2026-08-09T18:21:02Z"
+  "last_modified": "2026-08-11T15:27:49Z"
  },
  {
   "id": "2GXqXT4X1jGZbyQ3Pt5u3x",
@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Ravyn Lenae",
+  "description": "Updated weekly. (Photo: Phoebe Bridgers)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000d72cebc1d7cba8a3e19686cdf340",
-  "followers_total": 0,
-  "tracks_total": 30,
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84caef2c3b660d2027856b8798",
+  "followers_total": 84760,
+  "tracks_total": 39,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-08-07T09:05:44Z"
+  "last_modified": "2026-08-14T09:23:59Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1006,5 +1006,101 @@
   "tracks_total": 20,
   "created_approx": "2026-08-05 02:27:58",
   "last_modified": "2026-08-05 02:27:58"
+ },
+ {
+  "id": "2PEhzxsD7PmB2YZrLbPxou",
+  "name": "Spyplane Summer Songs Supermix '26",
+  "description": "https:&#x2F;&#x2F;www.blackbirdspyplane.com&#x2F;p&#x2F;summer-songs-supermix-2026",
+  "owner": "erinwylie",
+  "owner_id": "erinwylie",
+  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da8499b38bd039f20ddbe1596c6b",
+  "followers_total": 1444,
+  "tracks_total": 38,
+  "created_approx": "2026-07-26T15:21:00Z",
+  "last_modified": "2026-07-28T01:50:41Z"
+ },
+ {
+  "id": "4xJQWkcYiuj6BwpG1XAL5f",
+  "name": "Light & Color — Inspired by Eva Walker's Early",
+  "description": "A custom playlist following a beam of light through eye → mirror → black → pink → blue → sunshine → fire → forest → retrograde. Built from the DNA of Eva Walker&#x27;s KEXP Early sets.",
+  "owner": "Ashumangmail",
+  "owner_id": "teenbloods",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021fea0f97fa92aa773e884312ab67616d00001e026e2a480f32d1825bbd89fc07ab67616d00001e02ad08f4b38efbff0c0da0f252ab67616d00001e02f94461acebee60775ea22e77",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-08-14T21:28:31Z",
+  "last_modified": "2026-08-14T21:28:31Z"
+ },
+ {
+  "id": "5rilLXMjux6tc7QjsTbDe6",
+  "name": "WOPOP KEXP - Darek Mazzone - July 14, 2026",
+  "description": "Fave instudios. Viljandi Fest in Estonia Focus. Ula Nowak DJ Set. 32&#x2F;37 tracks found.",
+  "owner": "Ashumangmail",
+  "owner_id": "teenbloods",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0222f094da5b2b755c4b723c83ab67616d00001e023b0fd63994c4589a9eb4667cab67616d00001e027b84b5d956376cb8e55425f5ab67616d00001e02bbfbf752e786c283ec85c845",
+  "followers_total": 0,
+  "tracks_total": 32,
+  "created_approx": "2026-08-14T21:02:41Z",
+  "last_modified": "2026-08-14T21:02:41Z"
+ },
+ {
+  "id": "25HqMeBtqMHaSifXzmDfIm",
+  "name": "KEXP Early - Eva Walker - August 11, 2026",
+  "description": "Do Tuesdays exist at the edge of the universe? Eva Walker on KEXP Early, Aug 11 2026. 26&#x2F;27 tracks found.",
+  "owner": "Ashumangmail",
+  "owner_id": "teenbloods",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0259adae48f8ee1de1369b837aab67616d00001e025e25e034e25258b356774c79ab67616d00001e02ab668d982e9979cd47f869faab67616d00001e02daa96ea6d96d900f7d95f2f4",
+  "followers_total": 0,
+  "tracks_total": 26,
+  "created_approx": "2026-08-14T21:02:16Z",
+  "last_modified": "2026-08-14T21:02:16Z"
+ },
+ {
+  "id": "0oNJ1jmWxo26f2g8d6nico",
+  "name": "The Swampers — Aug 14",
+  "description": "Muscle Shoals, Alabama 1962–72: FAME Studios into 3614 Jackson Highway. Arthur Alexander’s first hit to Duane’s slow burn to Mavis’ liftoff — mostly new corners, with Etta, the Stones and the Shakes holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021cdb72ef6962e80e97d27c75ab67616d00001e0259520145a1630be15bb7e215ab67616d00001e02601e53e934f86c27e775e831ab67616d00001e02e9417411c156207132d4c003",
+  "followers_total": 1,
+  "tracks_total": 17,
+  "created_approx": "2026-08-14T10:15:19Z",
+  "last_modified": "2026-08-14T10:15:19Z"
+ },
+ {
+  "id": "676QK8EGw5FiAA0tIzNRCE",
+  "name": "Blue Hour — Aug 13",
+  "description": "Late-night blue jazz for Thursday — Stolen Moments into ’Round Midnight, with Mobley, Wes and the Giuffre 3 slipping in as new faces.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02337b64d3c252d562a33e4d35ab67616d00001e0259dc50d8163480867031c3b2ab67616d00001e028d277396016ea9ea46d55ce0ab67616d00001e029ab9b4e0d804541ca54c3f6c",
+  "followers_total": 1,
+  "tracks_total": 16,
+  "created_approx": "2026-08-13T10:11:32Z",
+  "last_modified": "2026-08-13T10:11:32Z"
+ },
+ {
+  "id": "6ajaoOspTG8R9xOTLwxV0Z",
+  "name": "Chamber Drift — Aug 12",
+  "description": "Viols, solo Bach and ambient keys for a hushed Wednesday — Lawes at sunrise, Pärt in the middle distance, Budd &amp; Eno at dusk.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0227004fa600c8b3db34a3efefab67616d00001e0237a379ca6520eaf191de6ff2ab67616d00001e02c78bcb339882d4c92700b42eab67616d00001e02eba05344ff7ca99e2fd35545",
+  "followers_total": 1,
+  "tracks_total": 18,
+  "created_approx": "2026-08-12T10:12:50Z",
+  "last_modified": "2026-08-12T10:12:50Z"
+ },
+ {
+  "id": "35XFSCNN8J3zsHddJgKEkV",
+  "name": "Canyon Dusk — Aug 11",
+  "description": "Desert-twilight instrumentals — Hermanos’ twin guitars, Khruangbin haze, a Saharan detour. Paris, Texas to Sleep Walk.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020ca7bead7475b08329e7820eab67616d00001e0229d2d8f2b5eb4acb68392ccdab67616d00001e024f3a9cedd778597ac88c73e5ab67616d00001e02c0c54c6de30010265e23c840",
+  "followers_total": 1,
+  "tracks_total": 15,
+  "created_approx": "2026-08-11T10:17:38Z",
+  "last_modified": "2026-08-11T10:17:38Z"
  }
 ]
