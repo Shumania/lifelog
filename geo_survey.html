@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Vashon Geo Survey</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #0e1116; color: #e8eaed; padding: 16px; }
+  h1 { font-size: 20px; margin: 4px 0 2px; }
+  .sub { color: #9aa0a6; font-size: 13px; margin-bottom: 14px; }
+  .live { background: #171b22; border: 1px solid #2a2f38; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 14px; }
+  .live b { font-variant-numeric: tabular-nums; }
+  .acc-good { color: #4ade80; } .acc-ok { color: #fbbf24; } .acc-bad { color: #f87171; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  button.struct { font-size: 17px; font-weight: 600; padding: 22px 8px; border-radius: 14px; border: 1px solid #2a2f38; background: #1c2330; color: #e8eaed; }
+  button.struct.done { background: #14321f; border-color: #2c6e49; }
+  button.struct.sampling { background: #3a2f14; border-color: #8a6d1a; }
+  button.struct:disabled { opacity: 0.6; }
+  .progress { font-size: 13px; color: #fbbf24; min-height: 18px; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+  .results { background: #171b22; border: 1px solid #2a2f38; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 13px; }
+  .results div { padding: 3px 0; font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .row button { flex: 1; font-size: 15px; font-weight: 600; padding: 14px 8px; border-radius: 12px; border: 1px solid #2a2f38; background: #1c2330; color: #e8eaed; }
+  button.send { background: #1a3a5c; border-color: #2e6da4; }
+  input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #2a2f38; background: #12151b; color: #e8eaed; font-size: 13px; margin-bottom: 12px; }
+  .log { background: #0a0c10; border: 1px solid #22262e; border-radius: 10px; padding: 10px; font-family: ui-monospace, monospace; font-size: 11px; color: #9aa0a6; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2c6e49; color: #fff; padding: 12px 20px; border-radius: 24px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 99; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<h1>📍 Vashon Geo Survey <span style="font-size:12px;color:#9aa0a6">gs1.0</span></h1>
+<div class="sub">Stand at each structure, tap its button, hold still ~15s. Then Send.</div>
+
+<div class="live" id="live">GPS: waiting for permission…</div>
+<div class="progress" id="progress"></div>
+
+<div class="grid">
+  <button class="struct" id="b_garage" onclick="sample('garage')">🚗 Garage</button>
+  <button class="struct" id="b_shed" onclick="sample('shed')">🛖 Shed</button>
+  <button class="struct" id="b_sauna" onclick="sample('sauna')">🧖 Sauna</button>
+  <button class="struct" id="b_main" onclick="sample('main')">🏠 Main House</button>
+</div>
+
+<div class="results" id="results">No fixes captured yet.</div>
+
+<input type="text" id="hook" placeholder="Paste webhook URL here (saved on this phone)">
+<div class="row">
+  <button class="send" onclick="send()">📤 Send to Tasklet</button>
+  <button onclick="copyResults()">📋 Copy JSON</button>
+</div>
+<div class="log" id="log">boot: geo_survey gs1.0</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+var fixes = {};        // structure -> {lat, lon, accuracy_m, samples, captured_at}
+var sampling = null;   // structure currently sampling
+var lastPos = null;
+var SAMPLE_MS = 15000;
+var logEl = document.getElementById('log');
+
+function log(msg) {
+  var line = new Date().toISOString().slice(11,19) + ' ' + msg;
+  console.log('[geo]', line);
+  logEl.textContent += '\n' + line;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+function accClass(a) { return a <= 10 ? 'acc-good' : a <= 25 ? 'acc-ok' : 'acc-bad'; }
+
+// Restore saved hook URL
+try {
+  var saved = localStorage.getItem('geo_hook_url');
+  if (saved) { document.getElementById('hook').value = saved; log('hook URL restored from storage'); }
+} catch(e) { log('localStorage error: ' + e.message); }
+document.getElementById('hook').addEventListener('change', function() {
+  try { localStorage.setItem('geo_hook_url', this.value.trim()); log('hook URL saved'); } catch(e) { log('save error: ' + e.message); }
+});
+
+// Continuous live readout
+if (!navigator.geolocation) {
+  document.getElementById('live').textContent = '❌ Geolocation not supported in this browser.';
+  log('ERROR: no geolocation API');
+} else {
+  navigator.geolocation.watchPosition(function(pos) {
+    lastPos = pos;
+    var a = pos.coords.accuracy;
+    document.getElementById('live').innerHTML =
+      'GPS: <b>' + pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6) + '</b>' +
+      ' · accuracy <b class="' + accClass(a) + '">±' + Math.round(a) + 'm</b>';
+  }, function(err) {
+    document.getElementById('live').textContent = '❌ GPS error: ' + err.message + ' (code ' + err.code + ')';
+    log('watchPosition error code=' + err.code + ' msg=' + err.message);
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  log('watchPosition started (high accuracy)');
+}
+
+function median(arr) {
+  var s = arr.slice().sort(function(a,b){return a-b;});
+  var m = Math.floor(s.length/2);
+  return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+}
+
+function sample(name) {
+  if (sampling) { toast('Already sampling ' + sampling); return; }
+  if (!navigator.geolocation) { toast('No GPS available'); return; }
+  sampling = name;
+  var btn = document.getElementById('b_' + name);
+  btn.classList.add('sampling'); btn.classList.remove('done');
+  log('sampling START: ' + name);
+  var samples = [];
+  var t0 = Date.now();
+  var watchId = navigator.geolocation.watchPosition(function(pos) {
+    samples.push({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
+    var remain = Math.max(0, Math.ceil((SAMPLE_MS - (Date.now()-t0))/1000));
+    document.getElementById('progress').textContent =
+      '⏱ ' + name + ': ' + samples.length + ' samples, ' + remain + 's left · last ±' + Math.round(pos.coords.accuracy) + 'm';
+  }, function(err) {
+    log('sample watch error: ' + err.message);
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+
+  setTimeout(function() {
+    navigator.geolocation.clearWatch(watchId);
+    document.getElementById('progress').textContent = '';
+    btn.classList.remove('sampling');
+    sampling = null;
+    if (samples.length === 0) {
+      log('sampling FAIL: ' + name + ' — 0 samples');
+      toast('❌ No GPS samples — try again');
+      return;
+    }
+    // Use best-accuracy half of samples
+    samples.sort(function(a,b){ return a.acc - b.acc; });
+    var best = samples.slice(0, Math.max(1, Math.ceil(samples.length/2)));
+    fixes[name] = {
+      lat: +median(best.map(function(s){return s.lat;})).toFixed(7),
+      lon: +median(best.map(function(s){return s.lon;})).toFixed(7),
+      accuracy_m: +median(best.map(function(s){return s.acc;})).toFixed(1),
+      samples: samples.length,
+      captured_at: new Date().toISOString()
+    };
+    btn.classList.add('done');
+    log('sampling DONE: ' + name + ' → ' + fixes[name].lat + ',' + fixes[name].lon + ' ±' + fixes[name].accuracy_m + 'm (' + samples.length + ' samples)');
+    toast('✅ ' + name + ' captured ±' + fixes[name].accuracy_m + 'm');
+    renderResults();
+  }, SAMPLE_MS);
+}
+
+function distM(a, b) {
+  var R = 6371000, toR = Math.PI/180;
+  var dLat = (b.lat-a.lat)*toR, dLon = (b.lon-a.lon)*toR;
+  var x = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x)));
+}
+
+function renderResults() {
+  var names = Object.keys(fixes);
+  if (!names.length) { document.getElementById('results').textContent = 'No fixes captured yet.'; return; }
+  var html = '';
+  names.forEach(function(n) {
+    var f = fixes[n];
+    html += '<div>✅ <b>' + n + '</b> · ' + f.lat + ', ' + f.lon + ' · <span class="' + accClass(f.accuracy_m) + '">±' + f.accuracy_m + 'm</span> · ' + f.samples + ' samples</div>';
+  });
+  // pairwise distances
+  for (var i = 0; i < names.length; i++) for (var j = i+1; j < names.length; j++) {
+    html += '<div>↔ ' + names[i] + ' → ' + names[j] + ': <b>' + distM(fixes[names[i]], fixes[names[j]]) + 'm</b></div>';
+  }
+  document.getElementById('results').innerHTML = html;
+}
+
+function payload() {
+  return JSON.stringify({ type: 'geo_survey', house: 'vashon', page: 'gs1.0', sent_at: new Date().toISOString(), fixes: fixes }, null, 0);
+}
+
+function send() {
+  var names = Object.keys(fixes);
+  if (!names.length) { toast('Nothing to send yet'); return; }
+  var url = document.getElementById('hook').value.trim();
+  if (!url) { toast('Paste the webhook URL first'); return; }
+  try { localStorage.setItem('geo_hook_url', url); } catch(e) {}
+  log('sending ' + names.length + ' fixes → webhook…');
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload() })
+    .then(function(r) {
+      log('send response: HTTP ' + r.status);
+      if (r.ok) toast('📤 Sent! (' + names.length + ' fixes)');
+      else toast('❌ Send failed: HTTP ' + r.status);
+    })
+    .catch(function(e) {
+      log('send ERROR: ' + e.message);
+      toast('❌ Send error — use Copy JSON instead');
+    });
+}
+
+function copyResults() {
+  var p = payload();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(p).then(function(){ toast('📋 Copied'); log('copied to clipboard (' + p.length + 'B)'); },
+      function(e){ log('clipboard error: ' + e.message); fallbackCopy(p); });
+  } else fallbackCopy(p);
+}
+function fallbackCopy(p) {
+  var ta = document.createElement('textarea');
+  ta.value = p; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('📋 Copied'); log('copied via execCommand'); }
+  catch(e) { log('fallback copy failed: ' + e.message); prompt('Copy this:', p); }
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>
