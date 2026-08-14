@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generated_at": "2026-08-11T14:25:00Z",
+  "generated_at": "2026-08-14T20:47:30Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -10,8 +10,18 @@
       "icon": "📻",
       "house": "vashon",
       "steps": [
-        { "action": "set_volume", "room": "Shed Arc", "volume": 18 },
-        { "action": "play_uri", "room": "Shed Arc", "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn", "title": "KCRW Eclectic 24", "artist": "KCRW" }
+        {
+          "action": "set_volume",
+          "room": "Shed Arc",
+          "volume": 18
+        },
+        {
+          "action": "play_uri",
+          "room": "Shed Arc",
+          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+          "title": "KCRW Eclectic 24",
+          "artist": "KCRW"
+        }
       ]
     },
     {
@@ -21,11 +31,37 @@
       "icon": "📻",
       "house": "caphill",
       "steps": [
-        { "action": "sync_rooms", "rooms": ["Living Room", "Dining Room", "Kitchen"], "delay_after_ms": 6000 },
-        { "action": "set_volume", "room": "Living Room", "volume": 18 },
-        { "action": "set_volume", "room": "Dining Room", "volume": 18 },
-        { "action": "set_volume", "room": "Kitchen", "volume": 18 },
-        { "action": "play_uri", "room": "Living Room", "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn", "title": "KCRW Eclectic 24", "artist": "KCRW" }
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Living Room",
+            "Dining Room",
+            "Kitchen"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "set_volume",
+          "room": "Living Room",
+          "volume": 18
+        },
+        {
+          "action": "set_volume",
+          "room": "Dining Room",
+          "volume": 18
+        },
+        {
+          "action": "set_volume",
+          "room": "Kitchen",
+          "volume": 18
+        },
+        {
+          "action": "play_uri",
+          "room": "Living Room",
+          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+          "title": "KCRW Eclectic 24",
+          "artist": "KCRW"
+        }
       ]
     },
     {
@@ -35,7 +71,13 @@
       "icon": "🔉",
       "house": "caphill",
       "steps": [
-        { "action": "set_volume", "volume": 1, "resolve": { "each_room": true } }
+        {
+          "action": "set_volume",
+          "volume": 1,
+          "resolve": {
+            "each_room": true
+          }
+        }
       ]
     },
     {
@@ -45,18 +87,34 @@
       "icon": "🔉",
       "house": "vashon",
       "steps": [
-        { "action": "set_volume", "volume": 1, "resolve": { "each_room": true } }
+        {
+          "action": "set_volume",
+          "volume": 1,
+          "resolve": {
+            "each_room": true
+          }
+        }
       ]
     },
     {
       "id": "latest-garage-burn",
       "label": "Latest Garage Burn → Garage",
-      "sub": "Replace queue & play · vol 18",
+      "sub": "Replace queue & play · vol 30",
       "icon": "🏋️",
       "house": "vashon",
       "steps": [
-        { "action": "set_volume", "room": "Garage", "volume": 18 },
-        { "action": "play_next", "resolve": { "newest_playlist": "^Garage Burn", "group_of": "Garage" } }
+        {
+          "action": "set_volume",
+          "room": "Garage",
+          "volume": 30
+        },
+        {
+          "action": "play_next",
+          "resolve": {
+            "newest_playlist": "^Garage Burn",
+            "group_of": "Garage"
+          }
+        }
       ]
     }
   ]
