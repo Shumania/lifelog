@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generated_at": "2026-08-14T20:47:30Z",
+  "generated_at": "2026-08-14T20:52:53Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -117,5 +117,18 @@
         }
       ]
     }
-  ]
+  ],
+  "defaults": {
+    "note": "Default play volume per room. Used by play shortcuts without explicit volume, by play.ts (mode=play), and by the agent when authoring new shortcuts. Rooms not listed use volume_fallback.",
+    "volume_fallback": 18,
+    "volume_by_room": {
+      "Garage": 30,
+      "Shed Arc": 18,
+      "Living Room": 18,
+      "Dining Room": 18,
+      "Kitchen": 18,
+      "Sauna Porch": 35,
+      "Main Lower Deck": 55
+    }
+  }
 }
