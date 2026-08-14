@@ -1158,7 +1158,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.11';
+const PAGE_VERSION = 'p3.12';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1820,6 +1820,13 @@ function filterOfflineRooms(rooms, h) {
   return online;
 }
 
+// p3.12: compact room-name label for volume toasts — full names up to 3 rooms,
+// then first two + count ("Living Room, Kitchen +2").
+function _roomsToastLabel(rooms) {
+  if (rooms.length <= 3) return rooms.join(', ');
+  return rooms.slice(0, 2).join(', ') + ' +' + (rooms.length - 2);
+}
+
 async function sendCmd(action) {
   const now = Date.now();
   if (now - _lastCmdTime < 400) return;  // throttle rapid taps
@@ -1861,9 +1868,10 @@ async function sendCmd(action) {
     updateMuteRepeatButtons();
     showToast(_shufTo ? '🔀 Shuffle on' : '🔀 Shuffle off');
   }
-  // Optimistic toast for volume
-  if (action === 'volume_up') showToast('🔊 Volume up · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
-  if (action === 'volume_down') showToast('🔉 Volume down · ' + rooms.length + ' speaker' + (rooms.length > 1 ? 's' : ''));
+  // Optimistic toast for volume — p3.12: NAME the target rooms so misdirected
+  // volume (stale chip selection) is instantly visible (2026-08-14 Garage incident).
+  if (action === 'volume_up') showToast('🔊 ' + _roomsToastLabel(rooms));
+  if (action === 'volume_down') showToast('🔉 ' + _roomsToastLabel(rooms));
   const payload = { action: sonosAction, rooms, target_client_id: commanderId, t_requested: new Date().toISOString() };
   // p2.50: finer volume steps — service default is ±10/tap, way too coarse vs native Sonos app; send explicit step
   if (action === 'volume_up' || action === 'volume_down') payload.step = 3;
@@ -5526,6 +5534,7 @@ async function runShortcut(id) {
   if (!sc) { console.error('[shortcuts] unknown id: ' + id); return; }
   _scBusy = id; renderShortcuts();
   console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + sc.house + ' steps=' + (sc.steps || []).length + ' ═══');
+  const _scPlayRooms = [];  // p3.12: rooms targeted by play-class steps → chips follow on success
   try {
     for (let i = 0; i < (sc.steps || []).length; i++) {
       const step = sc.steps[i];
@@ -5536,6 +5545,13 @@ async function runShortcut(id) {
         p.shortcut_id = id;                   // provenance breadcrumb in the command body
         const ok = await postNtfy(p, sc.house);
         if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
+        // p3.12 (D9): play-class sends are a statement of focus — remember their rooms.
+        // Volume/regroup steps are NOT (vol-1% loops must never hijack selection).
+        if (String(p.action).indexOf('play') === 0) {
+          for (const rm of (p.rooms || (p.room ? [p.room] : []))) {
+            if (rm && _scPlayRooms.indexOf(rm) === -1) _scPlayRooms.push(rm);
+          }
+        }
         await _scSleep(400);                  // respect postNtfy's 300ms global throttle
       }
       if (step.delay_after_ms && i < sc.steps.length - 1) {
@@ -5543,6 +5559,15 @@ async function runShortcut(id) {
         showToast('⏳ ' + Math.round(step.delay_after_ms / 1000) + 's — setting up…');
         await _scSleep(step.delay_after_ms);
       }
+    }
+    // p3.12 (D9): a play shortcut resets this browser's chip selection to its target
+    // rooms — subsequent volume/pause taps aim where the music actually is
+    // (2026-08-14: stale Sauna Porch selection hijacked Garage volume presses).
+    if (_scPlayRooms.length) {
+      selectedRooms[sc.house] = [..._scPlayRooms];
+      localStorage.setItem('ll_rooms_' + sc.house, JSON.stringify(selectedRooms[sc.house]));
+      renderRooms(sc.house);
+      console.log('[shortcuts] chips follow play target → [' + _scPlayRooms.join(', ') + '] (' + sc.house + ')');
     }
     console.log('[shortcuts] ═══ DONE "' + sc.label + '" ═══');
     showToast('✓ ' + sc.label);
