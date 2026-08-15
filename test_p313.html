@@ -5124,6 +5124,7 @@ async function geoMaybeRun(trigger) {
     if (opts.length === 1 && safe) {
       geoSelectRooms(opts[0].rooms, 'auto-preselect near ' + w.s.label);
       _geoShowHint('📍 Preselected: <b>' + esc(opts[0].rooms.join(' + ')) + '</b> (near ' + esc(w.s.label) + ')');
+      showToast('📍 Preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');  // visible even with speakers drawer closed
     } else {
       const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
       _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> — ' + btns);
