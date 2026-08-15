@@ -1,5 +1,5 @@
 {
-  "service_version": "2.61.0",
+  "service_version": "2.62.0",
   "clients": {
     "lifelog_mind": "2.61.0",
     "lifelog_shumaframe": "2.61.0"

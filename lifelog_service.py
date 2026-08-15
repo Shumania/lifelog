@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.61.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.62.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -484,10 +484,15 @@ def _reset_queue_sources(coord_name, entries, reason=""):
     except Exception as _qsrc_err:
         log(f"[queue-sources] reset failed on {coord_name} (benign): {_qsrc_err}")
 
-def _append_queue_source(coord_name, ctype, name="", uri=""):
+def _append_queue_source(coord_name, ctype, name="", uri="", pos_start=None, num_tracks=None):
     """Something was ADDED to an existing queue. Containers append an entry;
     tracks merge into a trailing {"type":"tracks","count":N} accumulator.
-    NEVER raises."""
+    v2.62 INSERT-RANGE ATTRIBUTION: when the caller verified WHERE the add
+    landed (pos_start, 1-indexed) and HOW MANY rows it expanded to (num_tracks),
+    the entry carries a [pos_start, pos_end] range. Capture-side stamping
+    (_range_context) may then attribute honest-blank inserted rows to this
+    container — deterministic receipt, not a guess. Entries WITHOUT ranges
+    remain rendering-only, exactly as v2.60 designed. NEVER raises."""
     try:
         rec = queue_sources.get(coord_name) or {}
         entries = list(rec.get("entries", []))
@@ -497,12 +502,82 @@ def _append_queue_source(coord_name, ctype, name="", uri=""):
             else:
                 entries.append({"type": "tracks", "count": 1})
         else:
-            entries.append({"type": ctype or "container", "name": name or "", "uri": uri or ""})
+            e = {"type": ctype or "container", "name": name or "", "uri": uri or ""}
+            if pos_start and num_tracks and int(num_tracks) > 0:
+                # v2.62: shift ranges that sit AT/AFTER the insert point — the new
+                # rows pushed them down. (Insert INSIDE an existing range would
+                # corrupt it: drop that range instead of guessing — honest.)
+                _ps, _n = int(pos_start), int(num_tracks)
+                for prev in entries:
+                    if "pos_start" not in prev: continue
+                    if prev["pos_start"] >= _ps:
+                        prev["pos_start"] += _n
+                        prev["pos_end"] += _n
+                    elif prev["pos_end"] >= _ps:
+                        log(f"[queue-sources] {coord_name}: insert at {_ps} lands INSIDE "
+                            f"range [{prev['pos_start']},{prev['pos_end']}] of '{prev.get('name','')}' "
+                            f"-- dropping that range (honest, no guessing)")
+                        prev.pop("pos_start", None); prev.pop("pos_end", None)
+                e["pos_start"] = _ps
+                e["pos_end"] = _ps + _n - 1
+                log(f"[queue-sources] {coord_name}: range [{_ps},{e['pos_end']}] recorded for '{name or ''}' ({ctype})")
+            entries.append(e)
         queue_sources[coord_name] = {"entries": entries[-QUEUE_SOURCES_MAX:], "updated_at": time.time()}
         _save_queue_sources()
         log(f"[queue-sources] {coord_name}: +{ctype} '{name or ''}' ({len(entries)} entry(ies))")
     except Exception as _qsrc_err:
         log(f"[queue-sources] append failed on {coord_name} (benign): {_qsrc_err}")
+
+def _range_context(coord_name, position):
+    """v2.62: If 1-indexed queue `position` falls inside exactly one recorded
+    insert range, return that source entry (dict) — else None. Used by capture
+    to attribute inserted-container rows. TTL/pruning rides _get_queue_sources.
+    NEVER raises."""
+    try:
+        if not position or int(position) <= 0:
+            return None
+        p = int(position)
+        hits = [e for e in _get_queue_sources(coord_name)
+                if e.get("type") in ("playlist", "album")
+                and "pos_start" in e and e["pos_start"] <= p <= e["pos_end"]]
+        if len(hits) == 1:
+            return hits[0]
+        if len(hits) > 1:
+            log(f"[insert-range] {coord_name}: position {p} matched {len(hits)} ranges (overlap?) -- refusing to stamp")
+        return None
+    except Exception as _rc_err:
+        log(f"[insert-range] _range_context failed (benign): {_rc_err}")
+        return None
+
+def _expansion_count(coordinator, before_size, label="", timeout_s=6.0):
+    """v2.62: container adds expand ASYNCHRONOUSLY (v2.58 A9). Poll queue_size
+    until two consecutive reads agree (or timeout), then return the growth
+    (stable - before). Returns None when growth can't be trusted (timeout with
+    no stability, read failures, shrinkage). Called AFTER playback is started
+    so the wait never delays the audible verb. NEVER raises."""
+    try:
+        deadline = time.time() + float(timeout_s)
+        prev = None
+        while time.time() < deadline:
+            try:
+                cur = int(coordinator.queue_size)
+            except Exception as _qs_err:
+                log(f"[insert-range]{label} queue_size read failed during expansion wait: {_qs_err}")
+                cur = None
+            if cur is not None and cur == prev:
+                grown = cur - int(before_size)
+                if grown > 0:
+                    log(f"[insert-range]{label} expansion stable: {before_size} -> {cur} (+{grown})")
+                    return grown
+                log(f"[insert-range]{label} expansion stable but growth={grown} -- no range")
+                return None
+            prev = cur
+            time.sleep(0.7)
+        log(f"[insert-range]{label} expansion never stabilized in {timeout_s}s (last={prev}) -- no range")
+        return None
+    except Exception as _ec_err:
+        log(f"[insert-range]{label} _expansion_count failed (benign): {_ec_err}")
+        return None
 
 def _get_queue_sources(coord_name):
     """Live sources entries for a coordinator, or [] (TTL-pruned, Rule 11).
@@ -527,6 +602,10 @@ try:
                               if v.get("updated_at", 0) > _qsrc_cut})
     # v2.60 boot marker (Rule 24: verify a log line UNIQUE to the new version)
     print(f"[queue-sources] v2.60 queue sources active: {len(queue_sources)} entry(ies) loaded")
+    # v2.62 boot marker (Rule 24)
+    print("[insert-range] v2.62 insert-range attribution active: container inserts carry "
+          "verified [pos_start,pos_end] receipts; capture stamps honest-blank rows in-range; "
+          "[ctx-diag] field study logging on every track change")
 except Exception as _qsrc_err:
     print(f"[queue-sources] WARNING: failed to load queue_sources.json: {_qsrc_err}")
 
@@ -3404,11 +3483,57 @@ def get_track_info(device):
                 log(f"[DIDL-safety] No valid title after clearing non-string on {name}")
                 return None
         ctx = get_container_context(device)
+        _ctx_pre = dict(ctx) if isinstance(ctx, dict) else None
         # v2.59 C3: sanitize ONCE at the source — history buffer, SSE rows,
         # state ring (F9) and room_state all receive the same cleaned container.
         # _san_fields carries suppression archaeology (+ Q6 inserted_track flag)
         # onto track_info so buffer rows land them in raw_metadata.
         ctx, _san_fields = sanitize_container(ctx, uri, album_raw, device.player_name)
+        # v2.62 DIAG [ctx-diag] (field study, 2026-08-15): one line per track
+        # change showing what the speaker REPORTED (EnqueuedTransportURI harvest,
+        # pre-sanitize) vs what SURVIVED sanitize — measures how often native
+        # Sonos-app / Spotify-cast plays name their container, before we build
+        # insert-attribution on that signal. Never raises; remove after study.
+        try:
+            def _cd(c):
+                if not c: return "none"
+                cu = c.get("container_uri", "") or ""
+                kind = cu.split(":", 1)[0] if cu else "-"
+                nm = (c.get("container_name", "") or "")[:60]
+                sp = c.get("spotify_context", "") or "-"
+                return f"kind={kind} name='{nm}' spotify={sp}"
+            _sup = ",".join(sorted(_san_fields.keys())) if _san_fields else "-"
+            log(f"[ctx-diag] {device.player_name}: pre[{_cd(_ctx_pre)}] post[{_cd(ctx)}] san_fields={_sup}")
+        except Exception as _cd_err:
+            log(f"[ctx-diag] diag line failed (non-fatal): {_cd_err}")
+        # v2.62 INSERT-RANGE ATTRIBUTION: sanitize left this row honest-blank
+        # (typical for our own play_next/add_to_queue container inserts — the
+        # speaker still reports the PREVIOUS load's Enqueued container, which
+        # the stale-markers correctly suppress). If the row's queue position
+        # falls inside exactly one verified insert range, we KNOW which
+        # container put it there — receipt-based, not inferred. Stamp it.
+        # Never overrides a real container that survived sanitize.
+        try:
+            if ctx is None:
+                _qpos = int(info.get("playlist_position", 0) or 0)
+                _rng = _range_context(device.player_name, _qpos)
+                if _rng:
+                    _rng_uri = _rng.get("uri", "") or ""
+                    ctx = {
+                        "container_uri": _rng_uri,
+                        "container_name": _rng.get("name", "") or "",
+                        "container_type": ("object.container.playlistContainer"
+                                           if _rng.get("type") == "playlist"
+                                           else "object.container.album.musicAlbum"),
+                        "spotify_context": _rng_uri if _rng_uri.startswith("spotify:") else "",
+                    }
+                    _san_fields = dict(_san_fields or {})
+                    _san_fields["context_source"] = "insert_range"
+                    log(f"[insert-range] {device.player_name}: STAMPED pos {_qpos} -> "
+                        f"'{ctx['container_name']}' ({_rng.get('type')}) "
+                        f"range [{_rng['pos_start']},{_rng['pos_end']}] (receipt-based)")
+        except Exception as _ir_err:
+            log(f"[insert-range] capture stamp failed (benign, row stays blank): {_ir_err}")
         _ti = {"title": title, "artist": artist_raw,
                "album": album_raw, "uri": uri,
                "service": detect_service(uri, metadata),
@@ -4662,8 +4787,15 @@ def execute_command(cmd, source="unknown"):
                                 [{"type": "album", "name": chosen_title or album_title, "uri": _qsrc_uri}],
                                 "play_album replace")
                         else:
+                            # v2.62 insert-range: play_album knows its exact receipt —
+                            # verified landing slot (pos) + chosen_tracks count.
+                            try:
+                                _pa_pos = int(pos) if pos else None
+                            except (TypeError, ValueError):
+                                _pa_pos = None
                             _append_queue_source(coordinator.player_name, "album",
-                                                 chosen_title or album_title, _qsrc_uri)
+                                                 chosen_title or album_title, _qsrc_uri,
+                                                 pos_start=_pa_pos, num_tracks=chosen_tracks or None)
 
                         if not queue_only:
                             _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
@@ -5002,7 +5134,13 @@ def execute_command(cmd, source="unknown"):
                     # (the stale->replace branch already RESET it at replace time).
                     if not _b_converted_from:
                         if is_spotify and uri_type in ("album", "playlist"):
-                            _append_queue_source(coordinator.player_name, uri_type, title, track_uri)
+                            # v2.62 insert-range: playback (if any) already started above,
+                            # so the expansion wait never delays the audible verb. Growth
+                            # vs _qo_before = exactly how many rows this container owns.
+                            _aq_n = (_expansion_count(coordinator, _qo_before, label=" add_to_queue")
+                                     if isinstance(_qo_before, int) else None)
+                            _append_queue_source(coordinator.player_name, uri_type, title, track_uri,
+                                                 pos_start=_qa_actual, num_tracks=_aq_n)
                         else:
                             _append_queue_source(coordinator.player_name, "track")
                     _pl_note = ""
@@ -5155,6 +5293,7 @@ def execute_command(cmd, source="unknown"):
                     # v2.58: Phase B conversion + A7 transparency tracking
                     _b_converted_from, _b_queue_age, _b_trim_failed = None, "", False
                     _qo_before, _qo_pos_req, _pre_state = None, None, ""
+                    _pn_src_pending = None  # v2.62 insert-range: deferred container bookkeeping
                     if is_playlist_container:
                         try:
                             _q_before = coordinator.queue_size
@@ -5294,9 +5433,12 @@ def execute_command(cmd, source="unknown"):
                                                         expected_uri=track_uri)
                             except Exception as _se_err:
                                 log(f"play_next: stale-Enqueued marker set failed (benign): {_se_err}")
-                            # v2.60 queue sources: literal insert APPENDS to the chain
+                            # v2.60 queue sources: literal insert APPENDS to the chain.
+                            # v2.62: container appends DEFER to after playback start so
+                            # the expansion wait (range receipt) never delays audio.
                             if is_spotify and uri_type in ("album", "playlist"):
-                                _append_queue_source(coordinator.player_name, uri_type, title, track_uri)
+                                _pn_src_pending = (uri_type, title, track_uri,
+                                                   _q_before if isinstance(_q_before, int) else None)
                             else:
                                 _append_queue_source(coordinator.player_name, "track")
                         if _b_converted_from:
@@ -5326,6 +5468,14 @@ def execute_command(cmd, source="unknown"):
                                 # so this path fired and played leftover queue content.
                                 log(f"play_next: next() failed ({skip_err}), falling back to play_from_queue({insert_pos - 1})")
                                 coordinator.play_from_queue(insert_pos - 1)
+                        # v2.62 insert-range: playback is rolling — now settle the
+                        # deferred container bookkeeping with its verified receipt.
+                        if _pn_src_pending:
+                            _pn_type, _pn_title, _pn_uri, _pn_before = _pn_src_pending
+                            _pn_n = (_expansion_count(coordinator, _pn_before, label=" play_next")
+                                     if _pn_before is not None else None)
+                            _append_queue_source(coordinator.player_name, _pn_type, _pn_title, _pn_uri,
+                                                 pos_start=_qa_actual, num_tracks=_pn_n)
                     _enforce_repeat_default(coordinator, cmd, rooms[0] if rooms else "")  # v2.48.5 house rule
 
                     # v2.37: Cache metadata for non-Spotify URIs so get_track_info()
