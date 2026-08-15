@@ -872,6 +872,11 @@
 .qs-item-art img { width: 100%; height: 100%; object-fit: cover; }
 .qs-item-title { font-size: 14px; font-weight: 700; color: var(--text, #e8eaf0); }
 .qs-item-sub { font-size: 12px; color: var(--text-dim, #8a8fa3); }
+/* p3.14: "On playlists" chips in the queue sheet */
+.qs-onpl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 2px 8px; }
+.qs-onpl-label { font-size: 11px; color: var(--text-dim, #8a8fa3); text-transform: uppercase; letter-spacing: .4px; margin-right: 2px; }
+.qs-onpl-chip { background: none; border: 1px solid var(--border, #2a2f45); border-radius: 12px; color: var(--accent, #7c9eff); cursor: pointer; padding: 3px 10px; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-onpl-chip:active { opacity: .7; }
 .qs-verb { display: flex; align-items: center; gap: 12px; padding: 13px 18px; font-size: 15px; cursor: pointer; color: var(--text, #e8eaf0); }
 .qs-verb:active { background: var(--card, rgba(255,255,255,0.06)); }
 .qs-verb .v-icon { width: 24px; text-align: center; font-size: 17px; flex-shrink: 0; }
@@ -1162,7 +1167,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.13';
+const PAGE_VERSION = 'p3.14';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2254,7 +2259,8 @@ function _renderQueueSheet() {
   let html = '<div class="qs-close" onclick="closeQueueSheet()" title="Close">✕</div>' +
     '<div class="qs-item"><div class="qs-item-art">' + art + '</div>' +
     '<div style="flex:1;min-width:0"><div class="qs-item-title">' + esc(c.item.title) + '</div>' +
-    '<div class="qs-item-sub">' + esc(c.item.sub) + '</div></div></div>';
+    '<div class="qs-item-sub">' + esc(c.item.sub) + '</div></div></div>' +
+    '<div id="qs-onpl"></div>'; // p3.14: "On playlists" chips (async fill, renders only on hits)
 
   if (c.choices) { // E4: pause-and-ask — no command until answered
     html += '<div class="qs-choose">Selected speakers are in ' + c.choices.length + ' groups — which queue?' +
@@ -2316,6 +2322,28 @@ function _renderQueueSheet() {
   }
   html += '<div class="qs-qcontext">' + qb + '</div>';
   document.getElementById('qsheet').innerHTML = html;
+  _qsFillOnPlaylists(); // p3.14: async — repopulates after every re-render (innerHTML wipes it)
+}
+
+// p3.14: "On playlists (N)" chips in the queue sheet. Local lookup against the
+// published playlist_track_index (lazy-loaded once, shared with context panels).
+// Renders nothing on no-hits / no-trackUri / index unavailable — zero noise.
+// Scope note: index covers YOUR playlists (created + followed); Spotify editorial
+// (37i9dQZ…) is API-blocked and can never appear here.
+async function _qsFillOnPlaylists() {
+  const c = _sheetCtx;
+  if (!c || !c.trackUri) return;
+  const idx = await loadPlaylistIndex();
+  if (!idx || _sheetCtx !== c) return;             // sheet closed/replaced while loading
+  const hits = idx[c.trackUri] || [];
+  if (!hits.length) { console.log('[qs-onpl] no playlist hits for', c.trackUri); return; }
+  const box = document.getElementById('qs-onpl');
+  if (!box) return;
+  console.log('[qs-onpl]', hits.length, 'playlist hit(s) for', c.trackUri, '→', hits.map(h => h.playlist_name).join(' | '));
+  box.innerHTML = '<div class="qs-onpl-row"><span class="qs-onpl-label">On playlists</span>' +
+    hits.map(h =>
+      '<button class="qs-onpl-chip" onclick="closeQueueSheet();jumpToPlaylist(\'' + esc(h.playlist_id) + '\')">☰ ' +
+      esc(h.playlist_name) + '</button>').join('') + '</div>';
 }
 
 async function _qsVerb(mode) {
@@ -4015,6 +4043,9 @@ async function directPlay(action, encodedData, sheetOpts) {
   if (action === 'queue' && house !== 'roaming' && !sheetOpts) {
     openQueueSheet({ h: house, kind: 'track',
       item: { title: info.title || 'Track', sub: (info.artist ? info.artist + ' · ' : '') + 'track', art: info.image || info.art || null },
+      // p3.14: normalized spotify track uri for the "On playlists" lookup (null-safe)
+      trackUri: info.track_id ? (String(info.track_id).startsWith('spotify:') ? info.track_id : 'spotify:track:' + info.track_id)
+        : (info.uri && String(info.uri).startsWith('spotify:track:') ? info.uri : null),
       canReplace: (info.uri || info.sonos_uri || info.track_id || hasSpotifyAuth()) ? undefined : false, // replace needs a resolvable URI (no service-search replace)
       send: (mode, coord, members) => directPlay('queue', encodedData, { mode, coord, members }) });
     return;
@@ -4580,6 +4611,7 @@ async function playDiscovery(action, uri, label, sheetOpts) {
     const kind = uri.includes(':album:') ? 'album' : uri.includes(':playlist:') ? 'playlist' : 'track';
     openQueueSheet({ h: house, kind,
       item: { title: label || kind, sub: kind, art: null },
+      trackUri: kind === 'track' && uri.startsWith('spotify:track:') ? uri : null, // p3.14
       send: (mode, coord, members) => playDiscovery('queue', uri, label, { mode, coord, members }) });
     return;
   }
