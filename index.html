@@ -911,6 +911,10 @@
     border-radius: 8px; background: rgba(240,185,64,0.12); color: #f0b940;
     border: 1px solid rgba(240,185,64,0.3); margin-left: 4px; vertical-align: 1px;
   }
+/* p3.13: geo structure-chip hint (design_geo_ux_v1.md Rev 2, G5) */
+.geo-hint { margin: 6px 0 2px; padding: 7px 10px; background: rgba(80,160,255,.08); border: 1px solid rgba(80,160,255,.25); border-radius: 10px; font-size: 13px; line-height: 1.5; }
+.geo-hint b { font-weight: 600; }
+.geo-hint button { margin: 0 2px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(80,160,255,.4); background: rgba(80,160,255,.15); color: inherit; font-size: 13px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -1158,7 +1162,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.12';
+const PAGE_VERSION = 'p3.13';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1718,6 +1722,9 @@ function updateHouseTabDots() {
 }
 
 function toggleRoom(h, room) {
+  // p3.13: manual chip interaction → geo never preselects again this session
+  _geoUserTouched = true;
+  if (typeof geoDismissHint === 'function') geoDismissHint('manual chip tap');
   const sel = selectedRooms[h] || [];
   const idx = sel.indexOf(room);
   if (idx < 0) sel.push(room); else sel.splice(idx, 1);
@@ -3996,6 +4003,7 @@ function formatNarrative(text) {
 // ══════════════════════════════════════════════════════════════════════════════
 let _lastDirectPlayTime = 0;
 async function directPlay(action, encodedData, sheetOpts) {
+  _geoPlaySent = true;  // p3.13: active session from this browser → geo degrades to hint
   const now = Date.now();
   if (!sheetOpts) { // sheet verb replays skip the tap throttle (sheet close is the guard, E9)
     if (now - _lastDirectPlayTime < 600) { console.log('[directPlay] throttled'); return; }
@@ -5018,11 +5026,122 @@ setInterval(() => {
     }
   }
 }, 60000);
+// ══════════════════════════════════════════════════════════════════════════════
+// GEO STRUCTURE CHIP (p3.13 — design_geo_ux_v1.md Rev 2, G5)
+// A careful, gated exception to p2.62 "no auto-select": preselection comes from a
+// FRESH location fix (never stale history), is visibly labeled 📍, and every send
+// (Group Speakers / play / volume) remains user-initiated. Vashon only in v1.
+// ══════════════════════════════════════════════════════════════════════════════
+let _geoZones = null;         // geo_zones.json payload (fetched once per session)
+let _geoUserTouched = false;  // manual chip interaction this session → geo degrades to hint
+let _geoPlaySent = false;     // play-class send from this browser this session → degrade to hint
+let _geoApplied = false;      // decision made this session (denied/timeout leaves false → retry on foreground)
+let _geoHintTimer = null;
+let _geoPendingOptions = null;
+const GEO_ZONES_URL = 'https://shumania.github.io/lifelog/geo_zones.json';
+
+function _geoDistM(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toR, dLon = (lon2 - lon1) * toR;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toR) * Math.cos(lat2 * toR) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function geoDismissHint(reason) {
+  const el = document.getElementById('geo-hint');
+  if (el) { el.remove(); console.log('[geo] hint dismissed (' + reason + ')'); }
+  if (_geoHintTimer) { clearTimeout(_geoHintTimer); _geoHintTimer = null; }
+}
+
+function _geoShowHint(html) {
+  geoDismissHint('replaced');
+  const anchor = document.getElementById('rooms-vashon');
+  if (!anchor) { console.log('[geo] no rooms-vashon anchor; skip hint'); return; }
+  const div = document.createElement('div');
+  div.id = 'geo-hint';
+  div.className = 'geo-hint';
+  div.innerHTML = html;
+  anchor.insertAdjacentElement('afterend', div);
+  const ds = (_geoZones && _geoZones.vashon.chip_dismiss_s) || 90;
+  _geoHintTimer = setTimeout(() => geoDismissHint('timeout ' + ds + 's'), ds * 1000);
+}
+
+function geoSelectRooms(rooms, why) {
+  // Same effect as tapping chips by hand (G4/G5); nothing is sent anywhere.
+  selectedRooms.vashon = [...rooms];
+  localStorage.setItem('ll_rooms_vashon', JSON.stringify(selectedRooms.vashon));
+  renderRooms('vashon');
+  updateSyncButton('vashon');
+  console.log('[geo] selection set → ' + rooms.join(', ') + ' (' + why + ')');
+}
+
+function geoAcceptOption(idx) {
+  try {
+    const opt = _geoPendingOptions && _geoPendingOptions[idx];
+    if (!opt) { console.log('[geo] acceptOption: no pending option ' + idx); return; }
+    geoSelectRooms(opt.rooms, 'user tapped hint option');
+    showToast('📍 ' + opt.rooms.join(', ') + ' selected');
+    geoDismissHint('accepted');
+  } catch (e) { console.log('[geo] acceptOption ERROR: ' + e); }
+}
+
+async function geoMaybeRun(trigger) {
+  try {
+    console.log('[geo] run (' + trigger + ') house=' + house + ' applied=' + _geoApplied + ' touched=' + _geoUserTouched + ' playSent=' + _geoPlaySent);
+    if (house !== 'vashon' || _geoApplied) return;
+    if (!('geolocation' in navigator)) { console.log('[geo] no geolocation API'); _geoApplied = true; return; }
+    if (!_geoZones) {
+      const r = await fetch(GEO_ZONES_URL + '?t=' + (Date.now() >> 16));
+      if (!r.ok) { console.log('[geo] zones fetch HTTP ' + r.status + ' — dormant this session'); _geoApplied = true; return; }
+      _geoZones = await r.json();
+      console.log('[geo] zones v' + _geoZones.version + ' (' + _geoZones.updated + ') loaded');
+    }
+    const z = _geoZones.vashon;
+    const fix = await new Promise((res) => {
+      navigator.geolocation.getCurrentPosition(
+        p => res(p),
+        e => { console.log('[geo] fix unavailable: code=' + e.code + ' ' + e.message); res(null); },
+        { enableHighAccuracy: !!z.fix.high_accuracy, timeout: (z.fix.timeout_s || 8) * 1000, maximumAge: (z.fix.max_age_s || 120) * 1000 }
+      );
+    });
+    if (!fix) return; // denied/timeout — silent; retry on next foreground
+    const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
+    console.log('[geo] fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm');
+    const dHome = _geoDistM(lat, lon, z.centroid.lat, z.centroid.lon);
+    _geoApplied = true;
+    if (dHome > z.presence_radius_m) { console.log('[geo] outside Vashon (' + Math.round(dHome) + 'm > ' + z.presence_radius_m + 'm) — no chip'); return; }
+    const ranked = Object.entries(z.structures)
+      .map(([key, s]) => ({ key, s, d: _geoDistM(lat, lon, s.lat, s.lon) }))
+      .sort((a, b) => a.d - b.d);
+    const w = ranked[0], ru = ranked[1];
+    const margin = ru.d - w.d;
+    const gate = Math.max(acc, z.gate.min_margin_m);
+    console.log('[geo] nearest=' + w.key + ' ' + Math.round(w.d) + 'm · runner-up=' + ru.key + ' ' + Math.round(ru.d) + 'm · margin=' + Math.round(margin) + 'm vs gate=' + Math.round(gate) + 'm');
+    if (margin <= gate) { console.log('[geo] confidence gate FAILED — no chip, no guess'); return; }
+    const opts = w.s.options;
+    _geoPendingOptions = opts;
+    const safe = !_geoUserTouched && !_geoPlaySent;
+    if (opts.length === 1 && safe) {
+      geoSelectRooms(opts[0].rooms, 'auto-preselect near ' + w.s.label);
+      _geoShowHint('📍 Preselected: <b>' + esc(opts[0].rooms.join(' + ')) + '</b> (near ' + esc(w.s.label) + ')');
+      showToast('📍 Preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');  // visible even with speakers drawer closed
+    } else {
+      const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
+      _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> — ' + btns);
+      console.log('[geo] tap-option hint shown (options=' + opts.length + ', safe=' + safe + ')');
+    }
+  } catch (e) {
+    console.log('[geo] ERROR: ' + e);
+  }
+}
+setTimeout(() => geoMaybeRun('startup'), 1500);
+
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     connectSSE();
     loadData(false);  // v1.65: refresh data-head.json on page foreground (mobile Safari kills setInterval)
     if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
+    geoMaybeRun('foreground');  // p3.13: geo structure chip (no-op unless Vashon view + undecided)
   }
 });
 
@@ -5567,6 +5686,8 @@ async function runShortcut(id) {
       selectedRooms[sc.house] = [..._scPlayRooms];
       localStorage.setItem('ll_rooms_' + sc.house, JSON.stringify(selectedRooms[sc.house]));
       renderRooms(sc.house);
+      _geoPlaySent = true;  // p3.13: shortcut started a session → geo degrades to hint
+      if (typeof geoDismissHint === 'function') geoDismissHint('shortcut play');
       console.log('[shortcuts] chips follow play target → [' + _scPlayRooms.join(', ') + '] (' + sc.house + ')');
     }
     console.log('[shortcuts] ═══ DONE "' + sc.label + '" ═══');
