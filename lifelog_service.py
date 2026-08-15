@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.62.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.62.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -602,10 +602,10 @@ try:
                               if v.get("updated_at", 0) > _qsrc_cut})
     # v2.60 boot marker (Rule 24: verify a log line UNIQUE to the new version)
     print(f"[queue-sources] v2.60 queue sources active: {len(queue_sources)} entry(ies) loaded")
-    # v2.62 boot marker (Rule 24)
-    print("[insert-range] v2.62 insert-range attribution active: container inserts carry "
-          "verified [pos_start,pos_end] receipts; capture stamps honest-blank rows in-range; "
-          "[ctx-diag] field study logging on every track change")
+    # v2.62.1 boot marker (Rule 24)
+    print("[insert-range] v2.62.1 insert-range attribution active (blankish fix): "
+          "capture stamps honest-blank rows INCLUDING bare x-rincon-queue containers; "
+          "verified [pos_start,pos_end] receipts; [ctx-diag] field study logging")
 except Exception as _qsrc_err:
     print(f"[queue-sources] WARNING: failed to load queue_sources.json: {_qsrc_err}")
 
@@ -3514,7 +3514,17 @@ def get_track_info(device):
         # container put it there — receipt-based, not inferred. Stamp it.
         # Never overrides a real container that survived sanitize.
         try:
-            if ctx is None:
+            # v2.62.1 FIX: honest-blank rows are NOT ctx=None — sanitize leaves
+            # the bare queue container (x-rincon-queue:RINCON...#0, empty name,
+            # no spotify_context). Field-verified 2026-08-15 bench: Ella row at
+            # pos 4 showed post[kind=x-rincon-queue name=''] and the stamp never
+            # fired. Treat that shape as blank too.
+            _ctx_blankish = (ctx is None) or (
+                (ctx.get("container_uri", "") or "").startswith("x-rincon-queue")
+                and not (ctx.get("container_name", "") or "").strip()
+                and not (ctx.get("spotify_context", "") or "")
+            )
+            if _ctx_blankish:
                 _qpos = int(info.get("playlist_position", 0) or 0)
                 _rng = _range_context(device.player_name, _qpos)
                 if _rng:
