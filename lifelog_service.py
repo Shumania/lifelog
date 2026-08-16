@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.62.2"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.62.3"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -606,10 +606,10 @@ try:
     print("[insert-range] v2.62.1 insert-range attribution active (blankish fix): "
           "capture stamps honest-blank rows INCLUDING bare x-rincon-queue containers; "
           "verified [pos_start,pos_end] receipts; [ctx-diag] field study logging")
-    # v2.62.2 boot marker (Rule 24)
-    print("[shuffle-safe] v2.62.2 shuffle-safe replace active: pre-add shuffle clear "
-          "on replace_queue/_load_then_trim; misfile-aware two-range trim; "
-          "replace resets shuffle OFF unless explicitly requested (house rule 2026-08-16)")
+    # v2.62.3 boot marker (Rule 24)
+    print("[clear-first] v2.62.3 clear-first replace active: replace = shuffle off -> "
+          "clear_queue -> verified add at row 1 -> play; load-then-trim and misfile "
+          "trim machinery deleted; replace resets shuffle OFF (house rule 2026-08-16)")
 except Exception as _qsrc_err:
     print(f"[queue-sources] WARNING: failed to load queue_sources.json: {_qsrc_err}")
 
@@ -2760,81 +2760,30 @@ def _clear_shuffle_for_queue_mutation(coordinator, label=""):
             f"(PRE-ADD shuffle clear: shuffle-mode adds land mid-queue and corrupt load-then-trim)")
 
 
-def _trim_old_rows(coordinator, old_len, first_new, label=""):
-    """v2.62.2: remove the OLD queue rows after a load-then-trim add, aware of
-    WHERE the new content actually landed. Normal case (add appended at end,
-    first_new > old_len): trim rows 1..old_len exactly as v2.57 did. Misfiled
-    case (first_new <= old_len -- add landed INSIDE the old rows, e.g. a
-    shuffle-mode add that slipped past the pre-add clear): never blind-trim;
-    compute the new block's extent from queue growth and remove the old rows
-    BELOW the new block first, then the old rows ABOVE it, leaving the new
-    content at rows 1..n. Returns trim_failed (bool). Never raises: E12
-    pattern -- add landed, so a trim failure degrades to playing the new
-    content where it lives (caller uses first_new)."""
-    if old_len <= 0:
-        return False
-    try:
-        if first_new > old_len:
-            coordinator.avTransport.RemoveTrackRangeFromQueue([
-                ("InstanceID", 0), ("UpdateID", 0),
-                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
-            return False
-        # Misfiled add: rows = [old 1..first_new-1][new n rows][old rest]
-        log(f"[queue-op]{label} MISFILED ADD: new content landed at {first_new} inside "
-            f"{old_len} old rows -- using two-range trim (no blind 1..{old_len} sweep)")
-        _size_now = None
-        _deadline = time.time() + 5.0
-        while time.time() < _deadline:  # container adds expand asynchronously
-            try:
-                _size_now = int(coordinator.queue_size)
-            except Exception as _qs_err:
-                log(f"[queue-op]{label} two-range trim: queue_size read failed ({_qs_err})")
-                _size_now = None
-            if _size_now is not None and _size_now > old_len:
-                break
-            time.sleep(0.5)
-        n_new = (_size_now - old_len) if _size_now is not None else 0
-        if n_new <= 0:
-            log(f"[queue-op]{label} two-range trim ABORTED: cannot size new block "
-                f"(queue_size={_size_now!r}, old_len={old_len}) -> degraded, playing from {first_new}")
-            return True
-        below_start = first_new + n_new
-        below_count = old_len - first_new + 1
-        log(f"[queue-op]{label} two-range trim: new block {first_new}..{first_new + n_new - 1} "
-            f"({n_new} rows); removing below [{below_start}+{below_count}] then head [1..{first_new - 1}]")
-        coordinator.avTransport.RemoveTrackRangeFromQueue([
-            ("InstanceID", 0), ("UpdateID", 0),
-            ("StartingIndex", below_start), ("NumberOfTracks", below_count)])
-        if first_new > 1:
-            coordinator.avTransport.RemoveTrackRangeFromQueue([
-                ("InstanceID", 0), ("UpdateID", 0),
-                ("StartingIndex", 1), ("NumberOfTracks", first_new - 1)])
-        return False
-    except Exception as _tr_err:
-        log(f"[queue-op]{label} WARNING -- trim of {old_len} old rows failed ({_tr_err}); "
-            f"playing new content at {first_new}")
-        return True
-
-
-def _load_then_trim(coordinator, add_fn, label="", num_tracks=1):
-    """v2.58: shared LOAD-THEN-TRIM queue replace -- the exact pattern proven in
-    v2.57 replace_queue (append new content at the END first, so an add failure
-    leaves the old queue untouched; then remove the old rows; then play the new
-    content). Used by the Phase B stale-queue conversion paths so they reuse the
-    proven internals instead of reimplementing.
-    v2.62.2: pre-add shuffle clear + misfile-aware trim (see helpers above).
-    Returns (first_new_pos, placement, trim_failed). Raises if the add fails
-    (old queue untouched in that case -- caller's outer except reports it)."""
+def _clear_then_load(coordinator, add_fn, label="", num_tracks=1):
+    """v2.62.3 CLEAR-FIRST REPLACE (Andrew, 2026-08-16): resolve -> clear ->
+    add -> play. Replaces the v2.57/v2.58 LOAD-THEN-TRIM pattern and the
+    v2.62.2 misfile-aware trim entirely: no trim math, no misfile detection,
+    new content lands deterministically at row 1 under any prior queue state.
+    All URI resolution happens BEFORE any caller reaches this point, so the
+    only failure left inside the destructive window is the Sonos add itself
+    (accepted failure mode for a replace, which is destructive by intent:
+    empty queue + clean error). Shuffle is force-cleared before mutating
+    (house rule: replace = fresh intent, shuffle resets OFF; an explicit
+    cmd['shuffle'] request is re-applied by _enforce_repeat_default after
+    play). Returns (first_new_pos, placement, trim_failed) -- trim_failed is
+    always False, kept for caller-signature compatibility. Raises if the
+    clear or add fails (caller's outer except reports it)."""
     _clear_shuffle_for_queue_mutation(coordinator, label=label)
     old_len = coordinator.queue_size
+    coordinator.clear_queue()
+    log(f"[queue-op]{label} clear-then-load: cleared {old_len} old rows; adding new content")
     with _queue_mutation_timeout():
         pos, placement = _verified_queue_add(coordinator, add_fn, None,
                                              label=label, num_tracks=num_tracks)
-    first_new = pos or (old_len + 1)
-    log(f"[queue-op]{label} load-then-trim: appended at {first_new} (old queue {old_len} rows), trimming old rows")
-    trim_failed = _trim_old_rows(coordinator, old_len, first_new, label=label)
-    coordinator.play_from_queue(0 if not trim_failed else first_new - 1)
-    return first_new, placement, trim_failed
+    first_new = pos or 1
+    coordinator.play_from_queue(first_new - 1)
+    return first_new, placement, False
 
 
 # v2.54 B2: Spotify Web API client-credentials app token.
@@ -5149,9 +5098,9 @@ def execute_command(cmd, source="unknown"):
                             log(f"[stale-guard] add_to_queue: {coordinator.player_name} stopped, queue fresh ({_sg_age}) -- literal insert")
                     if _b_converted_from:
                         # Conversion path: reuse replace_queue's proven internals
-                        # (_load_then_trim appends, trims old rows, and PLAYS the
+                        # (v2.62.3 _clear_then_load clears, adds, and PLAYS the
                         # new content — G2: auto-play starts the INSERTED track).
-                        _qa_actual, _qa_placement, _b_trim_failed = _load_then_trim(
+                        _qa_actual, _qa_placement, _b_trim_failed = _clear_then_load(
                             coordinator, lambda: _do_queue(coordinator, is_spotify),
                             label=" add_to_queue(stale->replace)")
                         if is_spotify and uri_type in ("album", "playlist"):
@@ -5400,17 +5349,15 @@ def execute_command(cmd, source="unknown"):
                     elif is_stream:
                         # Stream active -- can't insert into queue; replace the stream
                         if is_spotify:
-                            # v2.58 A2 FIX (finding #5): the old path cleared the ENTIRE
-                            # queue to take the transport back from a Spotify Connect /
-                            # AirPlay session (x-sonos-vli) -- destructive to a queue the
-                            # user may want back. Now: LOAD-THEN-TRIM (the proven
-                            # replace_queue pattern): append, play, then trim -- an add
-                            # failure leaves the old queue fully intact.
-                            _qa_actual, _qa_placement, _pn_trim_failed = _load_then_trim(
+                            # v2.62.3: stream takeover replaces the queue via
+                            # CLEAR-FIRST (Andrew, 2026-08-16 — supersedes the v2.58
+                            # A2 load-then-trim here). On success the old queue was
+                            # replaced anyway; a Sonos add failure now leaves an
+                            # empty queue + clean error (accepted for replace
+                            # semantics; resolution already happened upstream).
+                            _qa_actual, _qa_placement, _pn_trim_failed = _clear_then_load(
                                 coordinator, lambda: _add_to_queue(coordinator),
                                 label=" play_next(stream)")
-                            if _pn_trim_failed:
-                                log("play_next: stream takeover trim failed -- old rows remain above the new track (honest WARN, will be swept by next replace/clear)")
                             # v2.59.1 sibling fix (Rule 10 sweep with the playlist-REPLACE
                             # branch above): stream takeover replaces the queue content,
                             # so the old container is no longer the context. Albums keep
@@ -5461,12 +5408,12 @@ def execute_command(cmd, source="unknown"):
                                 log(f"[stale-guard] play_next: {coordinator.player_name} stopped, queue fresh ({_sg_age}) -- literal insert")
                         if _b_converted_from:
                             # Conversion: reuse replace_queue's proven internals
-                            # (append -> trim old rows -> play the new content).
-                            # NOTE: pos is passed EXPLICITLY (queue_size+1 = append)
-                            # because _add_to_queue(pos=None) uses as_next=True for
-                            # non-Spotify URIs -- a mid-queue insert would fall
-                            # inside the trim range and be removed with the old rows.
-                            _qa_actual, _qa_placement, _b_trim_failed = _load_then_trim(
+                            # (v2.62.3 clear-first: clear -> add -> play).
+                            # NOTE: pos stays EXPLICIT (queue_size+1, evaluated
+                            # lazily AFTER the clear = 1) because
+                            # _add_to_queue(pos=None) uses as_next=True for
+                            # non-Spotify URIs, which misbehaves on an empty queue.
+                            _qa_actual, _qa_placement, _b_trim_failed = _clear_then_load(
                                 coordinator, lambda: _add_to_queue(coordinator, pos=coordinator.queue_size + 1),
                                 label=" play_next(stale->replace)")
                             if is_spotify and uri_type in ("album", "playlist"):
@@ -5523,7 +5470,7 @@ def execute_command(cmd, source="unknown"):
                             else:
                                 _append_queue_source(coordinator.player_name, "track")
                         if _b_converted_from:
-                            pass  # playback already started by _load_then_trim
+                            pass  # playback already started by _clear_then_load
                         elif _qa_placement == "degraded" and _qa_actual:
                             # v2.54 B1: misfiled AND reorder failed — next() would play
                             # whatever occupies insert_pos, not our track. Play from the
@@ -6118,13 +6065,15 @@ def execute_command(cmd, source="unknown"):
                 result["message"] = f"refresh error: {e}"
 
         elif action == "replace_queue":
-            # v2.57 queue management (§3.1): ATOMIC queue replace via LOAD-THEN-TRIM
-            # (F1). URI-carrying content only (spotify: track/album/playlist via
+            # v2.62.3 queue replace: CLEAR-FIRST (Andrew, 2026-08-16 — supersedes
+            # v2.57 LOAD-THEN-TRIM/F1 and the v2.62.2 misfile-aware trim).
+            # URI-carrying content only (spotify: track/album/playlist via
             # ShareLink; raw Sonos URIs via DIDL). Qobuz/Apple named albums route
-            # through play_album with replace:true (same trim pattern, shared
-            # resolution). Sequence: append new content at END -> verify the add ->
-            # RemoveTrackRangeFromQueue(1, old_len) -> play position 1. On add
-            # failure the old queue is UNTOUCHED and old music keeps playing (E1).
+            # through play_album with replace:true (shared resolution). Sequence:
+            # resolve (already done above) -> clear shuffle -> clear_queue ->
+            # verified add (lands at row 1 deterministically) -> play row 1.
+            # A Sonos add failure after the clear leaves an empty queue + clean
+            # error — accepted for replace, which is destructive by intent.
             # Sheet contract (D6): coordinator-resolve, NEVER regroup.
             from soco.plugins.sharelink import ShareLinkPlugin
             from xml.sax.saxutils import escape as _rq_xml_escape
@@ -6147,11 +6096,10 @@ def execute_command(cmd, source="unknown"):
                     uri_type, share_url = "track", None
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
-                    # v2.62.2: shuffle-mode adds land mid-queue and corrupt the
-                    # trim (2026-08-16 double-misfire). Clear BEFORE the add;
-                    # raises on failure -> E1, queue untouched.
+                    # v2.62.3 clear-first: shuffle off first (house rule: replace
+                    # = fresh intent). Raises here -> E1, queue untouched.
                     _clear_shuffle_for_queue_mutation(coordinator, label=" replace_queue")
-                    old_len = coordinator.queue_size  # must be readable — trim depends on it
+                    old_len = coordinator.queue_size  # reported in the result message
                     def _rq_add():
                         if is_spotify:
                             return ShareLinkPlugin(coordinator).add_share_link_to_queue(share_url)
@@ -6167,15 +6115,13 @@ def execute_command(cmd, source="unknown"):
                                 '<res protocolInfo="*:*:*:*">' + _rq_xml_escape(track_uri) + '</res>'
                                 '</item></DIDL-Lite>')
                         return coordinator.add_uri_to_queue(uri=track_uri, didl_resource_meta_data=meta)
+                    coordinator.clear_queue()
+                    log(f"replace_queue: cleared {old_len} old rows on {coordinator.player_name}; adding new content")
                     with _queue_mutation_timeout():
                         _rq_pos, _rq_plc = _verified_queue_add(coordinator, _rq_add, None, label=" replace_queue")
-                    first_new = _rq_pos or (old_len + 1)
-                    log(f"replace_queue: appended at {first_new} (old queue {old_len} rows) on {coordinator.player_name}")
-                    # v2.62.2: misfile-aware trim (never blind-sweeps 1..old_len
-                    # when the add landed inside the old rows)
-                    _rq_trim_failed = _trim_old_rows(coordinator, old_len, first_new,
-                                                     label=" replace_queue")
-                    coordinator.play_from_queue(0 if not _rq_trim_failed else first_new - 1)
+                    first_new = _rq_pos or 1
+                    _rq_trim_failed = False  # v2.62.3: no trim step; kept for result-shape compatibility
+                    coordinator.play_from_queue(first_new - 1)
                     _enforce_repeat_default(coordinator, cmd, room)  # house rule
                     # Provenance: containers become the active context; a single
                     # track wipes it (mirrors play_spotify_uri semantics, v2.55).
@@ -6190,8 +6136,7 @@ def execute_command(cmd, source="unknown"):
                         _reset_queue_sources(coordinator.player_name,
                             [{"type": "tracks", "count": 1}], "replace_queue single track")
                     result["success"] = True
-                    _rq_note = " [WARNING: old queue rows not removed — will be swept by next replace/clear]" if _rq_trim_failed else ""
-                    result["message"] = f"Replaced queue with '{title}' in {room} ({old_len} old rows removed){_rq_note}"
+                    result["message"] = f"Replaced queue with '{title}' in {room} ({old_len} old rows cleared)"
                     result["data"] = {"title": title, "uri": track_uri, "room": room,
                                       "coordinator": coordinator.player_name,
                                       "old_len": old_len, "queued_at": _rq_pos,
