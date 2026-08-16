@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.62.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.62.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -606,6 +606,10 @@ try:
     print("[insert-range] v2.62.1 insert-range attribution active (blankish fix): "
           "capture stamps honest-blank rows INCLUDING bare x-rincon-queue containers; "
           "verified [pos_start,pos_end] receipts; [ctx-diag] field study logging")
+    # v2.62.2 boot marker (Rule 24)
+    print("[shuffle-safe] v2.62.2 shuffle-safe replace active: pre-add shuffle clear "
+          "on replace_queue/_load_then_trim; misfile-aware two-range trim; "
+          "replace resets shuffle OFF unless explicitly requested (house rule 2026-08-16)")
 except Exception as _qsrc_err:
     print(f"[queue-sources] WARNING: failed to load queue_sources.json: {_qsrc_err}")
 
@@ -2736,32 +2740,99 @@ def _queue_op_log(verb, target, coordinator, transport_state="", queue_before=No
         return {}
 
 
+def _clear_shuffle_for_queue_mutation(coordinator, label=""):
+    """v2.62.2 SHUFFLE-SAFE REPLACE (2026-08-16 double-misfire): under any
+    shuffle play mode, AddURIToQueue/ShareLink lands new content at a
+    SHUFFLE-ORDER position INSIDE the old rows (observed: pos 7 of 28, then
+    pos 2 of 26) instead of appending at the end. LOAD-THEN-TRIM's blind trim
+    of rows 1..old_len then deletes most of the NEW content and leaves old
+    remnants, and play-position-1 plays a remnant (Hallogallo/Aguirre
+    incident). Fix is level-triggered (Rule 27): force the mode the mutation
+    REQUIRES before mutating. Raises on failure -- caller's outer except
+    reports E1 with the queue untouched (the add has not happened yet).
+    Replace intent also adopts the house rule (Andrew, 2026-08-16): a replace
+    is fresh intent -- shuffle resets to OFF; _enforce_repeat_default after
+    play re-applies an EXPLICIT cmd['shuffle']/cmd['repeat'] request."""
+    cur = coordinator.play_mode
+    if cur in ("SHUFFLE", "SHUFFLE_NOREPEAT", "SHUFFLE_REPEAT_ONE"):
+        coordinator.play_mode = "NORMAL"
+        log(f"[play-mode]{label} {coordinator.player_name}: {cur} -> NORMAL "
+            f"(PRE-ADD shuffle clear: shuffle-mode adds land mid-queue and corrupt load-then-trim)")
+
+
+def _trim_old_rows(coordinator, old_len, first_new, label=""):
+    """v2.62.2: remove the OLD queue rows after a load-then-trim add, aware of
+    WHERE the new content actually landed. Normal case (add appended at end,
+    first_new > old_len): trim rows 1..old_len exactly as v2.57 did. Misfiled
+    case (first_new <= old_len -- add landed INSIDE the old rows, e.g. a
+    shuffle-mode add that slipped past the pre-add clear): never blind-trim;
+    compute the new block's extent from queue growth and remove the old rows
+    BELOW the new block first, then the old rows ABOVE it, leaving the new
+    content at rows 1..n. Returns trim_failed (bool). Never raises: E12
+    pattern -- add landed, so a trim failure degrades to playing the new
+    content where it lives (caller uses first_new)."""
+    if old_len <= 0:
+        return False
+    try:
+        if first_new > old_len:
+            coordinator.avTransport.RemoveTrackRangeFromQueue([
+                ("InstanceID", 0), ("UpdateID", 0),
+                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
+            return False
+        # Misfiled add: rows = [old 1..first_new-1][new n rows][old rest]
+        log(f"[queue-op]{label} MISFILED ADD: new content landed at {first_new} inside "
+            f"{old_len} old rows -- using two-range trim (no blind 1..{old_len} sweep)")
+        _size_now = None
+        _deadline = time.time() + 5.0
+        while time.time() < _deadline:  # container adds expand asynchronously
+            try:
+                _size_now = int(coordinator.queue_size)
+            except Exception as _qs_err:
+                log(f"[queue-op]{label} two-range trim: queue_size read failed ({_qs_err})")
+                _size_now = None
+            if _size_now is not None and _size_now > old_len:
+                break
+            time.sleep(0.5)
+        n_new = (_size_now - old_len) if _size_now is not None else 0
+        if n_new <= 0:
+            log(f"[queue-op]{label} two-range trim ABORTED: cannot size new block "
+                f"(queue_size={_size_now!r}, old_len={old_len}) -> degraded, playing from {first_new}")
+            return True
+        below_start = first_new + n_new
+        below_count = old_len - first_new + 1
+        log(f"[queue-op]{label} two-range trim: new block {first_new}..{first_new + n_new - 1} "
+            f"({n_new} rows); removing below [{below_start}+{below_count}] then head [1..{first_new - 1}]")
+        coordinator.avTransport.RemoveTrackRangeFromQueue([
+            ("InstanceID", 0), ("UpdateID", 0),
+            ("StartingIndex", below_start), ("NumberOfTracks", below_count)])
+        if first_new > 1:
+            coordinator.avTransport.RemoveTrackRangeFromQueue([
+                ("InstanceID", 0), ("UpdateID", 0),
+                ("StartingIndex", 1), ("NumberOfTracks", first_new - 1)])
+        return False
+    except Exception as _tr_err:
+        log(f"[queue-op]{label} WARNING -- trim of {old_len} old rows failed ({_tr_err}); "
+            f"playing new content at {first_new}")
+        return True
+
+
 def _load_then_trim(coordinator, add_fn, label="", num_tracks=1):
     """v2.58: shared LOAD-THEN-TRIM queue replace -- the exact pattern proven in
     v2.57 replace_queue (append new content at the END first, so an add failure
     leaves the old queue untouched; then remove the old rows; then play the new
     content). Used by the Phase B stale-queue conversion paths so they reuse the
     proven internals instead of reimplementing.
+    v2.62.2: pre-add shuffle clear + misfile-aware trim (see helpers above).
     Returns (first_new_pos, placement, trim_failed). Raises if the add fails
     (old queue untouched in that case -- caller's outer except reports it)."""
+    _clear_shuffle_for_queue_mutation(coordinator, label=label)
     old_len = coordinator.queue_size
     with _queue_mutation_timeout():
         pos, placement = _verified_queue_add(coordinator, add_fn, None,
                                              label=label, num_tracks=num_tracks)
     first_new = pos or (old_len + 1)
     log(f"[queue-op]{label} load-then-trim: appended at {first_new} (old queue {old_len} rows), trimming old rows")
-    trim_failed = False
-    if old_len > 0:
-        try:
-            coordinator.avTransport.RemoveTrackRangeFromQueue([
-                ("InstanceID", 0), ("UpdateID", 0),
-                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
-        except Exception as _tr_err:
-            # E12 pattern: add landed, trim failed -- play the new content from
-            # where it actually lives; stale rows linger above and the next
-            # replace/clear sweeps them. Honest WARN, never a green lie.
-            trim_failed = True
-            log(f"[queue-op]{label} WARNING -- trim of {old_len} old rows failed ({_tr_err}); playing new content at {first_new}")
+    trim_failed = _trim_old_rows(coordinator, old_len, first_new, label=label)
     coordinator.play_from_queue(0 if not trim_failed else first_new - 1)
     return first_new, placement, trim_failed
 
@@ -6076,6 +6147,10 @@ def execute_command(cmd, source="unknown"):
                     uri_type, share_url = "track", None
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    # v2.62.2: shuffle-mode adds land mid-queue and corrupt the
+                    # trim (2026-08-16 double-misfire). Clear BEFORE the add;
+                    # raises on failure -> E1, queue untouched.
+                    _clear_shuffle_for_queue_mutation(coordinator, label=" replace_queue")
                     old_len = coordinator.queue_size  # must be readable — trim depends on it
                     def _rq_add():
                         if is_spotify:
@@ -6096,15 +6171,10 @@ def execute_command(cmd, source="unknown"):
                         _rq_pos, _rq_plc = _verified_queue_add(coordinator, _rq_add, None, label=" replace_queue")
                     first_new = _rq_pos or (old_len + 1)
                     log(f"replace_queue: appended at {first_new} (old queue {old_len} rows) on {coordinator.player_name}")
-                    _rq_trim_failed = False
-                    if old_len > 0:
-                        try:
-                            coordinator.avTransport.RemoveTrackRangeFromQueue([
-                                ("InstanceID", 0), ("UpdateID", 0),
-                                ("StartingIndex", 1), ("NumberOfTracks", old_len)])
-                        except Exception as _tr_err:
-                            _rq_trim_failed = True  # E12: play new content where it lives
-                            log(f"replace_queue: WARNING — trim of {old_len} old rows failed ({_tr_err})")
+                    # v2.62.2: misfile-aware trim (never blind-sweeps 1..old_len
+                    # when the add landed inside the old rows)
+                    _rq_trim_failed = _trim_old_rows(coordinator, old_len, first_new,
+                                                     label=" replace_queue")
                     coordinator.play_from_queue(0 if not _rq_trim_failed else first_new - 1)
                     _enforce_repeat_default(coordinator, cmd, room)  # house rule
                     # Provenance: containers become the active context; a single
