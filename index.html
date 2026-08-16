@@ -1167,7 +1167,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.14';
+const PAGE_VERSION = 'p3.15';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2245,7 +2245,14 @@ function _renderQueueSheet() {
   const st = _queueState[c.h]; const qs = (st && st.qs) || {};
   const t = c.target;
   const e = t ? (qs[_qsEntryKey(c.h, t) || t] || null) : null; // p2.98 C1: group-member fallback read
-  const stream = !!(e && e.stream);
+  const qPending = _qSnapshotPending(c.h); // p3.01 guard — computed early for p3.15
+  // p3.15: a stream flag read from a snapshot OLDER than this page's own last queue-
+  // mutating command is untrustworthy (2026-08-15 incident: replace-queue landed on the
+  // speaker but the sheet kept "stream has no queue" from the pre-replace state file and
+  // locked every queue verb). Rule 27: level-triggered comparison of two timestamps —
+  // demote the stale claim; verbs enable and the queue line falls to the honest
+  // "updating…" branch instead of asserting a stream that may no longer exist.
+  const stream = !!(e && e.stream) && !qPending;
   const playing = t ? _qsPlaying(c.h, t) : null;
   const verOk = _qsVerOk(c.h);
   const left = e ? Math.max(0, (e.track_count || 0) - (e.current_pos || 0)) : 0;
@@ -2270,8 +2277,7 @@ function _renderQueueSheet() {
     html += '<div class="qs-choose">Tap a speaker first — no active queue found.</div>';
   }
 
-  const lock = c.choices || needTarget;
-  const qPending = _qSnapshotPending(c.h); // p3.01: snapshot predates this page's last queue edit
+  const lock = c.choices || needTarget; // (qPending computed above — p3.15)
   // Verb hints (mockup v3.1 + F5 + E2/E7 copy)
   const nextHint = stream ? '· stream has no queue' : (isPl ? '· interrupts playlist order' : '· after current track');
   const endHint = stream ? '' : (qPending ? '· queue syncing…' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's')));
