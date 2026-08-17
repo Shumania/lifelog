@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.63.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.63.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -223,6 +223,10 @@ current_devices_by_name  = {}
 room_state               = {}
 _last_ui_track           = {}   # coordinator -> track_key; for ntfy UI dedup
 _last_sse_rooms_playing  = []   # for change detection on status_update SSE
+_last_sse_coord_set      = None # v2.63.1: coordinator names from last poll — a coordinator-SET
+                                # change is ALWAYS a real regroup and must never be churn-suppressed
+                                # (2026-08-17 stale-topology incident: suppressor ate the regroup SSE,
+                                # browser aimed replace_queue at the old coordinator)
 _last_sse_mute_states    = {}   # for change detection on mute toggle
 _sse_status_counter      = 0    # emit status_update every N poll cycles
 _current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, etc.)
@@ -734,6 +738,9 @@ print("[v2.61] fuzzy ctx-name match active: decorated container names no longer 
 # v2.63 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[v2.63] provenance temporal gate + prov_at_start snapshots active; canary demoted (Spotify log-only, persistent episodes); "
       "Apple Music queue-backed fork; volume telemetry; quiet-hours SSE trickle")
+# v2.63.1 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.63.1] stale-topology fixes active: coordinator-set SSE gate + sync_rooms fresh-groups stamp + "
+      "coordinator resolve on cycle_repeat/clear_queue/truncate_queue")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -4010,6 +4017,39 @@ def _verify_group_settle(dev, intended_coord, timeout=5.0, interval=0.5):
         f"(observed coordinator={observed}, intended={intended_coord}); proceeding anyway")
     return False
 
+def _fresh_groups_snapshot(devices):
+    """v2.63.1: recompute [{"coordinator","members","state"}] from live SoCo group
+    objects RIGHT NOW — no waiting for the next poll. Used by sync_rooms so the SSE
+    it publishes carries POST-regroup topology: publish_ui_event stamps
+    _poll_snapshot["groups"] onto every SSE payload, and the page updates its
+    _groupsByHouse from msg.groups on every message. (2026-08-17 stale-topology
+    incident: the regroup's own SSE carried PRE-regroup groups from the last poll
+    snapshot, then the next poll's fresh topology was churn-suppressed — the
+    browser aimed replace_queue at the old coordinator.) NEVER raises."""
+    out, seen = [], set()
+    try:
+        for d in devices.values():
+            try:
+                g = d.group
+                c = g.coordinator if g and g.coordinator else d
+                cname = c.player_name
+                if cname in seen:
+                    continue
+                seen.add(cname)
+                members = sorted(m.player_name for m in (g.members if g else [d])
+                                 if getattr(m, "is_visible", True))
+                try:
+                    state = c.get_current_transport_info().get("current_transport_state", "UNKNOWN")
+                except Exception:
+                    state = "UNKNOWN"
+                out.append({"coordinator": cname, "members": members, "state": state})
+            except Exception:
+                continue  # one bad device must not sink the snapshot
+        out.sort(key=lambda g: g["coordinator"])
+    except Exception as e:
+        log(f"[fresh-groups] snapshot error: {e}")
+    return out
+
 def _setup_rooms(cmd, devices):
     """Incremental room grouping. Returns (coordinator, rooms_list, was_grouped_with).
     Compares current group state vs desired rooms — only unjoins/joins deltas.
@@ -4424,6 +4464,20 @@ def execute_command(cmd, source="unknown"):
                         result["message"] += f" (removed: {', '.join(was_grouped)})"
                 else:
                     result["message"] = f"Room '{rooms[0]}' not found"
+                # v2.63.1: stamp FRESH topology into the poll snapshot BEFORE
+                # publishing — publish_ui_event copies _poll_snapshot["groups"] onto
+                # every SSE payload, so without this the regroup confirmation carries
+                # the PRE-regroup groups and the browser keeps aiming at the old
+                # coordinator until the next poll (2026-08-17 deck incident).
+                try:
+                    _fresh = _fresh_groups_snapshot(devices)
+                    if _fresh:
+                        _poll_snapshot["groups"] = _fresh
+                        log(f"sync_rooms: fresh groups stamped for SSE: {[(g['coordinator'], len(g['members'])) for g in _fresh]}")
+                    else:
+                        log("sync_rooms: fresh-groups snapshot came back EMPTY — SSE will carry last-poll groups")
+                except Exception as _fg_err:
+                    log(f"sync_rooms: fresh-groups stamp failed (SSE will carry last-poll groups): {_fg_err}")
                 # v2.54 rider: sync_rooms results travel over SSE ONLY (added to
                 # SILENT_ACTIONS -> no Tasklet webhook POST). The page is the only
                 # consumer; the agent never needed these posts. Failures still land
@@ -6020,6 +6074,17 @@ def execute_command(cmd, source="unknown"):
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
             if dev:
+                # v2.63.1: play mode is a GROUP property — resolve to the live
+                # coordinator like set_repeat/set_shuffle already do. Sending to a
+                # grouped member raises UPnP 712 "Play mode not supported"
+                # (2026-08-17 deck incident: the red toast the user saw).
+                try:
+                    _cr_coord = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    if _cr_coord.player_name != room:
+                        log(f"cycle_repeat: '{room}' is a grouped member — resolved to coordinator '{_cr_coord.player_name}'")
+                    dev, room = _cr_coord, _cr_coord.player_name
+                except Exception as _cr_err:
+                    log(f"cycle_repeat: coordinator resolve failed for '{room}' (using device as-is): {_cr_err}")
                 try:
                     cur = dev.play_mode
                     # Cycle: NORMAL -> REPEAT_ALL -> REPEAT_ONE -> NORMAL
@@ -6328,6 +6393,16 @@ def execute_command(cmd, source="unknown"):
             # Does NOT touch provenance (the queue head is unchanged).
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
+            if dev:
+                # v2.63.1: the queue lives on the COORDINATOR — resolve like
+                # replace_queue does (Rule 10 sibling of the cycle_repeat 712 bug).
+                try:
+                    _tq_c = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    if _tq_c.player_name != room:
+                        log(f"truncate_queue: '{room}' is a grouped member — resolved to coordinator '{_tq_c.player_name}'")
+                    dev, room = _tq_c, _tq_c.player_name
+                except Exception as _tq_err:
+                    log(f"truncate_queue: coordinator resolve failed for '{room}' (using device as-is): {_tq_err}")
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
             else:
@@ -6387,6 +6462,16 @@ def execute_command(cmd, source="unknown"):
             # If the queue is the active source, Sonos stops playback (expected).
             room = cmd.get("room") or (cmd.get("rooms") or [None])[0]
             dev  = devices.get(room)
+            if dev:
+                # v2.63.1: the queue lives on the COORDINATOR — resolve like
+                # replace_queue does (Rule 10 sibling of the cycle_repeat 712 bug).
+                try:
+                    _cq_c = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    if _cq_c.player_name != room:
+                        log(f"clear_queue: '{room}' is a grouped member — resolved to coordinator '{_cq_c.player_name}'")
+                    dev, room = _cq_c, _cq_c.player_name
+                except Exception as _cq_err:
+                    log(f"clear_queue: coordinator resolve failed for '{room}' (using device as-is): {_cq_err}")
             if not dev:
                 result["message"] = f"Room '{room}' not found. Available: {list(devices.keys())}"
             else:
@@ -6793,11 +6878,20 @@ def sonos_main_loop():
 
             # -- Change-driven status_update SSE + 15-min keepalive (v1.70) --
             # v2.24: Reads from _poll_snapshot (already computed) instead of querying speakers
-            global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states
+            global _sse_status_counter, _last_sse_rooms_playing, _last_sse_mute_states, _last_sse_coord_set
             _sse_status_counter += 1
             rp = list(_poll_snapshot.get("rooms_playing", []))
             ms = dict(_poll_snapshot.get("mute_states", {}))
             rooms_changed = (rp != _last_sse_rooms_playing)
+            # v2.63.1: coordinator-SET gate. A change in WHO the coordinators are is
+            # ALWAYS a real regroup (sync_rooms, native Sonos app, anything) and must
+            # push SSE — the churn filter below may only swallow member/mute-key
+            # flapping within an UNCHANGED coordinator set (Rule 27: transfer state).
+            # 2026-08-17 incident: regroup's topology change was logged as "churn
+            # added=['Main Lower Deck']" and suppressed; browser kept stale groups
+            # and aimed replace_queue at the old coordinator.
+            _coords_now = sorted(g.get("coordinator") or "" for g in _poll_snapshot.get("groups", []))
+            coords_changed = (_last_sse_coord_set is not None and _coords_now != _last_sse_coord_set)
             # v2.48.1: topology-churn gate. Discovery timeouts make speakers vanish
             # from / reappear in the mute dict every few minutes; plain dict
             # inequality treated that KEY churn as a mute event and pushed SSE.
@@ -6806,19 +6900,23 @@ def sonos_main_loop():
             _m_removed = sorted(k for k in _last_sse_mute_states if k not in ms)
             _m_flipped = sorted(k for k in ms if k in _last_sse_mute_states and ms[k] != _last_sse_mute_states[k])
             mutes_changed = bool(_m_flipped)
-            if (_m_added or _m_removed) and not _m_flipped:
-                log(f"SSE suppressed: topology churn added={_m_added} removed={_m_removed} (no mute flip, no push)")
-            # Baseline updates every cycle so churn never accumulates into a false flip
+            if (_m_added or _m_removed) and not _m_flipped and not coords_changed:
+                log(f"SSE suppressed: topology churn added={_m_added} removed={_m_removed} (no mute flip, no coord change, no push)")
+            # Baselines update every cycle so churn never accumulates into a false flip
             _last_sse_mute_states = ms
+            _prev_coord_set = _last_sse_coord_set
+            _last_sse_coord_set = _coords_now
             keepalive_due = (_sse_status_counter >= 60)  # 60 x 15s = 15 min (~96/day)
-            if rooms_changed or mutes_changed or keepalive_due:
+            if rooms_changed or mutes_changed or coords_changed or keepalive_due:
                 # v2.47.2: log WHY we're pushing — silent triggers made the
                 # idle-chatter bug (mute-key flap) invisible for weeks.
                 if rooms_changed:
                     log(f"SSE trigger: rooms_changed {_last_sse_rooms_playing} -> {rp}")
                 if mutes_changed:
                     log(f"SSE trigger: mutes_changed flipped={_m_flipped} (added={_m_added} removed={_m_removed})")
-                if keepalive_due and not (rooms_changed or mutes_changed):
+                if coords_changed:
+                    log(f"SSE trigger: coordinator set changed {_prev_coord_set} -> {_coords_now} (v2.63.1: regroup always pushes, churn filter bypassed)")
+                if keepalive_due and not (rooms_changed or mutes_changed or coords_changed):
                     log("SSE trigger: 15-min keepalive")
                 _sse_status_counter = 0
                 publish_ui_event("status_update", {})
