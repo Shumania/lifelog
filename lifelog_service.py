@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.62.3"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.63.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -227,6 +227,7 @@ _last_sse_mute_states    = {}   # for change detection on mute toggle
 _sse_status_counter      = 0    # emit status_update every N poll cycles
 _current_play_modes      = {}   # room -> play_mode (NORMAL, REPEAT_ALL, REPEAT_ONE, SHUFFLE, etc.)
 _current_mute_states     = {}   # room -> bool (True=muted)
+_current_room_volumes    = {}   # v2.63: room -> int volume (playing rooms only; telemetry for D8 auto-tune)
 speaker_failures         = {}
 speaker_offline_since    = {}
 
@@ -253,6 +254,7 @@ _poll_snapshot = {
     "groups": [],             # v2.53: [{"coordinator","members","state"}] for ALL groups
     "play_modes": {},
     "mute_states": {},
+    "volumes": {},            # v2.63: room -> int volume, PLAYING rooms only (telemetry)
     "transport_states": {},   # room -> state string
     "timestamp": None,
 }
@@ -298,6 +300,10 @@ except Exception as _dh_err:
 queue_provenance         = {}   # coordinator name -> {"uri","name","type","loaded_at"}
 QUEUE_PROV_PATH          = INSTALL_DIR / "queue_provenance.json"
 QUEUE_PROV_TTL_SECONDS   = 24 * 3600
+# v2.63: sentinel distinguishing "caller passed no snapshot" (legacy -> live
+# lookup) from "snapshot says the track started with NO provenance" (None ->
+# honest blank). room_state entries carry prov_at_start; see post_history.
+_PROV_UNSET              = object()
 
 def _save_queue_provenance():
     try:
@@ -333,7 +339,7 @@ def _get_queue_provenance(coord_name):
         return None
     return p
 
-def _overlay_prov_guard(prov, track_album, coord_name):
+def _overlay_prov_guard(prov, track_album, coord_name, track_started_epoch=None):
     """v2.59.2 OVERLAY GUARD (Rule 27): the v2.55 provenance overlay previously
     stamped the remembered pointer with NO validation against the observed
     track -- a stale album-typed pointer poisoned every subsequent queue play
@@ -346,18 +352,43 @@ def _overlay_prov_guard(prov, track_album, coord_name):
     the next poll; no manual scrub needed). Returns True when the overlay must
     be skipped. Fails open (False) when either name is missing or on internal
     error. Playlist/station-typed pointers are not verifiable this way and
-    pass through unchanged (setter-side fix v2.59.1 covers those)."""
+    pass through unchanged (setter-side fix v2.59.1 covers those).
+    v2.63 TEMPORAL GATE (Rule 27): a pointer LOADED AFTER the track started
+    cannot describe that play, and that play cannot judge the pointer. The
+    2026-08-16 Andorra + Born Blonde incidents: a mid-track replace stamps
+    fresh provenance, then the DYING track's retire/render compares the NEW
+    pointer against the OLD track's album -> guard wiped the fresh pointer and
+    every subsequent play landed honest-blank. Fix: when the track predates
+    the pointer, skip the overlay (no stamp) but RETAIN the pointer (no
+    judgment either way). Callers pass track_started_epoch when they know it;
+    legacy callers (None) keep pre-v2.63 behavior.
+    v2.63 IDENTITY CHECK: staleness verdicts may now be reached from a
+    SNAPSHOT of the pointer (taken at track start, see prov_at_start). Only
+    clear the LIVE pointer when it is the SAME entry that was judged
+    (loaded_at match) -- never wipe a newer pointer on an old verdict."""
     try:
+        if (track_started_epoch and prov.get("loaded_at")
+                and track_started_epoch < prov["loaded_at"] - 2.0):
+            log(f"[overlay-guard] {coord_name}: pointer '{prov.get('name','')}' loaded "
+                f"{prov['loaded_at'] - track_started_epoch:.0f}s AFTER track start -- "
+                f"cannot describe this play; overlay SKIPPED, pointer RETAINED (v2.63 temporal gate)")
+            return True
         if ((prov.get("type") or "").lower() == "album" and track_album
                 and prov.get("name")
                 # v2.61: fuzzy match (was strict equality) — decorated sender
                 # titles ('🎛️ Album (2005) — Artist') are NOT stale (Rule 10).
                 and not _ctx_names_match(prov["name"], track_album)):
-            log(f"[overlay-guard] {coord_name}: STALE album provenance "
-                f"'{prov.get('name','')}' vs track album '{track_album}' -- "
-                f"overlay SKIPPED, pointer CLEARED (self-heal)")
-            _clear_queue_provenance(coord_name,
-                                    f"overlay-guard album mismatch (track_album='{track_album}')")
+            _live = queue_provenance.get(coord_name)
+            if _live and _live.get("loaded_at") == prov.get("loaded_at"):
+                log(f"[overlay-guard] {coord_name}: STALE album provenance "
+                    f"'{prov.get('name','')}' vs track album '{track_album}' -- "
+                    f"overlay SKIPPED, pointer CLEARED (self-heal)")
+                _clear_queue_provenance(coord_name,
+                                        f"overlay-guard album mismatch (track_album='{track_album}')")
+            else:
+                log(f"[overlay-guard] {coord_name}: STALE album provenance "
+                    f"'{prov.get('name','')}' vs track album '{track_album}' -- "
+                    f"overlay SKIPPED; live pointer is a NEWER entry, left untouched (v2.63 identity check)")
             return True
     except Exception as _og_err:
         log(f"[overlay-guard] ERROR (fail-open, overlay allowed): {type(_og_err).__name__}: {_og_err}")
@@ -700,6 +731,9 @@ print("[v2.59.1] play_next provenance fix active: playlist REPLACE + stream take
 print("[v2.59.2] overlay guard active: album-typed provenance validated at stamp time (skip + self-heal on mismatch)")
 # v2.61 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[v2.61] fuzzy ctx-name match active: decorated container names no longer read as stale; stream hidden-queue watch on")
+# v2.63 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.63] provenance temporal gate + prov_at_start snapshots active; canary demoted (Spotify log-only, persistent episodes); "
+      "Apple Music queue-backed fork; volume telemetry; quiet-hours SSE trickle")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -729,8 +763,12 @@ def _persist_state_ring_buffer():
     except Exception as e:
         log(f"[state] Failed to persist ring buffer: {e}")
 
-def _retire_to_state_ring(track_info, rooms_list, started_at=None):
-    """Add a completed track to the state ring buffer."""
+def _retire_to_state_ring(track_info, rooms_list, started_at=None,
+                          prov_resolved=_PROV_UNSET, started_epoch=None):
+    """Add a completed track to the state ring buffer.
+    v2.63: post_history passes its already-resolved provenance (snapshot-at-
+    start semantics + temporal gate) so the ring row and the history row agree.
+    Legacy callers (_PROV_UNSET) keep the live lookup below."""
     entry = {
         "title": track_info.get("title", ""),
         "artist": track_info.get("artist", ""),
@@ -757,11 +795,17 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None):
                 and track_info.get("context_source") != "inserted_track"):
             _rg_coord = (track_info.get("coordinator")
                          or (rooms_list[0] if isinstance(rooms_list, list) and rooms_list else ""))
-            _prov = _get_queue_provenance(_rg_coord)
+            # v2.63: prefer the caller's resolved prov (snapshot-at-start) so ring
+            # and history rows agree; legacy callers fall back to live lookup.
+            _prov = (prov_resolved if prov_resolved is not _PROV_UNSET
+                     else _get_queue_provenance(_rg_coord))
             # v2.59.2 overlay guard: never stamp a provably-stale album pointer
             # (guard also self-heals by clearing it; see _overlay_prov_guard).
+            # v2.63: started_epoch engages the temporal gate (younger pointer
+            # never judged by / stamped onto an older track).
             if (_prov and _prov.get("uri")
-                    and not _overlay_prov_guard(_prov, track_info.get("album", ""), _rg_coord)):
+                    and not _overlay_prov_guard(_prov, track_info.get("album", ""), _rg_coord,
+                                                track_started_epoch=started_epoch)):
                 _ctx_uri, _ctx_type = _prov["uri"], _prov["type"]
         entry["context_uri"] = _ctx_uri or ""
         entry["context_type"] = _ctx_type or ""
@@ -834,25 +878,47 @@ def _build_queue_summary():
                         mi = dev.avTransport.GetMediaInfo([("InstanceID", 0)])
                         cur_uri = (mi.get("CurrentURI") or "").lower()
                         if any(cur_uri.startswith(p) for p in STREAM_URI_PREFIXES):
-                            ti = (room_state.get(cname) or {}).get("track_info") or {}
-                            _st_entry = {"stream": True,
-                                         "stream_label": ti.get("title") or ti.get("service") or "stream"}
-                            # v2.61 watch (backlog "queue rows=0 during x-sonos-vli
-                            # casts"): a live-session cast often coexists with a real
-                            # queue the user wants back. Carry the hidden depth in
-                            # state (Rule 27: state, not events); log only on change.
-                            try:
-                                _st_q = int(dev.queue_size)
-                                if _st_q:
-                                    _st_entry["queue_rows_hidden"] = _st_q
-                                if _stream_qrows_seen.get(cname) != _st_q:
-                                    _stream_qrows_seen[cname] = _st_q
-                                    log(f"[queue-summary] {cname}: stream active, "
-                                        f"{_st_q}-row queue retained behind it")
-                            except Exception:
-                                pass
-                            out[cname] = _st_entry
-                            continue
+                            # v2.63 Apple Music fork (backlog: "Live stream" misclassification):
+                            # Apple Music playback can surface a stream-shaped CurrentURI while
+                            # actually advancing through a real Sonos queue. Queue-backed ->
+                            # classify as normal queue playback (track UI + queue verbs work);
+                            # genuinely queue-less -> honest "Apple Music session" label instead
+                            # of the generic "Live stream". Other stream types untouched
+                            # (radio/vli casts legitimately retain hidden queues).
+                            _is_apple = detect_service(cur_uri) == "sonos_apple_music"
+                            _qb_apple = False
+                            if _is_apple:
+                                try:
+                                    _am_pos = int(dev.get_current_track_info().get("playlist_position", 0))
+                                    _qb_apple = int(dev.queue_size) > 0 and _am_pos >= 1
+                                except Exception:
+                                    _qb_apple = False
+                                if _qb_apple and _stream_qrows_seen.get(cname) != -1:
+                                    _stream_qrows_seen[cname] = -1
+                                    log(f"[queue-summary] {cname}: Apple Music stream-shaped URI with "
+                                        f"live queue position {_am_pos} -- classified QUEUE-BACKED, "
+                                        f"normal track UI (v2.63)")
+                            if not _qb_apple:  # v2.63: queue-backed Apple Music falls through
+                                ti = (room_state.get(cname) or {}).get("track_info") or {}
+                                _st_entry = {"stream": True,
+                                             "stream_label": ("Apple Music session" if _is_apple
+                                                              else (ti.get("title") or ti.get("service") or "stream"))}
+                                # v2.61 watch (backlog "queue rows=0 during x-sonos-vli
+                                # casts"): a live-session cast often coexists with a real
+                                # queue the user wants back. Carry the hidden depth in
+                                # state (Rule 27: state, not events); log only on change.
+                                try:
+                                    _st_q = int(dev.queue_size)
+                                    if _st_q:
+                                        _st_entry["queue_rows_hidden"] = _st_q
+                                    if _stream_qrows_seen.get(cname) != _st_q:
+                                        _stream_qrows_seen[cname] = _st_q
+                                        log(f"[queue-summary] {cname}: stream active, "
+                                            f"{_st_q}-row queue retained behind it")
+                                except Exception:
+                                    pass
+                                out[cname] = _st_entry
+                                continue
                     except Exception:
                         pass  # can't read media info -> fall through to queue fields
                 qsize = dev.queue_size
@@ -944,6 +1010,7 @@ def _build_state_payload():
         # so cold-load UIs stop falling back to now_playing.rooms for member
         # chips. Level-triggered: published on EVERY push (Rule 27).
         "groups": list(_poll_snapshot.get("groups", [])),
+        "volumes": dict(_poll_snapshot.get("volumes", {})),  # v2.63 telemetry (playing rooms)
         "queue_summary": _build_queue_summary(),  # v2.57 queue management (§3.3)
         "recent_tracks": list(_state_ring_buffer),
     }
@@ -1431,7 +1498,8 @@ def self_update_check():
                 try:
                     if _st and _st.get("track_key") and _st.get("started_at"):
                         log(f"[update] retiring in-flight track on {_room}: {_st['track_key'][:80]}")
-                        post_history(_st["track_info"], _room, _st["started_at"], _now)
+                        post_history(_st["track_info"], _room, _st["started_at"], _now,
+                                     prov_snapshot=_st.get("prov_at_start", _PROV_UNSET))
                 except Exception as _rerr:
                     log(f"[update] WARNING: retire failed for {_room}: {_rerr}")
             flush_buffer("pre-update")
@@ -1495,15 +1563,27 @@ def _build_poll_snapshot(coordinators):
     """Build a single poll snapshot from the coordinator list. Called once per cycle.
     Replaces the old get_rooms_playing() which was called 3x per cycle (~99 HTTP calls).
     Now: one pass over coordinators only (~5-25 calls total)."""
-    global _current_play_modes, _current_mute_states, _poll_snapshot
+    global _current_play_modes, _current_mute_states, _current_room_volumes, _poll_snapshot
     if "sonos" not in modules:
         _poll_snapshot = {"rooms_playing": [], "rooms_paused": [], "rooms_all": sorted(current_devices_by_name.keys()),
-                          "play_modes": {}, "mute_states": {}, "transport_states": {}, "timestamp": now_iso()}
+                          "play_modes": {}, "mute_states": {}, "volumes": {}, "transport_states": {}, "timestamp": now_iso()}
         return
     playing = []
     states = {}
     modes = {}
     mutes = {}
+    # v2.63 volume telemetry: per-room volume for PLAYING rooms only (coordinator
+    # + visible members). Organic volume changes (Sonos app, hardware buttons)
+    # were never captured anywhere — 2 weeks of observations feed per-room
+    # medians-while-playing to auto-tune shortcuts.json defaults (D8). Playing
+    # rooms only keeps the extra SOAP reads proportional to actual listening.
+    vols = {}
+    def _read_vol(_d, _n):
+        try:
+            vols[_n] = int(_d.volume)
+        except Exception:
+            if _n in _current_room_volumes:  # carry over on transient read failure
+                vols[_n] = _current_room_volumes[_n]
     for dev in coordinators:
         name = dev.player_name
         try:
@@ -1542,6 +1622,7 @@ def _build_poll_snapshot(coordinators):
                 # v2.36: Simplified — use dev.group.members directly (same as get_track_info).
                 # Old IP-verification code silently dropped members when SoCo cache was stale.
                 playing.append(name)
+                _read_vol(dev, name)  # v2.63 volume telemetry (playing coordinator)
                 if dev.group:
                     try:
                         for member in dev.group.members:
@@ -1554,6 +1635,7 @@ def _build_poll_snapshot(coordinators):
                             if mname == name:
                                 continue
                             playing.append(mname)
+                            _read_vol(member, mname)  # v2.63 volume telemetry (playing member)
                             if mname not in current_devices_by_name:
                                 current_devices_by_name[mname] = member
                     except Exception as e:
@@ -1625,9 +1707,11 @@ def _build_poll_snapshot(coordinators):
         "groups": groups,
         "play_modes": dict(modes),
         "mute_states": dict(mutes),
+        "volumes": dict(vols),    # v2.63: playing rooms only
         "transport_states": dict(states),
         "timestamp": now_iso(),
     }
+    _current_room_volumes = vols  # v2.63: carry-over source for transient read failures
 
     # v2.53: topology change detection — any regroup (from ANY controller:
     # native Sonos app, us, Alexa) fires a "topology" SSE event so every open
@@ -2126,6 +2210,7 @@ def _sse_enrich_state(payload):
     payload["groups"] = list(_poll_snapshot.get("groups", []))  # v2.53: full group topology
     payload["play_modes"] = dict(_poll_snapshot.get("play_modes", {}))
     payload["mute_states"] = dict(_poll_snapshot.get("mute_states", {}))
+    payload["volumes"] = dict(_poll_snapshot.get("volumes", {}))  # v2.63 telemetry (playing rooms)
     payload["house"] = house
     payload["client_id"] = client_id
     payload["version"] = SERVICE_VERSION
@@ -2213,6 +2298,19 @@ def _sse_do_flush():
         _urgent = [et for et in event_types if et != "status_update"]
         if not _rp_q and not _urgent:
             log(f"SSE flush skipped: quiet hours + idle (dropped {event_types})")
+            return
+        # v2.63: quiet-hours TRICKLE — the second half of the v2.48 item
+        # ("pause relay pushes, or trickle to keepalive-only, during quiet
+        # hours"). Even while PLAYING, pure status wiggles are throttled to
+        # one per 15 min at night. Urgent events (now_playing, queue ops,
+        # topology) always flow -- a late-night listener still sees track
+        # changes instantly; they just don't get per-poll pause-age/mute
+        # wiggles. Safe because every SSE message carries FULL state (Rule 27)
+        # -- the next send tells the whole truth.
+        if not _urgent and _sse_last_send_ts and (time.time() - _sse_last_send_ts) < 900:
+            _q_age = int(time.time() - _sse_last_send_ts)
+            log(f"SSE flush skipped: quiet-hours trickle (status-only, last send {_q_age}s ago, "
+                f"next status slot in {900 - _q_age}s) (v2.63)")
             return
     # Enrich with full state snapshot
     try:
@@ -2877,12 +2975,34 @@ def _resolve_music_service_name(name):
 # v2.54 B3: nightly auth canary — one cheap SMAPI search per music service.
 # Catches per-device service-token expiry while idle so expired credentials
 # surface as an error-ring badge instead of a mystery toast days later.
-# Alert once per expiry episode; reset on first success (Rule 11). State is
-# in-memory: a mid-episode restart re-alerts once, which is acceptable.
+# Alert once per expiry episode; reset on first success (Rule 11).
+# v2.63: episode state PERSISTS across restarts (canary_state.json) — it was
+# in-memory, so every service update re-alerted the SAME ongoing episode (14
+# groundhog-day alerts 7/30–8/16 for one continuous Spotify expiry).
+# v2.63: Spotify is DEMOTED to log-only — SMAPI Spotify search was retired
+# from every play path in v2.54 B2 (relink provably can't fix its token,
+# 2026-07-29; resolution = Web API app token, playback = ShareLink/direct URI,
+# both self-refreshing). Its expiry is expected and non-actionable. Qobuz IS
+# still on a play path (search action default + play_album native DIDL) and
+# keeps alerting.
 # Apple Music is NOT canaried — its SMAPI rejects soco search() entirely
 # (SOAP-ENV:Server faults, see play_album v2.47.1 notes), so a failure there
 # tells us nothing about auth.
 _canary_expired = {}
+_CANARY_LOG_ONLY = ("Spotify",)   # expected-expired services: log, never post_error
+CANARY_STATE_PATH = INSTALL_DIR / "canary_state.json"
+try:
+    if CANARY_STATE_PATH.exists():
+        _canary_expired.update(json.loads(CANARY_STATE_PATH.read_text(encoding="utf-8")))
+        print(f"[canary] v2.63 persistent episodes loaded: {_canary_expired}")
+except Exception as _cs_err:
+    print(f"[canary] WARNING: failed to load canary_state.json: {_cs_err}")
+
+def _save_canary_state():
+    try:
+        CANARY_STATE_PATH.write_text(json.dumps(_canary_expired), encoding="utf-8")
+    except Exception as _cs_err:
+        log(f"[canary] WARNING: persist failed: {_cs_err}")
 
 def _run_auth_canary():
     if not sonos_commander:
@@ -2895,16 +3015,23 @@ def _run_auth_canary():
                 log(f"[canary] {svc} search token RECOVERED — clearing expiry episode")
             else:
                 log(f"[canary] {svc} search token OK")
-            _canary_expired[svc] = False
+            if _canary_expired.get(svc) is not False:
+                _canary_expired[svc] = False
+                _save_canary_state()
         except Exception as e:
             msg = str(e)
             if "auth" in msg.lower() or "token" in msg.lower():
                 if not _canary_expired.get(svc):
                     _canary_expired[svc] = True
-                    post_error(f"Auth canary: {svc} search token expired on {computer}: {msg[:150]}",
-                               context=f"service={svc}", module="canary")
+                    _save_canary_state()
+                    if svc in _CANARY_LOG_ONLY:
+                        log(f"[canary] {svc} search token expired — EXPECTED (retired from "
+                            f"play path v2.54 B2; Web API + direct URIs in use; not alerting) (v2.63)")
+                    else:
+                        post_error(f"Auth canary: {svc} search token expired on {computer}: {msg[:150]}",
+                                   context=f"service={svc}", module="canary")
                 else:
-                    log(f"[canary] {svc} still expired (already alerted this episode)")
+                    log(f"[canary] {svc} still expired (episode already noted; persisted)")
             else:
                 log(f"[canary] {svc} search failed (non-auth, not alerting): {msg[:120]}")
 
@@ -3592,11 +3719,26 @@ def get_track_info(device):
         return None
 
 # --- SONOS: POST HISTORY (buffered) -----------------------------------------
-def post_history(track, room, started_at, ended_at):
+def post_history(track, room, started_at, ended_at, prov_snapshot=_PROV_UNSET):
     global last_sonos_activity_ts, last_track_added_ts
     duration_played = int((ended_at - started_at).total_seconds())
     if duration_played < 15: return
     last_sonos_activity_ts = time.time()
+    # v2.63 (Rule 27): resolve queue provenance ONCE from the snapshot taken when
+    # this track STARTED (room_state prov_at_start), not from the live pointer at
+    # retire time. A mid-track replace updates the live pointer BEFORE the dying
+    # track retires -- reading live here stamped the dying row with the INCOMING
+    # container ("Cheek To Cheek" credited to Garage Burn, 2026-08-15). Callers
+    # without a snapshot (_PROV_UNSET) fall back to the live pointer, protected
+    # by the guard's v2.63 temporal gate.
+    _pg_coord = track.get("coordinator") or room
+    if prov_snapshot is _PROV_UNSET:
+        _prov_resolved = _get_queue_provenance(_pg_coord)
+    elif prov_snapshot and prov_snapshot.get("uri"):
+        _prov_resolved = prov_snapshot
+    else:
+        _prov_resolved = None  # track started with NO provenance -> honest blank
+    _started_epoch = started_at.timestamp()
     # v2.50: state-ring retire moved BELOW the coalesce check — grouped rooms now
     # produce ONE ring entry whose rooms string grows as rooms coalesce, instead
     # of N duplicate entries (one per room) as in <=2.49.
@@ -3636,7 +3778,8 @@ def post_history(track, room, started_at, ended_at):
             f'(rooms: {len(_matched_rooms)}) [buffer: {_buf_n}]{_persist_note}')
         return
     # New play — one ring entry, rooms list grows via coalesce above
-    _retire_to_state_ring(track, [room], started_at)
+    _retire_to_state_ring(track, [room], started_at,
+                          prov_resolved=_prov_resolved, started_epoch=_started_epoch)
     # No coalesce match — build a fresh format-2 item (rooms list; dedup key has
     # NO room segment — the server DB key is content-based and room-agnostic).
     dedup_key    = f"sonos_{house}_{fp}_{bucket}"
@@ -3686,13 +3829,19 @@ def post_history(track, room, started_at, ended_at):
     _cur_container = item.get("container_uri", "")
     if (((not _cur_container) or _cur_container.startswith("x-rincon-queue"))
             and item.get("context_source") != "inserted_track"):
-        _pg_coord = track.get("coordinator") or room
-        _prov = _get_queue_provenance(_pg_coord)
+        # v2.63: _prov_resolved computed at function top (snapshot-at-start wins
+        # over live pointer; see comment there). Guard gets the track's start
+        # epoch so a younger pointer is never judged by -- or stamped onto --
+        # an older track.
+        _prov = _prov_resolved
+        if _prov is None and prov_snapshot is not _PROV_UNSET:
+            log(f"[overlay-guard] {_pg_coord}: no provenance at track start -- honest blank (v2.63)")
         # v2.59.2: validate the pointer against the observed track BEFORE
         # stamping (overlay guard). Stale album-typed pointer -> honest
         # no-context + archaeology fields, pointer self-heals (cleared).
         if (_prov and _prov.get("uri")
-                and _overlay_prov_guard(_prov, track.get("album", ""), _pg_coord)):
+                and _overlay_prov_guard(_prov, track.get("album", ""), _pg_coord,
+                                        track_started_epoch=_started_epoch)):
             item["suppressed_container_name"] = _prov.get("name", "")
             item["suppressed_container_uri"]  = _prov.get("uri", "")
             item["suppressed_container_type"] = _prov.get("type", "")
@@ -5597,10 +5746,17 @@ def execute_command(cmd, source="unknown"):
                             _prev = room_state.get(coord_name)
                             if _prev and _prev.get("track_key") and _prev.get("started_at") and _prev["track_key"] != coord_key:
                                 log(f"[history] play_next retiring previous track on {coord_name}: {_prev['track_key'][:80]}")
-                                post_history(_prev["track_info"], coord_name, _prev["started_at"], datetime.now(timezone.utc))
+                                # v2.63: retire with the provenance the dying track STARTED
+                                # under -- the live pointer was just replaced by this very
+                                # command (retire-race fix; Cheek To Cheek incident).
+                                post_history(_prev["track_info"], coord_name, _prev["started_at"], datetime.now(timezone.utc),
+                                             prov_snapshot=_prev.get("prov_at_start", _PROV_UNSET))
                         except Exception as _re_err:
                             log(f"[history] WARNING: play_next retire failed: {_re_err}")
                         # Also inject into room_state so status_update SSE has correct data
+                        # v2.63: prov_at_start = the provenance this command just set (the
+                        # NEW track starts under the NEW container -- correct snapshot).
+                        _prov_now = _get_queue_provenance(coord_name)
                         room_state[coord_name] = {
                             "track_key": coord_key,
                             "track_info": {
@@ -5609,6 +5765,7 @@ def execute_command(cmd, source="unknown"):
                                 "rooms": rooms, "coordinator": coord_name,
                             },
                             "started_at": datetime.now(timezone.utc),
+                            "prov_at_start": dict(_prov_now) if _prov_now else None,
                         }
                     except Exception as sse_err:
                         log(f"play_next: SSE publish failed ({sse_err})")
@@ -5701,6 +5858,10 @@ def execute_command(cmd, source="unknown"):
             if stopped:
                 result["success"] = True
                 result["message"] = f"Stopped: {', '.join(stopped)}"
+                # v2.63 Bundle B: structured room list so the ingest can clear a
+                # stale now-playing when a stop covers all playing rooms (the
+                # rooms previously lived only inside the message string).
+                result["data"] = {"rooms_stopped": stopped}
             else:
                 result["success"] = False
                 result["message"] = f"stop: no rooms matched (requested {rooms}, known: {sorted(devices.keys())})"
@@ -5729,6 +5890,7 @@ def execute_command(cmd, source="unknown"):
             if paused:
                 result["success"] = True
                 result["message"] = f"Paused: {', '.join(paused)}"
+                result["data"] = {"rooms_paused": paused}  # v2.63 Bundle B (see stop)
             elif idle_skips:
                 # v2.48.1: pausing an idle room is a successful no-op, not an error.
                 # The old "no rooms matched" message was misleading (the room WAS known)
@@ -6579,8 +6741,15 @@ def sonos_main_loop():
                         track_key = f"{info['title']}|{info['artist']}|{info['uri']}"
                         if prev is None or prev.get("track_key") != track_key:
                             if prev and prev.get("track_key") and prev.get("started_at"):
-                                post_history(prev["track_info"], room, prev["started_at"], now)
-                            room_state[room] = {"track_key": track_key, "track_info": info, "started_at": now}
+                                post_history(prev["track_info"], room, prev["started_at"], now,
+                                             prov_snapshot=prev.get("prov_at_start", _PROV_UNSET))
+                            # v2.63: snapshot the CURRENT provenance onto the starting
+                            # track (Rule 27 -- state travels with the track; retire
+                            # reads this snapshot, never the future live pointer).
+                            _prov_now = _get_queue_provenance(coord_name)
+                            room_state[room] = {"track_key": track_key, "track_info": info,
+                                                "started_at": now,
+                                                "prov_at_start": dict(_prov_now) if _prov_now else None}
                             log(f'> {room}: "{info["title"]}" - {info["artist"]} [{info["service"]}]')
                             # Track change detection: commanded (within 8s of a command) vs organic (user/app)
                             _is_commanded = (time.time() - _last_command_at < 8)
@@ -6595,7 +6764,8 @@ def sonos_main_loop():
                     else:
                         was_playing = prev and prev.get("track_key")
                         if was_playing and prev.get("started_at"):
-                            post_history(prev["track_info"], room, prev["started_at"], now)
+                            post_history(prev["track_info"], room, prev["started_at"], now,
+                                         prov_snapshot=prev.get("prov_at_start", _PROV_UNSET))
                         room_state[room] = None
                         if was_playing:
                             schedule_state_push()  # push on playing->stopped transition only
@@ -6605,7 +6775,8 @@ def sonos_main_loop():
                 if room not in seen_rooms:
                     prev = room_state.get(room)
                     if prev and prev.get("track_key") and prev.get("started_at"):
-                        post_history(prev["track_info"], room, prev["started_at"], now)
+                        post_history(prev["track_info"], room, prev["started_at"], now,
+                                     prov_snapshot=prev.get("prov_at_start", _PROV_UNSET))
                     room_state[room] = None
 
             # Clean up _last_ui_track for coordinators that vanished from network
