@@ -1167,7 +1167,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.15';
+const PAGE_VERSION = 'p3.16';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -5073,7 +5073,25 @@ setInterval(() => {
 let _geoZones = null;         // geo_zones.json payload (fetched once per session)
 let _geoUserTouched = false;  // manual chip interaction this session → geo degrades to hint
 let _geoPlaySent = false;     // play-class send from this browser this session → degrade to hint
-let _geoApplied = false;      // decision made this session (denied/timeout leaves false → retry on foreground)
+let _geoApplied = false;      // a decision has been made (see _geoLastRun for re-arm)
+let _geoLastRun = 0;          // p3.16: ts of last decision — foreground re-runs after rearm_s (level-triggered, Rule 27)
+
+// p3.16: field-visible geo status line under the chips — silence was undiagnosable
+function _geoStatus(msg) {
+  try {
+    const anchor = document.getElementById('rooms-vashon');
+    if (!anchor) return;
+    let el = document.getElementById('geo-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'geo-status';
+      el.style.cssText = 'font-size:10px;color:#5a6478;margin:4px 2px 0;';
+      anchor.insertAdjacentElement('afterend', el);
+    }
+    const t = new Date();
+    el.textContent = '📍 ' + t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0') + ' — ' + msg;
+  } catch (e) { console.log('[geo] status ERROR: ' + e); }
+}
 let _geoHintTimer = null;
 let _geoPendingOptions = null;
 const GEO_ZONES_URL = 'https://shumania.github.io/lifelog/geo_zones.json';
@@ -5126,11 +5144,19 @@ function geoAcceptOption(idx) {
 async function geoMaybeRun(trigger) {
   try {
     console.log('[geo] run (' + trigger + ') house=' + house + ' applied=' + _geoApplied + ' touched=' + _geoUserTouched + ' playSent=' + _geoPlaySent);
-    if (house !== 'vashon' || _geoApplied) return;
-    if (!('geolocation' in navigator)) { console.log('[geo] no geolocation API'); _geoApplied = true; return; }
+    if (house !== 'vashon') return;
+    // p3.16: level-triggered re-arm — iOS PWA pages live for days; "launch" is usually a
+    // resume, so a one-shot decision from this morning must not silence geo forever.
+    const rearmMs = ((_geoZones && _geoZones.vashon && _geoZones.vashon.rearm_s) || 300) * 1000;
+    if (_geoApplied && (Date.now() - _geoLastRun) < rearmMs) {
+      console.log('[geo] within rearm window (' + Math.round((rearmMs - (Date.now() - _geoLastRun)) / 1000) + 's left) — skip');
+      return;
+    }
+    if (_geoApplied) console.log('[geo] rearm: last decision ' + Math.round((Date.now() - _geoLastRun) / 1000) + 's ago — re-running');
+    if (!('geolocation' in navigator)) { console.log('[geo] no geolocation API'); _geoApplied = true; _geoLastRun = Number.MAX_SAFE_INTEGER; return; }
     if (!_geoZones) {
       const r = await fetch(GEO_ZONES_URL + '?t=' + (Date.now() >> 16));
-      if (!r.ok) { console.log('[geo] zones fetch HTTP ' + r.status + ' — dormant this session'); _geoApplied = true; return; }
+      if (!r.ok) { console.log('[geo] zones fetch HTTP ' + r.status + ' — retry after rearm'); _geoApplied = true; _geoLastRun = Date.now(); return; }
       _geoZones = await r.json();
       console.log('[geo] zones v' + _geoZones.version + ' (' + _geoZones.updated + ') loaded');
     }
@@ -5142,12 +5168,14 @@ async function geoMaybeRun(trigger) {
         { enableHighAccuracy: !!z.fix.high_accuracy, timeout: (z.fix.timeout_s || 8) * 1000, maximumAge: (z.fix.max_age_s || 120) * 1000 }
       );
     });
-    if (!fix) return; // denied/timeout — silent; retry on next foreground
+    if (!fix) { _geoStatus('no GPS fix — will retry on next open'); return; } // denied/timeout — retry on next foreground
     const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
-    console.log('[geo] fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm');
+    const fixAgeS = Math.max(0, Math.round((Date.now() - fix.timestamp) / 1000));
+    console.log('[geo] fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · age ' + fixAgeS + 's');
     const dHome = _geoDistM(lat, lon, z.centroid.lat, z.centroid.lon);
     _geoApplied = true;
-    if (dHome > z.presence_radius_m) { console.log('[geo] outside Vashon (' + Math.round(dHome) + 'm > ' + z.presence_radius_m + 'm) — no chip'); return; }
+    _geoLastRun = Date.now();
+    if (dHome > z.presence_radius_m) { console.log('[geo] outside Vashon (' + Math.round(dHome) + 'm > ' + z.presence_radius_m + 'm) — no chip'); _geoStatus('outside Vashon (' + Math.round(dHome) + 'm away)'); return; }
     const ranked = Object.entries(z.structures)
       .map(([key, s]) => ({ key, s, d: _geoDistM(lat, lon, s.lat, s.lon) }))
       .sort((a, b) => a.d - b.d);
@@ -5155,7 +5183,11 @@ async function geoMaybeRun(trigger) {
     const margin = ru.d - w.d;
     const gate = Math.max(acc, z.gate.min_margin_m);
     console.log('[geo] nearest=' + w.key + ' ' + Math.round(w.d) + 'm · runner-up=' + ru.key + ' ' + Math.round(ru.d) + 'm · margin=' + Math.round(margin) + 'm vs gate=' + Math.round(gate) + 'm');
-    if (margin <= gate) { console.log('[geo] confidence gate FAILED — no chip, no guess'); return; }
+    if (margin <= gate) {
+      console.log('[geo] confidence gate FAILED — no chip, no guess');
+      _geoStatus(w.s.label + ' vs ' + ru.s.label + ' too close to call (' + Math.round(margin) + 'm margin, need >' + Math.round(gate) + 'm · fix ±' + Math.round(acc) + 'm, ' + fixAgeS + 's old)');
+      return;
+    }
     const opts = w.s.options;
     _geoPendingOptions = opts;
     const safe = !_geoUserTouched && !_geoPlaySent;
@@ -5163,10 +5195,12 @@ async function geoMaybeRun(trigger) {
       geoSelectRooms(opts[0].rooms, 'auto-preselect near ' + w.s.label);
       _geoShowHint('📍 Preselected: <b>' + esc(opts[0].rooms.join(' + ')) + '</b> (near ' + esc(w.s.label) + ')');
       showToast('📍 Preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');  // visible even with speakers drawer closed
+      _geoStatus('preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');
     } else {
       const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
       _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> — ' + btns);
       console.log('[geo] tap-option hint shown (options=' + opts.length + ', safe=' + safe + ')');
+      _geoStatus('near ' + w.s.label + (safe ? '' : ' (manual selection respected — tap hint to switch)'));
     }
   } catch (e) {
     console.log('[geo] ERROR: ' + e);
