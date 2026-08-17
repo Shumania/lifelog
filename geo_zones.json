@@ -1,43 +1,86 @@
 {
-  "version": 1,
-  "updated": "2026-08-15",
-  "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). Standalone data file — edits are data-only pushes, no page release. Survey: geo_survey.html 2026-08-14/15, sauna re-surveyed with 15 samples.",
+  "version": 2,
+  "updated": "2026-08-16",
+  "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). v2 (p3.16): max_age_s 120->25 (stale indoor fixes broke the sauna/main gate when walking outside), rearm_s added (foreground re-run after 300s \u2014 iOS PWA resume fix).",
   "vashon": {
-    "centroid": { "lat": 47.3657420, "lon": -122.4681911 },
+    "centroid": {
+      "lat": 47.365742,
+      "lon": -122.4681911
+    },
     "presence_radius_m": 250,
-    "gate": { "min_margin_m": 10 },
-    "fix": { "max_age_s": 120, "timeout_s": 8, "high_accuracy": true },
+    "gate": {
+      "min_margin_m": 10
+    },
+    "fix": {
+      "max_age_s": 25,
+      "timeout_s": 8,
+      "high_accuracy": true
+    },
     "chip_dismiss_s": 90,
     "structures": {
       "garage": {
-        "lat": 47.3657305, "lon": -122.4671055,
+        "lat": 47.3657305,
+        "lon": -122.4671055,
         "label": "Garage",
         "options": [
-          { "label": "Select Garage + Garage Living Room", "rooms": ["Garage", "Garage Living Room"] }
+          {
+            "label": "Select Garage + Garage Living Room",
+            "rooms": [
+              "Garage",
+              "Garage Living Room"
+            ]
+          }
         ]
       },
       "shed": {
-        "lat": 47.3657897, "lon": -122.4682952,
+        "lat": 47.3657897,
+        "lon": -122.4682952,
         "label": "the Shed",
         "options": [
-          { "label": "Select Shed Arc + Shed Boombox", "rooms": ["Shed Arc", "Shed Boombox"] }
+          {
+            "label": "Select Shed Arc + Shed Boombox",
+            "rooms": [
+              "Shed Arc",
+              "Shed Boombox"
+            ]
+          }
         ]
       },
       "sauna": {
-        "lat": 47.3656803, "lon": -122.4688115,
+        "lat": 47.3656803,
+        "lon": -122.4688115,
         "label": "the Sauna",
         "options": [
-          { "label": "Select Sauna Porch", "rooms": ["Sauna Porch"] }
+          {
+            "label": "Select Sauna Porch",
+            "rooms": [
+              "Sauna Porch"
+            ]
+          }
         ]
       },
       "main": {
-        "lat": 47.3657675, "lon": -122.4685521,
+        "lat": 47.3657675,
+        "lon": -122.4685521,
         "label": "Main House",
         "options": [
-          { "label": "🛋 Interior", "rooms": ["Main Living Room Maury", "Main Kitchen Green Move 2", "Sonos Move"] },
-          { "label": "🌤 Deck", "rooms": ["Main Lower Deck"] }
+          {
+            "label": "\ud83d\udecb Interior",
+            "rooms": [
+              "Main Living Room Maury",
+              "Main Kitchen Green Move 2",
+              "Sonos Move"
+            ]
+          },
+          {
+            "label": "\ud83c\udf24 Deck",
+            "rooms": [
+              "Main Lower Deck"
+            ]
+          }
         ]
       }
-    }
+    },
+    "rearm_s": 300
   }
 }
