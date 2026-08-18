@@ -1,0 +1,19 @@
+{
+ "picked_at": "2026-08-18T17:37:17.213Z",
+ "pick_date": "2026-08-18",
+ "work_key": "BWV1030-1035",
+ "work": "Flute Sonatas",
+ "performer": "Emmanuel Pahud & Trevor Pinnock",
+ "album": "Bach: Complete Flute Sonatas",
+ "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen",
+ "instrumentation": "chamber",
+ "approx_minutes": 100,
+ "reason": "✨ never heard",
+ "fallback": {
+  "work_key": "ARR-WTC-CONSORT-III",
+  "work": "The Well-Tempered Consort III",
+  "performer": "Phantasm",
+  "album": "Bach: The Well-Tempered Consort – III",
+  "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96"
+ }
+}
