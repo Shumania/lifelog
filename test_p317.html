@@ -5781,7 +5781,9 @@ async function runShortcut(id) {
         if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
         // p3.12 (D9): play-class sends are a statement of focus — remember their rooms.
         // Volume/regroup steps are NOT (vol-1% loops must never hijack selection).
-        if (String(p.action).indexOf('play') === 0) {
+        // p3.17: replace_queue is play-class too (Daily Bach) — it starts playback,
+        // so it's a statement of focus just like play_next/play_uri (D9).
+        if (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue') {
           for (const rm of (p.rooms || (p.room ? [p.room] : []))) {
             if (rm && _scPlayRooms.indexOf(rm) === -1) _scPlayRooms.push(rm);
           }
