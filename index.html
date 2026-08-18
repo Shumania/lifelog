@@ -1167,7 +1167,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.16';
+const PAGE_VERSION = 'p3.17';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -5624,6 +5624,19 @@ let _plAccountOwnerId = null;  // p2.43: modal owner_id across playlists = accou
 // resolver library below; unknown resolvers fail loudly and never send.
 // ═══════════════════════════════════════════════════════════════════════════
 const SHORTCUTS_URL = 'https://shumania.github.io/lifelog/shortcuts.json';
+// p3.17 🎼 Daily Bach (design_bach_daily_v1.md): nightly-published pick consumed by
+// the bach_pick resolver (tap) and dynamic tile subs (title-on-tile, Rev 1.3).
+const BACH_PICK_URL = 'https://shumania.github.io/lifelog/bach_pick.json';
+let _bachPick = null;
+async function _bachFetchPick(force) {
+  if (_bachPick && !force) return _bachPick;
+  try {
+    const r = await fetch(BACH_PICK_URL + '?t=' + Date.now());
+    if (r.ok) { _bachPick = await r.json(); console.log('[shortcuts] bach_pick loaded: ' + _bachPick.pick_date + ' "' + _bachPick.work + '" — ' + _bachPick.performer); }
+    else console.error('[shortcuts] bach_pick fetch HTTP ' + r.status);
+  } catch (e) { console.error('[shortcuts] bach_pick fetch failed:', e); }
+  return _bachPick;
+}
 let _shortcuts = [];
 let _scBusy = null;  // id of currently-running shortcut (one at a time)
 const _scSleep = ms => new Promise(r => setTimeout(r, ms));
@@ -5636,6 +5649,17 @@ async function loadShortcuts() {
     const d = await r.json();
     _shortcuts = (d && d.shortcuts) || [];
     console.log('[shortcuts] loaded ' + _shortcuts.length + ' shortcuts (file v' + (d && d.version) + ')');
+    // p3.17: 🎼 Daily Bach tiles carry today's pick on the tile (Rev 1.3 title-on-tile).
+    // Fire-and-forget: tiles render immediately with the static sub, then upgrade.
+    if (_shortcuts.some(sc => sc.dynamic === 'bach_pick')) {
+      _bachFetchPick().then(p => {
+        if (!p) return;
+        for (const sc of _shortcuts) if (sc.dynamic === 'bach_pick') {
+          sc.sub = p.work + ' — ' + p.performer + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '');
+        }
+        renderShortcuts();
+      });
+    }
   } catch (e) {
     console.error('[shortcuts] load failed:', e);
     showToast('✗ Shortcuts load failed: ' + e.message, true);
@@ -5678,7 +5702,7 @@ async function _scExpandStep(step, h) {
   delete s.resolve; delete s.delay_after_ms;
   if (!resolve) return [s];
 
-  const known = ['each_room', 'newest_playlist', 'group_of'];
+  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick'];
   const unknown = Object.keys(resolve).filter(k => !known.includes(k));
   if (unknown.length) throw new Error('unknown resolver(s): ' + unknown.join(', ') + ' — update the app');
 
@@ -5689,6 +5713,20 @@ async function _scExpandStep(step, h) {
     if (!rooms.length) throw new Error('no rooms_all in state-' + h + '.json');
     console.log('[shortcuts] each_room(' + h + ') → ' + rooms.length + ' rooms: ' + rooms.join(', '));
     return rooms.map(rm => Object.assign({}, s, { room: rm }));
+  }
+
+  if (resolve.bach_pick) {
+    // 🎼 Daily Bach (p3.17): today's pre-picked canon recording from the nightly-
+    // published bach_pick.json. Force a FRESH fetch at tap time — a page left open
+    // across the nightly boundary must play today's pick, not the cached one.
+    // If the file is a day old (nightly missed), we still play it: honest-stale
+    // beats silence (Rule 27) and it's still a valid, cooldown-respecting pick.
+    const pick = await _bachFetchPick(true);
+    if (!pick || !pick.spotify_album_uri) throw new Error('bach_pick.json unavailable — no pick to play');
+    s.uri = pick.spotify_album_uri;
+    if (!s.title) s.title = pick.work;
+    if (!s.artist) s.artist = pick.performer;
+    console.log('[shortcuts] bach_pick(' + pick.pick_date + ') → "' + pick.work + '" — ' + pick.performer + ' (' + s.uri + ')');
   }
 
   if (resolve.newest_playlist) {
@@ -5716,6 +5754,11 @@ async function _scExpandStep(step, h) {
     console.log('[shortcuts] group_of(' + resolve.group_of + ') → [' + rooms.join(', ') + ']');
   }
 
+  // p3.17: replace_queue transport expects a primary `room` alongside `rooms`
+  // (mirrors the sheet's payload shape at line ~4563). Resolved rooms are
+  // coordinator-first (group_of), so rooms[0] is the correct primary.
+  if (s.action === 'replace_queue' && !s.room && s.rooms && s.rooms.length) s.room = s.rooms[0];
+
   return [s];
 }
 
@@ -5738,7 +5781,9 @@ async function runShortcut(id) {
         if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
         // p3.12 (D9): play-class sends are a statement of focus — remember their rooms.
         // Volume/regroup steps are NOT (vol-1% loops must never hijack selection).
-        if (String(p.action).indexOf('play') === 0) {
+        // p3.17: replace_queue is play-class too (Daily Bach) — it starts playback,
+        // so it's a statement of focus just like play_next/play_uri (D9).
+        if (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue') {
           for (const rm of (p.rooms || (p.room ? [p.room] : []))) {
             if (rm && _scPlayRooms.indexOf(rm) === -1) _scPlayRooms.push(rm);
           }
