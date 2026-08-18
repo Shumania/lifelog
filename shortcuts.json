@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "generated_at": "2026-08-14T20:52:53Z",
+  "version": 3,
+  "generated_at": "2026-08-18T17:40:20Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -113,6 +113,52 @@
           "resolve": {
             "newest_playlist": "^Garage Burn",
             "group_of": "Garage"
+          }
+        }
+      ]
+    },
+    {
+      "id": "daily-bach-lowerdeck",
+      "label": "Daily Bach → Lower Deck",
+      "sub": "Today's pick · vol 55",
+      "icon": "🎼",
+      "house": "vashon",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
+      "steps": [
+        {
+          "action": "set_volume",
+          "room": "Main Lower Deck",
+          "volume": 55
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true,
+            "group_of": "Main Lower Deck"
+          }
+        }
+      ]
+    },
+    {
+      "id": "daily-bach-shedarc",
+      "label": "Daily Bach → Shed Arc",
+      "sub": "Today's pick · vol 18",
+      "icon": "🎼",
+      "house": "vashon",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
+      "steps": [
+        {
+          "action": "set_volume",
+          "room": "Shed Arc",
+          "volume": 18
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true,
+            "group_of": "Shed Arc"
           }
         }
       ]
