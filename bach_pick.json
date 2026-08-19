@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-18T17:37:17.213Z",
- "pick_date": "2026-08-18",
- "work_key": "BWV1030-1035",
- "work": "Flute Sonatas",
- "performer": "Emmanuel Pahud & Trevor Pinnock",
- "album": "Bach: Complete Flute Sonatas",
- "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen",
- "instrumentation": "chamber",
- "approx_minutes": 100,
- "reason": "✨ never heard",
+ "picked_at": "2026-08-19T10:24:10.685Z",
+ "pick_date": "2026-08-19",
+ "work_key": "BWV812-815",
+ "work": "French Suites Nos. 1-4",
+ "performer": "Glenn Gould",
+ "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
+ "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh",
+ "instrumentation": "piano",
+ "approx_minutes": 47,
+ "reason": "last heard 67d ago · avoided chamber",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-III",
-  "work": "The Well-Tempered Consort III",
-  "performer": "Phantasm",
-  "album": "Bach: The Well-Tempered Consort – III",
-  "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96"
+  "work_key": "BWV910-916",
+  "work": "Seven Toccatas",
+  "performer": "Mahan Esfahani",
+  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
  }
 }
