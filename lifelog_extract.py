@@ -25,13 +25,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.8"
+EXTRACTOR_VERSION = "2.9"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
 
 # -- Configuration (injected by installer) -----------------------------------
-WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=2a1433f1fa487e647ee1d12c7f26a497"
+WEBHOOK_URL = "https://webhooks.tasklet.ai/v1/public/webhook/a_6wpr72br57jedk1a5e1e?token=1e906f766d67d469a58a1f1390d7659e"
 BACKUP_PASSWORD = "#ngrierBill70"
 DEVICE_ID = socket.gethostname()
 
