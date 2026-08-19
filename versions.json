@@ -1,4 +1,5 @@
 {
+  "extractor_version": "2.9",
   "service_version": "2.63.1",
   "clients": {
     "lifelog_mind": "2.63.1",
