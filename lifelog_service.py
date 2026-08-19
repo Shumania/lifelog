@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.63.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.64.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -741,6 +741,9 @@ print("[v2.63] provenance temporal gate + prov_at_start snapshots active; canary
 # v2.63.1 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[v2.63.1] stale-topology fixes active: coordinator-set SSE gate + sync_rooms fresh-groups stamp + "
       "coordinator resolve on cycle_repeat/clear_queue/truncate_queue")
+# v2.64.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.64.0] run_extract on-demand command active: Data-service can trigger backup extract via ntfy "
+      "(Event-wake on backup thread, concurrency + module guards)")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -2602,6 +2605,14 @@ def version_check_thread():
         except: pass
 
 # --- BACKUP MODULE THREAD ---------------------------------------------------
+# v2.64: on-demand extract trigger (Data-service `run_extract` command — see
+# home-bridge/request-run-extract.md). The wake Event lets execute_command nudge
+# the backup thread without a second code path: the on-demand run executes on
+# the SAME thread/loop as the hourly timer, so runs are naturally serialized.
+# _EXTRACT_STATE powers the command guards (module inactive / already running).
+_BACKUP_WAKE = threading.Event()
+_EXTRACT_STATE = {"module_active": False, "running": False}
+
 def backup_thread():
     """Run lifelog_extract.py every hour; it handles cursor/hash dedup internally."""
     try:
@@ -2613,6 +2624,7 @@ def backup_thread():
         except: pass
 
 def _backup_thread_inner():
+    _EXTRACT_STATE["module_active"] = True   # v2.64: run_extract command guard
     extract = INSTALL_DIR / "lifelog_extract.py"
     # v2.58 A5: the iPhone-backup pipeline is on hold (2026-07-28), so
     # lifelog_extract.py prints "ERROR: No iPhone backup found" EVERY hourly run
@@ -2626,6 +2638,7 @@ def _backup_thread_inner():
         if not extract.exists():
             log("Backup: lifelog_extract.py not found -- skipping")
             return
+        _EXTRACT_STATE["running"] = True   # v2.64: concurrency guard for run_extract
         log("Backup: running lifelog_extract.py...")
         try:
             result = subprocess.run(
@@ -2654,11 +2667,21 @@ def _backup_thread_inner():
         except Exception as e:
             post_error(f"Backup run error: {e}",
                        context=traceback.format_exc()[:500], module="backup")
+        finally:
+            _EXTRACT_STATE["running"] = False   # v2.64: always clear guard
 
     time.sleep(30)   # let service settle
     run_extract()    # immediate run on start
     while True:
-        time.sleep(BACKUP_INTERVAL)
+        # v2.64: interruptible wait — the `run_extract` command sets _BACKUP_WAKE
+        # for an immediate on-demand run; otherwise fire on the hourly timer.
+        # A wake that lands mid-run is not lost: wait() returns immediately on
+        # the next loop pass, and the extractor's cursor/hash dedup makes the
+        # extra run a cheap no-op if nothing changed.
+        woke = _BACKUP_WAKE.wait(timeout=BACKUP_INTERVAL)
+        _BACKUP_WAKE.clear()
+        if woke:
+            log("Backup: on-demand wakeup (run_extract command)")
         run_extract()
 
 # --- DEV LOOP THREAD --------------------------------------------------------
@@ -4234,9 +4257,9 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
 
 # v2.54: sync_rooms is now silent — its result travels over SSE only (see the
 # sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue", "run_extract"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
-NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms"}
+NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms", "run_extract"}
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -4364,6 +4387,27 @@ def execute_command(cmd, source="unknown"):
             publish_ui_event("status_update", {})
             result["success"] = True
             result["message"] = "SSE push queued"
+
+        elif action == "run_extract":
+            # v2.64: Data-service request (home-bridge/request-run-extract.md) —
+            # trigger the backup-module extract on demand. Same code path as the
+            # hourly timer: set _BACKUP_WAKE, the backup thread runs
+            # lifelog_extract.py (stdout/stderr relayed to log as usual).
+            # SILENT + NON_STATE action: ack is the log line; the Data service
+            # observes success by data arriving at its own webhook.
+            if not _EXTRACT_STATE["module_active"]:
+                log("run_extract: backup module not enabled on this machine -- skipped")
+                result["success"] = False
+                result["message"] = "backup module not enabled"
+            elif _EXTRACT_STATE["running"]:
+                log("extract already in progress — skipped")
+                result["success"] = False
+                result["message"] = "extract already in progress"
+            else:
+                _BACKUP_WAKE.set()
+                log("run_extract: waking backup thread for immediate extract")
+                result["success"] = True
+                result["message"] = "extract triggered"
 
         elif action == "get_state":
             state = []
