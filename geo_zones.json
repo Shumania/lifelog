@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "updated": "2026-08-16",
-  "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). v2 (p3.16): max_age_s 120->25 (stale indoor fixes broke the sauna/main gate when walking outside), rearm_s added (foreground re-run after 300s \u2014 iOS PWA resume fix).",
+  "version": 3,
+  "updated": "2026-08-20",
+  "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). v2 (p3.16): max_age_s 120->25, rearm_s 300 added. v3: sauna reference updated from 2026-08-20 re-survey (2m/16 samples); sauna-main separation now 25.5m.",
   "vashon": {
     "centroid": {
       "lat": 47.365742,
@@ -47,8 +47,8 @@
         ]
       },
       "sauna": {
-        "lat": 47.3656803,
-        "lon": -122.4688115,
+        "lat": 47.3656328,
+        "lon": -122.4688266,
         "label": "the Sauna",
         "options": [
           {
