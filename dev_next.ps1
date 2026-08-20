@@ -1,58 +1,55 @@
-# dev_next: 2026-08-19 enable backup module on Mind + install lifelog_extract.py (Mind only)
+# dev_next: 2026-08-19 locate iPhone backup on Mind (read-only inspection, Mind only)
 if ($env:COMPUTERNAME -notlike "*mind*") { exit 0 }
 $ErrorActionPreference = "Continue"
-$dir = "C:\ProgramData\LifeLog"
-$cfgPath = Join-Path $dir "lifelog_config.json"
-Write-Output ("=== enable backup module ({0}) ===" -f $env:COMPUTERNAME)
-
-# --- Step 1: config change ---
-if (-not (Test-Path $cfgPath)) {
-  Write-Output "FAIL: config not found at $cfgPath -- aborting (no changes made)"
-  exit 0
+Write-Output ("=== iPhone backup locator ({0}) ===" -f $env:COMPUTERNAME)
+Write-Output ("service running as: {0}\{1}" -f $env:USERDOMAIN, $env:USERNAME)
+Write-Output ("APPDATA:      {0}" -f $env:APPDATA)
+Write-Output ("USERPROFILE:  {0}" -f $env:USERPROFILE)
+Write-Output ("LOCALAPPDATA: {0}" -f $env:LOCALAPPDATA)
+Write-Output ""
+Write-Output "--- extractor's three search paths ---"
+$paths = @(
+  (Join-Path $env:APPDATA "Apple Computer\MobileSync\Backup"),
+  (Join-Path $env:USERPROFILE "Apple\MobileSync\Backup"),
+  (Join-Path $env:LOCALAPPDATA "Apple\MobileSync\Backup")
+)
+foreach ($p in $paths) {
+  if (Test-Path $p) { Write-Output ("EXISTS: {0}" -f $p) } else { Write-Output ("absent: {0}" -f $p) }
 }
-$raw = Get-Content $cfgPath -Raw
-Write-Output "--- config BEFORE ---"
-Write-Output $raw.Trim()
-try {
-  $cfg = $raw | ConvertFrom-Json
-} catch {
-  Write-Output ("FAIL: config JSON parse error: {0} -- aborting (no changes made)" -f $_.Exception.Message)
-  exit 0
+Write-Output ""
+Write-Output "--- scanning ALL user profiles for MobileSync backups ---"
+$found = 0
+foreach ($u in (Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue)) {
+  $cands = @(
+    (Join-Path $u.FullName "AppData\Roaming\Apple Computer\MobileSync\Backup"),
+    (Join-Path $u.FullName "Apple\MobileSync\Backup"),
+    (Join-Path $u.FullName "AppData\Local\Apple\MobileSync\Backup")
+  )
+  foreach ($c in $cands) {
+    if (Test-Path $c) {
+      Write-Output ("FOUND BASE: {0}" -f $c)
+      foreach ($d in (Get-ChildItem $c -Directory -ErrorAction SilentlyContinue)) {
+        $man = Join-Path $d.FullName "Manifest.db"
+        $manP = Join-Path $d.FullName "Manifest.plist"
+        $stamp = "no manifest"
+        if (Test-Path $man) { $stamp = ("Manifest.db {0:u}" -f (Get-Item $man).LastWriteTime) }
+        elseif (Test-Path $manP) { $stamp = ("Manifest.plist {0:u}" -f (Get-Item $manP).LastWriteTime) }
+        $size = [math]::Round(((Get-ChildItem $d.FullName -Recurse -File -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum / 1GB), 2)
+        Write-Output ("  {0}  |  {1}  |  ~{2} GB" -f $d.Name, $stamp, $size)
+        $found++
+      }
+    }
+  }
 }
-$mods = @($cfg.modules)
-if ($mods.Count -eq 0) { Write-Output "note: no modules key found; service default applies -- will write explicit list" ; $mods = @("sonos","dev") }
-if ($mods -contains "backup") {
-  Write-Output "modules already contain 'backup' -- config unchanged"
-} else {
-  $mods = $mods + "backup"
-  $cfg | Add-Member -NotePropertyName modules -NotePropertyValue $mods -Force
-  $json = $cfg | ConvertTo-Json -Depth 10
-  Copy-Item $cfgPath ($cfgPath + ".bak_20260819") -Force
-  [System.IO.File]::WriteAllText($cfgPath, $json, (New-Object System.Text.UTF8Encoding($false)))
-  Write-Output "backup added to modules; backup copy saved as lifelog_config.json.bak_20260819"
+if (Test-Path "C:\ProgramData\LifeLog\backup_tmp") {
+  Write-Output "FOUND: C:\ProgramData\LifeLog\backup_tmp"
+  Get-ChildItem "C:\ProgramData\LifeLog\backup_tmp" -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Output ("  {0}" -f $_.Name); $found++ }
 }
-Write-Output "--- config AFTER ---"
-Write-Output ((Get-Content $cfgPath -Raw).Trim())
-
-# --- Step 2: install lifelog_extract.py (fresh from repo; cursor/state files untouched) ---
-$extPath = Join-Path $dir "lifelog_extract.py"
-$before = "NOT PRESENT"
-if (Test-Path $extPath) { $fi = Get-Item $extPath; $before = ("{0}b modified {1:u}" -f $fi.Length, $fi.LastWriteTimeUtc) }
-Write-Output ("extract before: {0}" -f $before)
-try {
-  $url = "https://raw.githubusercontent.com/Shumania/lifelog/main/lifelog_extract.py"
-  Invoke-WebRequest -Uri $url -OutFile $extPath -UseBasicParsing -TimeoutSec 60
-  $fi = Get-Item $extPath
-  Write-Output ("extract after: {0}b modified {1:u}" -f $fi.Length, $fi.LastWriteTimeUtc)
-  $verLine = Select-String -Path $extPath -Pattern "EXTRACTOR_VERSION" | Select-Object -First 1
-  Write-Output ("version line: {0}" -f $verLine.Line.Trim())
-  $whLine = Select-String -Path $extPath -Pattern "^WEBHOOK_URL" | Select-Object -First 1
-  Write-Output ("webhook line: {0}" -f $whLine.Line.Trim())
-} catch {
-  Write-Output ("FAIL: extract download error: {0}" -f $_.Exception.Message)
+if ($found -eq 0) { Write-Output "NO BACKUPS FOUND anywhere under C:\Users\* or backup_tmp" }
+Write-Output ""
+Write-Output "--- Apple backup software installed? ---"
+foreach ($exe in @("iTunes","Apple Devices","AppleMobileBackup")) {
+  $hit = Get-ChildItem "C:\Program Files","C:\Program Files (x86)","C:\Program Files\WindowsApps" -Directory -Filter ("*{0}*" -f $exe) -ErrorAction SilentlyContinue | Select-Object -First 2
+  foreach ($h in $hit) { Write-Output ("installed: {0}" -f $h.FullName) }
 }
-
-# --- Step 3: state files inventory (should be untouched / may not exist yet) ---
-Write-Output "=== state/cursor files in $dir (untouched by this script) ==="
-Get-ChildItem $dir -Include "*cursor*","*state*","*extract*" -Recurse -ErrorAction SilentlyContinue | ForEach-Object { Write-Output ("{0}  {1}b  {2:u}" -f $_.Name, $_.Length, $_.LastWriteTimeUtc) }
-Write-Output "=== done -- restart service to activate backup thread ==="
+Write-Output "=== locator done (read-only, nothing modified) ==="
