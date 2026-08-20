@@ -1250,6 +1250,16 @@ function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
 // history-corroboration inference (p2.66/p2.67) made obsolete by v2.54.
 const PAUSE_TTL_MS = 3600000;
 let _pausedAtByHouse = {};      // house -> {room: epoch_seconds} — service truth (v2.54)
+// p3.18: paused_at arrives as epoch seconds on some paths and ISO-8601 strings in
+// state-{house}.json. Number('2026-...Z') = NaN, which the old TTL check treated as
+// "no clock" → 19-hour-old pauses rendered ⏸ forever. Parse both formats honestly.
+function _pausedEpochSec(v) {
+  if (v == null) return 0;
+  const n = Number(v);
+  if (isFinite(n) && n > 0) return n;
+  const p = Date.parse(v);
+  return isFinite(p) ? p / 1000 : 0;
+}
 function _setPaused(h, rooms, pausedAt) {
   _roomsPausedByHouse[h] = [...rooms];
   if (pausedAt && typeof pausedAt === 'object') _pausedAtByHouse[h] = { ...pausedAt };
@@ -1259,8 +1269,8 @@ function _rpPausedGet(h) {
   const now = Date.now();
   const at = _pausedAtByHouse[h] || {};
   return (_roomsPausedByHouse[h] || []).filter(r => {
-    const ts = Number(at[r]) * 1000;
-    if (!ts) return true;  // no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
+    const ts = _pausedEpochSec(at[r]) * 1000;
+    if (!ts) return true;  // genuinely no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
     return (now - ts) < PAUSE_TTL_MS;
   });
 }
@@ -1700,7 +1710,7 @@ function selectPlaying(h) {
       const key = members.slice().sort().join('|');
       if (seen.has(key)) continue;
       seen.add(key);
-      cands.push({ members, ts: Math.max(...members.map(m => Number(at[m]) || 0)) });
+      cands.push({ members, ts: Math.max(...members.map(m => _pausedEpochSec(at[m]))) });
     }
     if (!cands.length) {
       console.log('[\u2299] no PLAYING groups and no recently-paused groups for ' + h + ' — no-op');
