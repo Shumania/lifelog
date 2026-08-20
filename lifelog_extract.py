@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.9"
+EXTRACTOR_VERSION = "2.10"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -41,6 +41,29 @@ BACKUP_PATHS = [
     Path(os.environ.get("USERPROFILE", "")) / "Apple" / "MobileSync" / "Backup",        # Apple Devices (new)
     Path(os.environ.get("LOCALAPPDATA", "")) / "Apple" / "MobileSync" / "Backup",
 ]
+
+# When the service runs as SYSTEM (LocalSystem), the env vars above resolve to
+# C:\WINDOWS\system32\config\systemprofile, hiding backups stored under real
+# user profiles (e.g. C:\Users\Shumadmin\Apple\MobileSync\Backup). Widen the
+# scan to every local user profile. find_backup_dir()'s UDID + Manifest filters
+# and newest-manifest selection make the extra candidates safe on machines
+# where the env-var paths already work.
+def _user_profile_backup_paths():
+    found = []
+    try:
+        users_root = Path(r"C:\Users")
+        if users_root.exists():
+            for pattern in (
+                "*/Apple/MobileSync/Backup",                           # Apple Devices / MS Store iTunes
+                "*/AppData/Roaming/Apple Computer/MobileSync/Backup",  # classic iTunes
+                "*/AppData/Local/Apple/MobileSync/Backup",
+            ):
+                found.extend(users_root.glob(pattern))
+    except Exception:
+        pass  # never let path discovery break extraction
+    return found
+
+BACKUP_PATHS += _user_profile_backup_paths()
 
 # -- libimobiledevice paths ---------------------------------------------------
 IDEVICEBACKUP2_PATHS = [
