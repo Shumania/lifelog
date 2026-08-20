@@ -1,180 +1,195 @@
 {
-  "version": 3,
-  "generated_at": "2026-08-18T17:40:20Z",
-  "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
-  "shortcuts": [
+ "version": 5,
+ "generated_at": "2026-08-18T17:40:20Z",
+ "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
+ "shortcuts": [
+  {
+   "id": "kcrw-e24-shedarc",
+   "label": "KCRW Eclectic 24 \u2192 Shed Arc",
+   "sub": "24-hour music stream \u00b7 vol 18",
+   "icon": "\ud83d\udcfb",
+   "house": "vashon",
+   "steps": [
     {
-      "id": "kcrw-e24-shedarc",
-      "label": "KCRW Eclectic 24 → Shed Arc",
-      "sub": "24-hour music stream · vol 18",
-      "icon": "📻",
-      "house": "vashon",
-      "steps": [
-        {
-          "action": "set_volume",
-          "room": "Shed Arc",
-          "volume": 18
-        },
-        {
-          "action": "play_uri",
-          "room": "Shed Arc",
-          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
-          "title": "KCRW Eclectic 24",
-          "artist": "KCRW"
-        }
-      ]
+     "action": "set_volume",
+     "room": "Shed Arc",
+     "volume": 18
     },
     {
-      "id": "kcrw-e24-caphill-main",
-      "label": "KCRW Eclectic 24 → Main Floor",
-      "sub": "Dining Room · Kitchen · Living Room · vol 18",
-      "icon": "📻",
-      "house": "caphill",
-      "steps": [
-        {
-          "action": "sync_rooms",
-          "rooms": [
-            "Living Room",
-            "Dining Room",
-            "Kitchen"
-          ],
-          "delay_after_ms": 6000
-        },
-        {
-          "action": "set_volume",
-          "room": "Living Room",
-          "volume": 18
-        },
-        {
-          "action": "set_volume",
-          "room": "Dining Room",
-          "volume": 18
-        },
-        {
-          "action": "set_volume",
-          "room": "Kitchen",
-          "volume": 18
-        },
-        {
-          "action": "play_uri",
-          "room": "Living Room",
-          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
-          "title": "KCRW Eclectic 24",
-          "artist": "KCRW"
-        }
-      ]
-    },
-    {
-      "id": "vol1-caphill",
-      "label": "All volume → 1%",
-      "sub": "Every room in the house",
-      "icon": "🔉",
-      "house": "caphill",
-      "steps": [
-        {
-          "action": "set_volume",
-          "volume": 1,
-          "resolve": {
-            "each_room": true
-          }
-        }
-      ]
-    },
-    {
-      "id": "vol1-vashon",
-      "label": "All volume → 1%",
-      "sub": "Every room in the house",
-      "icon": "🔉",
-      "house": "vashon",
-      "steps": [
-        {
-          "action": "set_volume",
-          "volume": 1,
-          "resolve": {
-            "each_room": true
-          }
-        }
-      ]
-    },
-    {
-      "id": "latest-garage-burn",
-      "label": "Latest Garage Burn → Garage",
-      "sub": "Replace queue & play · vol 30",
-      "icon": "🏋️",
-      "house": "vashon",
-      "steps": [
-        {
-          "action": "set_volume",
-          "room": "Garage",
-          "volume": 30
-        },
-        {
-          "action": "play_next",
-          "resolve": {
-            "newest_playlist": "^Garage Burn",
-            "group_of": "Garage"
-          }
-        }
-      ]
-    },
-    {
-      "id": "daily-bach-lowerdeck",
-      "label": "Daily Bach → Lower Deck",
-      "sub": "Today's pick · vol 55",
-      "icon": "🎼",
-      "house": "vashon",
-      "dynamic": "bach_pick",
-      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
-      "steps": [
-        {
-          "action": "set_volume",
-          "room": "Main Lower Deck",
-          "volume": 55
-        },
-        {
-          "action": "replace_queue",
-          "resolve": {
-            "bach_pick": true,
-            "group_of": "Main Lower Deck"
-          }
-        }
-      ]
-    },
-    {
-      "id": "daily-bach-shedarc",
-      "label": "Daily Bach → Shed Arc",
-      "sub": "Today's pick · vol 18",
-      "icon": "🎼",
-      "house": "vashon",
-      "dynamic": "bach_pick",
-      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
-      "steps": [
-        {
-          "action": "set_volume",
-          "room": "Shed Arc",
-          "volume": 18
-        },
-        {
-          "action": "replace_queue",
-          "resolve": {
-            "bach_pick": true,
-            "group_of": "Shed Arc"
-          }
-        }
-      ]
+     "action": "play_uri",
+     "room": "Shed Arc",
+     "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+     "title": "KCRW Eclectic 24",
+     "artist": "KCRW"
     }
-  ],
-  "defaults": {
-    "note": "Default play volume per room. Used by play shortcuts without explicit volume, by play.ts (mode=play), and by the agent when authoring new shortcuts. Rooms not listed use volume_fallback.",
-    "volume_fallback": 18,
-    "volume_by_room": {
-      "Garage": 30,
-      "Shed Arc": 18,
-      "Living Room": 18,
-      "Dining Room": 18,
-      "Kitchen": 18,
-      "Sauna Porch": 35,
-      "Main Lower Deck": 55
+   ]
+  },
+  {
+   "id": "kcrw-e24-caphill-main",
+   "label": "KCRW Eclectic 24 \u2192 Main Floor",
+   "sub": "Dining Room \u00b7 Kitchen \u00b7 Living Room \u00b7 vol 18",
+   "icon": "\ud83d\udcfb",
+   "house": "caphill",
+   "steps": [
+    {
+     "action": "sync_rooms",
+     "rooms": [
+      "Living Room",
+      "Dining Room",
+      "Kitchen"
+     ],
+     "delay_after_ms": 6000
+    },
+    {
+     "action": "set_volume",
+     "room": "Living Room",
+     "volume": 18
+    },
+    {
+     "action": "set_volume",
+     "room": "Dining Room",
+     "volume": 18
+    },
+    {
+     "action": "set_volume",
+     "room": "Kitchen",
+     "volume": 18
+    },
+    {
+     "action": "play_uri",
+     "room": "Living Room",
+     "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+     "title": "KCRW Eclectic 24",
+     "artist": "KCRW"
     }
+   ]
+  },
+  {
+   "id": "vol1-caphill",
+   "label": "All volume \u2192 1%",
+   "sub": "Every room in the house",
+   "icon": "\ud83d\udd09",
+   "house": "caphill",
+   "steps": [
+    {
+     "action": "set_volume",
+     "volume": 1,
+     "resolve": {
+      "each_room": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "vol1-vashon",
+   "label": "All volume \u2192 1%",
+   "sub": "Every room in the house",
+   "icon": "\ud83d\udd09",
+   "house": "vashon",
+   "steps": [
+    {
+     "action": "set_volume",
+     "volume": 1,
+     "resolve": {
+      "each_room": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "latest-garage-burn",
+   "label": "Latest Garage Burn \u2192 Garage",
+   "sub": "Replace queue & play \u00b7 vol 30",
+   "icon": "\ud83c\udfcb\ufe0f",
+   "house": "vashon",
+   "steps": [
+    {
+     "action": "set_volume",
+     "room": "Garage",
+     "volume": 30
+    },
+    {
+     "action": "play_next",
+     "resolve": {
+      "newest_playlist": "^Garage Burn",
+      "group_of": "Garage"
+     }
+    }
+   ]
+  },
+  {
+   "id": "daily-bach-lowerdeck",
+   "label": "Daily Bach \u2192 Lower Deck",
+   "sub": "Today's pick \u00b7 vol 55",
+   "icon": "\ud83c\udfbc",
+   "house": "vashon",
+   "dynamic": "bach_pick",
+   "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
+   "steps": [
+    {
+     "action": "sync_rooms",
+     "rooms": [
+      "Main Lower Deck"
+     ],
+     "delay_after_ms": 6000
+    },
+    {
+     "action": "set_volume",
+     "room": "Main Lower Deck",
+     "volume": 55
+    },
+    {
+     "action": "replace_queue",
+     "resolve": {
+      "bach_pick": true,
+      "group_of": "Main Lower Deck"
+     }
+    }
+   ]
+  },
+  {
+   "id": "daily-bach-shedarc",
+   "label": "Daily Bach \u2192 Shed Arc",
+   "sub": "Today's pick \u00b7 vol 18",
+   "icon": "\ud83c\udfbc",
+   "house": "vashon",
+   "dynamic": "bach_pick",
+   "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent).",
+   "steps": [
+    {
+     "action": "sync_rooms",
+     "rooms": [
+      "Shed Arc"
+     ],
+     "delay_after_ms": 6000
+    },
+    {
+     "action": "set_volume",
+     "room": "Shed Arc",
+     "volume": 18
+    },
+    {
+     "action": "replace_queue",
+     "resolve": {
+      "bach_pick": true,
+      "group_of": "Shed Arc"
+     }
+    }
+   ]
   }
+ ],
+ "defaults": {
+  "note": "Default play volume per room. Used by play shortcuts without explicit volume, by play.ts (mode=play), and by the agent when authoring new shortcuts. Rooms not listed use volume_fallback.",
+  "volume_fallback": 18,
+  "volume_by_room": {
+   "Garage": 30,
+   "Shed Arc": 18,
+   "Living Room": 18,
+   "Dining Room": 18,
+   "Kitchen": 18,
+   "Sauna Porch": 35,
+   "Main Lower Deck": 55
+  }
+ },
+ "updated_at": "2026-08-20"
 }
