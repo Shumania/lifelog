@@ -1167,7 +1167,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.17';
+const PAGE_VERSION = 'p3.18';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1250,6 +1250,16 @@ function _rpGet(h) { return _roomsPlayingByHouse[h || house] || []; }
 // history-corroboration inference (p2.66/p2.67) made obsolete by v2.54.
 const PAUSE_TTL_MS = 3600000;
 let _pausedAtByHouse = {};      // house -> {room: epoch_seconds} — service truth (v2.54)
+// p3.18: paused_at arrives as epoch seconds on some paths and ISO-8601 strings in
+// state-{house}.json. Number('2026-...Z') = NaN, which the old TTL check treated as
+// "no clock" → 19-hour-old pauses rendered ⏸ forever. Parse both formats honestly.
+function _pausedEpochSec(v) {
+  if (v == null) return 0;
+  const n = Number(v);
+  if (isFinite(n) && n > 0) return n;
+  const p = Date.parse(v);
+  return isFinite(p) ? p / 1000 : 0;
+}
 function _setPaused(h, rooms, pausedAt) {
   _roomsPausedByHouse[h] = [...rooms];
   if (pausedAt && typeof pausedAt === 'object') _pausedAtByHouse[h] = { ...pausedAt };
@@ -1259,8 +1269,8 @@ function _rpPausedGet(h) {
   const now = Date.now();
   const at = _pausedAtByHouse[h] || {};
   return (_roomsPausedByHouse[h] || []).filter(r => {
-    const ts = Number(at[r]) * 1000;
-    if (!ts) return true;  // no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
+    const ts = _pausedEpochSec(at[r]) * 1000;
+    if (!ts) return true;  // genuinely no clock from service (pre-v2.54 machine) — show ⏸ rather than hide truth
     return (now - ts) < PAUSE_TTL_MS;
   });
 }
@@ -1686,9 +1696,36 @@ function selectPlaying(h) {
     .map(g => ((g.members && g.members.length) ? g.members : [g.coordinator]).filter(r => r && !never.includes(r)))
     .filter(m => m.length);
   if (!sets.length) {
-    const fb = expandViaGroups(h, liveTargetRooms(h)).filter(r => !never.includes(r));
-    if (!fb.length) { showToast('Nothing playing right now', true); return; }
-    sets = [fb];
+    // p3.18: nothing PLAYING → select the most-recently-PAUSED group (real service
+    // pause clocks, p2.81; 1h TTL via _rpPausedGet). The old fallback selected the
+    // CURRENT selection — a no-op dressed as a button (2026-08-20 IMG_9372: stayed
+    // on Garage while the 7-room Lower Deck group had paused seconds earlier).
+    const at = _pausedAtByHouse[h] || {};
+    const paused = _rpPausedGet(h).filter(r => !never.includes(r));
+    const seen = new Set(); const cands = [];
+    for (const r of paused) {
+      const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r));
+      const members = (g ? ((g.members && g.members.length) ? g.members : [g.coordinator]) : [r]).filter(x => x && !never.includes(x));
+      if (!members.length) continue;
+      const key = members.slice().sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cands.push({ members, ts: Math.max(...members.map(m => _pausedEpochSec(at[m]))) });
+    }
+    if (!cands.length) {
+      console.log('[\u2299] no PLAYING groups and no recently-paused groups for ' + h + ' — no-op');
+      showToast('Nothing playing right now', true); return;
+    }
+    cands.sort((a, b) => b.ts - a.ts);
+    const pick = cands[0];
+    selectedRooms[h] = pick.members;
+    localStorage.setItem('ll_rooms_' + h, JSON.stringify(pick.members));
+    renderRooms(h);
+    _queueRefetch();
+    const mins = pick.ts ? Math.max(0, Math.round((Date.now() / 1000 - pick.ts) / 60)) : null;
+    console.log('[\u2299] no PLAYING groups for ' + h + '; selected most-recently-paused group: ' + pick.members.join(', ') + ' (paused_ts=' + pick.ts + ')');
+    showToast('\u2299 Nothing playing — selected last-paused: ' + pick.members.join(', ') + (mins !== null ? (mins < 1 ? ' (just paused)' : ' (paused ' + mins + 'm ago)') : ''));
+    return;
   }
   sets.sort((a, b) => b.length - a.length); // biggest group first
   let idx = 0;
@@ -4945,6 +4982,14 @@ function connectSSE() {
       // message). A dedicated 'topology' event = regroup happened (from ANY controller,
       // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
       if (sseHouse && Array.isArray(msg.groups)) {
+        // p3.18 (Bundle C): level-triggered chip re-render (Rule 27) — compare a
+        // membership SIGNATURE before/after, so ANY event carrying changed groups
+        // (sync_rooms_result, status_update, ...) refreshes chips. Previously only
+        // dedicated 'topology' events re-rendered; a Group Speakers send left chips
+        // stale until the next state-file fetch (T9 verify, 2026-08-07). Signature is
+        // membership-only on purpose — PLAYING/PAUSED flips must not churn chips here.
+        const _topoSig = gs => (gs || []).map(g => (g.coordinator || '') + ':' + (g.members || []).slice().sort().join(',')).sort().join(';');
+        const _chipTopoChanged = _topoSig(_groupsByHouse[sseHouse]) !== _topoSig(msg.groups);
         _groupsByHouse[sseHouse] = msg.groups;
         // p2.92: queue expando — track changes move current_pos; re-render from cached
         // data now (age-honest) and re-fetch the state file throttled so numbers catch up.
@@ -4961,6 +5006,12 @@ function connectSSE() {
             msg.groups.filter(g => (g.members || []).length > 1)
                .map(g => g.coordinator + ' +' + (g.members.length - 1)).join(', ') || 'all ungrouped');
           renderRooms(sseHouse);
+        } else if (_chipTopoChanged) {
+          // p3.18 (Bundle C): group membership changed via a non-topology event —
+          // re-render chips now instead of waiting for the next state-file fetch.
+          console.log('[sse] group membership changed via ' + events.join('+') + ' for ' + sseHouse + ' — re-rendering chips (p3.18)');
+          renderRooms(sseHouse);
+          try { if (typeof updateSyncButton === 'function') updateSyncButton(sseHouse); } catch (e) {}
         }
       }
       if (sseHouse && msg.rooms_playing) {
