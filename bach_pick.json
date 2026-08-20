@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-19T10:24:10.685Z",
- "pick_date": "2026-08-19",
- "work_key": "BWV812-815",
- "work": "French Suites Nos. 1-4",
- "performer": "Glenn Gould",
- "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
- "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh",
- "instrumentation": "piano",
- "approx_minutes": 47,
- "reason": "last heard 67d ago · avoided chamber",
+ "picked_at": "2026-08-20T10:16:14.061Z",
+ "pick_date": "2026-08-20",
+ "work_key": "BWV996-998",
+ "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+ "performer": "Sean Shibe",
+ "album": "Bach",
+ "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
+ "instrumentation": "lute_guitar",
+ "approx_minutes": 62,
+ "reason": "✨ never heard · avoided piano",
  "fallback": {
-  "work_key": "BWV910-916",
-  "work": "Seven Toccatas",
-  "performer": "Mahan Esfahani",
-  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
-  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
+  "work_key": "ARR-WTC-CONSORT-III",
+  "work": "The Well-Tempered Consort III",
+  "performer": "Phantasm",
+  "album": "Bach: The Well-Tempered Consort – III",
+  "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96"
  }
 }
