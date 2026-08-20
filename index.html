@@ -1023,6 +1023,17 @@
     </div>
     <div class="ctrl-settings-pop" id="ctrl-settings-vashon" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('vashon')">🗑 Clear queue</button>
+      <!-- p3.19: device pin (design_geo_suggest_v1.md §5, D6: forever until unpinned) -->
+      <div class="ctrl-settings-item" style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation()">
+        📌 Pin device:
+        <select id="geo-pin-select" onchange="geoSetPin(this.value)" style="background:#1a1d24;color:inherit;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:2px 4px;font-size:13px;">
+          <option value="">No pin</option>
+          <option value="garage">Garage</option>
+          <option value="shed">Shed</option>
+          <option value="sauna">Sauna</option>
+          <option value="main">Main House</option>
+        </select>
+      </div>
     </div>
     <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
          with no queue it reads "Speakers — <selection> ›" -->
@@ -1167,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.18';
+const PAGE_VERSION = 'p3.19';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1932,6 +1943,11 @@ async function sendCmd(action) {
 function toggleCtrlSettings(h) {
   const pop = document.getElementById('ctrl-settings-' + h);
   if (pop) pop.hidden = !pop.hidden;
+  // p3.19: reflect the current device pin in the picker on open (geo_suggest §5)
+  if (h === 'vashon' && pop && !pop.hidden) {
+    const sel = document.getElementById('geo-pin-select');
+    if (sel) { const p = _geoPin(); sel.value = (p && p.structure) || ''; }
+  }
 }
 
 async function sendClearQueue(h) {
@@ -5158,6 +5174,14 @@ function geoDismissHint(reason) {
   const el = document.getElementById('geo-hint');
   if (el) { el.remove(); console.log('[geo] hint dismissed (' + reason + ')'); }
   if (_geoHintTimer) { clearTimeout(_geoHintTimer); _geoHintTimer = null; }
+  // p3.19: any real dismissal of a SUGGESTION banner snoozes it 30 min (§4.1.4).
+  // Includes the 90s timeout — the 5-min re-arm would otherwise re-show the same
+  // banner all afternoon. 'replaced' = a new banner is incoming; no snooze.
+  if (typeof _geoActiveSuggest !== 'undefined' && _geoActiveSuggest && reason !== 'replaced') {
+    _geoNagUntil[_geoActiveSuggest] = Date.now() + 30 * 60000;
+    console.log('[geo] suggestion ' + _geoActiveSuggest + ' snoozed 30 min (' + reason + ')');
+  }
+  if (reason !== 'replaced' && typeof _geoActiveSuggest !== 'undefined') _geoActiveSuggest = null;
 }
 
 function _geoShowHint(html) {
@@ -5192,6 +5216,163 @@ function geoAcceptOption(idx) {
   } catch (e) { console.log('[geo] acceptOption ERROR: ' + e); }
 }
 
+// ══ p3.19: Tier 2 suggestion engine (design_geo_suggest_v1.md Rev 3) ══════════
+// Routes a located structure (gate-passing GPS fix OR device pin) by CONFLICT (P5):
+// suggestions fire only when location and app state disagree. Phase 1 = Flavor A
+// "Start here" + Flavor D "Extend here" (both existing verbs). B (move) / C (narrow)
+// need the v2.65 move_music verb — those routes are status-line-only until then.
+let _geoStateWaits = 0;
+let _geoNagUntil = {};        // 'A:shed' -> ms epoch; 30-min snooze after any dismissal (§4.1.4)
+let _geoActiveSuggest = null; // nag key of the currently-shown suggestion banner
+let _geoSuggestCtx = null;    // {flavor, struct, group} for accept handlers
+let _scVolByRoom = null, _scVolFallback = 18; // D8 defaults (loadShortcuts fills; _geoVolDefaults lazy-fetches)
+
+function _geoPin() {
+  try { const raw = localStorage.getItem('ll_geo_pin'); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+function geoSetPin(v) {
+  try {
+    if (!v) { localStorage.removeItem('ll_geo_pin'); showToast('📌 Device pin removed'); console.log('[geo] pin removed'); }
+    else {
+      localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'vashon', structure: v }));
+      const lbl = (_geoZones && _geoZones.vashon.structures[v] && _geoZones.vashon.structures[v].label) || v;
+      showToast('📌 Device pinned to ' + lbl);
+      console.log('[geo] pin set → ' + v);
+    }
+    _geoApplied = false; _geoLastRun = 0; _geoStateWaits = 0; // immediate re-decide
+    geoMaybeRun('pin-change');
+  } catch (e) { console.log('[geo] setPin ERROR: ' + e); }
+}
+async function _geoVolDefaults() {
+  if (_scVolByRoom) return _scVolByRoom;
+  try {
+    const r = await fetch(SHORTCUTS_URL + '?t=' + Date.now());
+    if (r.ok) { const d = await r.json(); _scVolByRoom = (d.defaults && d.defaults.volume_by_room) || {}; _scVolFallback = (d.defaults && d.defaults.volume_fallback) || 18; }
+  } catch (e) { console.log('[geo] vol defaults fetch failed: ' + e); }
+  return _scVolByRoom || {};
+}
+
+function _geoDecide(structKey, source) {
+  try {
+    const z = _geoZones && _geoZones.vashon;
+    const s = z && z.structures[structKey];
+    if (!s) { console.log('[geo] decide: unknown structure ' + structKey); return; }
+    const pfx = source === 'pin' ? '📌 Pinned: ' : '';
+    // Suggestions need live topology; without it conflict can't be assessed honestly (§6).
+    if (!Array.isArray(_groupsByHouse['vashon'])) {
+      if (_geoStateWaits < 5) {
+        _geoStateWaits++;
+        console.log('[geo] decide: no speaker state yet — retry ' + _geoStateWaits + '/5 in 4s');
+        _geoStatus(pfx + s.label + ' — waiting for speaker state…');
+        setTimeout(() => _geoDecide(structKey, source), 4000);
+      } else _geoStatus(pfx + s.label + ' — speaker state unavailable');
+      return;
+    }
+    const opts = s.options;
+    _geoPendingOptions = opts;
+    const hereRooms = [...new Set(opts.flatMap(o => o.rooms))];
+    // NOTE: startsWith('PLAYING') includes TV audio — same known ⊙ tradeoff (backlog).
+    const playing = _groupsByHouse['vashon'].filter(g => String(g.state || '').indexOf('PLAYING') === 0 && (g.members || []).length);
+    const safe = !_geoUserTouched && !_geoPlaySent;
+    console.log('[geo] decide(' + structKey + ', ' + source + '): playingGroups=' + playing.length + ' safe=' + safe);
+    const hereGroups = playing.filter(g => (g.members || []).some(m => hereRooms.includes(m)));
+    if (hereGroups.length) {
+      const extra = [...new Set(hereGroups.flatMap(g => g.members).filter(m => !hereRooms.includes(m)))];
+      if (extra.length) {
+        // Flavor C (narrow) — Phase 2 (needs move_music). Honest status only.
+        console.log('[geo] playing here + ' + extra.length + ' other room(s) — narrow = Phase 2, status only');
+        _geoStatus(pfx + s.label + ' — playing here + ' + extra.length + ' other room' + (extra.length > 1 ? 's' : ''));
+      } else {
+        console.log('[geo] already playing exactly here — no conflict (P5), silence');
+        _geoStatus(pfx + s.label + ' — already playing here ✓');
+      }
+      return;
+    }
+    if (!safe) {
+      // Touched/active session → passive tap-option hint (pre-p3.19 behavior preserved)
+      const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
+      _geoShowHint('📍 Near <b>' + esc(s.label) + '</b> — ' + btns);
+      _geoActiveSuggest = null;
+      _geoStatus(pfx + s.label + ' (manual selection respected — tap hint to switch)');
+      return;
+    }
+    if (playing.length) {
+      // ── Flavor D: extend the playing group to here (D4; existing Group Speakers verb) ──
+      const nagKey = 'D:' + structKey;
+      if ((_geoNagUntil[nagKey] || 0) > Date.now()) { console.log('[geo] ' + nagKey + ' snoozed'); _geoStatus(pfx + s.label + ' — suggestion snoozed'); return; }
+      const target = [...playing].sort((a, b) => (b.members || []).length - (a.members || []).length)[0];
+      _geoSuggestCtx = { flavor: 'D', struct: structKey, group: target };
+      const where = esc(target.coordinator || target.members[0]) + (target.members.length > 1 ? ' +' + (target.members.length - 1) : '');
+      const btns = opts.map((o, i) =>
+        '<button onclick="geoExtendHere(' + i + ')">' + (opts.length > 1 ? 'Extend ' + esc(o.label) : 'Extend to ' + esc(s.label)) + '</button>').join(' ');
+      _geoShowHint('🎶 Playing on <b>' + where + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+      _geoActiveSuggest = nagKey;
+      console.log('[geo] Flavor D banner shown (target: ' + target.members.join(', ') + ')');
+      _geoStatus(pfx + s.label + ' — playing on ' + (target.coordinator || '?'));
+    } else {
+      // ── Flavor A: nothing playing — stage here (D1: D8 volume on accept) ──
+      const nagKey = 'A:' + structKey;
+      if ((_geoNagUntil[nagKey] || 0) > Date.now()) { console.log('[geo] ' + nagKey + ' snoozed'); _geoStatus(pfx + s.label + ' — suggestion snoozed'); return; }
+      _geoSuggestCtx = { flavor: 'A', struct: structKey, group: null };
+      if (opts.length === 1) {
+        // Tier 1 preselect preserved (G5); banner adds the Start action
+        geoSelectRooms(opts[0].rooms, 'auto-preselect near ' + s.label + ' (' + source + ')');
+        showToast('📍 Preselected ' + opts[0].rooms.join(', ') + (source === 'pin' ? ' (pinned)' : ' (near ' + s.label + ')'));
+        _geoShowHint('📍 You\'re at <b>' + esc(s.label) + '</b> — <button onclick="geoStartHere(0)">Start here</button> <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+        _geoActiveSuggest = nagKey;
+        _geoStatus(pfx + 'preselected ' + opts[0].rooms.join(', '));
+      } else {
+        // Main House 50/50 (D2a): never preselect, two Start buttons
+        const btns = opts.map((o, i) => '<button onclick="geoStartHere(' + i + ')">Start ' + esc(o.label) + '</button>').join(' ');
+        _geoShowHint('📍 <b>' + esc(s.label) + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+        _geoActiveSuggest = nagKey;
+        _geoStatus(pfx + s.label + ' — pick a start target');
+      }
+      console.log('[geo] Flavor A banner shown (' + opts.length + ' option(s))');
+    }
+  } catch (e) { console.log('[geo] decide ERROR: ' + e); }
+}
+
+async function geoStartHere(idx) {
+  try {
+    const opt = _geoPendingOptions && _geoPendingOptions[idx];
+    if (!opt) { console.log('[geo] startHere: no option ' + idx); return; }
+    geoDismissHint('accepted'); // also snoozes via _geoActiveSuggest
+    console.log('[geo] ═══ START HERE → ' + opt.rooms.join(', ') + ' ═══');
+    geoSelectRooms(opt.rooms, 'start-here accept');
+    showToast('📍 Staging ' + opt.rooms.join(' + ') + '…');
+    await syncRooms('vashon'); // sync_rooms with ONLY these rooms = the ungroup-first stage (Bach pattern)
+    await _scSleep(6000);      // proven Bach pacing: topology settles before volume
+    const vols = await _geoVolDefaults();
+    for (const room of opt.rooms) {
+      const vol = vols[room] || _scVolFallback;
+      console.log('[geo] set_volume ' + room + ' → ' + vol + ' (D8)');
+      await postNtfy({ action: 'set_volume', room, volume: vol, t_requested: new Date().toISOString() }, 'vashon');
+      await _scSleep(400);
+    }
+    showToast('📍 ' + opt.rooms.join(' + ') + ' staged — ready to play');
+  } catch (e) { console.log('[geo] startHere ERROR: ' + e); showToast('✗ Start-here failed: ' + e.message, true); }
+}
+
+async function geoExtendHere(idx) {
+  try {
+    const opt = _geoPendingOptions && _geoPendingOptions[idx];
+    const ctx = _geoSuggestCtx;
+    if (!opt || !ctx || !ctx.group) { console.log('[geo] extendHere: missing option/ctx'); return; }
+    geoDismissHint('accepted');
+    // Field-confirmed semantics (2026-08-18): music follows because the playing
+    // coordinator stays IN the selection — extend = existing Group Speakers send.
+    const combined = [...new Set([...(ctx.group.members || []), ...opt.rooms])];
+    console.log('[geo] ═══ EXTEND → ' + combined.join(', ') + ' (coordinator ' + (ctx.group.coordinator || '?') + ' kept) ═══');
+    selectedRooms.vashon = combined;
+    localStorage.setItem('ll_rooms_vashon', JSON.stringify(combined));
+    renderRooms('vashon');
+    updateSyncButton('vashon');
+    await syncRooms('vashon');
+  } catch (e) { console.log('[geo] extendHere ERROR: ' + e); showToast('✗ Extend failed: ' + e.message, true); }
+}
+
 async function geoMaybeRun(trigger) {
   try {
     console.log('[geo] run (' + trigger + ') house=' + house + ' applied=' + _geoApplied + ' touched=' + _geoUserTouched + ' playSent=' + _geoPlaySent);
@@ -5204,7 +5385,6 @@ async function geoMaybeRun(trigger) {
       return;
     }
     if (_geoApplied) console.log('[geo] rearm: last decision ' + Math.round((Date.now() - _geoLastRun) / 1000) + 's ago — re-running');
-    if (!('geolocation' in navigator)) { console.log('[geo] no geolocation API'); _geoApplied = true; _geoLastRun = Number.MAX_SAFE_INTEGER; return; }
     if (!_geoZones) {
       const r = await fetch(GEO_ZONES_URL + '?t=' + (Date.now() >> 16));
       if (!r.ok) { console.log('[geo] zones fetch HTTP ' + r.status + ' — retry after rearm'); _geoApplied = true; _geoLastRun = Date.now(); return; }
@@ -5212,6 +5392,24 @@ async function geoMaybeRun(trigger) {
       console.log('[geo] zones v' + _geoZones.version + ' (' + _geoZones.updated + ') loaded');
     }
     const z = _geoZones.vashon;
+    // p3.19: device pin (geo_suggest §5) — substitutes for a confident fix on GPS-less
+    // devices (Shed PC). D5: a fix is still gathered for future data; the pin wins all
+    // decisions. D6: forever until unpinned. Checked BEFORE the geolocation-API gate so
+    // pinned devices work even with no geolocation at all.
+    const pin = _geoPin();
+    if (pin && pin.house === 'vashon') {
+      console.log('[geo] device pin active → ' + pin.structure + ' (fix gathered for telemetry only)');
+      _geoApplied = true; _geoLastRun = Date.now();
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          p => console.log('[geo] pinned-device fix (telemetry): ' + p.coords.latitude.toFixed(6) + ',' + p.coords.longitude.toFixed(6) + ' ±' + Math.round(p.coords.accuracy || 999) + 'm'),
+          e => console.log('[geo] pinned-device fix unavailable: code=' + e.code),
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+      }
+      _geoDecide(pin.structure, 'pin');
+      return;
+    }
+    if (!('geolocation' in navigator)) { console.log('[geo] no geolocation API'); _geoApplied = true; _geoLastRun = Number.MAX_SAFE_INTEGER; return; }
     const fix = await new Promise((res) => {
       navigator.geolocation.getCurrentPosition(
         p => res(p),
@@ -5239,20 +5437,9 @@ async function geoMaybeRun(trigger) {
       _geoStatus(w.s.label + ' vs ' + ru.s.label + ' too close to call (' + Math.round(margin) + 'm margin, need >' + Math.round(gate) + 'm · fix ±' + Math.round(acc) + 'm, ' + fixAgeS + 's old)');
       return;
     }
-    const opts = w.s.options;
-    _geoPendingOptions = opts;
-    const safe = !_geoUserTouched && !_geoPlaySent;
-    if (opts.length === 1 && safe) {
-      geoSelectRooms(opts[0].rooms, 'auto-preselect near ' + w.s.label);
-      _geoShowHint('📍 Preselected: <b>' + esc(opts[0].rooms.join(' + ')) + '</b> (near ' + esc(w.s.label) + ')');
-      showToast('📍 Preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');  // visible even with speakers drawer closed
-      _geoStatus('preselected ' + opts[0].rooms.join(', ') + ' (near ' + w.s.label + ')');
-    } else {
-      const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
-      _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> — ' + btns);
-      console.log('[geo] tap-option hint shown (options=' + opts.length + ', safe=' + safe + ')');
-      _geoStatus('near ' + w.s.label + (safe ? '' : ' (manual selection respected — tap hint to switch)'));
-    }
+    // p3.19: gate passed → route through the Tier 2 suggestion engine (geo_suggest Rev 3).
+    // Preselect (Tier 1/G5), banners, and status all live in _geoDecide now.
+    _geoDecide(w.key, 'gps');
   } catch (e) {
     console.log('[geo] ERROR: ' + e);
   }
@@ -5699,6 +5886,8 @@ async function loadShortcuts() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     _shortcuts = (d && d.shortcuts) || [];
+    // p3.19: D8 per-room volume defaults also feed geo "Start here?" accepts (geo_suggest D1)
+    if (d && d.defaults) { _scVolByRoom = d.defaults.volume_by_room || {}; _scVolFallback = d.defaults.volume_fallback || 18; }
     console.log('[shortcuts] loaded ' + _shortcuts.length + ' shortcuts (file v' + (d && d.version) + ')');
     // p3.17: 🎼 Daily Bach tiles carry today's pick on the tile (Rev 1.3 title-on-tile).
     // Fire-and-forget: tiles render immediately with the static sub, then upgrade.
