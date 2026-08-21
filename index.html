@@ -1178,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.20';
+const PAGE_VERSION = 'p3.21';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1832,6 +1832,26 @@ async function syncRooms(h) {
   if (!cmdrId) { showToast('No commander online for ' + h, true); console.error('[syncRooms] No commanderId for house=' + h); return; }
   if (btn) { btn.classList.add('syncing'); btn.textContent = 'Syncing…'; }
   showToast(`🔊 Syncing ${rooms.length} speaker${rooms.length > 1 ? 's' : ''}…`);
+  // p3.21: join-volume — every room NEWLY added to the group resets to its default
+  // volume (defaults.volume_by_room, fallback 18) BEFORE the topology change lands.
+  // Join = fresh intent (same principle as replace_queue shuffle-off). A room parked
+  // loud for TV (Media Room = 76) can never blast the group: its volume is per-device
+  // and lands while the room is still idle. Rooms already in the group are untouched.
+  try {
+    const prevRooms = new Set(_rpGet(h) || []);
+    const newlyAdded = rooms.filter(r => !prevRooms.has(r));
+    if (newlyAdded.length) {
+      const jvols = await _geoVolDefaults();
+      for (const room of newlyAdded) {
+        const jv = (jvols && jvols[room] != null) ? jvols[room] : _scVolFallback;
+        console.log('[syncRooms] join-volume: ' + room + ' → ' + jv + ' (newly added; prev group: ' + JSON.stringify([...prevRooms]) + ')');
+        await postNtfy({ action: 'set_volume', room: room, volume: jv, t_requested: new Date().toISOString() }, h);
+        await _scSleep(300);
+      }
+    } else {
+      console.log('[syncRooms] join-volume: no newly-added rooms — no volume resets');
+    }
+  } catch (jve) { console.warn('[syncRooms] join-volume failed (continuing with sync):', jve && jve.message); }
   console.log('[syncRooms] Sending sync_rooms:', rooms, 'commander:', cmdrId);
   const ok = await postNtfy({ action: 'sync_rooms', rooms: rooms, target_client_id: cmdrId, t_requested: new Date().toISOString() });
   if (btn) { btn.classList.remove('syncing'); }
@@ -3902,8 +3922,21 @@ function toggleDiscUnplayed() {
   renderDiscovery();
 }
 
+// p3.21: discovery card open/closed state — survives re-renders. Field-hit 2026-08-21:
+// an SSE like confirmation re-rendered the tab, wiping the user's collapses and
+// yanking scroll to top mid-read. State keyed by exploration_id; in-memory (a fresh
+// page load intentionally resets to the first-3-open default).
+let _discOpenState = {};
+function discCardToggle(id, key) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  _discOpenState[key] = el.classList.contains('open');
+}
 function renderDiscovery() {
   const el = document.getElementById('discovery-list');
+  // p3.21: preserve scroll across DOM rebuild when the tab is on screen
+  const _discKeepY = !document.getElementById('tab-discovery').hidden ? window.scrollY : null;
   if (!data || !data.play_commands || data.play_commands.length === 0) {
     el.innerHTML = '<div class="empty-state">🔍 No discoveries yet</div>';
     return;
@@ -3919,7 +3952,10 @@ function renderDiscovery() {
 
   for (let i = 0; i < cmds.length; i++) {
     const cmd = cmds[i];
-    const isOpen = i < 3;
+    // p3.21: card open/closed state survives re-renders (SSE like refresh, heard-data
+    // load, tab switches). Keyed by exploration_id (stable) not index. Default: first 3 open.
+    const cardKey = (cmd.exploration_id != null) ? 'x' + cmd.exploration_id : 't' + (cmd.timestamp || i);
+    const isOpen = (cardKey in _discOpenState) ? _discOpenState[cardKey] : i < 3;
     const d = new Date(cmd.timestamp);
     const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
@@ -3939,7 +3975,7 @@ function renderDiscovery() {
     const isDeep = !Array.isArray(rawSuggs) && rawSuggs.mode === 'deep';
     const diveLevel = isDeep ? (rawSuggs.dive_level || 2) : 0;
     html += `<div class="discovery-card${isOpen ? ' open' : ''}" id="disc-${i}">`;
-    html += `<div class="disc-header" onclick="document.getElementById('disc-${i}').classList.toggle('open')">`;
+    html += `<div class="disc-header" onclick="discCardToggle('disc-${i}','${cardKey}')">`;
     html += `<div class="disc-artist-badge">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div class="disc-hinfo">`;
     html += `<div class="disc-meta">${isDeep ? `<span class="disc-deep-badge">🔬 Deep Dive ${diveLevel}</span> · ` : ''}from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
@@ -4045,6 +4081,8 @@ function renderDiscovery() {
     html += '</div></div>';
   }
   el.innerHTML = html;
+  // p3.21: restore scroll — rebuild must not yank a reading user to the top
+  if (_discKeepY !== null && _discKeepY > 0) requestAnimationFrame(() => window.scrollTo(0, _discKeepY));
   // Restore previously expanded album track panels
   const savedAlbums = getExpandedAlbums();
   for (const panelId of savedAlbums) {
@@ -5556,7 +5594,10 @@ async function loadLikedData() {
     try {
       renderHistory();
       if (!document.getElementById('tab-playlists').hidden) renderPlaylists();
-      if (!document.getElementById('tab-discovery').hidden) renderDiscovery(); // p3.06: explore-card ♥s pre-fill
+      // p3.21: hearts refresh IN PLACE — renderDiscovery() here wiped collapse state
+      // + scroll for anyone reading the tab when a like confirmed (field-hit 2026-08-21)
+      const _dtab = document.getElementById('tab-discovery');
+      if (!_dtab.hidden) { const _hn = _heartsRefreshInPlace(_dtab); console.log('[liked] discovery hearts refreshed in place: ' + _hn); }
     } catch(e) { console.warn('[liked] post-load re-render failed:', e && e.message); }
   } catch(e) {
     console.error('[liked] Failed to load liked.json:', e);
@@ -5772,9 +5813,29 @@ function likeButton(itemType, uriOrId, title, artist, sourceContext, originServi
   } else if (_pendingLikes[key]) {
     cls += ' pending'; glyph = '♥'; tip = 'Saving…';
   }
-  return `<button class="${cls}" data-lkey="${keyAttr}" onclick="likeTap(this,'${payload}')" title="${tip}">${glyph}</button>`;
+  return `<button class="${cls}" data-lkey="${keyAttr}" data-lid="${id || ''}" data-ltype="${itemType}" onclick="likeTap(this,'${payload}')" title="${tip}">${glyph}</button>`;
 }
 
+// p3.21: refresh heart fills IN PLACE after liked.json reloads — no DOM rebuild,
+// so scroll position and card collapse state are untouched (field-hit 2026-08-21).
+// Upgrade-only: fills hearts that became liked/local; never clears (full renders
+// handle rare un-likes). Pending hearts are left for like_result to settle.
+function _heartsRefreshInPlace(rootEl) {
+  if (!rootEl) return 0;
+  let n = 0;
+  rootEl.querySelectorAll('.like-btn[data-lkey]').forEach(b => {
+    if (b.classList.contains('pending') || b.classList.contains('liked')) return;
+    const key = decodeURIComponent(b.getAttribute('data-lkey') || '');
+    const id = b.getAttribute('data-lid') || '';
+    const t = b.getAttribute('data-ltype') || '';
+    if ((id && t === 'track' && _likedMain.has(id)) || (id && t === 'album' && _likedMainAlbums.has(id)) || _sessionLiked.has(key)) {
+      _likeSetState(key, 'liked'); n++;
+    } else if (_localLiked.has(key) && !b.classList.contains('localliked')) {
+      _likeSetState(key, 'local'); n++;
+    }
+  });
+  return n;
+}
 function _likeBtns(key) {
   return document.querySelectorAll('.like-btn[data-lkey="' + encodeURIComponent(key) + '"]');
 }
