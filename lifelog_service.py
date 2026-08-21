@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.64.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.65.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -744,6 +744,10 @@ print("[v2.63.1] stale-topology fixes active: coordinator-set SSE gate + sync_ro
 # v2.64.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[v2.64.0] run_extract on-demand command active: Data-service can trigger backup extract via ntfy "
       "(Event-wake on backup thread, concurrency + module guards)")
+# v2.65.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.65.0] coordinator hardening + move_music: phantom-playing guard in _setup_rooms, "
+      "total-join-failure fallback, pre-mutation coordinator recheck (play_next/replace_queue), "
+      "move_music verb (DelegateGroupCoordinationTo + keep_rooms, SSE-only result)")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -4040,6 +4044,23 @@ def _verify_group_settle(dev, intended_coord, timeout=5.0, interval=0.5):
         f"(observed coordinator={observed}, intended={intended_coord}); proceeding anyway")
     return False
 
+def _recheck_coordinator(coordinator, label=""):
+    """v2.65: belt-and-suspenders re-read before destructive queue ops. If the
+    device we're about to clear/mutate is NOT its group's live coordinator
+    (2026-08-20: _setup_rooms returned a phantom leader and clear_queue crashed
+    with UPnP 800 on a non-coordinator), switch to the real coordinator and log
+    loudly. A failed read keeps the original (the op will fail honestly)."""
+    try:
+        g = coordinator.group
+        live = g.coordinator if g and g.coordinator else coordinator
+        if live.player_name != coordinator.player_name:
+            log(f"[coord-recheck]{label}: '{coordinator.player_name}' is NOT its group's live "
+                f"coordinator — switching to '{live.player_name}' before queue ops")
+            return live
+    except Exception as _rc_err:
+        log(f"[coord-recheck]{label}: read failed ({_rc_err}); keeping '{coordinator.player_name}'")
+    return coordinator
+
 def _fresh_groups_snapshot(devices):
     """v2.63.1: recompute [{"coordinator","members","state"}] from live SoCo group
     objects RIGHT NOW — no waiting for the next poll. Used by sync_rooms so the SSE
@@ -4073,15 +4094,18 @@ def _fresh_groups_snapshot(devices):
         log(f"[fresh-groups] snapshot error: {e}")
     return out
 
-def _setup_rooms(cmd, devices):
+def _setup_rooms(cmd, devices, _no_prefer=False):
     """Incremental room grouping. Returns (coordinator, rooms_list, was_grouped_with).
     Compares current group state vs desired rooms — only unjoins/joins deltas.
-    No-op fast path when group already matches desired state."""
+    No-op fast path when group already matches desired state.
+    v2.65: _no_prefer=True disables the playing-coordinator promotion (used by the
+    total-join-failure fallback retry so it can't loop)."""
     rooms = cmd.get("rooms", [])
     if isinstance(rooms, str): rooms = [rooms]
     room = cmd.get("room")
     if room and not rooms: rooms = [room]
     if not rooms: return None, [], []
+    _orig_rooms = list(rooms)  # v2.65: caller's requested order, for the fallback retry
 
     # v2.55: COORDINATOR-PRESERVING REGROUP (bug fix, live incident 2026-07-30).
     # rooms[0] used to become the group leader UNCONDITIONALLY. When another
@@ -4091,7 +4115,7 @@ def _setup_rooms(cmd, devices):
     # while Living Room Maury was the playing coordinator). Fix: if a requested
     # room coordinates a PLAYING group, move it to the front so it stays leader
     # and playback never blinks. rooms[0] is honored when nothing is playing.
-    if len(rooms) > 1:
+    if len(rooms) > 1 and not _no_prefer:
         try:
             for _r in rooms:
                 _d = devices.get(_r)
@@ -4101,6 +4125,23 @@ def _setup_rooms(cmd, devices):
                 if _cname in rooms:
                     _tstate = _coord.get_current_transport_info().get("current_transport_state", "")
                     if _tstate == "PLAYING":
+                        # v2.65 PHANTOM-PLAYING GUARD (2026-08-20 incident): Sonos Move
+                        # reported PLAYING with NOTHING loaded (idle >1h after a silently
+                        # failed join), got promoted to primary, every join to it then
+                        # failed (UPnP 800), and the follow-up clear_queue crashed on a
+                        # non-coordinator. A genuinely playing coordinator ALWAYS has a
+                        # CurrentURI (queue or stream). No URI = phantom: skip promotion
+                        # and keep scanning. A failed read also skips (fail closed) — an
+                        # unreadable device must not be handed group leadership.
+                        _has_media = False
+                        try:
+                            _mi = _coord.avTransport.GetMediaInfo([("InstanceID", 0)])
+                            _has_media = bool((_mi.get("CurrentURI") or "").strip())
+                        except Exception as _mi_err:
+                            log(f"_setup_rooms: [phantom-guard] GetMediaInfo failed on '{_cname}' ({_mi_err}) — treating as phantom, not promoting")
+                        if not _has_media:
+                            log(f"_setup_rooms: [phantom-guard] '{_cname}' claims PLAYING but has no media URI — phantom read, not promoted")
+                            continue
                         if _cname != rooms[0]:
                             log(f"_setup_rooms: preferring playing coordinator '{_cname}' as primary (was '{rooms[0]}')")
                             rooms = [_cname] + [x for x in rooms if x != _cname]
@@ -4164,6 +4205,7 @@ def _setup_rooms(cmd, devices):
             to_add = desired_members - {primary}  # rejoin everyone under new coordinator
 
         joined = []
+        _join_failed = []
         for r in to_add:
             d = devices.get(r)
             if d:
@@ -4172,7 +4214,29 @@ def _setup_rooms(cmd, devices):
                     joined.append(r)
                     _topo_changed = True
                 except Exception as e:
+                    _join_failed.append(r)
                     log(f"_setup_rooms: failed to join {r} to {primary}: {e}")
+        # v2.65 TOTAL-JOIN-FAILURE FALLBACK (2026-08-20 incident): every join to a
+        # preference-PROMOTED primary failed (UPnP 800 across the board) and the old
+        # code proceeded, returning a coordinator nobody had actually joined —
+        # downstream queue ops then crashed. If ALL attempted joins failed and the
+        # primary was a promotion (not what the caller asked for), retry ONCE around
+        # the caller's original primary with promotion disabled (_no_prefer guards
+        # against loops). If joins fail even then, proceed honestly but post the
+        # error so it lands in the badge/watchdog ring (Rule 12).
+        if _join_failed and not joined and to_add:
+            if not _no_prefer and primary != _orig_rooms[0]:
+                log(f"_setup_rooms: ALL {len(_join_failed)} joins to promoted primary '{primary}' FAILED — "
+                    f"falling back to requested primary '{_orig_rooms[0]}' (promotion disabled)")
+                _fb_cmd = dict(cmd)
+                _fb_cmd["rooms"] = list(_orig_rooms)
+                _fb_cmd.pop("room", None)
+                return _setup_rooms(_fb_cmd, devices, _no_prefer=True)
+            try:
+                post_error(f"_setup_rooms: all {len(_join_failed)} joins to '{primary}' failed: {_join_failed}",
+                           context=f"rooms={rooms}", module="sonos")
+            except Exception:
+                pass
         if joined or to_remove:
             # v2.58 A8: verify-poll (up to 5s) until the observed coordinator is
             # the intended one, instead of a blind 1s sleep + single read -- a
@@ -4257,7 +4321,7 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
 
 # v2.54: sync_rooms is now silent — its result travels over SSE only (see the
 # sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue", "run_extract"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue", "run_extract", "move_music"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms", "run_extract"}
 
@@ -4537,6 +4601,162 @@ def execute_command(cmd, source="unknown"):
                     log(f"sync_rooms: SSE publish failed: {_sr_err}")
                 if not result["success"]:
                     post_error(f"sync_rooms failed: {result['message']}", context=f"rooms={rooms}", module="sonos")
+
+        elif action == "move_music":
+            # v2.65: MOVE / NARROW playback to a new room set WITHOUT the audio
+            # ever blinking (geo Tier 2 Phase 2, Flavors B "Move here" + C "Play
+            # just here" — design_geo_suggest_v1.md §4.3). Contrast with
+            # sync_rooms/Group Speakers, which moves TOPOLOGY only: if the playing
+            # coordinator is excluded there, the new group forms silent (field-
+            # confirmed 2026-08-18). move_music transfers group coordination via
+            # AVTransport.DelegateGroupCoordinationTo so the queue, playback
+            # position and stream all ride along to the new coordinator.
+            #   keep_rooms  = the FULL desired room set after the move (B: the new
+            #                 structure's rooms; C: a subset of the current group).
+            #   source_room = optional hint naming ANY room in the playing group;
+            #                 the coordinator is re-resolved live server-side at
+            #                 send time (v2.63.1 pattern — the browser's view lags).
+            # Volumes untouched by design — the page applies D8 defaults to newly
+            # added rooms (p3.21 join-volume pattern). Result travels over SSE only
+            # (SILENT_ACTIONS) but a debounced state heartbeat still fires.
+            keep_rooms = cmd.get("keep_rooms", [])
+            if isinstance(keep_rooms, str): keep_rooms = [keep_rooms]
+            keep_rooms = [r for r in keep_rooms if r]
+            src_hint = cmd.get("source_room") or cmd.get("room")
+            # Fresh topology first (same as sync_rooms): stale device objects are
+            # exactly how coordinators get misjudged.
+            try:
+                import soco as _soco_mod
+                fresh = {d.player_name: d for d in _soco_mod.discover(timeout=3) or []}
+                if fresh:
+                    devices.update(fresh)
+                    log(f"move_music: refreshed topology, {len(fresh)} devices")
+            except Exception as e:
+                log(f"move_music: topology refresh failed (using cached): {e}")
+            _mm_missing = [r for r in keep_rooms if r not in devices]
+            if not keep_rooms:
+                result["message"] = "move_music: keep_rooms required"
+            elif _mm_missing:
+                result["message"] = f"move_music: unknown room(s): {_mm_missing}"
+            else:
+                try:
+                    # 1) Resolve the SOURCE coordinator live.
+                    src_coord = None
+                    if src_hint and devices.get(src_hint):
+                        _sd = devices[src_hint]
+                        src_coord = _sd.group.coordinator if _sd.group and _sd.group.coordinator else _sd
+                        try:
+                            _st = src_coord.get_current_transport_info().get("current_transport_state", "?")
+                        except Exception:
+                            _st = "?"
+                        if _st != "PLAYING":
+                            log(f"move_music: hinted source '{src_hint}' -> coordinator "
+                                f"'{src_coord.player_name}' is {_st} (proceeding — caller asked)")
+                    else:
+                        _playing = [g for g in _fresh_groups_snapshot(devices) if g["state"] == "PLAYING"]
+                        if len(_playing) == 1:
+                            src_coord = devices.get(_playing[0]["coordinator"])
+                        elif not _playing:
+                            result["message"] = "move_music: nothing is playing (session vanished?)"
+                        else:
+                            result["message"] = (f"move_music: {len(_playing)} groups playing — specify source_room "
+                                                 f"(coordinators: {[g['coordinator'] for g in _playing]})")
+                    if src_coord is not None:
+                        old_name = src_coord.player_name
+                        try:
+                            _members = set(m.player_name for m in src_coord.group.members
+                                           if getattr(m, "is_visible", True)) if src_coord.group else {old_name}
+                        except Exception:
+                            _members = {old_name}
+                        _delegated = False
+                        new_coord = src_coord
+                        if old_name not in keep_rooms:
+                            # 2) Delegate coordination into the first keep_room. The new
+                            # coordinator must be a group member BEFORE delegation.
+                            new_name = keep_rooms[0]
+                            new_dev = devices[new_name]
+                            if new_name not in _members:
+                                log(f"move_music: joining '{new_name}' to source group '{old_name}' pre-delegation")
+                                new_dev.join(src_coord)
+                                _verify_group_settle(new_dev, old_name)
+                            log(f"move_music: delegating group coordination '{old_name}' -> '{new_name}' (RejoinGroup=0)")
+                            src_coord.avTransport.DelegateGroupCoordinationTo([
+                                ("InstanceID", 0),
+                                ("NewCoordinator", new_dev.uid),
+                                ("RejoinGroup", "0"),
+                            ])
+                            _verify_group_settle(new_dev, new_name)
+                            new_coord = new_dev
+                            _delegated = True
+                            # Per-coordinator state rides along with the queue: migrate
+                            # provenance/sources/stale-marker/UI-dedup keys so history
+                            # attribution and the queue overlay survive the move.
+                            for _map in (queue_provenance, queue_sources, stale_enqueued, _last_ui_track):
+                                try:
+                                    if old_name in _map:
+                                        _map[new_name] = _map.pop(old_name)
+                                except Exception:
+                                    pass
+                            try:
+                                with _queue_touched_lock:
+                                    if old_name in queue_touched_at:
+                                        queue_touched_at[new_name] = queue_touched_at.pop(old_name)
+                                        _persist_queue_touched()
+                            except Exception as _qt_mig_err:
+                                log(f"move_music: queue_touched migration failed (benign): {_qt_mig_err}")
+                            log(f"move_music: per-coordinator state migrated '{old_name}' -> '{new_name}'")
+                        # 3) Trim/grow membership to exactly keep_rooms.
+                        try:
+                            _cur = set(m.player_name for m in new_coord.group.members
+                                       if getattr(m, "is_visible", True)) if new_coord.group else {new_coord.player_name}
+                        except Exception:
+                            _cur = {new_coord.player_name}
+                        _drop = sorted(_cur - set(keep_rooms))
+                        _grow = sorted(set(keep_rooms) - _cur)
+                        for r in _drop:
+                            try:
+                                devices[r].unjoin()
+                            except Exception as _uj_err:
+                                log(f"move_music: unjoin {r} failed: {_uj_err}")
+                        for r in _grow:
+                            try:
+                                devices[r].join(new_coord)
+                            except Exception as _jn_err:
+                                log(f"move_music: join {r} failed: {_jn_err}")
+                        if _drop or _grow:
+                            _verify_group_settle(new_coord, new_coord.player_name)
+                        result["success"] = True
+                        result["message"] = (f"Moved music: {old_name} -> {new_coord.player_name}"
+                                             f" | now playing in {sorted(set(keep_rooms))}"
+                                             f" (delegated={_delegated}, dropped={_drop}, added={_grow})")
+                        log(f"[topology-delta] move_music: coordinator {old_name} -> {new_coord.player_name}; "
+                            f"members {sorted(_members)} -> {sorted(set(keep_rooms))}")
+                except Exception as _mm_err:
+                    result["message"] = f"move_music error: {_mm_err}"
+            # SSE + error reporting for ALL outcomes — move_music is silent (no
+            # webhook POST result), so SSE is the page's only reply channel.
+            # v2.63.1 pattern: stamp FRESH topology so the confirmation SSE carries
+            # POST-move groups, not the last poll's.
+            try:
+                _fresh_g = _fresh_groups_snapshot(devices)
+                if _fresh_g:
+                    _poll_snapshot["groups"] = _fresh_g
+                    log(f"move_music: fresh groups stamped for SSE: {[(g['coordinator'], len(g['members'])) for g in _fresh_g]}")
+            except Exception as _fg2_err:
+                log(f"move_music: fresh-groups stamp failed (SSE will carry last-poll groups): {_fg2_err}")
+            try:
+                publish_ui_event("move_music_result", {
+                    "success": result["success"],
+                    "message": result["message"],
+                    "cmd_ts": cmd.get("cmd_ts", ""),
+                })
+                publish_ui_event("status_update", {})
+                schedule_state_push()
+            except Exception as _mm_sse:
+                log(f"move_music: SSE publish failed: {_mm_sse}")
+            if not result["success"]:
+                post_error(f"move_music failed: {result['message']}",
+                           context=f"keep_rooms={keep_rooms} source_room={src_hint}", module="sonos")
 
         elif action == "search":
             from soco.music_services import MusicService
@@ -5502,6 +5722,7 @@ def execute_command(cmd, source="unknown"):
 
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    coordinator = _recheck_coordinator(coordinator, " play_next")  # v2.65
                     # Check if current source is a stream (no queue to insert into)
                     # v2.52.1: x-sonos-vli = live session source (Spotify Connect / AirPlay).
                     # Queue inserts are invisible on it and next() skips the PHONE's session
@@ -6367,6 +6588,7 @@ def execute_command(cmd, source="unknown"):
                     uri_type, share_url = "track", None
                 try:
                     coordinator = dev.group.coordinator if dev.group and dev.group.coordinator else dev
+                    coordinator = _recheck_coordinator(coordinator, " replace_queue")  # v2.65
                     # v2.62.3 clear-first: shuffle off first (house rule: replace
                     # = fresh intent). Raises here -> E1, queue untouched.
                     _clear_shuffle_for_queue_mutation(coordinator, label=" replace_queue")
