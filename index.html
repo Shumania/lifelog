@@ -1178,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.19';
+const PAGE_VERSION = 'p3.20';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -5334,6 +5334,74 @@ function _geoDecide(structKey, source) {
   } catch (e) { console.log('[geo] decide ERROR: ' + e); }
 }
 
+function _geoDecideTie(w, ru, margin, gate) {
+  try {
+    // ── Flavor T (p3.20, geo_suggest Rev 3.1): winner is RIGHT but under the accuracy
+    // gate — close pair like Main living room vs Shed. Never guess (G5): offer both
+    // candidates as taps, WINNER FIRST (soft favoring = ordering only; hard bias
+    // rejected — would auto-pick wrong on a stale fix while walking to the Shed).
+    // Never preselects. Reuses geoStartHere/geoExtendHere/geoAcceptOption accepts.
+    if (!Array.isArray(_groupsByHouse['vashon'])) {
+      if (_geoStateWaits < 5) {
+        _geoStateWaits++;
+        console.log('[geo] tie: no speaker state yet — retry ' + _geoStateWaits + '/5 in 4s');
+        _geoStatus('probably ' + w.s.label + ' — waiting for speaker state…');
+        setTimeout(() => _geoDecideTie(w, ru, margin, gate), 4000);
+      } else _geoStatus('probably ' + w.s.label + ' — speaker state unavailable');
+      return;
+    }
+    // Single-option structures contribute one button named for the structure (their
+    // zones option labels are verbose "Select X + Y" strings); multi-option (Main)
+    // contributes its 🛋/🌤 option labels per D2a.
+    const opts = [w, ru].flatMap(c => c.s.options.length === 1
+      ? [{ label: c.s.label, rooms: c.s.options[0].rooms }]
+      : c.s.options.map(o => ({ label: o.label, rooms: o.rooms })));
+    _geoPendingOptions = opts;
+    const hereRooms = [...new Set(opts.flatMap(o => o.rooms))];
+    const playing = _groupsByHouse['vashon'].filter(g => String(g.state || '').indexOf('PLAYING') === 0 && (g.members || []).length);
+    const probably = 'probably ' + w.s.label + ' (' + Math.round(margin) + 'm lead, need >' + Math.round(gate) + 'm)';
+    console.log('[geo] tie(' + w.key + '|' + ru.key + '): playingGroups=' + playing.length);
+    if (playing.some(g => (g.members || []).some(m => hereRooms.includes(m)))) {
+      // Might be standing in the playing room — no honest conflict detectable (P5).
+      console.log('[geo] tie: music already at a candidate — status only (P5)');
+      _geoStatus(probably + ' — music already at a possible location ✓');
+      return;
+    }
+    if (_geoUserTouched || _geoPlaySent) {
+      // Manual selection respected — passive selection-only hint, matching the
+      // single-winner unsafe path.
+      const btns = opts.map((o, i) => '<button onclick="geoAcceptOption(' + i + ')">' + esc(o.label) + '</button>').join(' ');
+      _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> or ' + esc(ru.s.label) + ' — ' + btns);
+      _geoActiveSuggest = null;
+      _geoStatus(probably + ' — manual selection respected');
+      return;
+    }
+    if (playing.length) {
+      // ── T-D: extend the playing group to whichever candidate the user confirms ──
+      const nagKey = 'TD:' + w.key + ':' + ru.key;
+      if ((_geoNagUntil[nagKey] || 0) > Date.now()) { console.log('[geo] ' + nagKey + ' snoozed'); _geoStatus(probably + ' — suggestion snoozed'); return; }
+      const target = [...playing].sort((a, b) => (b.members || []).length - (a.members || []).length)[0];
+      _geoSuggestCtx = { flavor: 'D', struct: w.key, group: target };
+      const where = esc(target.coordinator || target.members[0]) + (target.members.length > 1 ? ' +' + (target.members.length - 1) : '');
+      const btns = opts.map((o, i) => '<button onclick="geoExtendHere(' + i + ')">Extend ' + esc(o.label) + '</button>').join(' ');
+      _geoShowHint('🎶 Playing on <b>' + where + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+      _geoActiveSuggest = nagKey;
+      console.log('[geo] Flavor T-D banner shown (' + opts.length + ' options, winner ' + w.key + ' first)');
+      _geoStatus(probably);
+    } else {
+      // ── T-A: nothing playing — stage whichever candidate the user confirms ──
+      const nagKey = 'TA:' + w.key + ':' + ru.key;
+      if ((_geoNagUntil[nagKey] || 0) > Date.now()) { console.log('[geo] ' + nagKey + ' snoozed'); _geoStatus(probably + ' — suggestion snoozed'); return; }
+      _geoSuggestCtx = { flavor: 'A', struct: w.key, group: null };
+      const btns = opts.map((o, i) => '<button onclick="geoStartHere(' + i + ')">Start ' + esc(o.label) + '</button>').join(' ');
+      _geoShowHint('📍 Near <b>' + esc(w.s.label) + '</b> or ' + esc(ru.s.label) + ' — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+      _geoActiveSuggest = nagKey;
+      console.log('[geo] Flavor T-A banner shown (' + opts.length + ' options, winner ' + w.key + ' first)');
+      _geoStatus(probably + ' — pick a start target');
+    }
+  } catch (e) { console.log('[geo] decideTie ERROR: ' + e); }
+}
+
 async function geoStartHere(idx) {
   try {
     const opt = _geoPendingOptions && _geoPendingOptions[idx];
@@ -5433,6 +5501,16 @@ async function geoMaybeRun(trigger) {
     const gate = Math.max(acc, z.gate.min_margin_m);
     console.log('[geo] nearest=' + w.key + ' ' + Math.round(w.d) + 'm · runner-up=' + ru.key + ' ' + Math.round(ru.d) + 'm · margin=' + Math.round(margin) + 'm vs gate=' + Math.round(gate) + 'm');
     if (margin <= gate) {
+      // p3.20 Flavor T (geo_suggest Rev 3.1): winner leads but under the gate. For a
+      // CLOSE PAIR (both candidates <40m — e.g. Main living room vs Shed, refs 19.5m
+      // apart, indoor fixes ±13-15m can never clear the gate) offer BOTH as tap
+      // options instead of standing down silently. Far ambiguous fixes keep the old
+      // stand-down — that's a bad fix, not a close pair.
+      if (w.d <= 40 && ru.d <= 40) {
+        console.log('[geo] gate failed (margin ' + Math.round(margin) + 'm <= ' + Math.round(gate) + 'm) but close pair — tie-breaker (Flavor T)');
+        _geoDecideTie(w, ru, margin, gate);
+        return;
+      }
       console.log('[geo] confidence gate FAILED — no chip, no guess');
       _geoStatus(w.s.label + ' vs ' + ru.s.label + ' too close to call (' + Math.round(margin) + 'm margin, need >' + Math.round(gate) + 'm · fix ±' + Math.round(acc) + 'm, ' + fixAgeS + 's old)');
       return;
