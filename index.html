@@ -1178,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.21';
+const PAGE_VERSION = 'p3.22';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -5257,8 +5257,9 @@ function geoAcceptOption(idx) {
 // ══ p3.19: Tier 2 suggestion engine (design_geo_suggest_v1.md Rev 3) ══════════
 // Routes a located structure (gate-passing GPS fix OR device pin) by CONFLICT (P5):
 // suggestions fire only when location and app state disagree. Phase 1 = Flavor A
-// "Start here" + Flavor D "Extend here" (both existing verbs). B (move) / C (narrow)
-// need the v2.65 move_music verb — those routes are status-line-only until then.
+// "Start here" + Flavor D "Extend here" (both existing verbs). Phase 2 (p3.22) =
+// Flavor B "Move here" + Flavor C "Play just here" via the v2.65 move_music verb —
+// audio never blinks (DelegateGroupCoordinationTo; coordinator re-resolved server-side).
 let _geoStateWaits = 0;
 let _geoNagUntil = {};        // 'A:shed' -> ms epoch; 30-min snooze after any dismissal (§4.1.4)
 let _geoActiveSuggest = null; // nag key of the currently-shown suggestion banner
@@ -5318,9 +5319,21 @@ function _geoDecide(structKey, source) {
     if (hereGroups.length) {
       const extra = [...new Set(hereGroups.flatMap(g => g.members).filter(m => !hereRooms.includes(m)))];
       if (extra.length) {
-        // Flavor C (narrow) — Phase 2 (needs move_music). Honest status only.
-        console.log('[geo] playing here + ' + extra.length + ' other room(s) — narrow = Phase 2, status only');
-        _geoStatus(pfx + s.label + ' — playing here + ' + extra.length + ' other room' + (extra.length > 1 ? 's' : ''));
+        // ── Flavor C (p3.22): playing here + elsewhere — narrow to just here via
+        // move_music (v2.65). The morning-after case: whole-house group survived
+        // overnight, you walk in, music follows you around the property. ──
+        const roomsTxt = extra.length + ' other room' + (extra.length > 1 ? 's' : '');
+        if (!safe) { _geoStatus(pfx + s.label + ' — playing here + ' + roomsTxt + ' (manual selection respected)'); return; }
+        const nagKey = 'C:' + structKey;
+        if ((_geoNagUntil[nagKey] || 0) > Date.now()) { console.log('[geo] ' + nagKey + ' snoozed'); _geoStatus(pfx + s.label + ' — playing here + ' + roomsTxt + ' (snoozed)'); return; }
+        const src = [...hereGroups].sort((a, b) => (b.members || []).length - (a.members || []).length)[0];
+        _geoSuggestCtx = { flavor: 'C', struct: structKey, group: src };
+        const btns = opts.map((o, i) =>
+          '<button onclick="geoNarrowHere(' + i + ')">' + (opts.length > 1 ? 'Just ' + esc(o.label) : 'Play just ' + esc(s.label)) + '</button>').join(' ');
+        _geoShowHint('🎶 Playing here <b>+ ' + esc(roomsTxt) + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
+        _geoActiveSuggest = nagKey;
+        console.log('[geo] Flavor C banner shown (group: ' + src.members.join(', ') + ' · extra: ' + extra.join(', ') + ')');
+        _geoStatus(pfx + s.label + ' — playing here + ' + roomsTxt);
       } else {
         console.log('[geo] already playing exactly here — no conflict (P5), silence');
         _geoStatus(pfx + s.label + ' — already playing here ✓');
@@ -5342,7 +5355,10 @@ function _geoDecide(structKey, source) {
       const target = [...playing].sort((a, b) => (b.members || []).length - (a.members || []).length)[0];
       _geoSuggestCtx = { flavor: 'D', struct: structKey, group: target };
       const where = esc(target.coordinator || target.members[0]) + (target.members.length > 1 ? ' +' + (target.members.length - 1) : '');
+      // p3.22 (D3): banner grows the Move button now that the v2.65 verb exists —
+      // one banner, two verbs per target (geo_suggest §4.2 "B vs D presentation").
       const btns = opts.map((o, i) =>
+        '<button onclick="geoMoveHere(' + i + ')">' + (opts.length > 1 ? 'Move ' + esc(o.label) : 'Move to ' + esc(s.label)) + '</button> ' +
         '<button onclick="geoExtendHere(' + i + ')">' + (opts.length > 1 ? 'Extend ' + esc(o.label) : 'Extend to ' + esc(s.label)) + '</button>').join(' ');
       _geoShowHint('🎶 Playing on <b>' + where + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
       _geoActiveSuggest = nagKey;
@@ -5421,7 +5437,10 @@ function _geoDecideTie(w, ru, margin, gate) {
       const target = [...playing].sort((a, b) => (b.members || []).length - (a.members || []).length)[0];
       _geoSuggestCtx = { flavor: 'D', struct: w.key, group: target };
       const where = esc(target.coordinator || target.members[0]) + (target.members.length > 1 ? ' +' + (target.members.length - 1) : '');
-      const btns = opts.map((o, i) => '<button onclick="geoExtendHere(' + i + ')">Extend ' + esc(o.label) + '</button>').join(' ');
+      // p3.22: Move joins Extend in the tie banner too (winner-first ordering kept).
+      const btns = opts.map((o, i) =>
+        '<button onclick="geoMoveHere(' + i + ')">Move ' + esc(o.label) + '</button> ' +
+        '<button onclick="geoExtendHere(' + i + ')">Extend ' + esc(o.label) + '</button>').join(' ');
       _geoShowHint('🎶 Playing on <b>' + where + '</b> — ' + btns + ' <button onclick="geoDismissHint(\'user ✕\')">✕</button>');
       _geoActiveSuggest = nagKey;
       console.log('[geo] Flavor T-D banner shown (' + opts.length + ' options, winner ' + w.key + ' first)');
@@ -5477,6 +5496,56 @@ async function geoExtendHere(idx) {
     updateSyncButton('vashon');
     await syncRooms('vashon');
   } catch (e) { console.log('[geo] extendHere ERROR: ' + e); showToast('✗ Extend failed: ' + e.message, true); }
+}
+
+async function _geoJoinVols(newRooms) {
+  // p3.21 join-volume pattern: rooms about to JOIN the session get their D8 default
+  // BEFORE the topology change; rooms already in the group keep manual tweaks.
+  for (const room of newRooms) {
+    const vols = await _geoVolDefaults();
+    const vol = vols[room] || _scVolFallback;
+    console.log('[geo] join-volume ' + room + ' → ' + vol + ' (D8)');
+    await postNtfy({ action: 'set_volume', room, volume: vol }, 'vashon');
+    await _scSleep(400);
+  }
+}
+
+async function geoMoveHere(idx) {
+  // Flavor B (p3.22, geo_suggest §4.2B): audio FOLLOWS via the v2.65 move_music verb —
+  // queue, position and stream ride along (DelegateGroupCoordinationTo); prior rooms
+  // drop off. Coordinator is re-resolved live server-side; source_room is only a hint.
+  try {
+    const opt = _geoPendingOptions && _geoPendingOptions[idx];
+    const ctx = _geoSuggestCtx;
+    if (!opt || !ctx || !ctx.group) { console.log('[geo] moveHere: missing option/ctx'); return; }
+    geoDismissHint('accepted'); // also snoozes via _geoActiveSuggest
+    const cur = ctx.group.members || [];
+    const newRooms = opt.rooms.filter(r => !cur.includes(r));
+    console.log('[geo] ═══ MOVE → ' + opt.rooms.join(', ') + ' (from ' + (ctx.group.coordinator || cur[0] || '?') + ', ' + newRooms.length + ' new room(s)) ═══');
+    showToast('🎶 Moving music to ' + opt.rooms.join(' + ') + '…');
+    await _geoJoinVols(newRooms);
+    const ok = await postNtfy({ action: 'move_music', keep_rooms: opt.rooms, source_room: ctx.group.coordinator || cur[0] }, 'vashon');
+    if (ok) geoSelectRooms(opt.rooms, 'move-here accept'); // D9: selection follows the music
+  } catch (e) { console.log('[geo] moveHere ERROR: ' + e); showToast('✗ Move failed: ' + e.message, true); }
+}
+
+async function geoNarrowHere(idx) {
+  // Flavor C (p3.22, geo_suggest §4.2C): narrow the playing group to just here — the
+  // other rooms drop off, playback never blinks. Same verb; keep_rooms = this
+  // structure's rooms (any of them not yet in the group are joined by the service).
+  try {
+    const opt = _geoPendingOptions && _geoPendingOptions[idx];
+    const ctx = _geoSuggestCtx;
+    if (!opt || !ctx || !ctx.group) { console.log('[geo] narrowHere: missing option/ctx'); return; }
+    geoDismissHint('accepted');
+    const cur = ctx.group.members || [];
+    const newRooms = opt.rooms.filter(r => !cur.includes(r)); // e.g. Shed Boombox wasn't in the overnight group
+    console.log('[geo] ═══ NARROW → ' + opt.rooms.join(', ') + ' (from ' + cur.join(', ') + ') ═══');
+    showToast('🎶 Narrowing to ' + opt.rooms.join(' + ') + '…');
+    await _geoJoinVols(newRooms);
+    const ok = await postNtfy({ action: 'move_music', keep_rooms: opt.rooms, source_room: ctx.group.coordinator || cur[0] }, 'vashon');
+    if (ok) geoSelectRooms(opt.rooms, 'narrow-here accept'); // D9: selection follows the music
+  } catch (e) { console.log('[geo] narrowHere ERROR: ' + e); showToast('✗ Narrow failed: ' + e.message, true); }
 }
 
 async function geoMaybeRun(trigger) {
