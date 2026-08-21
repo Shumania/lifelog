@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-20T10:16:14.061Z",
- "pick_date": "2026-08-20",
- "work_key": "BWV996-998",
- "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
- "performer": "Sean Shibe",
- "album": "Bach",
- "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
- "instrumentation": "lute_guitar",
- "approx_minutes": 62,
- "reason": "✨ never heard · avoided piano",
+ "picked_at": "2026-08-21T10:16:00.728Z",
+ "pick_date": "2026-08-21",
+ "work_key": "ARR-WTC-CONSORT-III",
+ "work": "The Well-Tempered Consort III",
+ "performer": "Phantasm",
+ "album": "Bach: The Well-Tempered Consort – III",
+ "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 64,
+ "reason": "✨ never heard",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-III",
-  "work": "The Well-Tempered Consort III",
-  "performer": "Phantasm",
-  "album": "Bach: The Well-Tempered Consort – III",
-  "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96"
+  "work_key": "ARR-MARIMBA-KUNIKO",
+  "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+  "performer": "Kuniko",
+  "album": "J.S. Bach: Solo Works for Marimba",
+  "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
  }
 }
