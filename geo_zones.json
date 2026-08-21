@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "updated": "2026-08-20",
   "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). v2 (p3.16): max_age_s 120->25, rearm_s 300 added. v3: sauna reference updated from 2026-08-20 re-survey (2m/16 samples); sauna-main separation now 25.5m.",
   "vashon": {
@@ -24,17 +24,16 @@
         "label": "Garage",
         "options": [
           {
-            "label": "Select Garage + Garage Living Room",
+            "label": "Select Garage",
             "rooms": [
-              "Garage",
-              "Garage Living Room"
+              "Garage"
             ]
           }
         ]
       },
       "shed": {
-        "lat": 47.3657897,
-        "lon": -122.4682952,
+        "lat": 47.3658185,
+        "lon": -122.4683192,
         "label": "the Shed",
         "options": [
           {
