@@ -1178,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.22';
+const PAGE_VERSION = 'p3.23';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -6083,6 +6083,19 @@ async function _bachFetchPick(force) {
   } catch (e) { console.error('[shortcuts] bach_pick fetch failed:', e); }
   return _bachPick;
 }
+// p3.23 🏋️ Daily Garage Burn: rotation pick published nightly (Step 2.17) to
+// garage_pick.json; consumed by the garage_pick resolver + dynamic tile sub.
+const GARAGE_PICK_URL = 'https://shumania.github.io/lifelog/garage_pick.json';
+let _garagePick = null;
+async function _garageFetchPick(force) {
+  if (_garagePick && !force) return _garagePick;
+  try {
+    const r = await fetch(GARAGE_PICK_URL + '?t=' + Date.now());
+    if (r.ok) { _garagePick = await r.json(); console.log('[shortcuts] garage_pick loaded: ' + _garagePick.pick_date + ' "' + _garagePick.name + '"'); }
+    else console.error('[shortcuts] garage_pick fetch HTTP ' + r.status);
+  } catch (e) { console.error('[shortcuts] garage_pick fetch failed:', e); }
+  return _garagePick;
+}
 let _shortcuts = [];
 let _scBusy = null;  // id of currently-running shortcut (one at a time)
 const _scSleep = ms => new Promise(r => setTimeout(r, ms));
@@ -6104,6 +6117,16 @@ async function loadShortcuts() {
         if (!p) return;
         for (const sc of _shortcuts) if (sc.dynamic === 'bach_pick') {
           sc.sub = p.work + ' — ' + p.performer + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '');
+        }
+        renderShortcuts();
+      });
+    }
+    // p3.23: 🏋️ Daily Garage Burn tile carries today's mix name (same pattern).
+    if (_shortcuts.some(sc => sc.dynamic === 'garage_pick')) {
+      _garageFetchPick().then(p => {
+        if (!p) return;
+        for (const sc of _shortcuts) if (sc.dynamic === 'garage_pick') {
+          sc.sub = 'Today: ' + p.name + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '') + ' · vol 30';
         }
         renderShortcuts();
       });
@@ -6150,7 +6173,7 @@ async function _scExpandStep(step, h) {
   delete s.resolve; delete s.delay_after_ms;
   if (!resolve) return [s];
 
-  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick'];
+  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick', 'garage_pick'];
   const unknown = Object.keys(resolve).filter(k => !known.includes(k));
   if (unknown.length) throw new Error('unknown resolver(s): ' + unknown.join(', ') + ' — update the app');
 
@@ -6175,6 +6198,17 @@ async function _scExpandStep(step, h) {
     if (!s.title) s.title = pick.work;
     if (!s.artist) s.artist = pick.performer;
     console.log('[shortcuts] bach_pick(' + pick.pick_date + ') → "' + pick.work + '" — ' + pick.performer + ' (' + s.uri + ')');
+  }
+
+  if (resolve.garage_pick) {
+    // 🏋️ Daily Garage Burn (p3.23): today's rotation pick from nightly-published
+    // garage_pick.json. FRESH fetch at tap time (page open across nightly boundary
+    // must play today's mix). Day-old file still plays: honest-stale beats silence.
+    const pick = await _garageFetchPick(true);
+    if (!pick || !pick.playlist_uri) throw new Error('garage_pick.json unavailable — no mix to play');
+    s.uri = pick.playlist_uri;
+    if (!s.title) s.title = pick.name;
+    console.log('[shortcuts] garage_pick(' + pick.pick_date + ') → "' + pick.name + '" (' + s.uri + ')');
   }
 
   if (resolve.newest_playlist) {
