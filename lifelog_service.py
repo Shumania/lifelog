@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.65.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.66.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1747,6 +1747,93 @@ def get_rooms_playing():
     v2.24: No longer queries speakers directly — reads from _poll_snapshot
     built once per cycle by _build_poll_snapshot()."""
     return list(_poll_snapshot.get("rooms_playing", []))
+
+
+# --- DAILY VOLUME RESET (v2.66, D10 — Andrew 2026-08-22) ----------------------
+# Once per day (first poll cycle at/after 04:00 Seattle time), every room that is
+# NOT actively playing is set back to its default volume from the published
+# shortcuts.json defaults.volume_by_room table — the same single source of truth
+# used by play.ts, the page's D10 tap-time inheritance, and join-volume. Between
+# sessions, "default" actually means something again: yesterday's cranked room
+# doesn't ambush today's first play.
+# Design is level-triggered (Rule 27): the enforced STATE is "idle rooms sit at
+# their defaults today". A mid-day service restart may re-run the sweep once —
+# idempotent and harmless. Fetch failure = quiet retry next poll cycle (the day
+# flag is only stamped after a completed sweep). Rooms in a PLAYING/TRANSITIONING
+# group are never touched (no mid-listen volume yanks); they get caught the next
+# day if idle then.
+_VOL_RESET_HOUR = 4          # Seattle-local hour the daily window opens
+_vol_reset_done_date = None  # Seattle date str of last COMPLETED sweep (in-memory)
+
+def _fetch_volume_defaults():
+    """Fetch defaults.volume_by_room (+ volume_fallback) from published
+    shortcuts.json. Returns (dict, fallback) or (None, None) on any failure."""
+    try:
+        r = requests.get("https://shumania.github.io/lifelog/shortcuts.json",
+                         params={"t": int(time.time())}, timeout=10)
+        r.raise_for_status()
+        d = r.json().get("defaults") or {}
+        vbr = d.get("volume_by_room") or {}
+        fb = int(d.get("volume_fallback") or 18)
+        if not vbr:
+            log("[vol-reset] shortcuts.json has no defaults.volume_by_room -- skipping")
+            return None, None
+        return vbr, fb
+    except Exception as e:
+        log(f"[vol-reset] defaults fetch failed ({e}) -- will retry next cycle")
+        return None, None
+
+def maybe_daily_volume_reset():
+    """Called once per Sonos poll cycle. No-op except the first cycle at/after
+    04:00 America/Los_Angeles each day (and any retry cycles after a fetch fail)."""
+    global _vol_reset_done_date
+    try:
+        if "sonos" not in modules or not _poll_snapshot or not current_devices_by_name:
+            return
+        try:
+            from zoneinfo import ZoneInfo
+            now_local = datetime.now(ZoneInfo("America/Los_Angeles"))
+        except Exception:
+            import pytz
+            now_local = datetime.now(pytz.timezone("America/Los_Angeles"))
+        if now_local.hour < _VOL_RESET_HOUR:
+            return
+        today = now_local.strftime("%Y-%m-%d")
+        if _vol_reset_done_date == today:
+            return
+        vbr, fb = _fetch_volume_defaults()
+        if vbr is None:
+            return  # level-triggered: retry next poll cycle until the fetch lands
+        # Busy = every member (and coordinator) of any PLAYING/TRANSITIONING group.
+        busy = set()
+        for g in (_poll_snapshot.get("groups") or []):
+            if g.get("state") in ("PLAYING", "TRANSITIONING"):
+                busy.update(g.get("members") or [])
+                busy.add(g.get("coordinator"))
+        changed, skipped_busy, already, errors = [], [], 0, 0
+        for room, dev in sorted(current_devices_by_name.items()):
+            if room in busy:
+                skipped_busy.append(room)
+                continue
+            target = int(vbr.get(room, fb))
+            try:
+                cur = int(dev.volume)
+                if cur == target:
+                    already += 1
+                    continue
+                dev.volume = target
+                changed.append(f"{room} {cur}->{target}")
+            except Exception as e:
+                errors += 1
+                log(f"[vol-reset] {room}: ERROR {e}")
+        _vol_reset_done_date = today  # stamp only after a completed sweep
+        log(f"[vol-reset] daily sweep done ({today}): {len(changed)} reset"
+            + (f" [{'; '.join(changed)}]" if changed else "")
+            + f" | {already} already at default"
+            + (f" | busy skipped: {', '.join(sorted(skipped_busy))}" if skipped_busy else "")
+            + (f" | {errors} error(s)" if errors else ""))
+    except Exception as e:
+        log(f"[vol-reset] sweep error: {e}")
 
 
 # --- DIAGNOSTIC STATUS BLOCK ------------------------------------------------
@@ -7005,6 +7092,7 @@ def sonos_main_loop():
         log(f"Warning: could not set SoCo timeout: {e}")
 
     log(f"Sonos polling every {POLL_INTERVAL}s (v2.24: single-discovery, snapshot-based)")
+    log("[vol-reset] daily default-volume sweep armed (v2.66 D10, 04:00 America/Los_Angeles)")  # unique v2.66 boot marker (Rule 24 §3)
     log("Scanning for Sonos speakers...")
 
     first_run   = True
@@ -7016,6 +7104,12 @@ def sonos_main_loop():
 
             # v2.24: Build poll snapshot once per cycle (replaces 3x get_rooms_playing)
             _build_poll_snapshot(coordinators)
+
+            # v2.66 (D10): daily default-volume sweep — no-op except the first
+            # cycle at/after 04:00 Seattle each day. Skipped on the boot cycle
+            # so a restart settles before touching hardware.
+            if not first_run:
+                maybe_daily_volume_reset()
 
             if first_run:
                 names = [d.player_name for d in coordinators]
