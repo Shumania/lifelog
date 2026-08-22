@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "generated_at": "2026-08-18T17:40:20Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
@@ -129,7 +129,7 @@
     {
       "id": "daily-bach-lowerdeck",
       "label": "Daily Bach → Lower Deck",
-      "sub": "Today's pick · vol 55",
+      "sub": "Today's pick · vol 39",
       "icon": "🎼",
       "house": "vashon",
       "dynamic": "bach_pick",
@@ -145,7 +145,7 @@
         {
           "action": "set_volume",
           "room": "Main Lower Deck",
-          "volume": 55
+          "volume": 39
         },
         {
           "action": "replace_queue",
@@ -197,7 +197,7 @@
       "Dining Room": 18,
       "Kitchen": 18,
       "Sauna Porch": 35,
-      "Main Lower Deck": 55,
+      "Main Lower Deck": 39,
       "Media Room": 7,
       "Main Upstairs Second Bedroom": 12,
       "Main Upstairs Master Bedroom": 12,
