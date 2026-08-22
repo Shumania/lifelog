@@ -2,7 +2,7 @@
   "extractor_version": "2.11",
   "service_version": "2.66.0",
   "clients": {
-    "lifelog_mind": "2.65.0",
+    "lifelog_mind": "2.66.0",
     "lifelog_shumaframe": "2.65.0"
   },
   "page_version": "p3.24"
