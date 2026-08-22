@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "updated": "2026-08-20",
+  "version": 5,
+  "updated": "2026-08-22",
   "notes": "Vashon structure-chip zones (design_geo_ux_v1.md Rev 2). v2 (p3.16): max_age_s 120->25, rearm_s 300 added. v3: sauna reference updated from 2026-08-20 re-survey (2m/16 samples); sauna-main separation now 25.5m.",
   "vashon": {
     "centroid": {
@@ -81,5 +81,19 @@
       }
     },
     "rearm_s": 300
+  },
+  "caphill": {
+    "centroid": {
+      "lat": 47.62734,
+      "lon": -122.30392
+    },
+    "presence_radius_m": 200
+  },
+  "house": {
+    "gate_m": 300,
+    "fix_max_age_s": 120,
+    "rearm_s": 300,
+    "override_expiry_h": 8,
+    "notes": "p3.25 house pick (design_geo_house_v1.md D1-D7). In-zone: dist-acc<=radius; roaming: confidently outside both."
   }
 }
