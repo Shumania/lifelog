@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # -- Version ------------------------------------------------------------------
-EXTRACTOR_VERSION = "2.10"
+EXTRACTOR_VERSION = "2.11"
 VERSIONS_API_URL  = "https://api.github.com/repos/Shumania/lifelog/contents/versions.json"
 EXTRACTOR_API_URL = "https://api.github.com/repos/Shumania/lifelog/contents/lifelog_extract.py"
 EXTRACTOR_INSTALL_PATH = Path(r"C:\ProgramData\LifeLog\lifelog_extract.py")
@@ -76,6 +76,11 @@ LOG_FILE   = Path(r"C:\ProgramData\LifeLog\lifelog.log")
 STATE_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_hash.txt")
 CURSOR_FILE = Path(r"C:\ProgramData\LifeLog\last_podcast_cursor.txt")
 MTIME_FILE = Path(r"C:\ProgramData\LifeLog\last_backup_mtime.txt")
+
+# Count of extraction exceptions this run (v2.11). If >0 and nothing was extracted,
+# we must NOT save hash/mtime state — otherwise a transient decryption failure would
+# silently mark the backup as "done" and skip its data until the NEXT backup arrives.
+EXTRACTION_ERRORS = 0
 
 
 def get_backup_hash(backup_dir):
@@ -322,7 +327,11 @@ def get_file_from_encrypted_backup(backup_dir, domain, relative_path):
 
         return tmp_path
     except Exception as e:
-        log(f"Encrypted extraction error ({domain}/{relative_path}): {e}")
+        # v2.11: include exception type — some exceptions (MemoryError, bare asserts)
+        # have an empty str(), which previously logged a blank reason after the colon.
+        global EXTRACTION_ERRORS
+        EXTRACTION_ERRORS += 1
+        log(f"Encrypted extraction error ({domain}/{relative_path}): {type(e).__name__}: {e}")
         return None
 
 
@@ -922,6 +931,13 @@ def main():
     browsing = extract_safari(backup_dir, encrypted=encrypted)
 
     if not podcasts and not browsing:
+        if EXTRACTION_ERRORS:
+            # v2.11: nothing extracted AND errors occurred — do NOT mark this backup as
+            # done. Leaving hash/mtime untouched means the next hourly run retries the
+            # decryption instead of silently skipping this backup until the next one.
+            log(f"No data extracted and {EXTRACTION_ERRORS} extraction error(s) occurred — "
+                f"NOT saving state; next run will retry this backup.")
+            sys.exit(1)
         log("No new data to send (cursor up to date or nothing extracted).")
         # Still update hash/mtime so we don't re-decrypt on every run
         if current_hash:
