@@ -1178,7 +1178,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.23';
+const PAGE_VERSION = 'p3.24';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -6126,7 +6126,9 @@ async function loadShortcuts() {
       _garageFetchPick().then(p => {
         if (!p) return;
         for (const sc of _shortcuts) if (sc.dynamic === 'garage_pick') {
-          sc.sub = 'Today: ' + p.name + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '') + ' · vol 30';
+          // p3.24 (D10): show the LIVE room default (defaults.volume_by_room), not a baked number
+          const gv = (_scVolByRoom && _scVolByRoom['Garage'] != null) ? _scVolByRoom['Garage'] : _scVolFallback;
+          sc.sub = 'Today: ' + p.name + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '') + ' · vol ' + gv;
         }
         renderShortcuts();
       });
@@ -6251,12 +6253,42 @@ async function runShortcut(id) {
   _scBusy = id; renderShortcuts();
   console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + sc.house + ' steps=' + (sc.steps || []).length + ' ═══');
   const _scPlayRooms = [];  // p3.12: rooms targeted by play-class steps → chips follow on success
+  // p3.24 (D10): shortcuts INHERIT room default volumes at tap time. Any room targeted
+  // by a play-class step that has NO explicit set_volume step in the shortcut gets a
+  // set_volume(default) injected right before the play send. Explicit steps = override.
+  // Defaults come live from shortcuts.json defaults.volume_by_room (single source of
+  // truth — same table play.ts and join-volume read), so a defaults change propagates
+  // to every tile instantly with zero tile edits.
+  const _scExplicitVolRooms = new Set();
+  let _scVolCoversAll = false;
+  for (const st0 of (sc.steps || [])) {
+    if (st0.action !== 'set_volume') continue;
+    if (st0.resolve && st0.resolve.each_room) _scVolCoversAll = true; // vol loops cover everything
+    if (st0.room) _scExplicitVolRooms.add(st0.room);
+  }
+  const _scVolInjected = new Set();
   try {
     for (let i = 0; i < (sc.steps || []).length; i++) {
       const step = sc.steps[i];
       const payloads = await _scExpandStep(step, sc.house);
       console.log('[shortcuts] step ' + (i + 1) + '/' + sc.steps.length + ' (' + step.action + ') → ' + payloads.length + ' send(s)');
       for (const p of payloads) {
+        // p3.24 (D10): default-volume inheritance — see block above runShortcut's try.
+        if (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue') {
+          const targets = p.rooms || (p.room ? [p.room] : []);
+          for (const rm of targets) {
+            if (!rm || _scVolCoversAll || _scExplicitVolRooms.has(rm) || _scVolInjected.has(rm)) continue;
+            const defs = await _geoVolDefaults();
+            const vol = (defs[rm] != null) ? defs[rm] : _scVolFallback;
+            const vp = { action: 'set_volume', room: rm, volume: vol,
+                         cmd_ts: new Date().toISOString(), shortcut_id: id, inherited_default: true };
+            console.log('[shortcuts] D10 inherit: set_volume ' + rm + ' → ' + vol + (defs[rm] != null ? ' (room default)' : ' (fallback)'));
+            const vok = await postNtfy(vp, sc.house);
+            if (!vok) throw new Error('send failed (inherited set_volume → ' + rm + ')');
+            _scVolInjected.add(rm);
+            await _scSleep(400);
+          }
+        }
         p.cmd_ts = new Date().toISOString();  // Rule 22: fresh cmd_ts on every send
         p.shortcut_id = id;                   // provenance breadcrumb in the command body
         const ok = await postNtfy(p, sc.house);

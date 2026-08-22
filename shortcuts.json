@@ -1,20 +1,15 @@
 {
-  "version": 9,
+  "version": 10,
   "generated_at": "2026-08-18T17:40:20Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
       "id": "kcrw-e24-shedarc",
       "label": "KCRW Eclectic 24 → Shed Arc",
-      "sub": "24-hour music stream · vol 18",
+      "sub": "24-hour music stream",
       "icon": "📻",
       "house": "vashon",
       "steps": [
-        {
-          "action": "set_volume",
-          "room": "Shed Arc",
-          "volume": 18
-        },
         {
           "action": "play_uri",
           "room": "Shed Arc",
@@ -27,7 +22,7 @@
     {
       "id": "kcrw-e24-caphill-main",
       "label": "KCRW Eclectic 24 → Main Floor",
-      "sub": "Dining Room · Kitchen · Living Room · vol 18",
+      "sub": "Dining Room · Kitchen · Living Room",
       "icon": "📻",
       "house": "caphill",
       "steps": [
@@ -39,21 +34,6 @@
             "Kitchen"
           ],
           "delay_after_ms": 6000
-        },
-        {
-          "action": "set_volume",
-          "room": "Living Room",
-          "volume": 18
-        },
-        {
-          "action": "set_volume",
-          "room": "Dining Room",
-          "volume": 18
-        },
-        {
-          "action": "set_volume",
-          "room": "Kitchen",
-          "volume": 18
         },
         {
           "action": "play_uri",
@@ -99,7 +79,7 @@
     {
       "id": "daily-garage-burn",
       "label": "Garage Burn → Garage",
-      "sub": "Today's mix · vol 30",
+      "sub": "Today's mix",
       "icon": "🏋️",
       "house": "vashon",
       "dynamic": "garage_pick",
@@ -113,11 +93,6 @@
           "delay_after_ms": 6000
         },
         {
-          "action": "set_volume",
-          "room": "Garage",
-          "volume": 30
-        },
-        {
           "action": "replace_queue",
           "resolve": {
             "garage_pick": true
@@ -129,7 +104,7 @@
     {
       "id": "daily-bach-lowerdeck",
       "label": "Daily Bach → Lower Deck",
-      "sub": "Today's pick · vol 39",
+      "sub": "Today's pick",
       "icon": "🎼",
       "house": "vashon",
       "dynamic": "bach_pick",
@@ -143,11 +118,6 @@
           "delay_after_ms": 6000
         },
         {
-          "action": "set_volume",
-          "room": "Main Lower Deck",
-          "volume": 39
-        },
-        {
           "action": "replace_queue",
           "resolve": {
             "bach_pick": true
@@ -159,7 +129,7 @@
     {
       "id": "daily-bach-shedarc",
       "label": "Daily Bach → Shed Arc",
-      "sub": "Today's pick · vol 18",
+      "sub": "Today's pick",
       "icon": "🎼",
       "house": "vashon",
       "dynamic": "bach_pick",
@@ -171,11 +141,6 @@
             "Shed Arc"
           ],
           "delay_after_ms": 6000
-        },
-        {
-          "action": "set_volume",
-          "room": "Shed Arc",
-          "volume": 18
         },
         {
           "action": "replace_queue",
@@ -206,5 +171,8 @@
       "Master Bathroom": 12
     }
   },
-  "updated_at": "2026-08-20"
+  "updated_at": "2026-08-20",
+  "notes": {
+    "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed."
+  }
 }
