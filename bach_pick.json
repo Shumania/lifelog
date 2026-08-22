@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-21T10:16:00.728Z",
- "pick_date": "2026-08-21",
- "work_key": "ARR-WTC-CONSORT-III",
- "work": "The Well-Tempered Consort III",
- "performer": "Phantasm",
- "album": "Bach: The Well-Tempered Consort – III",
- "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
- "instrumentation": "viol_consort",
- "approx_minutes": 64,
- "reason": "✨ never heard",
+ "picked_at": "2026-08-22T10:14:24.732Z",
+ "pick_date": "2026-08-22",
+ "work_key": "ARR-MARIMBA-KUNIKO",
+ "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+ "performer": "Kuniko",
+ "album": "J.S. Bach: Solo Works for Marimba",
+ "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
+ "instrumentation": "marimba_other",
+ "approx_minutes": 100,
+ "reason": "✨ never heard · avoided viol_consort",
  "fallback": {
-  "work_key": "ARR-MARIMBA-KUNIKO",
-  "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
-  "performer": "Kuniko",
-  "album": "J.S. Bach: Solo Works for Marimba",
-  "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
+  "work_key": "BWV1001-1003",
+  "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
+  "performer": "Hilary Hahn",
+  "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
+  "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ"
  }
 }
