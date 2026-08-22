@@ -972,6 +972,14 @@
     </div>
     <div class="ctrl-settings-pop" id="ctrl-settings-caphill" hidden>
       <button class="ctrl-settings-item" onclick="sendClearQueue('caphill')">🗑 Clear queue</button>
+      <!-- p3.25 D5 (geo_house): house-only pin for stationary Cap Hill devices -->
+      <div class="ctrl-settings-item" style="display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation()">
+        📌 Pin device:
+        <select id="geo-pin-select-ch" onchange="geoSetPin(this.value)" style="background:#1a1d24;color:inherit;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:2px 4px;font-size:13px;">
+          <option value="">No pin</option>
+          <option value="__caphill">Cap Hill (house)</option>
+        </select>
+      </div>
     </div>
     <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
          with no queue it reads "Speakers — <selection> ›" -->
@@ -1032,6 +1040,7 @@
           <option value="shed">Shed</option>
           <option value="sauna">Sauna</option>
           <option value="main">Main House</option>
+          <option value="__caphill">Cap Hill (house)</option>
         </select>
       </div>
     </div>
@@ -1178,7 +1187,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.24';
+const PAGE_VERSION = 'p3.25';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1541,6 +1550,15 @@ async function spotifyApi(method, path, body, _authRetries) {
 // HOUSE SWITCHING
 // ══════════════════════════════════════════════════════════════════════════════
 function setHouse(h, isUserClick) {
+  // p3.25 D4 (design_geo_house_v1.md): a USER tap records a sticky override —
+  // detection then never flips the view until (a) a confident fix lands in a
+  // DIFFERENT zone than where the override was made (you actually moved),
+  // (b) the 8h backstop expires, or (c) the next tap. Programmatic calls
+  // (house pick, deep-link, boot, pin) pass no isUserClick and record nothing.
+  if (isUserClick) {
+    try { localStorage.setItem('ll_house_override', JSON.stringify({ house: h, zone_at: _houseLastDetected, ts: Date.now() })); } catch (e) {}
+    console.log('[house] manual override → ' + h + ' (zone_at=' + (_houseLastDetected || 'unknown') + ')');
+  }
   house = h;
   localStorage.setItem('ll_house', h);
   // p2.95: tabs row → dropdown; keep the select in sync when setHouse is called programmatically
@@ -1964,9 +1982,10 @@ function toggleCtrlSettings(h) {
   const pop = document.getElementById('ctrl-settings-' + h);
   if (pop) pop.hidden = !pop.hidden;
   // p3.19: reflect the current device pin in the picker on open (geo_suggest §5)
-  if (h === 'vashon' && pop && !pop.hidden) {
-    const sel = document.getElementById('geo-pin-select');
-    if (sel) { const p = _geoPin(); sel.value = (p && p.structure) || ''; }
+  // p3.25: both houses now carry a pin picker; a house-only Cap Hill pin shows as '__caphill'
+  if (pop && !pop.hidden) {
+    const sel = document.getElementById(h === 'caphill' ? 'geo-pin-select-ch' : 'geo-pin-select');
+    if (sel) { const p = _geoPin(); sel.value = p ? (p.structure || (p.house === 'caphill' ? '__caphill' : '')) : ''; }
   }
 }
 
@@ -3066,7 +3085,7 @@ function renderNowPlayingRoaming() {
       hint = `<div class="sonos-hint" style="margin-top:6px;">
         <div style="font-size:12px;color:var(--accent2);">🔊 Sonos is playing in ${esc([...new Set(_sseNowPlayingGlobal.rooms||[])].join(', '))}</div>
         <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(_sseNowPlayingGlobal.title)} — ${esc(_sseNowPlayingGlobal.artist)}</div>
-        <a href="#" onclick="setHouse('${_sseNowPlayingGlobal.house}');return false" style="font-size:11px;color:var(--accent2);display:inline-block;margin-top:3px;">Switch to ${esc(sonosHouse)} →</a>
+        <a href="#" onclick="setHouse('${_sseNowPlayingGlobal.house}',true);return false" style="font-size:11px;color:var(--accent2);display:inline-block;margin-top:3px;">Switch to ${esc(sonosHouse)} →</a>
       </div>`;
     }
     el.innerHTML = `
@@ -5273,14 +5292,19 @@ function _geoPin() {
 function geoSetPin(v) {
   try {
     if (!v) { localStorage.removeItem('ll_geo_pin'); showToast('📌 Device pin removed'); console.log('[geo] pin removed'); }
-    else {
+    else if (v === '__caphill') {
+      // p3.25 D5 (geo_house): house-only pin — locks the VIEW to Cap Hill, no structure.
+      localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'caphill', structure: null }));
+      showToast('📌 Device pinned to Cap Hill');
+      console.log('[geo] pin set → caphill (house only)');
+    } else {
       localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'vashon', structure: v }));
       const lbl = (_geoZones && _geoZones.vashon.structures[v] && _geoZones.vashon.structures[v].label) || v;
       showToast('📌 Device pinned to ' + lbl);
       console.log('[geo] pin set → ' + v);
     }
-    _geoApplied = false; _geoLastRun = 0; _geoStateWaits = 0; // immediate re-decide
-    geoMaybeRun('pin-change');
+    _geoApplied = false; _geoLastRun = 0; _geoStateWaits = 0; _houseLastRun = 0; // immediate re-decide (house + structure)
+    houseMaybeRun('pin-change').then(() => geoMaybeRun('pin-change'));
   } catch (e) { console.log('[geo] setPin ERROR: ' + e); }
 }
 async function _geoVolDefaults() {
@@ -5629,14 +5653,113 @@ async function geoMaybeRun(trigger) {
     console.log('[geo] ERROR: ' + e);
   }
 }
-setTimeout(() => geoMaybeRun('startup'), 1500);
+// ══════════════════════════════════════════════════════════════════════════════
+// HOUSE PICK — p3.25 (design_geo_house_v1.md Rev 1, D1–D7 signed off 2026-08-22)
+// Outer loop: which VIEW (caphill / vashon / roaming) should the page show, from
+// GPS. Level-triggered (Rule 27): evaluated at startup/foreground behind a 5-min
+// re-arm; a pure function of (zones, fix, pin, override). Structure geo above is
+// the INNER loop and is unchanged — it still runs only when house === 'vashon'.
+// Switching the view NEVER touches audio. Auto-entering roaming starts Spotify
+// polling via setHouse (existing behavior — the "grabbed my phone and left" case).
+let _houseLastRun = 0;         // ts of last completed evaluation (re-arm gate)
+let _houseLastDetected = null; // last confident zone; setHouse(D4) stamps it into overrides
+const HOUSE_LABELS = { caphill: 'Cap Hill', vashon: 'Vashon', roaming: 'Roaming' };
+
+function _houseOverride() {
+  try { const raw = localStorage.getItem('ll_house_override'); return raw ? JSON.parse(raw) : null; }
+  catch (e) { return null; }
+}
+
+// D1/D2: pure decision. In-zone is GENEROUS (dist − acc ≤ radius); roaming is the
+// strict negation (confidently outside BOTH) — that asymmetry IS the anti-flap
+// hysteresis. Accuracy worse than gate_m ⇒ null (no decision; keep current view).
+function _houseDecide(lat, lon, acc) {
+  const hz = (_geoZones && _geoZones.house) || {};
+  if (acc > (hz.gate_m || 300)) return null;
+  const ch = _geoZones.caphill, v = _geoZones.vashon;
+  if (!ch || !ch.centroid || !v || !v.centroid) return null; // zones pre-v5 — feature dormant
+  const inCh = _geoDistM(lat, lon, ch.centroid.lat, ch.centroid.lon) - acc <= (ch.presence_radius_m || 200);
+  const inV  = _geoDistM(lat, lon, v.centroid.lat, v.centroid.lon) - acc <= (v.presence_radius_m || 250);
+  if (inCh && inV) return null; // zones are 21 km apart — only a garbage fix passes both
+  return inCh ? 'caphill' : (inV ? 'vashon' : 'roaming');
+}
+
+async function houseMaybeRun(trigger) {
+  try {
+    const rearmMs = (((_geoZones && _geoZones.house) || {}).rearm_s || 300) * 1000;
+    if (Date.now() - _houseLastRun < rearmMs) return;
+    // D5: pinned devices skip detection entirely — the pin wins on every open.
+    // (Dropdown still works within a session; pin re-asserts on next open/foreground.)
+    const pin = _geoPin();
+    if (pin && pin.house) {
+      _houseLastRun = Date.now();
+      if (house !== pin.house) {
+        console.log('[house] device pin → ' + pin.house + ' (was ' + house + ')');
+        setHouse(pin.house);
+        showToast('📌 ' + (HOUSE_LABELS[pin.house] || pin.house) + ' (device pin)');
+      }
+      return;
+    }
+    if (!('geolocation' in navigator)) { _houseLastRun = Number.MAX_SAFE_INTEGER; console.log('[house] no geolocation API — manual only'); return; }
+    if (!_geoZones) {
+      const r = await fetch(GEO_ZONES_URL + '?t=' + (Date.now() >> 16));
+      if (!r.ok) { console.log('[house] zones fetch HTTP ' + r.status + ' — retry after rearm'); _houseLastRun = Date.now(); return; }
+      _geoZones = await r.json();
+      console.log('[house] zones v' + _geoZones.version + ' (' + _geoZones.updated + ') loaded');
+    }
+    if (!_geoZones.caphill) { _houseLastRun = Number.MAX_SAFE_INTEGER; console.log('[house] zones v' + _geoZones.version + ' lacks caphill block — dormant'); return; }
+    const hz = _geoZones.house || {};
+    // D4(b): 8h hard-expiry backstop (covers devices that never get another fix)
+    let ov = _houseOverride();
+    if (ov && Date.now() - ov.ts > (hz.override_expiry_h || 8) * 3600000) {
+      localStorage.removeItem('ll_house_override'); ov = null;
+      console.log('[house] override expired (>' + (hz.override_expiry_h || 8) + 'h) — auto resumes');
+    }
+    // D2: looser fix than structure geo — houses don't move. Cached fixes ≤2 min OK.
+    const fix = await new Promise((res) => {
+      navigator.geolocation.getCurrentPosition(p => res(p),
+        e => { console.log('[house] fix unavailable: code=' + e.code + ' ' + e.message); res(null); },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: (hz.fix_max_age_s || 120) * 1000 });
+    });
+    _houseLastRun = Date.now();
+    if (!fix) { console.log('[house] no fix — manual rules (D6), retry next open/rearm'); return; }
+    const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
+    const zone = _houseDecide(lat, lon, acc);
+    console.log('[house] ' + trigger + ': fix ±' + Math.round(acc) + 'm → ' + (zone || 'NO DECISION') + ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ')');
+    if (!zone) return;
+    _houseLastDetected = zone;
+    if (ov) {
+      // D4: sticky until you ACTUALLY move zones. zone_at backfills on the first
+      // confident fix after an override made blind (no prior detection).
+      if (!ov.zone_at) {
+        ov.zone_at = zone;
+        try { localStorage.setItem('ll_house_override', JSON.stringify(ov)); } catch (e) {}
+        console.log('[house] override zone_at backfilled = ' + zone + ' — override holds');
+        return;
+      }
+      if (zone === ov.zone_at) { console.log('[house] override holds (still at ' + zone + ')'); return; }
+      localStorage.removeItem('ll_house_override');
+      console.log('[house] zone changed ' + ov.zone_at + ' → ' + zone + ' — override cleared, auto resumes');
+    }
+    if (zone !== house) {
+      setHouse(zone); // programmatic — records no override
+      showToast('📍 ' + (HOUSE_LABELS[zone] || zone) + ' (detected)');
+      console.log('[house] switched view → ' + zone);
+    }
+  } catch (e) { console.log('[house] ERROR: ' + e); }
+}
+
+// House pick runs FIRST so structure geo sees the post-switch house (e.g. arriving
+// at Vashon: view flips, then the structure chip decides within the same pass).
+setTimeout(() => houseMaybeRun('startup').then(() => geoMaybeRun('startup')), 1500);
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     connectSSE();
     loadData(false);  // v1.65: refresh data-head.json on page foreground (mobile Safari kills setInterval)
     if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
-    geoMaybeRun('foreground');  // p3.13: geo structure chip (no-op unless Vashon view + undecided)
+    // p3.25: house pick first (may switch the view), then structure chip (Vashon-only)
+    houseMaybeRun('foreground').then(() => geoMaybeRun('foreground'));
   }
 });
 
