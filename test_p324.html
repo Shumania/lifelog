@@ -6126,7 +6126,9 @@ async function loadShortcuts() {
       _garageFetchPick().then(p => {
         if (!p) return;
         for (const sc of _shortcuts) if (sc.dynamic === 'garage_pick') {
-          sc.sub = 'Today: ' + p.name + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '') + ' · vol 30';
+          // p3.24 (D10): show the LIVE room default (defaults.volume_by_room), not a baked number
+          const gv = (_scVolByRoom && _scVolByRoom['Garage'] != null) ? _scVolByRoom['Garage'] : _scVolFallback;
+          sc.sub = 'Today: ' + p.name + (p.approx_minutes ? ' · ~' + p.approx_minutes + ' min' : '') + ' · vol ' + gv;
         }
         renderShortcuts();
       });
