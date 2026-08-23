@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Deep Link Test 0b</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: -apple-system, system-ui, sans-serif; background:#111; color:#eee; margin:0; padding:20px 16px 60px; }
+  h1 { font-size:1.15rem; margin:0 0 4px; }
+  .ctx { padding:10px 12px; border-radius:10px; margin:10px 0 18px; font-weight:600; font-size:.95rem; }
+  .ctx.browser { background:#1e3a5f; }
+  .ctx.standalone { background:#14532d; }
+  h2 { font-size:.95rem; color:#7dd3fc; margin:22px 0 6px; }
+  p.note { font-size:.8rem; color:#999; margin:0 0 10px; }
+  a.t, button.t { display:block; width:100%; box-sizing:border-box; text-align:left; background:#222; color:#1ed760; border:1px solid #333;
+    border-radius:10px; padding:12px 14px; margin:8px 0; font-size:.95rem; text-decoration:none; font-weight:600; }
+  button.t { color:#f0abfc; cursor:pointer; }
+  .id { display:inline-block; min-width:2.4em; color:#fff; font-weight:700; }
+  footer { margin-top:28px; font-size:.75rem; color:#777; }
+</style>
+</head>
+<body>
+<h1>🧪 Roaming Deep Links — Phase 0b</h1>
+<div id="ctx" class="ctx browser">detecting context…</div>
+
+<h2>A · Universal link — real anchor tap</h2>
+<p class="note">Green = plain &lt;a href&gt; tap, like a normal web link.</p>
+<a class="t" href="https://open.spotify.com/track/3dCqI9IdhqWSkfXLNjEefx"><span class="id">A1</span> Track — Shadow 5 (Max Richter)</a>
+<a class="t" href="https://open.spotify.com/album/0JBT8Sw5eGWC86DCrobOfY"><span class="id">A2</span> Album — Recomposed</a>
+<a class="t" href="https://open.spotify.com/playlist/1L27yfQgAFx7iPdxtLdPPp"><span class="id">A3</span> Playlist — Dusk &amp; Dinner</a>
+<a class="t" href="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"><span class="id">A4</span> Editorial — Today's Top Hits</a>
+
+<h2>B · Universal link — JS navigation</h2>
+<p class="note">Purple = button firing location.href from JS, exactly how the app's dispatchers would.</p>
+<button class="t" onclick="go('https://open.spotify.com/track/3dCqI9IdhqWSkfXLNjEefx')"><span class="id">B1</span> Track — Shadow 5</button>
+<button class="t" onclick="go('https://open.spotify.com/album/0JBT8Sw5eGWC86DCrobOfY')"><span class="id">B2</span> Album — Recomposed</button>
+<button class="t" onclick="go('https://open.spotify.com/playlist/1L27yfQgAFx7iPdxtLdPPp')"><span class="id">B3</span> Playlist — Dusk &amp; Dinner</button>
+<button class="t" onclick="go('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M')"><span class="id">B4</span> Editorial — Today's Top Hits</button>
+
+<h2>C · Custom scheme — real anchor tap</h2>
+<p class="note">First fair trial for spotify: URIs (they were dead from chat/address-bar/Notes).</p>
+<a class="t" href="spotify:track:3dCqI9IdhqWSkfXLNjEefx"><span class="id">C1</span> Track — Shadow 5</a>
+<a class="t" href="spotify:album:0JBT8Sw5eGWC86DCrobOfY"><span class="id">C2</span> Album — Recomposed</a>
+<a class="t" href="spotify:playlist:1L27yfQgAFx7iPdxtLdPPp"><span class="id">C3</span> Playlist — Dusk &amp; Dinner</a>
+
+<h2>D · Custom scheme — JS navigation</h2>
+<button class="t" onclick="go('spotify:track:3dCqI9IdhqWSkfXLNjEefx')"><span class="id">D1</span> Track — Shadow 5</button>
+<button class="t" onclick="go('spotify:album:0JBT8Sw5eGWC86DCrobOfY')"><span class="id">D2</span> Album — Recomposed</button>
+
+<h2>E · Universal link — window.open</h2>
+<p class="note">Fallback pattern if location.href misbehaves in standalone.</p>
+<button class="t" onclick="window.open('https://open.spotify.com/track/3dCqI9IdhqWSkfXLNjEefx','_blank')"><span class="id">E1</span> Track — Shadow 5</button>
+
+<footer>DEEPLINK_TEST v0b.1 · 2026-08-23 · no commands are ever sent from this page</footer>
+<script>
+  function go(u) { console.log('[0b] navigating:', u); window.location.href = u; }
+  (function () {
+    var standalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    var el = document.getElementById('ctx');
+    el.textContent = standalone
+      ? '📱 CONTEXT: HOME-SCREEN STANDALONE — this is the decisive pass'
+      : '🌐 CONTEXT: BROWSER TAB (Safari) — pass 1 of 2';
+    el.className = 'ctx ' + (standalone ? 'standalone' : 'browser');
+    console.log('[0b] standalone =', standalone);
+  })();
+</script>
+</body>
+</html>
