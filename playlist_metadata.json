@@ -437,11 +437,11 @@
   "description": "A collection of songs that have been sampled in rap music",
   "owner": "Stevie",
   "owner_id": "123051721",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020e77b154b028c287de99facbab67616d00001e02229e87b6d1da512c14164cc0ab67616d00001e022c13019d352d1f7cb263dfe7ab67616d00001e0236b80fb6bf3c3a1a9528f5d6",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020e77b154b028c287de99facbab67616d00001e021233151b52a1c8ec04b3bb60ab67616d00001e02229e87b6d1da512c14164cc0ab67616d00001e0236b80fb6bf3c3a1a9528f5d6",
   "followers_total": 6394,
-  "tracks_total": 427,
+  "tracks_total": 428,
   "created_approx": "2016-12-07T18:17:28Z",
-  "last_modified": "2026-04-14T18:30:47Z"
+  "last_modified": "2026-08-16T19:16:18Z"
  },
  {
   "id": "3yEPDqNUAxQ8Mw1VXXm1vo",
@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Phoebe Bridgers)",
+  "description": "Updated weekly. (Photo: Jorja Smith)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84caef2c3b660d2027856b8798",
+  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da84cda60c7ac81408650a808973",
   "followers_total": 84760,
-  "tracks_total": 39,
+  "tracks_total": 38,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-08-14T09:23:59Z"
+  "last_modified": "2026-08-21T11:00:23Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1102,5 +1102,149 @@
   "tracks_total": 15,
   "created_approx": "2026-08-11T10:17:38Z",
   "last_modified": "2026-08-11T10:17:38Z"
+ },
+ {
+  "id": "6uqXAaqYvs9hPk5KbLpU83",
+  "name": "Autobahn Sonntag — Aug 16",
+  "description": "Düsseldorf &amp; Berlin 1971–77: a motorik Sunday drive — Hallogallo’s pulse through Harmonia’s Forst commune into Cluster &amp; Eno drift, landing in the sequencer afterglow. Mostly new corners; Eno and Tangerine Dream holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0202afd20f6137bbb9b5203b3aab67616d00001e020bab2de9f294799e742079c7ab67616d00001e020e0ea6cef9d3413cf69b7a8fab67616d00001e027c4dafea59399470cce454c3",
+  "followers_total": 0,
+  "tracks_total": 16,
+  "created_approx": "2026-08-16T10:10:11Z",
+  "last_modified": "2026-08-16T10:10:11Z"
+ },
+ {
+  "id": "5qZNsPK16XiubvBWU18oiW",
+  "name": "✰ back on 74 ✰",
+  "description": "",
+  "owner": "dshneider",
+  "owner_id": "oblf1bungnnkoyvq5la3a5i2r",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0247dd2ca47ec9bf14559e17c6ab67616d00001e024bc05e5b1e506a6acea17148ab67616d00001e0277619f14cb03e11baf5761d1ab67616d00001e02db88abf0fe30030cf30c3a87",
+  "followers_total": 0,
+  "tracks_total": 36,
+  "created_approx": "2024-09-11T04:25:49Z",
+  "last_modified": "2024-09-11T04:26:09Z"
+ },
+ {
+  "id": "3gRXKJLwfE5ZjSVX1z001c",
+  "name": "Blunted Bristol — Aug 15",
+  "description": "Bristol 1991–98: the Wild Bunch family tree — Horace Andy’s dub root into Blue Lines, Maxinquaye murk, Dummy noir and the Mo’Wax bridge, lifting into New Forms. Mostly new corners; Shadow, Portishead and Massive holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02032e395e4a79caf92cc924c9ab67616d00001e025bdc601a4c6699e623e96f5fab67616d00001e02af5beb00d940f5ede452d6b5ab67616d00001e02eb024bc05190f9a3622a9b6f",
+  "followers_total": 0,
+  "tracks_total": 17,
+  "created_approx": "2026-08-15T10:14:01Z",
+  "last_modified": "2026-08-15T10:14:01Z"
+ },
+ {
+  "id": "1EoASIRTyXUv1UwFtKlxpG",
+  "name": "Witchseason — Aug 23",
+  "description": "London 1968–72, the Witchseason constellation: Liege &amp; Lief’s electric turn, the Jansch–Renbourn guitar axis into Pentangle, Five Leaves Left hush, Vashti’s pony-cart pastoral — Northern Sky at the close. Mostly new corners; Come All Ye holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02891c6dbba25bdba18d545757ab67616d00001e02b1c82051e605057d36b2abbbab67616d00001e02d9587ababd13bd90db19ebd1ab67616d00001e02de82613d6f9a843218c47ea6",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-08-23T10:15:54Z",
+  "last_modified": "2026-08-23T10:15:54Z"
+ },
+ {
+  "id": "0rLgqVsULoCEGSZEtGI3KE",
+  "name": "Orange Street — Aug 22",
+  "description": "Kingston 1966–75, the Orange Street golden run: Treasure Isle rocksteady into Trojan’s chart lift, Perry’s Upsetter singles, the Skylarking suite, Pablo’s melodica under Tubby’s echo — roots rising at the close. Mostly new corners; Skylarking holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02091815dcb975449394732b5bab67616d00001e0284b3e8b3833feb5f34332f71ab67616d00001e02e46493425d4efac1372faff2ab67616d00001e02fb791984c330ba13085cb721",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-08-22T10:12:41Z",
+  "last_modified": "2026-08-22T10:12:41Z"
+ },
+ {
+  "id": "7kAz73w7nahDFpIXoJWBBI",
+  "name": "Garage Burn Vol. 4",
+  "description": "Upbeat dance workout mix — nu-disco warm-up, eurodance-house climb, big-room peak, anthem big-beat finish.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0216f9e3468a6938591bca4ceeab67616d00001e026901b4f4490faaf121cfb64cab67616d00001e02909ebb0c355f14d0ee7f9974ab67616d00001e02e6b6c64aab3c27c19f049c51",
+  "followers_total": 0,
+  "tracks_total": 24,
+  "created_approx": "2026-08-21T20:02:50Z",
+  "last_modified": "2026-08-21T20:02:50Z"
+ },
+ {
+  "id": "1u2tc6IoPTEq6SaFUKQzNt",
+  "name": "Garage Burn Vol. 3",
+  "description": "Upbeat dance workout mix — funk warm-up, French-touch and 90s-house climb, tech-house peak, big-beat finish.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024ac2d979712c58dcc49290e0ab67616d00001e026407aa9a5e5215cf554ad5d1ab67616d00001e02af72d0856c5527dc97f3ea08ab67616d00001e02b736151ed1c04f2d41d5f69e",
+  "followers_total": 0,
+  "tracks_total": 24,
+  "created_approx": "2026-08-21T20:02:45Z",
+  "last_modified": "2026-08-21T20:02:45Z"
+ },
+ {
+  "id": "15G6gSZnxJvqaTCZkqdyEp",
+  "name": "Second Line — Aug 21",
+  "description": "New Orleans 1968–75, the Toussaint&#x2F;Sansu axis: Meters syncopation behind Dorsey and Betty Harris, Eddie Bo’s hook-and-sling, a gris-gris detour, Mardi Gras Indian finale. Mostly new corners; Stormy and Ruler of My Heart holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e025822988a565c7db83a5e6890ab67616d00001e029387edaca9e622eed4270b99ab67616d00001e02a575571e55ac14995c5eff2aab67616d00001e02a93a02d8fbe0c68d22859506",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-08-21T10:13:59Z",
+  "last_modified": "2026-08-21T10:13:59Z"
+ },
+ {
+  "id": "1KMaxO0E8y0wwODoG67Shy",
+  "name": "Corner Club — Aug 20",
+  "description": "Belo Horizonte 1970–80, the Clube da Esquina constellation: Milton &amp; Lô’s blue train out into Minas, the tennis-shoe album, Som Imaginário’s murk, Beto’s mandolin, Toninho’s chords. Mostly new corners; the ’72 double holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0217f0ffed0276c84998e41acbab67616d00001e0236ebd83756dae33f2504dc40ab67616d00001e023d6e956a59affddcc2daa7a8ab67616d00001e026706d7eee1f18d918ab17b78",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-08-20T10:14:09Z",
+  "last_modified": "2026-08-20T10:14:09Z"
+ },
+ {
+  "id": "0Vsk0KZGNI2NWjWTLYakWi",
+  "name": "Oslo Hush — Aug 19",
+  "description": "ECM 1971–79, the most beautiful sound next to silence: Towner’s Solstice drift into Weber’s Chloë, Crystal Silence, the Köln summit, Walcott’s sitar hush. Mostly new corners; Brahem and Jarrett holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02350c66a0cdc9ac9aaf2334f0ab67616d00001e029d7db0617013061b61eb2762ab67616d00001e02c23c205d1d0bc1d5360ef2abab67616d00001e02dbc83562022281b48f84c2d1",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-08-19T10:21:53Z",
+  "last_modified": "2026-08-19T10:21:53Z"
+ },
+ {
+  "id": "5eGyVUhQNJ7Hi9K9VBzjEO",
+  "name": "Havana Nocturne — Aug 18",
+  "description": "Havana 1946–57: mambo brass and cha-cha-chá at the clubs, slipping after hours into Cachao’s descargas — then the Buena Vista afterglow. Mostly new corners; Akokán holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024b5ae9772c51bf4f063eb59dab67616d00001e02c4a40abff48fade4aff2b0f5ab67616d00001e02e19d77ca5fdcabf0126efdb6ab67616d00001e02e662ad2ea77879529c6c83b5",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-08-18T10:16:55Z",
+  "last_modified": "2026-08-18T10:16:55Z"
+ },
+ {
+  "id": "43zx1ibGbMerHEOzeEuuMt",
+  "name": "Swinging Addis — Aug 17",
+  "description": "Addis Ababa 1969–75, the Amha Records golden age: Mulatu’s vibes, the Walias’ organ grooves, Mekurya’s sax wail and Mahmoud’s heat, hushing into Emahoy’s piano before the diaspora revival. Mostly new corners; Khruangbin and BALTHVS holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0205ae534a661e44f25951e41bab67616d00001e024ad98a936015f083be8764b5ab67616d00001e02bc20b497149b64df2cba65beab67616d00001e02e8fc58d8f235db673bfdfaf3",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-08-17T10:15:47Z",
+  "last_modified": "2026-08-17T10:15:47Z"
  }
 ]
