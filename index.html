@@ -920,6 +920,17 @@
 .geo-hint { margin: 6px 0 2px; padding: 7px 10px; background: rgba(80,160,255,.08); border: 1px solid rgba(80,160,255,.25); border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .geo-hint b { font-weight: 600; }
 .geo-hint button { margin: 0 2px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(80,160,255,.4); background: rgba(80,160,255,.15); color: inherit; font-size: 13px; cursor: pointer; }
+/* p3.26 (D7): roaming — play verbs deep-link into Spotify. Tint by ONCLICK attribute
+   (play-verb callers only; queue/+ verbs stay untinted because they stay API-backed).
+   ::after ↗ marks the app-switch; suppressed on icon-only .action-btn to avoid wrap. */
+body.house-roaming [onclick^="playDiscovery('play'"],
+body.house-roaming [onclick^="directPlay('play'"],
+body.house-roaming [onclick^="playContext('play'"] { color: #1DB954 !important; }
+body.house-roaming [onclick^="playDiscovery('play'"]:not(.action-btn)::after,
+body.house-roaming [onclick^="directPlay('play'"]:not(.action-btn)::after,
+body.house-roaming [onclick^="playContext('play'"]:not(.action-btn)::after { content: '↗'; font-size: .75em; vertical-align: super; margin-left: 2px; opacity: .8; }
+/* p3.26 (D6): shortcut tiles gray in roaming (guard toast in runShortcut explains) */
+body.house-roaming .shortcut-card { opacity: .4; }
 </style>
 </head>
 <body>
@@ -1187,7 +1198,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.25';
+const PAGE_VERSION = 'p3.26';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1561,6 +1572,11 @@ function setHouse(h, isUserClick) {
   }
   house = h;
   localStorage.setItem('ll_house', h);
+  // p3.26 (D7): body class drives the roaming deep-link tint on play verbs (CSS
+  // attribute selectors — no per-callsite markup changes). D6: shortcuts re-render
+  // to gray/un-gray on house change (they drive home speakers only, v1).
+  document.body.classList.toggle('house-roaming', h === 'roaming');
+  if (typeof renderShortcuts === 'function') renderShortcuts();
   // p2.95: tabs row → dropdown; keep the select in sync when setHouse is called programmatically
   var _hsel = document.getElementById('house-select');
   if (_hsel && _hsel.value !== h) _hsel.value = h;
@@ -2332,6 +2348,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && _sheetCtx)
 
 function _qsChoose(coord) { if (!_sheetCtx) return; _sheetCtx.target = coord; _sheetCtx.choices = null; _renderQueueSheet(); }
 
+// p3.26 (D4): "Open in Spotify ↗" — universal sheet affordance, ALL houses (useful
+// at home too: browse the album while Sonos keeps playing). Never disabled — it
+// sends no command, so lock/stream/target states don't apply. Empty string when
+// the item has no resolvable service ref (e.g. raw Sonos-only URIs).
+function _qsDeepLinkRow(c) {
+  const dl = deepLinkFor(c.mediaUri || c.trackUri);
+  if (!dl) return '';
+  return '<div class="qs-verb" onclick="openInService(\'' + dl.url + '\')">' +
+    '<span class="v-icon" style="color:' + dl.tint + '">↗</span>' +
+    '<span class="v-label">Open in ' + esc(dl.svc) + ' <span class="v-hint">· leaves this app</span></span></div>';
+}
+
 function _renderQueueSheet() {
   const c = _sheetCtx; if (!c) return;
   const st = _queueState[c.h]; const qs = (st && st.qs) || {};
@@ -2384,6 +2412,7 @@ function _renderQueueSheet() {
     '<div class="qs-verb' + dis(lock) + '" onclick="_qsVerb(\'now\')"><span class="v-icon">▶</span><span class="v-label">Play now <span class="v-hint">' + nowHint + '</span></span></div>' +
     '<div class="qs-verb' + dis(lock || stream || !verOk || c.canReplace === false) + '" onclick="_qsVerb(\'replace\')"><span class="v-icon">♻</span><span class="v-label">Replace queue <span class="v-hint">' + (c.canReplace === false ? '· needs a resolvable URI' : repHint) + '</span></span>' + (verOk ? chip : '') + '</div>' +
     '<div class="qs-verb v-danger' + dis(lock || stream || !e) + '" onclick="_qsClearVerb()"><span class="v-icon">🗑</span><span class="v-label">Clear queue…</span><span class="v-confirm-chip">confirms</span></div>' +
+    _qsDeepLinkRow(c) +
     '</div><div class="qs-divider"></div>';
 
   // Queue context block (bottom) — reuses expando vocabulary; sheet keeps ✂ only
@@ -2605,6 +2634,78 @@ function _roamingNoDevice(e) {
   console.log('[roaming p3.03] no active device — refetching device list for the retry');
   fetchSpotifyDevices(); // one-shot refetch so the retry can target the woken device
   return true;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ROAMING DEEP LINKS (p3.26 · design_roaming_deeplinks_v1.md, D1–D9 signed off
+// 2026-08-23). Roaming play verbs deep-link into the native app via UNIVERSAL
+// links (D2 revised — F1–F7: work from every surface incl. standalone, zero
+// detours; tracks autoplay, containers navigate). Queue verbs stay API-backed
+// (D3). D9: the house SELECTOR is the single source of truth — dispatch never
+// runs its own "am I roaming?" inference. Multi-service by design: adding
+// TuneIn (v1.1) = one registry row + one parser branch, dispatchers untouched.
+// ══════════════════════════════════════════════════════════════════════════════
+const DEEPLINK_SERVICES = {
+  spotify: {
+    label: 'Spotify', tint: '#1DB954',
+    kinds: ['track', 'album', 'playlist', 'artist', 'episode', 'show'],
+    web: (kind, id) => 'https://open.spotify.com/' + kind + '/' + id,
+    scheme: (kind, id) => 'spotify:' + kind + ':' + id  // confirmed spare (F6/F7)
+  }
+  // tunein (v1.1): { web: (kind,id) => station URL } + station-name→id map — see design §2
+};
+
+// Parse any known service URI/URL → media ref {service, kind, id}, or null.
+function parseMediaRef(uri) {
+  if (!uri) return null;
+  const s = String(uri);
+  let m = s.match(/^spotify:(track|album|playlist|artist|episode|show):([A-Za-z0-9]+)/);
+  if (m) return { service: 'spotify', kind: m[1], id: m[2] };
+  m = s.match(/open\.spotify\.com\/(track|album|playlist|artist|episode|show)\/([A-Za-z0-9]+)/);
+  if (m) return { service: 'spotify', kind: m[1], id: m[2] };
+  return null;
+}
+
+// Media ref (or raw URI) → {url, svc, tint, ref} deep link, or null if unresolvable.
+function deepLinkFor(uriOrRef) {
+  const ref = (uriOrRef && uriOrRef.service) ? uriOrRef : parseMediaRef(uriOrRef);
+  if (!ref) return null;
+  const svc = DEEPLINK_SERVICES[ref.service];
+  if (!svc || svc.kinds.indexOf(ref.kind) === -1) return null;
+  return { url: svc.web(ref.kind, ref.id), svc: svc.label, tint: svc.tint, ref };
+}
+
+// D1: the roaming dispatch branch. Returns true when it handled the verb (deep
+// link fired), false when the caller should fall through to its existing path
+// (not roaming, or URI unresolvable to a known service). VERY verbose on both
+// outcomes — this runs outside any try/catch (standing rule: silent failures).
+function roamingDeepLink(uri, label) {
+  if (house !== 'roaming') return false; // D9: selector is ALL we read
+  const dl = deepLinkFor(uri);
+  if (!dl) { console.log('[deeplink] roaming but URI unresolvable → falling through to API path:', String(uri).slice(0, 80)); return false; }
+  console.log('[deeplink] roaming ' + dl.ref.kind + ' → ' + dl.url + (label ? '  (' + label + ')' : ''));
+  let wait = 0;
+  if (dl.ref.kind !== 'track') {
+    // D5: one-time hint — containers navigate, they don't autoplay (F3/F5).
+    // Tracks autoplay (F2) so no expectation gap there. Hint gets 1.4s to land
+    // on its single showing; every later tap navigates instantly.
+    try {
+      if (!localStorage.getItem('ll_deeplink_hint')) {
+        localStorage.setItem('ll_deeplink_hint', '1');
+        showToast('↗ Opening in ' + dl.svc + ' — tap ▶ there to start it');
+        wait = 1400;
+      }
+    } catch (e) {}
+  }
+  setTimeout(() => { window.location.href = dl.url; }, wait); // JS nav = B-row, verified F6/F7
+  return true;
+}
+
+// D4: "Open in Spotify ↗" sheet row — universal affordance, ships in ALL houses.
+function openInService(url) {
+  console.log('[deeplink] open-in-service → ' + url);
+  if (typeof closeQueueSheet === 'function') closeQueueSheet();
+  window.location.href = url;
 }
 
 async function fetchSpotifyDevices() {
@@ -4280,6 +4381,11 @@ async function directPlay(action, encodedData, sheetOpts) {
       if (!uri) { showToast('Not found on Spotify', true); return; }
     } catch(e) { showToast('Search failed', true); return; }
   }
+  // p3.26 (D1/D2/D9): roaming PLAY verbs deep-link into the Spotify app (tracks
+  // autoplay — true one-tap, F2). Queue verbs stay API-backed (D3): the deep link
+  // the user just tapped is exactly what puts Spotify in the state where the
+  // queue API works. Unresolvable URI → falls through to the legacy API path.
+  if (action !== 'queue' && roamingDeepLink(uri, info.title || '')) return;
   if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
   const dp = spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : '';
   try {
@@ -4293,7 +4399,7 @@ async function directPlay(action, encodedData, sheetOpts) {
       showToast('✓ Playing: ' + (info.title || ''));
     }
     setTimeout(fetchSpotifyNowPlaying, 1000);
-  } catch(e) { if (!_roamingNoDevice(e)) showToast('✗ ' + e.message, true); } // p3.03 item 5
+  } catch(e) { if (!_roamingNoDevice(e)) showToast('✗ ' + e.message + (action === 'queue' ? ' — ▶ opens it in Spotify instead' : ''), true); } // p3.03 item 5 · p3.26 D3 fallback hint
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -4578,6 +4684,7 @@ async function playContext(action, encodedData, sheetOpts) {
     const isNamedAlbum = (isQobuz || isApple) && info.album;
     const isPl = !!info.playlist_name;
     openQueueSheet({ h: house, kind: isPl ? 'playlist' : 'album',
+      mediaUri: info.context_uri || null, // p3.26 D4: "Open in Spotify ↗" row
       item: { title: info.playlist_name || info.album || 'Album', sub: (info.artist ? info.artist + ' · ' : '') + (isPl ? 'playlist' : 'album') + (isNamedAlbum ? ' · ' + (isQobuz ? 'Qobuz' : 'Apple Music') : ''), art: info.image || info.art || null },
       canEnd: isNamedAlbum ? false : undefined, // play_album has no end mode — inserts after current only
       send: (mode, coord, members) => playContext('queue', encodedData, { mode, coord, members }) });
@@ -4689,6 +4796,10 @@ async function playContext(action, encodedData, sheetOpts) {
   }
 
   // --- ROAMING PATH (Spotify Connect) ---
+  // p3.26 (D1/D2/D9): roaming containers deep-link into the Spotify app — album/
+  // playlist pages open there (navigate, one ▶ tap — F3/F5). Editorial 🚫
+  // playlists included: the API 403s them, the deep link opens them fine (F5).
+  if (roamingDeepLink(contextUri, label)) return;
   if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
   await _ensureDeviceAwake();
   const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
@@ -4727,12 +4838,17 @@ async function playDiscovery(action, uri, label, sheetOpts) {
     const kind = uri.includes(':album:') ? 'album' : uri.includes(':playlist:') ? 'playlist' : 'track';
     openQueueSheet({ h: house, kind,
       item: { title: label || kind, sub: kind, art: null },
+      mediaUri: uri, // p3.26 D4: "Open in Spotify ↗" row
       trackUri: kind === 'track' && uri.startsWith('spotify:track:') ? uri : null, // p3.14
       send: (mode, coord, members) => playDiscovery('queue', uri, label, { mode, coord, members }) });
     return;
   }
 
   if (house === 'roaming') {
+    // p3.26 (D1/D2/D9): play verbs deep-link into Spotify — BEFORE the auth gate
+    // (deep links need no token, so this path works on a fresh unauthed browser).
+    // Queue verbs stay API-backed (D3). Unresolvable URI falls through to API.
+    if (action !== 'queue' && roamingDeepLink(uri, label)) return;
     if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
     await _ensureDeviceAwake();
     try {
@@ -4761,9 +4877,9 @@ async function playDiscovery(action, uri, label, sheetOpts) {
           showToast('✓ ' + (action === 'queue' ? 'Queued' : 'Playing') + ': ' + label);
           setTimeout(fetchSpotifyNowPlaying, 1000);
           return;
-        } catch(e2) { if (!_roamingNoDevice(e2)) showToast('✗ ' + e2.message, true); return; } // p3.03 item 5
+        } catch(e2) { if (!_roamingNoDevice(e2)) showToast('✗ ' + e2.message + (action === 'queue' ? ' — ▶ opens it in Spotify instead' : ''), true); return; } // p3.03 item 5 · p3.26 D3
       }
-      if (!_roamingNoDevice(e)) showToast('✗ ' + e.message, true); // p3.03 item 5
+      if (!_roamingNoDevice(e)) showToast('✗ ' + e.message + (action === 'queue' ? ' — ▶ opens it in Spotify instead' : ''), true); // p3.03 item 5 · p3.26 D3
     }
     return;
   }
@@ -6270,7 +6386,13 @@ function renderShortcuts() {
     el.innerHTML = '<div class="empty-state"><p style="font-size:13px;">No shortcuts yet — ask the agent to add one.</p></div>';
     return;
   }
-  el.innerHTML = _shortcuts.map(s => {
+  // p3.26 (D6): shortcuts drive HOME speakers — in roaming they gray with a hint
+  // (tab stays put so the tab bar never jumps between houses). Tap → guard toast
+  // in runShortcut. Roaming-native deep-link tiles land with Shortcuts v2.
+  const _scRoamHint = house === 'roaming'
+    ? '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">📱 Roaming — shortcuts drive home speakers. Pick a house to run them.</p></div>'
+    : '';
+  el.innerHTML = _scRoamHint + _shortcuts.map(s => {
     const running = _scBusy === s.id;
     return '<div class="shortcut-card' + (running ? ' sc-running' : '') + '" id="sc-' + esc(s.id) + '" onclick="runShortcut(\'' + esc(s.id) + '\')">' +
       '<span class="sc-icon">' + esc(s.icon || '⚡') + '</span>' +
@@ -6370,6 +6492,10 @@ async function _scExpandStep(step, h) {
 }
 
 async function runShortcut(id) {
+  // p3.26 (D6 + D9): selector is truth — in roaming, shortcut tiles are inert
+  // (they'd command distant home speakers). Guard here, not pointer-events, so
+  // the tap gets an honest explanation instead of dead silence.
+  if (house === 'roaming') { showToast('📱 Roaming — shortcuts drive home speakers. Pick a house first.', true); return; }
   if (_scBusy) { showToast('⏳ A shortcut is already running', true); return; }
   const sc = _shortcuts.find(s => s.id === id);
   if (!sc) { console.error('[shortcuts] unknown id: ' + id); return; }
