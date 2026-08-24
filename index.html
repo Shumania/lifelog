@@ -1198,7 +1198,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.27';
+const PAGE_VERSION = 'p3.28';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1238,6 +1238,7 @@ const NEVER_SHOW_ROOMS = { vashon: ['Sub'], caphill: [] };
 let _clusterExpanded = {};   // session-only: cluster id -> bool (▸ burst state)
 let _moreRevealed = {};      // session-only: house -> bool (⋯ demoted row)
 let _demotedTucked = {};     // p2.69: house -> rooms tucked back behind ⋯ at Group Speakers press (cleared on fresh state)
+let _freshGroupIntent = {};  // p3.28: house -> {ts, rooms} stamped at Group Speakers send — replace-confirm suppression window (2 min)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // STATE
@@ -1948,6 +1949,10 @@ async function syncRooms(h) {
   if (ok) {
     // Optimistically update rooms state so the button reflects new state
     _roomsPlayingByHouse[h] = [...rooms];
+    // p3.28: fresh-intent window — a replace-class play to this group within 2 min
+    // skips the D3 confirm (you just built the group; playing new content is the point).
+    _freshGroupIntent[h] = { ts: Date.now(), rooms: [...rooms] };
+    console.log('[syncRooms] fresh-intent window armed for', h, '(2 min):', rooms.join(', '));
     // p2.69: rarely-used rooms NOT in the new group tuck back behind ⋯ immediately
     _demotedTucked[h] = (DEMOTED_ROOMS[h] || []).filter(r => !rooms.includes(r));
     showToast(`✓ Speakers grouped`);
@@ -2532,8 +2537,18 @@ async function _qsFillOnPlaylists() {
 async function _qsVerb(mode) {
   const c = _sheetCtx; if (!c || !c.target) return;
   if (mode === 'replace') {
-    const playing = _qsPlaying(c.h, c.target);
-    if (playing !== false && !confirm('Replace the queue for ' + c.target + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
+    // p3.28: fresh-intent window — if this group was formed by Group Speakers within
+    // the last 2 min, skip the D3 confirm (grouping then playing is one obvious intent).
+    const fgi = _freshGroupIntent[c.h];
+    const ageMs = fgi ? (Date.now() - fgi.ts) : -1;
+    const tgtRooms = [c.target, ..._qsMembers(c.h, c.target)];
+    const fresh = fgi && ageMs < 120000 && tgtRooms.some(r => fgi.rooms.includes(r));
+    if (fresh) {
+      console.log('[qs-verb] fresh-intent window active (' + Math.round(ageMs / 1000) + 's since Group Speakers) — replace confirm skipped for', c.target);
+    } else {
+      const playing = _qsPlaying(c.h, c.target);
+      if (playing !== false && !confirm('Replace the queue for ' + c.target + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
+    }
   }
   // p2.98 C1: target may be a prior-epoch qs entry key — D6 sends carry the LIVE
   // coordinator + full member list (membership-aware _qsMembers).
