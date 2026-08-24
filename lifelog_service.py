@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.66.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.67.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -748,6 +748,9 @@ print("[v2.64.0] run_extract on-demand command active: Data-service can trigger 
 print("[v2.65.0] coordinator hardening + move_music: phantom-playing guard in _setup_rooms, "
       "total-join-failure fallback, pre-mutation coordinator recheck (play_next/replace_queue), "
       "move_music verb (DelegateGroupCoordinationTo + keep_rooms, SSE-only result)")
+# v2.67.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.67.0] fresh-topology stamp in _setup_rooms: play-path regroups now stamp "
+      "_poll_snapshot['groups'] immediately (no ~15s stale-topology window after play-now regroup)")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -4379,6 +4382,25 @@ def _setup_rooms(cmd, devices, _no_prefer=False):
             log(f"[topology-delta] coordinator switched: {current_coordinator} -> {_new_coord}")
     except Exception as _td_err:
         log(f"[topology-delta] logging did not succeed (benign no-op): {_td_err}")
+    # v2.67.0: FRESH-TOPOLOGY STAMP (2026-08-23 Cap Hill incident). sync_rooms and
+    # move_music already stamp _poll_snapshot["groups"] after regrouping (v2.63.1
+    # pattern), but play-path callers of _setup_rooms did NOT — so for up to a full
+    # poll cycle (~15s) every SSE/status push carried PRE-regroup topology (the UI
+    # showed Kitchen "playing" after it had been unjoined from LR+DR). Stamp here,
+    # inside _setup_rooms itself, so EVERY caller gets honest topology (Rule 10:
+    # fix the class, not the call site). Only runs when topology actually changed
+    # — zero extra SOAP traffic on no-op paths. Never raises.
+    if _topo_changed:
+        try:
+            _fresh_g = _fresh_groups_snapshot(devices)
+            if _fresh_g:
+                _poll_snapshot["groups"] = _fresh_g
+                log(f"_setup_rooms: fresh groups stamped for SSE: "
+                    f"{[(g['coordinator'], len(g['members'])) for g in _fresh_g]}")
+            else:
+                log("_setup_rooms: fresh-groups snapshot EMPTY — SSE keeps last-poll groups")
+        except Exception as _fg_err:
+            log(f"_setup_rooms: fresh-groups stamp failed (SSE keeps last-poll groups): {_fg_err}")
     return coordinator, rooms, was_grouped
 
 

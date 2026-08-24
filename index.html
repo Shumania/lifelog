@@ -1198,7 +1198,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.26';
+const PAGE_VERSION = 'p3.27';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1349,6 +1349,58 @@ try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone 
 ['caphill','vashon'].forEach(h => {
   try { selectedRooms[h] = JSON.parse(localStorage.getItem('ll_rooms_' + h) || '[]'); } catch(e) { selectedRooms[h] = []; }
 });
+
+// ── p3.27: CHIP STALENESS EXPIRY (2026-08-24 Cap Hill incident, Andrew-approved 8h) ──
+// A selection untouched for >8h is archaeology, not intent: play-now regroups to the
+// chips, so walking in a day later and tapping ▶ silently kicked Kitchen out of the
+// live LR+DR+Kitchen group. On cold load, once live topology is known, a STALE
+// selection is expanded to the full live group membership of its rooms (group
+// closure) — mirrors the agent-side "default to full current group membership" rule.
+// Closure only ever ADDS rooms (never kicks): dropping a room stays a deliberate
+// chip tap. Fresh selections (<8h since last touch) are untouched. EVERY selection
+// write re-stamps the touch clock (chip tap, cluster tap, ⊙, geo, shortcut D9) —
+// each is either direct user action or a fresh reality-based pick. The sweep does
+// NOT re-stamp (level-triggered, Rule 27: every stale cold load re-mirrors live
+// reality until the user actually touches chips).
+const CHIP_STALE_MS = 8 * 3600 * 1000;
+function _stampSelTouch(h) { try { localStorage.setItem('ll_rooms_ts_' + h, String(Date.now())); } catch(e) {} }
+let _chipExpiryDone = {};
+function _chipExpirySweep(h) {
+  try {
+    if (_chipExpiryDone[h]) return;
+    const groups = _groupsByHouse[h];
+    if (!groups || !groups.length) return;  // topology not known yet — caller retries on next seed
+    _chipExpiryDone[h] = true;              // one sweep per session per house
+    let ts = 0;
+    try { ts = parseInt(localStorage.getItem('ll_rooms_ts_' + h) || '0', 10) || 0; } catch(e) {}
+    const age = Date.now() - ts;
+    if (ts && age < CHIP_STALE_MS) {
+      console.log('[chip-expiry] ' + h + ': selection fresh (' + Math.round(age / 60000) + 'm since last touch) — untouched');
+      return;
+    }
+    const sel = selectedRooms[h] || [];
+    if (!sel.length) { console.log('[chip-expiry] ' + h + ': no saved selection — nothing to expand'); return; }
+    const never = NEVER_SHOW_ROOMS[h] || [];
+    const closure = new Set(sel);
+    for (const r of sel) {
+      const g = groups.find(g => (g.members || []).includes(r));
+      if (g) ((g.members && g.members.length) ? g.members : [g.coordinator])
+        .forEach(m => { if (m && !never.includes(m)) closure.add(m); });
+    }
+    const added = [...closure].filter(r => !sel.includes(r));
+    const ageLabel = ts ? Math.round(age / 3600000) + 'h old' : 'no touch timestamp';
+    if (!added.length) {
+      console.log('[chip-expiry] ' + h + ': selection stale (' + ageLabel + ') but already matches live groups — untouched');
+      return;
+    }
+    selectedRooms[h] = [...closure];
+    try { localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h])); } catch(e) {}
+    console.log('[chip-expiry] ' + h + ': stale selection (' + ageLabel + ') expanded to live group — added: ' + added.join(', '));
+    renderRooms(h);
+    updateSyncButton(h);
+    showToast('Chips synced to current group: +' + added.join(', '));
+  } catch (e) { console.log('[chip-expiry] ' + h + ' ERROR (selection left as-is): ' + e); }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // UTILITIES
@@ -1718,6 +1770,7 @@ function toggleCluster(h, id) {
   if (allSel) members.forEach(r => sel.delete(r)); else members.forEach(r => sel.add(r));
   selectedRooms[h] = [...sel];
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+  _stampSelTouch(h);  // p3.27: chip staleness clock
   if (isDouble) _clusterExpanded[id] = true;
   renderRooms(h);
 }
@@ -1765,6 +1818,7 @@ function selectPlaying(h) {
     const pick = cands[0];
     selectedRooms[h] = pick.members;
     localStorage.setItem('ll_rooms_' + h, JSON.stringify(pick.members));
+    _stampSelTouch(h);  // p3.27: chip staleness clock
     renderRooms(h);
     _queueRefetch();
     const mins = pick.ts ? Math.max(0, Math.round((Date.now() / 1000 - pick.ts) / 60)) : null;
@@ -1785,6 +1839,7 @@ function selectPlaying(h) {
   const target = sets[idx];
   selectedRooms[h] = target;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
+  _stampSelTouch(h);  // p3.27: chip staleness clock
   renderRooms(h);
   _queueRefetch(); // p2.95: ⊙ doubles as "sync my view to reality" — refresh queue/state view too
   if (sets.length > 1) showToast('\u2299 Group ' + (idx + 1) + ' of ' + sets.length + ': ' + target.join(', ') + ' \u2014 tap \u2299 again for the next group');
@@ -1817,6 +1872,7 @@ function toggleRoom(h, room) {
   if (idx < 0) sel.push(room); else sel.splice(idx, 1);
   selectedRooms[h] = sel;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(sel));
+  _stampSelTouch(h);  // p3.27: chip staleness clock
   renderRooms(h);
   // Show/hide sync button based on whether selection differs from live group
   updateSyncButton(h);
@@ -3450,8 +3506,12 @@ function applyStateNowPlaying(stateFiles) {
     if (state.rooms_all) { _roomsAll[h] = [...state.rooms_all]; }
     // p2.59: seed group topology from state files (v2.53+ services publish it)
     if (state.groups && stateTs > sseTs) { _groupsByHouse[h] = [...state.groups]; }
+    _chipExpirySweep(h);  // p3.27: stale-chip closure once topology is known (no-op if fresh/already ran)
     // Seed rooms_playing + rooms_paused if state is fresher (for ALL houses, not just current tab)
     // p2.62: REALITY ONLY — selection is never seeded/cleared from state (manual-only design)
+    // (p3.27 amendment, Andrew-approved: the ONE exception is the stale-chip closure
+    //  sweep above — selections untouched >8h expand to live group membership once
+    //  per session. Fresh selections remain strictly manual-only.)
     if (state.rooms_playing && stateTs > sseTs) {
       // p2.62 liveness gate: a DEAD machine's last state file can be days old and still
       // claim rooms_playing (ShumaFrame incident — week-old file lit the tab ▶ dot and fed
@@ -5180,6 +5240,7 @@ function connectSSE() {
         const _topoSig = gs => (gs || []).map(g => (g.coordinator || '') + ':' + (g.members || []).slice().sort().join(',')).sort().join(';');
         const _chipTopoChanged = _topoSig(_groupsByHouse[sseHouse]) !== _topoSig(msg.groups);
         _groupsByHouse[sseHouse] = msg.groups;
+        _chipExpirySweep(sseHouse);  // p3.27: backstop — cold loads whose state file lacked groups (no-op after first run)
         // p2.92: queue expando — track changes move current_pos; re-render from cached
         // data now (age-honest) and re-fetch the state file throttled so numbers catch up.
         try {
@@ -5374,6 +5435,7 @@ function geoSelectRooms(rooms, why) {
   // Same effect as tapping chips by hand (G4/G5); nothing is sent anywhere.
   selectedRooms.vashon = [...rooms];
   localStorage.setItem('ll_rooms_vashon', JSON.stringify(selectedRooms.vashon));
+  _stampSelTouch('vashon');  // p3.27: geo pick is a fresh reality-based selection
   renderRooms('vashon');
   updateSyncButton('vashon');
   console.log('[geo] selection set → ' + rooms.join(', ') + ' (' + why + ')');
@@ -5632,6 +5694,7 @@ async function geoExtendHere(idx) {
     console.log('[geo] ═══ EXTEND → ' + combined.join(', ') + ' (coordinator ' + (ctx.group.coordinator || '?') + ' kept) ═══');
     selectedRooms.vashon = combined;
     localStorage.setItem('ll_rooms_vashon', JSON.stringify(combined));
+    _stampSelTouch('vashon');  // p3.27: chip staleness clock
     renderRooms('vashon');
     updateSyncButton('vashon');
     await syncRooms('vashon');
@@ -6565,6 +6628,7 @@ async function runShortcut(id) {
     if (_scPlayRooms.length) {
       selectedRooms[sc.house] = [..._scPlayRooms];
       localStorage.setItem('ll_rooms_' + sc.house, JSON.stringify(selectedRooms[sc.house]));
+      _stampSelTouch(sc.house);  // p3.27: chip staleness clock
       renderRooms(sc.house);
       _geoPlaySent = true;  // p3.13: shortcut started a session → geo degrades to hint
       if (typeof geoDismissHint === 'function') geoDismissHint('shortcut play');
