@@ -1,178 +1,178 @@
 {
- "version": 11,
- "generated_at": "2026-08-18T17:40:20Z",
- "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
- "shortcuts": [
-  {
-   "id": "kcrw-e24-shedarc",
-   "label": "KCRW Eclectic 24 → Shed Arc",
-   "sub": "24-hour music stream",
-   "icon": "📻",
-   "house": "vashon",
-   "steps": [
+  "version": 12,
+  "generated_at": "2026-08-18T17:40:20Z",
+  "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
+  "shortcuts": [
     {
-     "action": "play_uri",
-     "room": "Shed Arc",
-     "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
-     "title": "KCRW Eclectic 24",
-     "artist": "KCRW"
-    }
-   ]
-  },
-  {
-   "id": "kcrw-e24-caphill-main",
-   "label": "KCRW Eclectic 24 → Main Floor",
-   "sub": "Dining Room · Kitchen · Living Room",
-   "icon": "📻",
-   "house": "caphill",
-   "steps": [
-    {
-     "action": "sync_rooms",
-     "rooms": [
-      "Living Room",
-      "Dining Room",
-      "Kitchen"
-     ],
-     "delay_after_ms": 6000
+      "id": "kcrw-e24-shedarc",
+      "label": "KCRW Eclectic 24 → Shed Arc",
+      "sub": "24-hour music stream",
+      "icon": "📻",
+      "house": "vashon",
+      "steps": [
+        {
+          "action": "play_uri",
+          "room": "Shed Arc",
+          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+          "title": "KCRW Eclectic 24",
+          "artist": "KCRW"
+        }
+      ]
     },
     {
-     "action": "play_uri",
-     "room": "Living Room",
-     "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
-     "title": "KCRW Eclectic 24",
-     "artist": "KCRW"
-    }
-   ]
-  },
-  {
-   "id": "vol1-caphill",
-   "label": "All volume → 1%",
-   "sub": "Every room in the house",
-   "icon": "🔉",
-   "house": "caphill",
-   "steps": [
-    {
-     "action": "set_volume",
-     "volume": 1,
-     "resolve": {
-      "each_room": true
-     }
-    }
-   ]
-  },
-  {
-   "id": "vol1-vashon",
-   "label": "All volume → 1%",
-   "sub": "Every room in the house",
-   "icon": "🔉",
-   "house": "vashon",
-   "steps": [
-    {
-     "action": "set_volume",
-     "volume": 1,
-     "resolve": {
-      "each_room": true
-     }
-    }
-   ]
-  },
-  {
-   "id": "daily-garage-burn",
-   "label": "Garage Burn → Garage",
-   "sub": "Today's mix",
-   "icon": "🏋️",
-   "house": "vashon",
-   "dynamic": "garage_pick",
-   "note": "Daily Garage Burn rotation (pool of 4, garage_pick.json published by nightly Step 2.17 / garage_publish_pick.ts). Tile sub upgrades to today's mix name (dynamic). Bach-pattern ungroup-first: sync_rooms [Garage] -> vol 30 (D7) -> replace_queue today's pick (fresh intent, shuffle resets OFF server-side). Replaces latest-garage-burn (newest_playlist resolver) 2026-08-21. v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
-   "steps": [
-    {
-     "action": "sync_rooms",
-     "rooms": [
-      "Garage"
-     ],
-     "delay_after_ms": 6000
+      "id": "kcrw-e24-caphill-main",
+      "label": "KCRW Eclectic 24 → Main Floor",
+      "sub": "Dining Room · Kitchen · Living Room",
+      "icon": "📻",
+      "house": "caphill",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Living Room",
+            "Dining Room",
+            "Kitchen"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "play_uri",
+          "room": "Living Room",
+          "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
+          "title": "KCRW Eclectic 24",
+          "artist": "KCRW"
+        }
+      ]
     },
     {
-     "action": "replace_queue",
-     "resolve": {
-      "garage_pick": true
-     },
-     "room": "Garage"
-    }
-   ]
-  },
-  {
-   "id": "daily-bach-lowerdeck",
-   "label": "Daily Bach → Lower Deck",
-   "sub": "Today's pick",
-   "icon": "🎼",
-   "house": "vashon",
-   "dynamic": "bach_pick",
-   "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent). v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
-   "steps": [
-    {
-     "action": "sync_rooms",
-     "rooms": [
-      "Main Lower Deck"
-     ],
-     "delay_after_ms": 6000
+      "id": "vol1-caphill",
+      "label": "All volume → 1%",
+      "sub": "Every room in the house",
+      "icon": "🔉",
+      "house": "caphill",
+      "steps": [
+        {
+          "action": "set_volume",
+          "volume": 1,
+          "resolve": {
+            "each_room": true
+          }
+        }
+      ]
     },
     {
-     "action": "replace_queue",
-     "resolve": {
-      "bach_pick": true
-     },
-     "room": "Main Lower Deck"
-    }
-   ]
-  },
-  {
-   "id": "daily-bach-shedarc",
-   "label": "Daily Bach → Shed Arc",
-   "sub": "Today's pick",
-   "icon": "🎼",
-   "house": "vashon",
-   "dynamic": "bach_pick",
-   "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent). v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
-   "steps": [
-    {
-     "action": "sync_rooms",
-     "rooms": [
-      "Shed Arc"
-     ],
-     "delay_after_ms": 6000
+      "id": "vol1-vashon",
+      "label": "All volume → 1%",
+      "sub": "Every room in the house",
+      "icon": "🔉",
+      "house": "vashon",
+      "steps": [
+        {
+          "action": "set_volume",
+          "volume": 1,
+          "resolve": {
+            "each_room": true
+          }
+        }
+      ]
     },
     {
-     "action": "replace_queue",
-     "resolve": {
-      "bach_pick": true
-     },
-     "room": "Shed Arc"
+      "id": "daily-garage-burn",
+      "label": "Garage Burn → Garage",
+      "sub": "Today's mix",
+      "icon": "🏋️",
+      "house": "vashon",
+      "dynamic": "garage_pick",
+      "note": "Daily Garage Burn rotation (pool of 4, garage_pick.json published by nightly Step 2.17 / garage_publish_pick.ts). Tile sub upgrades to today's mix name (dynamic). Bach-pattern ungroup-first: sync_rooms [Garage] -> vol 30 (D7) -> replace_queue today's pick (fresh intent, shuffle resets OFF server-side). Replaces latest-garage-burn (newest_playlist resolver) 2026-08-21. v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Garage"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "garage_pick": true
+          },
+          "room": "Garage"
+        }
+      ]
+    },
+    {
+      "id": "daily-bach-lowerdeck",
+      "label": "Daily Bach → Lower Deck",
+      "sub": "Today's pick",
+      "icon": "🎼",
+      "house": "vashon",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent). v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Main Lower Deck"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true
+          },
+          "room": "Main Lower Deck"
+        }
+      ]
+    },
+    {
+      "id": "daily-bach-shedarc",
+      "label": "Daily Bach → Shed Arc",
+      "sub": "Today's pick",
+      "icon": "🎼",
+      "house": "vashon",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach (design_bach_daily_v1.md Rev 1.4). Tile sub upgrades to today's work+performer from bach_pick.json (dynamic). Tap: D8 volume, then replace_queue today's album on the room's full current group (coordinator-first). replace_queue resets shuffle OFF server-side (fresh intent). v8: group_of dropped from replace_queue step — ungroup-first guarantees solo room; stale-state-file coordinator misroute (2026-08-22 Shed Arc incident) fixed with static room.",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Shed Arc"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true
+          },
+          "room": "Shed Arc"
+        }
+      ]
     }
-   ]
+  ],
+  "defaults": {
+    "note": "Default play volume per room. Used by play shortcuts without explicit volume, by play.ts (mode=play), by the agent when authoring new shortcuts, and (p3.21+) as JOIN-VOLUME: any room newly added to a group via Group Speakers / geo Extend / play.ts is reset to its default before the topology change lands. Rooms not listed use volume_fallback.",
+    "volume_fallback": 18,
+    "volume_by_room": {
+      "Garage": 30,
+      "Shed Arc": 18,
+      "Living Room": 9,
+      "Dining Room": 9,
+      "Kitchen": 9,
+      "Sauna Porch": 35,
+      "Main Lower Deck": 39,
+      "Media Room": 7,
+      "Main Upstairs Second Bedroom": 12,
+      "Main Upstairs Master Bedroom": 12,
+      "Main Upstairs Bathroom White Roams": 12,
+      "Parents Bedroom": 18,
+      "Master Bathroom": 18
+    }
+  },
+  "updated_at": "2026-08-20",
+  "notes": {
+    "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed."
   }
- ],
- "defaults": {
-  "note": "Default play volume per room. Used by play shortcuts without explicit volume, by play.ts (mode=play), by the agent when authoring new shortcuts, and (p3.21+) as JOIN-VOLUME: any room newly added to a group via Group Speakers / geo Extend / play.ts is reset to its default before the topology change lands. Rooms not listed use volume_fallback.",
-  "volume_fallback": 18,
-  "volume_by_room": {
-   "Garage": 30,
-   "Shed Arc": 18,
-   "Living Room": 9,
-   "Dining Room": 9,
-   "Kitchen": 9,
-   "Sauna Porch": 35,
-   "Main Lower Deck": 39,
-   "Media Room": 7,
-   "Main Upstairs Second Bedroom": 12,
-   "Main Upstairs Master Bedroom": 12,
-   "Main Upstairs Bathroom White Roams": 12,
-   "Parents Bedroom": 12,
-   "Master Bathroom": 12
-  }
- },
- "updated_at": "2026-08-20",
- "notes": {
-  "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed."
- }
 }
