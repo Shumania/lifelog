@@ -555,6 +555,11 @@
   .shortcut-card:hover { border-color: var(--text-dim); }
   .shortcut-card:active { transform: scale(0.985); }
   .shortcut-card.sc-running { border-color: rgba(74, 222, 128, 0.4); opacity: 0.75; pointer-events: none; }
+  /* p3.29: house-aware layout — divider + dimmed out-of-scope tiles (still tappable) */
+  .sc-divider { text-align: center; font-size: 11px; opacity: 0.5; letter-spacing: 0.06em; margin: 16px 0 10px; user-select: none; }
+  .sc-elsewhere .shortcut-card { opacity: 0.5; }
+  .sc-elsewhere .shortcut-card:hover { opacity: 0.75; }
+  .sc-elsewhere .shortcut-card.sc-running { opacity: 0.75; }
   .sc-icon { font-size: 22px; flex-shrink: 0; }
   .sc-body { flex: 1; min-width: 0; }
   .sc-label { font-size: 14px; font-weight: 600; }
@@ -1198,7 +1203,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.28';
+const PAGE_VERSION = 'p3.29';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2172,7 +2177,14 @@ function _getQueueTargetGroup(h) {
   if (!keys.length) return null;
   const groups = _groupsByHouse[h] || [];
   const coordOf = r => { const g = groups.find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; };
-  for (const r of (selectedRooms[h] || [])) { const k = _qsEntryKey(h, coordOf(r)); if (k) return k; }
+  const sel = selectedRooms[h] || [];
+  for (const r of sel) { const k = _qsEntryKey(h, coordOf(r)); if (k) return k; }
+  // p3.29: the selector always wins (D9 extension, Andrew 2026-08-25). When rooms ARE
+  // selected but none of their groups has a queue entry, return null — renderQueueLine
+  // shows the honest no-queue state. NEVER fall through to another group's queue (the
+  // Aug-25 trap: Basement Study selected, Backyard's queue displayed, Clear queue hit
+  // the empty selected room while the user was looking at Backyard's tracks).
+  if (sel.length) return null;
   if (keys.length === 1) return keys[0];
   try { for (const r of (liveTargetRooms(h) || [])) { const k = _qsEntryKey(h, coordOf(r)); if (k) return k; } } catch(e) {}
   return keys.sort((a, b) => String(qs[b].loaded_at || '').localeCompare(String(qs[a].loaded_at || '')))[0];
@@ -2248,7 +2260,7 @@ function renderQueueLine(h) {
     document.getElementById('qchev-' + h).classList.toggle('open', sOpen);
     exp.classList.toggle('open', sOpen);
     qrows.innerHTML = sOpen ? '<div class="q-more" style="padding-left:0;">' +
-      (e && e.stream ? '📻 Streaming radio — no track queue.' : 'No queue loaded.') + '</div>' : '';
+      (e && e.stream ? '📻 Streaming radio — no track queue.' : 'No queue on the selected speakers.') + '</div>' : ''; // p3.29: honest per-selection wording
     return;
   }
   line.hidden = false;
@@ -2258,7 +2270,7 @@ function renderQueueLine(h) {
   // p3.10: sources chain (v2.60+) beats the single provenance label; falls back cleanly
   const _srcHtml = _qSourcesHtml(e);
   document.getElementById('qtext-' + h).innerHTML =
-    'Queue' + (multi ? ' — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) + (() => { const n = _qsMembers(h, coord).length - 1; return n > 0 ? ' +' + n : ''; })() : '') + ': <b>' + left + ' left</b> · ' +
+    'Queue — ' + esc(_qsLiveCoordFor(h, coord).replace(/^Main /, '')) + (() => { const n = _qsMembers(h, coord).length - 1; return n > 0 ? ' +' + n : ''; })() + ': <b>' + left + ' left</b> · ' + // p3.29: ALWAYS name the group (was multi-only) — display follows the selector, the label proves it
     (_srcHtml || esc(e.provenance_label || (e.track_count + ' tracks'))) +
     (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '');
   document.getElementById('qstale-' + h).hidden = !(loadedMs != null && loadedMs > 12 * 3600 * 1000); // U5
@@ -3315,44 +3327,26 @@ function toggleErrorList() {
   document.body.appendChild(box);
 }
 
-// p2.44 (U-M12): hard refresh with pending/confirmation UX. After a refresh command the
-// client relays a status_update over SSE (~1-2s); we wait for that (max 12s) before
-// reloading so the user can SEE the refresh worked. No confirmation = loud warning —
-// first taste of the "unresponsive client" UX. Roaming tab (no topic): plain reload.
-let _hrPending = null; // { t0, house, timer }
+// p3.29 (Rule 27 cleanup): hard refresh no longer WAITS for a status_update SSE event
+// before reloading (the old p2.44 flow watched for the confirmation edge, up to 12s,
+// with a scary offline toast on timeout). Level-triggered replacement: send refresh,
+// reload shortly after; the reloaded page's status bar versions/ages and queue-line
+// freshness stamps already express client liveness as STATE. Roaming (no ntfy topic)
+// skips the Sonos command and just reloads.
+let _hrPending = null; // truthy while the pre-reload beat runs (spinner in status bar)
 function hardRefresh() {
   if (_hrPending) { console.log('[hardRefresh] already in flight — ignoring click'); return; }
-  if (!NTFY[house]) {
-    // U-M11 (p2.43): roaming has no speakers/ntfy topic — skip the Sonos command, still reload
-    showToast('Refreshing…');
-    localStorage.setItem('ll_refresh_tab', house);
-    setTimeout(_hrReload, 800);
-    return;
-  }
-  _hrPending = { t0: Date.now(), house };
+  _hrPending = true;
   renderStatusBar(); // swap 🔄 -> spinner immediately
-  showToast('⏳ Refreshing speakers — waiting for client…');
-  console.log('[hardRefresh] sent refresh, awaiting status_update confirmation for', house);
-  postNtfy({ action: 'refresh' }).catch((e) => { console.warn('[hardRefresh] postNtfy failed:', e && e.message); });
-  // Fail-safe: no confirmation within 12s -> warn loudly, reload anyway (old behavior)
-  _hrPending.timer = setTimeout(() => {
-    console.warn('[hardRefresh] no status_update confirmation after 12s — reloading anyway');
-    _hrPending = null;
-    showToast('⚠️ No response from the ' + house + ' client — it may be offline. Reloading…', true);
-    localStorage.setItem('ll_refresh_tab', house);
-    setTimeout(_hrReload, 1500);
-  }, 12000);
-}
-function _hrConfirm(sseHouse, evtTs, roomCount) {
-  // 5s clock-skew slack between browser clock and ntfy server timestamps
-  if (!_hrPending || sseHouse !== _hrPending.house || evtTs < _hrPending.t0 - 5000) return;
-  clearTimeout(_hrPending.timer);
-  const secs = ((Date.now() - _hrPending.t0) / 1000).toFixed(1);
-  _hrPending = null;
-  console.log('[hardRefresh] confirmed by status_update after ' + secs + 's');
-  showToast('✓ Speakers refreshed (' + secs + 's' + (roomCount ? ', ' + roomCount + ' rooms' : '') + ') — reloading…');
+  showToast('Refreshing…');
+  if (NTFY[house]) {
+    console.log('[hardRefresh] refresh sent for ' + house + ' — reloading without waiting (Rule 27: state, not events)');
+    postNtfy({ action: 'refresh' }).catch((e) => { console.warn('[hardRefresh] postNtfy failed:', e && e.message); });
+  } else {
+    console.log('[hardRefresh] roaming — no ntfy topic, plain reload'); // U-M11 (p2.43)
+  }
   localStorage.setItem('ll_refresh_tab', house);
-  setTimeout(_hrReload, 900); // let the toast land before reload
+  setTimeout(_hrReload, 1200); // let the toast land + refresh command hit the wire
 }
 function _hrReload() {
   const url = new URL(location.href);
@@ -5188,7 +5182,7 @@ function connectSSE() {
 
       // p2.44 (U-M12): confirm an in-flight hard refresh — any fresh status_update from
       // the awaited house proves the client is alive and has re-discovered topology
-      if (events.includes('status_update')) _hrConfirm(sseHouse, evtTs, (msg.rooms_all || []).length);
+      // p3.29: _hrConfirm removed (Rule 27 cleanup) — hardRefresh no longer waits for status_update
 
       // --- Handle now_playing ---
       // U-M3: ignore replayed events that are stale (>10 min) or older than current state
@@ -6464,13 +6458,14 @@ function renderShortcuts() {
     el.innerHTML = '<div class="empty-state"><p style="font-size:13px;">No shortcuts yet — ask the agent to add one.</p></div>';
     return;
   }
-  // p3.26 (D6): shortcuts drive HOME speakers — in roaming they gray with a hint
-  // (tab stays put so the tab bar never jumps between houses). Tap → guard toast
-  // in runShortcut. Roaming-native deep-link tiles land with Shortcuts v2.
-  const _scRoamHint = house === 'roaming'
-    ? '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">📱 Roaming — shortcuts drive home speakers. Pick a house to run them.</p></div>'
-    : '';
-  el.innerHTML = _scRoamHint + _shortcuts.map(s => {
+  // p3.29: house-aware layout (Shortcuts v2 filtering half, Andrew 2026-08-25) —
+  // tiles for the SELECTED house (D9: the selector always wins, no geo inference here)
+  // render on top; everything else sits below a labeled divider, dimmed but fully
+  // tappable — cross-house preheat is legitimate, and every tile posts to ITS OWN
+  // house topic (postNtfy(p, sc.house)), so a below-the-line tap aims correctly.
+  // Roaming keeps the p3.26 D6 guard: hint on top, all tiles below the line, taps
+  // blocked with a toast in runShortcut until roaming-native deep-link tiles exist.
+  const _scCard = s => {
     const running = _scBusy === s.id;
     return '<div class="shortcut-card' + (running ? ' sc-running' : '') + '" id="sc-' + esc(s.id) + '" onclick="runShortcut(\'' + esc(s.id) + '\')">' +
       '<span class="sc-icon">' + esc(s.icon || '⚡') + '</span>' +
@@ -6479,7 +6474,22 @@ function renderShortcuts() {
       '<span class="sc-house">' + (_SC_HOUSE_BADGE[s.house] || esc(s.house || '')) + '</span>' +
       (running ? '<span class="hr-spin" style="font-size:16px">⟳</span>' : '') +
       '</div>';
-  }).join('');
+  };
+  const inScope = house === 'roaming' ? [] : _shortcuts.filter(s => s.house === house);
+  const elsewhere = _shortcuts.filter(s => !inScope.includes(s));
+  let html = '';
+  if (house === 'roaming') {
+    html += '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">📱 Roaming — shortcuts drive home speakers. Pick a house to run them.</p></div>';
+  } else if (!inScope.length) {
+    html += '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">No shortcuts for this house yet — ask the agent to add one.</p></div>';
+  }
+  html += inScope.map(_scCard).join('');
+  if (elsewhere.length) {
+    html += '<div class="sc-divider">· · ·&nbsp; other locations &nbsp;· · ·</div>';
+    html += '<div class="sc-elsewhere">' + elsewhere.map(_scCard).join('') + '</div>';
+  }
+  el.innerHTML = html;
+  console.log('[shortcuts] house-aware render: ' + inScope.length + ' in scope (' + house + '), ' + elsewhere.length + ' elsewhere');
 }
 
 async function _scFetchState(h) {
@@ -6661,7 +6671,24 @@ async function runShortcut(id) {
 const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlists.json'; // p2.46: Phase 3 cutover — new-schema asset (both accounts, owned+followed, server recency)
 const PL_TRACKS_BASE  = 'https://shumania.github.io/lifelog/playlist_tracks/';
 
+// p3.29: liner-notes web pages (notes/{id}.html) — index of which playlists have one.
+// Pure data: publishing a new write-up lights its 📖 with no page release. Fetch failure
+// degrades to "no buttons" silently (the pages are a bonus surface, never a blocker).
+const NOTES_INDEX_URL = 'https://shumania.github.io/lifelog/notes/index.json';
+let _plNotes = new Set();
+async function _loadNotesIndex() {
+  try {
+    const r = await fetch(NOTES_INDEX_URL + '?t=' + (Date.now()>>16));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    _plNotes = new Set(d.playlist_ids || []);
+    console.log('[playlists] notes index: ' + _plNotes.size + ' liner-note page(s)');
+    if (_playlists.length) renderPlaylists(); // re-render if metadata beat us here
+  } catch(e) { console.warn('[playlists] notes index unavailable: ' + (e && e.message)); }
+}
+
 async function loadPlaylistData() {
+  _loadNotesIndex(); // p3.29: fire-and-forget, parallel with metadata
   try {
     const r = await fetch(PL_METADATA_URL + '?t=' + (Date.now()>>16));
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -6900,6 +6927,10 @@ function renderPlaylists() {
     card += '<div class="pc-actions">';
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
+    // p3.29: 📖 liner-notes linkout — only for playlists with a published write-up page
+    // (notes/index.json). Opens OUTSIDE the player (Andrew 2026-08-25); future notes
+    // light up with zero page releases — the index is data, refetched each tab load.
+    if (_plNotes.has(p.id)) card += '<button class="pc-btn notes" onclick="event.stopPropagation();window.open(\'https://shumania.github.io/lifelog/notes/' + p.id + '.html\',\'_blank\',\'noopener\')" title="Liner notes — the story behind this playlist">\ud83d\udcd6</button>';
     card += '</div>';
     if (!isGhost) card += '<span class="pc-expand">\u203a</span>';
     card += '</div>';
