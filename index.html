@@ -1203,7 +1203,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.29';
+const PAGE_VERSION = 'p3.30';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2231,6 +2231,20 @@ function renderQueueLine(h) {
   const coord = st ? _getQueueTargetGroup(h) : null; // p2.98 C1: this is the qs ENTRY KEY
   const ek = coord ? _qsEntryKey(h, coord) : null;   // defensive: identity for entry keys
   const e = ek ? (st.qs[ek] || null) : null;
+  // p3.30: just-regrouped selection — the cached coordinator mapping (and therefore
+  // whichever queue entry it keys to) is untrustworthy until topology lands. Never show
+  // the OLD group's queue under the new selection's name (2026-08-25 incident).
+  const _selTopo = selectedRooms[h] || [];
+  if (_selTopo.length && _topoPendingFor(h, _selTopo)) {
+    line.hidden = false;
+    document.getElementById('qtext-' + h).innerHTML = 'Queue — <b>' + esc(_spkSelSummary(h)) + '</b>: <span style="color:#c98a00">updating… · regroup in progress</span>';
+    document.getElementById('qstale-' + h).hidden = true;
+    const tOpen = !!_qexpOpen[h];
+    document.getElementById('qchev-' + h).classList.toggle('open', tOpen);
+    exp.classList.toggle('open', tOpen);
+    qrows.innerHTML = tOpen ? '<div class="q-more" style="padding-left:0;opacity:0.75">⏳ Speakers are regrouping — queue appears once topology lands.</div>' : '';
+    return;
+  }
   if (_qSnapshotPending(h)) { // p3.01: snapshot predates this page's own last queue edit — don't show pre-command counts
     line.hidden = false;
     // p3.03 item 4: container inserts (album/playlist) expand asynchronously on the speaker —
@@ -2331,6 +2345,22 @@ async function sendTruncateQueue(h, coordOverride) {
 let _sheetCtx = null; // {h, item, kind, canEnd, send, target, choices}
 
 function _qsCoordOf(h, r) { const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r)); return g ? (g.coordinator || r) : r; }
+
+// p3.30: level-triggered topology trust (Rule 27 — compare STATE, not events).
+// A fresh Group Speakers intent (2-min window) covering any of these rooms makes the
+// cached coordinator mapping UNTRUSTWORTHY until _groupsByHouse actually shows the
+// intended group (exact membership match). No timestamps beyond the intent window:
+// the intent says "these rooms are one group now"; the cache is believed only once
+// it agrees. (2026-08-25 incident: 15s-stale cache said Master Bathroom's coordinator
+// was Dining Room → sheet displayed Dining Room's queue AND sent replace_queue there.)
+function _topoPendingFor(h, rooms) {
+  const fgi = _freshGroupIntent[h];
+  if (!fgi || Date.now() - fgi.ts > 120000) return false;
+  if (!(rooms || []).some(r => fgi.rooms.includes(r))) return false; // intent doesn't cover these rooms
+  const want = [...fgi.rooms].sort().join(',');
+  const got = (_groupsByHouse[h] || []).some(g => (g.members || []).slice().sort().join(',') === want);
+  return !got; // pending until the cache shows the intended group
+}
 // p2.98 C1: a group's queue survives coordinator changes — the published queue_summary
 // may still be keyed by a PRIOR-epoch coordinator while live SSE topology has moved the
 // coordinator label (2026-08-06 Pages-outage incident: snapshot keyed "…Maury", live
@@ -2438,7 +2468,13 @@ function _renderQueueSheet() {
   const st = _queueState[c.h]; const qs = (st && st.qs) || {};
   const t = c.target;
   const e = t ? (qs[_qsEntryKey(c.h, t) || t] || null) : null; // p2.98 C1: group-member fallback read
-  const qPending = _qSnapshotPending(c.h); // p3.01 guard — computed early for p3.15
+  // p3.30: just-regrouped selection — every claim derived from the cached mapping
+  // (stream flag, counts, playing state, member list) is stale. Fold into the existing
+  // qPending honesty machinery: hints go safe, queue block says "updating…", verbs STAY
+  // HOT (sends re-resolve at tap time from selection, so they're correct regardless).
+  const _selQs = selectedRooms[c.h] || [];
+  const topoPend = _selQs.length > 0 && _topoPendingFor(c.h, _selQs);
+  const qPending = _qSnapshotPending(c.h) || topoPend; // p3.01 guard — computed early for p3.15
   // p3.15: a stream flag read from a snapshot OLDER than this page's own last queue-
   // mutating command is untrustworthy (2026-08-15 incident: replace-queue landed on the
   // speaker but the sheet kept "stream has no queue" from the pre-replace state file and
@@ -2489,19 +2525,20 @@ function _renderQueueSheet() {
     '</div><div class="qs-divider"></div>';
 
   // Queue context block (bottom) — reuses expando vocabulary; sheet keeps ✂ only
-  const liveCoord = t ? _qsLiveCoordFor(c.h, t) : null; // p3.01: LIVE coordinator, not prior-epoch entry key
-  const grpMem = liveCoord ? _qsMembers(c.h, t).filter(r => r !== liveCoord) : []; // p3.02: full group membership
+  let liveCoord = t ? _qsLiveCoordFor(c.h, t) : null; // p3.01: LIVE coordinator, not prior-epoch entry key
+  let grpMem = liveCoord ? _qsMembers(c.h, t).filter(r => r !== liveCoord) : []; // p3.02: full group membership
+  if (topoPend) { liveCoord = _selQs[0]; grpMem = _selQs.slice(1); } // p3.30: name the SELECTION, not the stale mapping
   const grpRow = grpMem.length
     ? '<div class="qs-grouprow">🔊 with ' + grpMem.map(r => esc(r.replace(/^Main /, ''))).join(' · ') + '</div>'
     : '';
   let qb = '<div class="qs-qcontext-head"><span class="q-label">Queue' +
-    (liveCoord && (grpMem.length || Object.keys(qs).length > 1)
+    (liveCoord
       ? ' — ' + esc(liveCoord.replace(/^Main /, '')) + (grpMem.length ? ' +' + grpMem.length : '')
-      : '') + '</span>';
+      : '') + '</span>'; // p3.30: ALWAYS name the group (p3.29 strip semantic, now in the sheet too)
   if (stream) {
     qb += '<span class="q-prov">Live stream' + (e.stream_label ? ' (' + esc(e.stream_label) + ')' : '') + ' — no queue</span></div>' + grpRow;
   } else if (qPending) { // p3.01: don't show pre-command counts or claim "empty" from a stale snapshot
-    qb += '<span class="q-prov" style="color:#c98a00">updating… · syncing after your change</span></div>' + grpRow;
+    qb += '<span class="q-prov" style="color:#c98a00">updating… · ' + (topoPend ? 'regroup in progress' : 'syncing after your change') + '</span></div>' + grpRow;
   } else if (e) {
     const loadedMs = e.loaded_at ? (Date.now() - new Date(e.loaded_at).getTime()) : null;
     const _shSrc = _qSourcesHtml(e); // p3.10: sources chain beats single label
@@ -2547,38 +2584,61 @@ async function _qsFillOnPlaylists() {
 }
 
 async function _qsVerb(mode) {
-  const c = _sheetCtx; if (!c || !c.target) return;
+  const c = _sheetCtx; if (!c) return;
+  // p3.30: re-resolve the target at TAP time from live chip selection — the sheet no
+  // longer ships a coordinator label pre-resolved at open (Rule 27: transfer state, not
+  // conclusions). 2026-08-25 incident: a 15s-stale cache said Master Bathroom's
+  // coordinator was Dining Room → replace_queue hit an empty dining room while the
+  // freshly-formed group got nothing. Selection IS the state; the service resolves the
+  // live coordinator at execution time — same as the direct ▶ path, which never had
+  // this bug. No selection → fall back to the open-time target (browse-only sheets).
+  const selNow = filterOfflineRooms(selectedRooms[c.h] || []);
+  let coord, members;
+  if (selNow.length) { coord = selNow[0]; members = [...selNow]; }
+  else if (c.target) { coord = _qsLiveCoordFor(c.h, c.target); members = _qsMembers(c.h, c.target); }
+  else return;
+  console.log('[qs-verb] ' + mode + ' → tap-time target: ' + members.join(', ') + (selNow.length ? ' (from selection)' : ' (from open-time target)'));
   if (mode === 'replace') {
     // p3.28: fresh-intent window — if this group was formed by Group Speakers within
     // the last 2 min, skip the D3 confirm (grouping then playing is one obvious intent).
+    // p3.30: compare the intent against the rooms we are SENDING to (the selection) —
+    // not the stale target's member list, which let the confirm be skipped on 08-25
+    // while the command was aimed at the wrong group.
     const fgi = _freshGroupIntent[c.h];
     const ageMs = fgi ? (Date.now() - fgi.ts) : -1;
-    const tgtRooms = [c.target, ..._qsMembers(c.h, c.target)];
-    const fresh = fgi && ageMs < 120000 && tgtRooms.some(r => fgi.rooms.includes(r));
+    const fresh = fgi && ageMs < 120000 && members.some(r => fgi.rooms.includes(r));
     if (fresh) {
-      console.log('[qs-verb] fresh-intent window active (' + Math.round(ageMs / 1000) + 's since Group Speakers) — replace confirm skipped for', c.target);
+      console.log('[qs-verb] fresh-intent window active (' + Math.round(ageMs / 1000) + 's since Group Speakers) — replace confirm skipped for', members.join(', '));
     } else {
-      const playing = _qsPlaying(c.h, c.target);
-      if (playing !== false && !confirm('Replace the queue for ' + c.target + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
+      // p3.30: during a topo-pending window the cached playing-state is stale too — treat
+      // as unknown (confirm; safe). Otherwise read playing off the tap-time coordinator.
+      const playing = _topoPendingFor(c.h, members) ? null : _qsPlaying(c.h, _qsCoordOf(c.h, coord));
+      if (playing !== false && !confirm('Replace the queue for ' + members.map(r => r.replace(/^Main /, '')).join(' + ') + '? The current queue is cleared once the new content is loaded.')) return; // D3: unknown → confirm (safe)
     }
   }
-  // p2.98 C1: target may be a prior-epoch qs entry key — D6 sends carry the LIVE
-  // coordinator + full member list (membership-aware _qsMembers).
-  const send = c.send, t = _qsLiveCoordFor(c.h, c.target), members = _qsMembers(c.h, c.target);
+  const send = c.send;
   closeQueueSheet(); // E9: close on first tap
-  await send(mode, t, members);
+  await send(mode, coord, members);
 }
 function _qsClearVerb() {
-  const c = _sheetCtx; if (!c || !c.target) return;
-  const t = _qsLiveCoordFor(c.h, c.target); // p2.98 C1: send to the LIVE coordinator
-  if (!confirm('Clear the Sonos queue for ' + t + '?\nIf the queue is currently playing, playback will stop.')) return;
+  const c = _sheetCtx; if (!c) return;
+  // p3.30: tap-time selection-first resolution (same fix as _qsVerb — no stale labels)
+  const selNow = filterOfflineRooms(selectedRooms[c.h] || []);
+  const rooms = selNow.length ? [...selNow] : (c.target ? [_qsLiveCoordFor(c.h, c.target)] : []);
+  if (!rooms.length) return;
+  const label = rooms.map(r => r.replace(/^Main /, '')).join(' + ');
+  if (!confirm('Clear the Sonos queue for ' + label + '?\nIf the queue is currently playing, playback will stop.')) return;
   closeQueueSheet();
-  showToast('🗑 Clearing queue · ' + t);
-  postNtfy({ action: 'clear_queue', room: t, rooms: [t], target_client_id: commanderId, t_requested: new Date().toISOString() });
+  showToast('🗑 Clearing queue · ' + label);
+  postNtfy({ action: 'clear_queue', room: rooms[0], rooms, target_client_id: commanderId, t_requested: new Date().toISOString() });
 }
 function _qsTruncVerb() {
-  const c = _sheetCtx; if (!c || !c.target) return;
-  const h = c.h, t = c.target;
+  const c = _sheetCtx; if (!c) return;
+  // p3.30: tap-time selection-first resolution (service resolves the live group)
+  const selNow = filterOfflineRooms(selectedRooms[c.h] || []);
+  const t = selNow.length ? selNow[0] : c.target;
+  if (!t) return;
+  const h = c.h;
   closeQueueSheet();
   sendTruncateQueue(h, t);
 }
