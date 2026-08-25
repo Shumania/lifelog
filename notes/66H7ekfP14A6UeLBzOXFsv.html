@@ -16,13 +16,21 @@ code{font-family:ui-monospace,monospace;font-size:.85em;background:var(--card);p
 .spotify-btn{display:inline-block;font-family:system-ui,sans-serif;font-size:.85em;font-weight:600;background:#1db954;color:#000;padding:.5em 1.1em;border-radius:99px;margin:.8em 0 0}
 .spotify-btn:hover{text-decoration:none;filter:brightness(1.1)}
 .home{font-family:system-ui,sans-serif;font-size:.8em;color:var(--dim);display:block;margin-bottom:2em}
+.navbar{position:sticky;top:0;z-index:10;display:flex;gap:18px;align-items:center;background:rgba(14,17,22,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 22px 10px;font-family:system-ui,sans-serif;font-size:.85em}
+.navbar a{color:var(--acc);font-weight:600}
+.navbar .nb-sep{color:var(--line)}
 .idx-item{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
 .idx-item:hover{border-color:var(--acc);text-decoration:none}
 .idx-title{font-size:1.15em;color:var(--ink);font-weight:700}
 .idx-sub{font-family:system-ui,sans-serif;font-size:.78em;color:var(--dim);margin-top:4px}
 footer{margin-top:60px;font-family:system-ui,sans-serif;font-size:.75em;color:var(--dim);border-top:1px solid var(--line);padding-top:16px}
 </style></head>
-<body><div class="wrap"><a class="home" href="index.html">← All liner notes</a>
+<body>
+<nav class="navbar">
+<a href="../index.html" onclick="if(history.length>1&&document.referrer.indexOf('/lifelog/')>-1){history.back();return false}">← Listening Log</a>
+<span class="nb-sep">·</span> <a href="index.html">All notes</a>
+</nav>
+<div class="wrap">
 <h1>Sonora Noir — Aug 24</h1>
 <ul>
 <li><strong>Playlist:</strong> <code>spotify:playlist:66H7ekfP14A6UeLBzOXFsv</code> · 19 tracks · created 2026-08-24 (nightly Step 2.13)</li>
