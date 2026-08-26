@@ -1210,7 +1210,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.31';
+const PAGE_VERSION = 'p3.32';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1231,7 +1231,8 @@ const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1g
 // never reuse another webhook's token (returns 200 but the event never reaches the like trigger).
 const LIKE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5622b453bd1554221e67daf77b930537';
 const ROOMS_LIST = {
-  caphill: ['Backyard','Basement Study','Dining Room','Kitchen','Living Room','Master Bathroom','Parents Bedroom','Media Room','Study Computer Playbar'],
+  // p3.32: seed refreshed to live topology — 'Study Computer Playbar' retired, 'Shuma Dark Roam' added
+  caphill: ['Living Room','Dining Room','Kitchen','Master Bathroom','Parents Bedroom','Backyard','Basement Study','Shuma Dark Roam','Media Room'],
   vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
 };
 
@@ -1241,8 +1242,12 @@ const ROOMS_LIST = {
 const CLUSTERS = { vashon: [
   { id: 'main-floor',   label: 'Main Floor',   members: ['Main Living Room Maury','Main Kitchen Green Move 2','Sonos Move'] },
   { id: 'master-suite', label: 'Master Suite', members: ['Main Upstairs Master Bedroom','Main Upstairs Bathroom White Roams'] },
-], caphill: [] };
-const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: [] };  // p2.64: Shed Boombox demoted (often offline)
+], caphill: [
+  // p3.32 (Andrew, 2026-08-26): Cap Hill mini-groups mirroring Vashon's
+  { id: 'main-floor',   label: 'Main Floor',   members: ['Living Room','Dining Room','Kitchen'] },
+  { id: 'master-suite', label: 'Master Suite', members: ['Master Bathroom','Parents Bedroom'] },
+] };
+const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: ['Media Room'] };  // p2.64: Shed Boombox demoted (often offline); p3.32: Cap Hill Media Room demoted
 // Bonded devices (e.g. Vashon Sub) leak into rooms_all via GROUP MEMBER names — the Sonos
 // app hides them. Page-side guard until the v2.54 service fix. Do NOT filter these out of
 // expandViaGroups results used by Group Speakers (live topology legitimately includes them).
@@ -1413,6 +1418,39 @@ function _chipExpirySweep(h) {
     updateSyncButton(h);
     showToast('Chips synced to current group: +' + added.join(', '));
   } catch (e) { console.log('[chip-expiry] ' + h + ' ERROR (selection left as-is): ' + e); }
+}
+
+// ── p3.32 D2: STALE SELECTION ⇒ CONFIRM-FIRST PLAY (2026-08-26 iPad incident) ──
+// A 17h-old Master Suite selection silently took the morning play while Andrew sat in
+// the living room. The p3.27 sweep can't fix a WRONG-but-internally-consistent stale
+// selection (it only ever adds group closure) — so the first play-class send against a
+// stale (≥8h untouched) selection asks, room-first and age-honest. Confirming stamps
+// the touch clock (zero friction after), declining leaves everything untouched. Any
+// chip tap also stamps. Fresh selections are NEVER gated. Confirm-not-clear (Andrew-
+// approved 2026-08-26): one-tap flow survives when the stale target happens to be right.
+// Gated sends: the 5 content-start funnels (directPlay/playContext/playDiscovery),
+// transport ▶ resume (sendCmd 'play'), and queue-sheet verbs (_qsVerb). NOT gated:
+// pause/skip/volume/mute (harmless on a stale target), shortcuts (own rooms + D9
+// restamp), sheet replays (gated once at the verb), empty-selection live-target sends
+// (live reality is never stale).
+function _selStaleAgeMs(h) {
+  let ts = 0;
+  try { ts = parseInt(localStorage.getItem('ll_rooms_ts_' + h) || '0', 10) || 0; } catch(e) {}
+  if (!ts) return Infinity; // no clock = unknown provenance = stale
+  return Date.now() - ts;
+}
+function _staleSelGate(h, rooms) {
+  const age = _selStaleAgeMs(h);
+  if (age < CHIP_STALE_MS) return true;
+  const label = (rooms || []).map(r => r.replace(/^Main /, '')).join(' + ');
+  const ageLabel = isFinite(age) ? (age >= 48 * 3600000 ? Math.round(age / 86400000) + 'd' : Math.round(age / 3600000) + 'h') + ' ago' : 'a while ago';
+  console.log('[stale-gate] ' + h + ': play-class send against stale selection (' + ageLabel + ') — confirming: ' + label);
+  if (confirm('\u2192 ' + label + ' \u2014 last chosen ' + ageLabel + '. Play here?')) {
+    _stampSelTouch(h); // confirmed = fresh intent; friction back to zero
+    return true;
+  }
+  console.log('[stale-gate] ' + h + ': declined — nothing sent, selection untouched');
+  return false;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2054,6 +2092,10 @@ async function sendCmd(action) {
   if (!rawRooms.length) { showToast('Tap a speaker first', true); return; }
   const rooms = filterOfflineRooms(rawRooms);
   if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+  // p3.32 D2: ▶ resume is content-start — gate it when aimed by a (possibly stale)
+  // selection. Live-target fallback (empty selection) is live reality, never gated;
+  // pause/skip/volume/mute stay ungated (harmless on a stale target).
+  if (action === 'play' && selNow.length && !_staleSelGate(house, rooms)) return;
   // Optimistic UI for mute/repeat/shuffle (these are silent — no SSE confirmation comes back)
   let _shufTo;  // p2.80: desired shuffle state, rides in the set_shuffle payload
   if (action === 'toggle_mute') {
@@ -2639,6 +2681,9 @@ async function _qsVerb(mode) {
   else if (c.target) { coord = _qsLiveCoordFor(c.h, c.target); members = _qsMembers(c.h, c.target); }
   else return;
   console.log('[qs-verb] ' + mode + ' → tap-time target: ' + members.join(', ') + (selNow.length ? ' (from selection)' : ' (from open-time target)'));
+  // p3.32 D2: sheet verbs are play-class and selection-aimed — gate once here (the
+  // funnel replay below carries sheetOpts, so the funnels' own gates don't re-fire).
+  if (selNow.length && !_staleSelGate(c.h, members)) return;
   if (mode === 'replace') {
     // p3.28: fresh-intent window — if this group was formed by Group Speakers within
     // the last 2 min, skip the D3 confirm (grouping then playing is one obvious intent).
@@ -4474,6 +4519,7 @@ async function directPlay(action, encodedData, sheetOpts) {
       if (!selNow.length) { showToast('Tap a speaker first', true); return; }
       rooms = filterOfflineRooms(selNow);
       if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+      if (!_staleSelGate(house, rooms)) return; // p3.32 D2: stale-selection confirm-first
     }
 
     // [DESIGN NOTE] play_next handles ALL services (Spotify, Qobuz, Apple Music).
@@ -4876,6 +4922,7 @@ async function playContext(action, encodedData, sheetOpts) {
       if (!selNow.length) { showToast('Tap a speaker first', true); return; }
       rooms = filterOfflineRooms(selNow);
       if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+      if (!_staleSelGate(house, rooms)) return; // p3.32 D2: stale-selection confirm-first
     }
     const service = isQobuz ? 'Qobuz' : 'Apple Music';
     console.log('[playContext] → play_album path, service=' + service, 'album=' + info.album, 'artist=' + info.artist, sheetOpts ? 'sheetMode=' + sheetOpts.mode : '');
@@ -4923,6 +4970,7 @@ async function playContext(action, encodedData, sheetOpts) {
           if (!selNow.length) { showToast('Tap a speaker first', true); return; }
           rooms = filterOfflineRooms(selNow);
           if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+          if (!_staleSelGate(house, rooms)) return; // p3.32 D2: stale-selection confirm-first
         }
         const q = [info.album, info.artist].filter(Boolean).join(' ');
         const _cqm = sheetOpts ? ({ next: 'next', end: 'end', now: 'play' })[sheetOpts.mode] : undefined;
@@ -4961,6 +5009,7 @@ async function playContext(action, encodedData, sheetOpts) {
       if (!selNow.length) { showToast('Tap a speaker first', true); return; }
       rooms = filterOfflineRooms(selNow);
       if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+      if (!_staleSelGate(house, rooms)) return; // p3.32 D2: stale-selection confirm-first
       payload = { action: action === 'queue' ? 'add_to_queue' : 'play_next', uri: contextUri, title: label, rooms };
       ctxVerbToast = action === 'queue' ? '✓ Queued: ' : '✓ Playing: ';
     }
@@ -5072,6 +5121,7 @@ async function playDiscovery(action, uri, label, sheetOpts) {
     if (!selNow.length) { showToast('Tap a speaker first', true); return; }
     rooms = filterOfflineRooms(selNow);
     if (!rooms.length) { showToast('All selected rooms are offline', true); return; }
+    if (!_staleSelGate(house, rooms)) return; // p3.32 D2: stale-selection confirm-first
     // DESIGN NOTE: play_next is non-destructive (queue-safe). play_spotify_uri destroys queue.
     payload = { action: action === 'queue' ? 'add_to_queue' : 'play_next', uri, title: label, rooms };
     dVerbToast = action === 'queue' ? '✓ Queued: ' : '✓ Playing: ';
@@ -6050,6 +6100,11 @@ setTimeout(() => houseMaybeRun('startup').then(() => geoMaybeRun('startup')), 15
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     connectSSE();
+    // p3.32 D1: staleness sweep re-runs on EVERY foreground, not once per session
+    // (2026-08-26 iPad incident: long-lived resumed session never re-checked, a 17h-old
+    // selection kept aim). Level-triggered (Rule 27): sweep is idempotent — fresh or
+    // already-matching selections are untouched, so re-running is free.
+    ['caphill','vashon'].forEach(h => { _chipExpiryDone[h] = false; _chipExpirySweep(h); });
     loadData(false);  // v1.65: refresh data-head.json on page foreground (mobile Safari kills setInterval)
     if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
     // p3.25: house pick first (may switch the view), then structure chip (Vashon-only)
