@@ -2541,11 +2541,15 @@ function _renderQueueSheet() {
 
   const lock = c.choices || needTarget; // (qPending computed above — p3.15)
   // Verb hints (mockup v3.1 + F5 + E2/E7 copy)
-  // p3.31 "Add & switch": in stream mode the next-verb is ENABLED as a takeover —
-  // service play_next(stream) already does clear-first stream takeover (v2.62.3
-  // _clear_then_load; G7 ruling 2026-08-05: trim-on-takeover is intended hygiene).
-  // Page-only change: honest label + hint; same _qsVerb('next') send path.
-  const nextHint = stream ? '· ends the stream, this plays next' : (isPl ? '· interrupts playlist order' : '· after current track');
+  // p3.31 "Add & switch" INVESTIGATED AND DEFERRED to v2.68: the sheet's next-verb
+  // sends add_to_queue{mode:next}, which during a stream inserts into the DORMANT
+  // queue and never switches (service stale-guard converts only when STOPPED) — a
+  // silent add, the exact failure this disable prevents. play_next's stream branch
+  // is clear-first TAKEOVER ("can't insert into queue; replace the stream") — i.e.
+  // exactly the already-enabled "Play now" verb. True add-and-switch (insert into
+  // dormant queue + play_from_queue at that row, rest preserved) needs a new
+  // service verb. Page keeps the disable but the hint now POINTS at Play now.
+  const nextHint = stream ? '· stream has no queue — ▶ Play now takes over' : (isPl ? '· interrupts playlist order' : '· after current track');
   const endHint = stream ? '' : (qPending ? '· queue syncing…' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's')));
   const nowHint = stream ? '· replaces the stream' : (playing === false ? '· starts playback' : '· immediately, queue survives');
   const repHint = verOk ? '· start fresh' : '· needs speaker update';
@@ -2553,7 +2557,7 @@ function _renderQueueSheet() {
   const chip = (playing !== false && !stream) ? '<span class="v-confirm-chip">confirms</span>' : ''; // D3
 
   html += '<div id="qs-verbs">' +
-    '<div class="qs-verb' + dis(lock) + '" onclick="_qsVerb(\'next\')"><span class="v-icon">' + (stream ? '⇄' : '⏭') + '</span><span class="v-label">' + (stream ? 'Add &amp; switch to queue' : 'Play next') + ' <span class="v-hint">' + nextHint + '</span></span></div>' +
+    '<div class="qs-verb' + dis(lock || stream) + '" onclick="_qsVerb(\'next\')"><span class="v-icon">⏭</span><span class="v-label">Play next <span class="v-hint">' + nextHint + '</span></span></div>' +
     '<div class="qs-verb' + dis(lock || stream || c.canEnd === false) + '" onclick="_qsVerb(\'end\')"><span class="v-icon">⧺</span><span class="v-label">Add to end of queue <span class="v-hint">' + (c.canEnd === false ? '· inserts next only for this service' : endHint) + '</span></span></div>' +
     '<div class="qs-verb' + dis(lock) + '" onclick="_qsVerb(\'now\')"><span class="v-icon">▶</span><span class="v-label">Play now <span class="v-hint">' + nowHint + '</span></span></div>' +
     '<div class="qs-verb' + dis(lock || stream || !verOk || c.canReplace === false) + '" onclick="_qsVerb(\'replace\')"><span class="v-icon">♻</span><span class="v-label">Replace queue <span class="v-hint">' + (c.canReplace === false ? '· needs a resolvable URI' : repHint) + '</span></span>' + (verOk ? chip : '') + '</div>' +
