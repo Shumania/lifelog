@@ -74,6 +74,13 @@
   }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .np-info { flex: 1; min-width: 0; }
+  /* p3.31 (sonos-handoff D-H1): "Open in Sonos ↗" hatch — top placement next to
+     now-playing, house tabs only (renderNowPlayingSonos; roaming renderer never emits it).
+     sonos:// is the ONLY deep link Sonos supports (app-launch; no screen targeting). */
+  .now-playing .sonos-hatch { flex-shrink: 0; align-self: center; font-size: 12px;
+    color: var(--text-dim, #8b93a3); text-decoration: none; white-space: nowrap;
+    border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 4px 9px; }
+  .now-playing .sonos-hatch:active { transform: scale(.95); }
   .np-label { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .np-track { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-artist { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1203,7 +1210,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.30';
+const PAGE_VERSION = 'p3.31';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1791,37 +1798,60 @@ function toggleMore(h, open) { _moreRevealed[h] = open; renderRooms(h); }
 // first) and repeat taps within 15s cycle to the next playing group. After 15s the
 // cycle resets to group 0.
 let _playingCycle = { house: null, idx: 0, ts: 0 };
+// p3.31: most-recently-paused group pick, factored out of the ⊙ fallback so the
+// TV-only branch can reuse it. Returns { members, ts } or null.
+function _pausedGroupPick(h, never) {
+  const at = _pausedAtByHouse[h] || {};
+  const paused = _rpPausedGet(h).filter(r => !never.includes(r));
+  const seen = new Set(); const cands = [];
+  for (const r of paused) {
+    const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r));
+    const members = (g ? ((g.members && g.members.length) ? g.members : [g.coordinator]) : [r]).filter(x => x && !never.includes(x));
+    if (!members.length) continue;
+    const key = members.slice().sort().join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cands.push({ members, ts: Math.max(...members.map(m => _pausedEpochSec(at[m]))) });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.ts - a.ts);
+  return cands[0];
+}
 function selectPlaying(h) {
   const never = NEVER_SHOW_ROOMS[h] || [];
   // Playing GROUPS from live topology; fallback (topology unknown): liveTargetRooms
   // expanded via groups acts as one pseudo-group (previous behavior).
-  let sets = (_groupsByHouse[h] || [])
-    .filter(g => String(g.state || '').indexOf('PLAYING') === 0)
-    .map(g => ((g.members && g.members.length) ? g.members : [g.coordinator]).filter(r => r && !never.includes(r)))
-    .filter(m => m.length);
+  // p3.31: TV audio (state PLAYING_TV) is DEMOTED — music groups lead the cycle, and
+  // when ONLY TV is playing, the most-recently-paused music group takes tap 1 (the
+  // trap: TV on in the Media Room + music paused in the kitchen → ⊙ grabbed the TV
+  // and the paused fallback never ran). TV stays reachable as a later cycle stop —
+  // volume nudges on a TV room are legitimate.
+  const _mkSet = g => ((g.members && g.members.length) ? g.members : [g.coordinator]).filter(r => r && !never.includes(r));
+  const _gs = _groupsByHouse[h] || [];
+  const _music = _gs.filter(g => String(g.state || '').indexOf('PLAYING') === 0 && String(g.state) !== 'PLAYING_TV')
+    .map(g => ({ members: _mkSet(g), kind: 'music' })).filter(s => s.members.length)
+    .sort((a, b) => b.members.length - a.members.length);
+  const _tv = _gs.filter(g => String(g.state || '') === 'PLAYING_TV')
+    .map(g => ({ members: _mkSet(g), kind: 'tv' })).filter(s => s.members.length)
+    .sort((a, b) => b.members.length - a.members.length);
+  let sets = [..._music, ..._tv];
+  if (!_music.length && _tv.length) {
+    const pp = _pausedGroupPick(h, never);
+    if (pp) {
+      sets = [{ members: pp.members, kind: 'paused', ts: pp.ts }, ..._tv];
+      console.log('[\u2299] only TV audio playing for ' + h + ' — last-paused music group takes tap 1: ' + pp.members.join(', '));
+    }
+  }
   if (!sets.length) {
     // p3.18: nothing PLAYING → select the most-recently-PAUSED group (real service
     // pause clocks, p2.81; 1h TTL via _rpPausedGet). The old fallback selected the
     // CURRENT selection — a no-op dressed as a button (2026-08-20 IMG_9372: stayed
     // on Garage while the 7-room Lower Deck group had paused seconds earlier).
-    const at = _pausedAtByHouse[h] || {};
-    const paused = _rpPausedGet(h).filter(r => !never.includes(r));
-    const seen = new Set(); const cands = [];
-    for (const r of paused) {
-      const g = (_groupsByHouse[h] || []).find(g => (g.members || []).includes(r));
-      const members = (g ? ((g.members && g.members.length) ? g.members : [g.coordinator]) : [r]).filter(x => x && !never.includes(x));
-      if (!members.length) continue;
-      const key = members.slice().sort().join('|');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      cands.push({ members, ts: Math.max(...members.map(m => _pausedEpochSec(at[m]))) });
-    }
-    if (!cands.length) {
+    const pick = _pausedGroupPick(h, never); // p3.31: factored (shared with TV-only branch)
+    if (!pick) {
       console.log('[\u2299] no PLAYING groups and no recently-paused groups for ' + h + ' — no-op');
       showToast('Nothing playing right now', true); return;
     }
-    cands.sort((a, b) => b.ts - a.ts);
-    const pick = cands[0];
     selectedRooms[h] = pick.members;
     localStorage.setItem('ll_rooms_' + h, JSON.stringify(pick.members));
     _stampSelTouch(h);  // p3.27: chip staleness clock
@@ -1832,24 +1862,27 @@ function selectPlaying(h) {
     showToast('\u2299 Nothing playing — selected last-paused: ' + pick.members.join(', ') + (mins !== null ? (mins < 1 ? ' (just paused)' : ' (paused ' + mins + 'm ago)') : ''));
     return;
   }
-  sets.sort((a, b) => b.length - a.length); // biggest group first
+  // p3.31: sets are pre-ordered (music biggest-first, then paused pseudo-set, then TV)
   let idx = 0;
   if (sets.length > 1) {
     const now = Date.now();
     if (_playingCycle.house === h && (now - _playingCycle.ts) < 15000) idx = (_playingCycle.idx + 1) % sets.length;
     _playingCycle = { house: h, idx, ts: now };
-    console.log('[\u2299] ' + sets.length + ' playing groups for ' + h + '; selecting group ' + (idx + 1) + ' of ' + sets.length + ': ' + sets[idx].join(', '));
+    console.log('[\u2299] ' + sets.length + ' groups for ' + h + '; selecting group ' + (idx + 1) + ' of ' + sets.length + ' (' + sets[idx].kind + '): ' + sets[idx].members.join(', '));
   } else {
     _playingCycle = { house: null, idx: 0, ts: 0 };
   }
-  const target = sets[idx];
+  const kind = sets[idx].kind;
+  const target = sets[idx].members;
   selectedRooms[h] = target;
   localStorage.setItem('ll_rooms_' + h, JSON.stringify(target));
   _stampSelTouch(h);  // p3.27: chip staleness clock
   renderRooms(h);
   _queueRefetch(); // p2.95: ⊙ doubles as "sync my view to reality" — refresh queue/state view too
-  if (sets.length > 1) showToast('\u2299 Group ' + (idx + 1) + ' of ' + sets.length + ': ' + target.join(', ') + ' \u2014 tap \u2299 again for the next group');
-  else showToast('\u2299 Selected: ' + target.join(', '));
+  // p3.31: name the KIND so a TV pick is never mistaken for music (and vice versa)
+  const kindTag = kind === 'tv' ? ' (TV audio)' : (kind === 'paused' ? ' (last-paused music)' : '');
+  if (sets.length > 1) showToast('\u2299 Group ' + (idx + 1) + ' of ' + sets.length + ': ' + target.join(', ') + kindTag + ' \u2014 tap \u2299 again for the next group');
+  else showToast('\u2299 Selected: ' + target.join(', ') + kindTag);
 }
 
 // p2.62: ▶ cue for a house with live playback (was tab dots; p2.95: now the dropdown).
@@ -2508,7 +2541,15 @@ function _renderQueueSheet() {
 
   const lock = c.choices || needTarget; // (qPending computed above — p3.15)
   // Verb hints (mockup v3.1 + F5 + E2/E7 copy)
-  const nextHint = stream ? '· stream has no queue' : (isPl ? '· interrupts playlist order' : '· after current track');
+  // p3.31 "Add & switch" INVESTIGATED AND DEFERRED to v2.68: the sheet's next-verb
+  // sends add_to_queue{mode:next}, which during a stream inserts into the DORMANT
+  // queue and never switches (service stale-guard converts only when STOPPED) — a
+  // silent add, the exact failure this disable prevents. play_next's stream branch
+  // is clear-first TAKEOVER ("can't insert into queue; replace the stream") — i.e.
+  // exactly the already-enabled "Play now" verb. True add-and-switch (insert into
+  // dormant queue + play_from_queue at that row, rest preserved) needs a new
+  // service verb. Page keeps the disable but the hint now POINTS at Play now.
+  const nextHint = stream ? '· stream has no queue — ▶ Play now takes over' : (isPl ? '· interrupts playlist order' : '· after current track');
   const endHint = stream ? '' : (qPending ? '· queue syncing…' : ('· after ' + left + (isPl ? ' playlist' : ' queued') + ' track' + (left === 1 ? '' : 's')));
   const nowHint = stream ? '· replaces the stream' : (playing === false ? '· starts playback' : '· immediately, queue survives');
   const repHint = verOk ? '· start fresh' : '· needs speaker update';
@@ -3103,6 +3144,11 @@ function npCtxInfo(h) {
   return info;
 }
 
+// p3.31 (sonos-handoff D-H1, locked 2026-08-25): app-launch hatch. sonos:// is the
+// entire deep-link surface Sonos offers — no room/queue/screen targeting exists.
+// Rendered by the HOUSE now-playing renderer only; roaming never shows it (off-LAN).
+function _sonosHatch() { return '<a class="sonos-hatch" href="sonos://" title="Open the Sonos app">Sonos ↗</a>'; }
+
 function renderNowPlayingSonos(h) {
   const el = document.getElementById('np-' + h);
   if (!el) return;
@@ -3237,7 +3283,7 @@ function renderNowPlayingSonos(h) {
           <div class="np-track" style="color:var(--accent2);">📻 ${esc(title)}</div>
           <div class="np-artist">${esc(artist)}</div>
         </div>
-      </div>`;
+      </div>${_sonosHatch()}`;
     return;
   }
 
@@ -3269,7 +3315,7 @@ function renderNowPlayingSonos(h) {
       <div class="np-label">${esc(label)}${svc ? ' · ' + esc(svc) : ''}${repeatBadge ? ' · ' + repeatBadge : ''}</div><!-- p3.04: rooms removed — queue line is the only speaker surface -->
       <div class="np-track">${esc(title)}</div>
       <div class="np-artist">${esc(artist)}</div>
-    </div>${npLikeBtn}${exploreBtn}${ctxBtn}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
+    </div>${npLikeBtn}${exploreBtn}${ctxBtn}${_sonosHatch()}${npInfo ? `<div class="ctx-panel" id="${npCtxId}"></div>` : ''}`;
 }
 
 function renderNowPlayingRoaming() {
