@@ -1001,6 +1001,8 @@ body.house-roaming .shortcut-card { opacity: .4; }
         <select id="geo-pin-select-ch" onchange="geoSetPin(this.value)" style="background:#1a1d24;color:inherit;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:2px 4px;font-size:13px;">
           <option value="">No pin</option>
           <option value="__caphill">Cap Hill (house)</option>
+          <option value="__ch_basement">Cap Hill — Basement Study</option>
+          <option value="__ch_mainfloor">Cap Hill — Main Floor ×3</option>
         </select>
       </div>
     </div>
@@ -1064,6 +1066,8 @@ body.house-roaming .shortcut-card { opacity: .4; }
           <option value="sauna">Sauna</option>
           <option value="main">Main House</option>
           <option value="__caphill">Cap Hill (house)</option>
+          <option value="__ch_basement">Cap Hill — Basement Study</option>
+          <option value="__ch_mainfloor">Cap Hill — Main Floor ×3</option>
         </select>
       </div>
     </div>
@@ -1210,7 +1214,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.32';
+const PAGE_VERSION = 'p3.33';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2142,7 +2146,7 @@ function toggleCtrlSettings(h) {
   // p3.25: both houses now carry a pin picker; a house-only Cap Hill pin shows as '__caphill'
   if (pop && !pop.hidden) {
     const sel = document.getElementById(h === 'caphill' ? 'geo-pin-select-ch' : 'geo-pin-select');
-    if (sel) { const p = _geoPin(); sel.value = p ? (p.structure || (p.house === 'caphill' ? '__caphill' : '')) : ''; }
+    if (sel) { const p = _geoPin(); sel.value = p ? (p.key || p.structure || (p.house === 'caphill' ? '__caphill' : '')) : ''; } // p3.33: room pins carry .key
   }
 }
 
@@ -5632,6 +5636,11 @@ function _geoPin() {
   try { const raw = localStorage.getItem('ll_geo_pin'); return raw ? JSON.parse(raw) : null; }
   catch (e) { return null; }
 }
+// p3.33: Cap Hill room-pin keys → default speaker sets (picker options must match)
+const CH_PIN_ROOMS = {
+  '__ch_basement':  ['Basement Study'],
+  '__ch_mainfloor': ['Living Room', 'Dining Room', 'Kitchen'],
+};
 function geoSetPin(v) {
   try {
     if (!v) { localStorage.removeItem('ll_geo_pin'); showToast('📌 Device pin removed'); console.log('[geo] pin removed'); }
@@ -5640,6 +5649,14 @@ function geoSetPin(v) {
       localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'caphill', structure: null }));
       showToast('📌 Device pinned to Cap Hill');
       console.log('[geo] pin set → caphill (house only)');
+    } else if (v.indexOf('__ch_') === 0) {
+      // p3.33: Cap Hill ROOM pin — locks the view AND preselects a default speaker set
+      // on every open/foreground (the Basement Study PC case; mirrors the Shed PC pin).
+      const rooms = CH_PIN_ROOMS[v];
+      if (!rooms) { console.log('[geo] setPin: unknown ch key ' + v); return; }
+      localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'caphill', structure: null, key: v, rooms: rooms }));
+      showToast('📌 Device pinned to ' + rooms.join(' + '));
+      console.log('[geo] pin set → caphill room pin: ' + rooms.join(', '));
     } else {
       localStorage.setItem('ll_geo_pin', JSON.stringify({ house: 'vashon', structure: v }));
       const lbl = (_geoZones && _geoZones.vashon.structures[v] && _geoZones.vashon.structures[v].label) || v;
@@ -5919,6 +5936,30 @@ async function geoNarrowHere(idx) {
 async function geoMaybeRun(trigger) {
   try {
     console.log('[geo] run (' + trigger + ') house=' + house + ' applied=' + _geoApplied + ' touched=' + _geoUserTouched + ' playSent=' + _geoPlaySent);
+    // ── p3.33: Cap Hill ROOM pin — lightweight preselect, no structure flavors ──
+    // (Cap Hill has no geo zones by design; the pin IS the location knowledge.)
+    // Same manual-wins guards as Vashon geo: a chip touch or play this session wins.
+    const pinCh = _geoPin();
+    if (pinCh && pinCh.house === 'caphill' && Array.isArray(pinCh.rooms) && pinCh.rooms.length) {
+      if (house !== 'caphill') return; // house pin will flip the view first; we run on the next pass
+      if (_geoApplied && (Date.now() - _geoLastRun) < 300000) { console.log('[geo] ch-pin: within rearm window — skip'); return; }
+      _geoApplied = true; _geoLastRun = Date.now();
+      if (_geoUserTouched || _geoPlaySent) { console.log('[geo] ch-pin: manual selection respected (touched=' + _geoUserTouched + ' playSent=' + _geoPlaySent + ')'); return; }
+      const cur = (selectedRooms.caphill || []).slice().sort().join('|');
+      const want = pinCh.rooms.slice().sort().join('|');
+      if (cur !== want) {
+        selectedRooms.caphill = [...pinCh.rooms];
+        try { localStorage.setItem('ll_rooms_caphill', JSON.stringify(selectedRooms.caphill)); } catch (e) {}
+        _stampSelTouch('caphill'); // pinned default = correct by construction; p3.32 stale-confirm must not nag it
+        renderRooms('caphill'); updateSyncButton('caphill');
+        showToast('📌 ' + pinCh.rooms.join(' + ') + ' (device pin)');
+        console.log('[geo] ch-pin: preselected ' + pinCh.rooms.join(', ') + ' (' + trigger + ')');
+      } else {
+        _stampSelTouch('caphill'); // re-assert freshness so the pinned room never trips the stale gate
+        console.log('[geo] ch-pin: already on pinned selection — touch restamped (' + trigger + ')');
+      }
+      return;
+    }
     if (house !== 'vashon') return;
     // p3.16: level-triggered re-arm — iOS PWA pages live for days; "launch" is usually a
     // resume, so a one-shot decision from this morning must not silence geo forever.
