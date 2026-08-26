@@ -1,6 +1,6 @@
 {
-  "version": 12,
-  "generated_at": "2026-08-18T17:40:20Z",
+  "version": 13,
+  "generated_at": "2026-08-26T04:50:00Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -150,6 +150,33 @@
           "room": "Shed Arc"
         }
       ]
+    },
+    {
+      "id": "daily-bach-caphill-main",
+      "label": "Daily Bach → Main Floor",
+      "sub": "Today's pick",
+      "icon": "🎼",
+      "house": "caphill",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach for Cap Hill main floor (added 2026-08-25, Andrew). Bach ungroup-first pattern adapted: sync_rooms pins topology to exactly LR+DR+Kitchen, then replace_queue today's pick on Living Room (coordinator). Volumes inherit at tap time per D11 (all three rooms default 9). replace_queue resets shuffle OFF server-side (fresh intent).",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Living Room",
+            "Dining Room",
+            "Kitchen"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true
+          },
+          "room": "Living Room"
+        }
+      ]
     }
   ],
   "defaults": {
@@ -171,8 +198,9 @@
       "Master Bathroom": 18
     }
   },
-  "updated_at": "2026-08-20",
+  "updated_at": "2026-08-25",
   "notes": {
-    "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed."
+    "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
+    "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9)."
   }
 }
