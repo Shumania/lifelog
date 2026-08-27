@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Listening Log">
+<!-- p3.34: PWA manifest — Window Controls Overlay lets installed Windows/Edge apps hide the title bar -->
+<meta name="theme-color" content="#0a0e1a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Listening Log</title>
 <style>
   :root {
@@ -40,6 +44,17 @@
   .top-section { background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
   .top-header { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top, 12px) + 4px) 16px 0; }
   .top-header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  /* p3.34: Window Controls Overlay (installed PWA, title bar hidden). The header row becomes the
+     draggable "title bar"; padding-right keeps status dots clear of the ✕/▢/— caption cluster. */
+  @media (display-mode: window-controls-overlay) {
+    .top-header {
+      -webkit-app-region: drag; app-region: drag;
+      padding-top: max(env(titlebar-area-y, 0px), 4px);
+      min-height: env(titlebar-area-height, 33px);
+      padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 16px);
+    }
+    .top-header select, .top-header button, .status-dots { -webkit-app-region: no-drag; app-region: no-drag; }
+  }
   .status-dots { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim); flex-wrap: wrap; }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
   .status-dot.green { background: var(--accent); }
@@ -1214,7 +1229,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.33';
+const PAGE_VERSION = 'p3.34';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
