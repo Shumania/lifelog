@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-26T10:15:47.469Z",
- "pick_date": "2026-08-26",
- "work_key": "ARR-WTC-CONSORT-I",
- "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
- "performer": "Phantasm",
- "album": "Bach: The Well-Tempered Consort – I",
- "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA",
- "instrumentation": "viol_consort",
- "approx_minutes": 70,
- "reason": "last heard 40d ago · avoided harpsichord",
+ "picked_at": "2026-08-27T10:19:15.511Z",
+ "pick_date": "2026-08-27",
+ "work_key": "BWV772-801",
+ "work": "Two- and Three-Part Inventions & Sinfonias",
+ "performer": "Glenn Gould",
+ "album": "Bach: The Two and Three Part Inventions, BWV 772-801",
+ "spotify_album_uri": "spotify:album:42SxOjm6223yaSs0vH9Um6",
+ "instrumentation": "piano",
+ "approx_minutes": 48,
+ "reason": "last heard 75d ago · avoided viol_consort",
  "fallback": {
-  "work_key": "BWV846-869",
-  "work": "The Well-Tempered Clavier, Book I",
-  "performer": "Glenn Gould",
-  "album": "Bach: The Well-Tempered Clavier, Book I, Preludes & Fugues BWV 846-869",
-  "spotify_album_uri": "spotify:album:5NqQLA1NCo6hP2GHiHxip5"
+  "work_key": "BWV910-916",
+  "work": "Seven Toccatas",
+  "performer": "Mahan Esfahani",
+  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
  }
 }
