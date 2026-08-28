@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-27T10:19:15.511Z",
- "pick_date": "2026-08-27",
- "work_key": "BWV772-801",
- "work": "Two- and Three-Part Inventions & Sinfonias",
- "performer": "Glenn Gould",
- "album": "Bach: The Two and Three Part Inventions, BWV 772-801",
- "spotify_album_uri": "spotify:album:42SxOjm6223yaSs0vH9Um6",
- "instrumentation": "piano",
- "approx_minutes": 48,
- "reason": "last heard 75d ago · avoided viol_consort",
+ "picked_at": "2026-08-28T10:17:17.708Z",
+ "pick_date": "2026-08-28",
+ "work_key": "BWV910-916",
+ "work": "Seven Toccatas",
+ "performer": "Mahan Esfahani",
+ "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+ "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O",
+ "instrumentation": "harpsichord",
+ "approx_minutes": 78,
+ "reason": "last heard 76d ago · avoided piano",
  "fallback": {
-  "work_key": "BWV910-916",
-  "work": "Seven Toccatas",
-  "performer": "Mahan Esfahani",
-  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
-  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
+  "work_key": "BWV1080-consort",
+  "work": "The Art of Fugue (viol consort)",
+  "performer": "Fretwork",
+  "album": "J.S. Bach: The Art of Fugue",
+  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
  }
 }
