@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-28T10:17:17.708Z",
- "pick_date": "2026-08-28",
- "work_key": "BWV910-916",
- "work": "Seven Toccatas",
- "performer": "Mahan Esfahani",
- "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
- "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O",
- "instrumentation": "harpsichord",
+ "picked_at": "2026-08-29T10:15:29.944Z",
+ "pick_date": "2026-08-29",
+ "work_key": "BWV1001-1003",
+ "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
+ "performer": "Hilary Hahn",
+ "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
+ "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ",
+ "instrumentation": "violin",
  "approx_minutes": 78,
- "reason": "last heard 76d ago · avoided piano",
+ "reason": "✨ never heard",
  "fallback": {
-  "work_key": "BWV1080-consort",
-  "work": "The Art of Fugue (viol consort)",
-  "performer": "Fretwork",
-  "album": "J.S. Bach: The Art of Fugue",
-  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
+  "work_key": "BWV1021+1023+misc",
+  "work": "Sonatas for Violin & Continuo",
+  "performer": "Isabelle Faust & Kristian Bezuidenhout",
+  "album": "J.S. Bach: Sonatas for Violin and Continuo",
+  "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0"
  }
 }
