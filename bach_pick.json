@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-29T10:15:29.944Z",
- "pick_date": "2026-08-29",
- "work_key": "BWV1001-1003",
- "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
- "performer": "Hilary Hahn",
- "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
- "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ",
- "instrumentation": "violin",
- "approx_minutes": 78,
+ "picked_at": "2026-08-30T10:22:30.737Z",
+ "pick_date": "2026-08-30",
+ "work_key": "BWV1079",
+ "work": "Musical Offering",
+ "performer": "Ricercar Consort",
+ "album": "Bach, J.S.: Musical Offering",
+ "spotify_album_uri": "spotify:album:1x4ZMf6zu9vpHwAZyTkoGB",
+ "instrumentation": "chamber",
+ "approx_minutes": 55,
  "reason": "✨ never heard",
  "fallback": {
-  "work_key": "BWV1021+1023+misc",
-  "work": "Sonatas for Violin & Continuo",
-  "performer": "Isabelle Faust & Kristian Bezuidenhout",
-  "album": "J.S. Bach: Sonatas for Violin and Continuo",
-  "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0"
+  "work_key": "ARR-WTC-CONSORT-II",
+  "work": "The Well-Tempered Consort II",
+  "performer": "Phantasm",
+  "album": "J.S. Bach: The Well-Tempered Consort – II",
+  "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
  }
 }
