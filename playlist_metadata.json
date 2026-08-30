@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Jorja Smith)",
+  "description": "Updated weekly. (Photo: Mike D)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da84cda60c7ac81408650a808973",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da8429a0461a61e80a7baabd0ab5",
   "followers_total": 84760,
-  "tracks_total": 38,
+  "tracks_total": 37,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-08-21T11:00:23Z"
+  "last_modified": "2026-08-28T04:10:02Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1246,5 +1246,113 @@
   "tracks_total": 20,
   "created_approx": "2026-08-17T10:15:47Z",
   "last_modified": "2026-08-17T10:15:47Z"
+ },
+ {
+  "id": "6HvDXmDQIU8lPLzqRzcigI",
+  "name": "Forst — Aug 30",
+  "description": "Kosmische drift — Harmonia’s village on the Weser, Cluster’s hush, Eno passing through: Düsseldorf to Forst, 1972–78.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0202afd20f6137bbb9b5203b3aab67616d00001e0205153a9bce8ebd800070529bab67616d00001e020e0ea6cef9d3413cf69b7a8fab67616d00001e029a0ec66b6fac4f93dc2ae50e",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-08-30T10:18:55Z",
+  "last_modified": "2026-08-30T10:18:55Z"
+ },
+ {
+  "id": "7nqKnY8wTu4XiilfK2WVeJ",
+  "name": "International Anthem — Aug 29",
+  "description": "Chicago’s International Anthem orbit — beat-spliced, after-hours modern jazz: the SML grooves you’ve been living in, opened out to Jeff Parker, Makaya, Resavoir, and the label’s hushed corners.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02046317f88a72e4d0dc9b0d09ab67616d00001e0230fccd8c132a1bbf5359e3eeab67616d00001e02d26638b180dcc216c195d663ab67616d00001e02e3e796997e37d6d89e3441db",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-08-29T10:12:22Z",
+  "last_modified": "2026-08-29T10:12:22Z"
+ },
+ {
+  "id": "7amZLIzQrnI4abPRKHeAZn",
+  "name": "Skrillex Seattle 2026",
+  "description": "Show prep — Skrillex at Gas Works Park, Seattle, Aug 29 2026. His sets + his lineage.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02536925a4988e7559dafd0236ab67616d00001e0263b5971ee7b49456252a258dab67616d00001e02976d5f5d9447d39b47066784ab67616d00001e02f4d40a252848a83d49e0ff1b",
+  "followers_total": 0,
+  "tracks_total": 34,
+  "created_approx": "2026-08-29T00:18:06Z",
+  "last_modified": "2026-08-29T00:18:06Z"
+ },
+ {
+  "id": "3qrYCMb5dmiSv1v3ZH51HI",
+  "name": "Indestructible Beat — Aug 28",
+  "description": "Johannesburg 1965–87: the Soweto jive Graceland drew from — mbaqanga groan and Mahotella harmony, isicathamiya hush, the exiles’ horns, the 80s scene around the sessions — closing on Mannenberg. Mostly new corners; tonight’s Graceland session holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0216aed6c2561d06b2fe94d648ab67616d00001e02645322bb650b536fc0d624ccab67616d00001e02dd83eef605c1ce2f27722ea1ab67616d00001e02ff6e678ce3e1cd423fe4d4fe",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-08-28T10:13:50Z",
+  "last_modified": "2026-08-28T10:13:50Z"
+ },
+ {
+  "id": "0top4QlNUOVGR4TIEoSJSE",
+  "name": "Rua Divinópolis — Aug 27",
+  "description": "The corner club and its constellation: Belo Horizonte 1967–1980 — Milton, Lô, Beto, Toninho and Elis, from Travessia to Terra dos Pássaros. Mostly unheard corners around the Clube da Esquina sessions you keep returning to.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0217f0ffed0276c84998e41acbab67616d00001e0236ebd83756dae33f2504dc40ab67616d00001e026706d7eee1f18d918ab17b78ab67616d00001e02e99ae181136fafe42061b053",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-08-27T10:15:53Z",
+  "last_modified": "2026-08-27T10:15:53Z"
+ },
+ {
+  "id": "1R8KhVPHonlp4RkdpNephx",
+  "name": "Adele and Papa August 2026",
+  "description": "Wry rock, slacker guitars, art-rock joy and quiet songs — Cake to Pavement to Elliott Smith to LCD.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020dd6dc87c088b21e10d731b9ab67616d00001e027ae6f1296b466d3c34011cb8ab67616d00001e02b893831d1a12d3d4024a5867ab67616d00001e02bfa5b06289da48c47d4ec8cb",
+  "followers_total": 0,
+  "tracks_total": 32,
+  "created_approx": "2026-08-27T01:40:35Z",
+  "last_modified": "2026-08-27T01:40:35Z"
+ },
+ {
+  "id": "7pzHGdicGgAmC2ubgeiiZ6",
+  "name": "My Dear Companion — Aug 26",
+  "description": "Appalachian close harmony, 1928–2012: Carter Family roots, Stanley and Louvin duets into Gram &amp; Emmylou, Hazel &amp; Alice, and the Trio songbook — closing on After the Gold Rush. Mostly new corners; last night’s Trio session holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024705df24b5ed5b6334787f61ab67616d00001e028630c068480c13b706c7fb91ab67616d00001e0293b748bc2ed2a753f2cf5f69ab67616d00001e02d3b9c0da7b1fbf58860b0c34",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-08-26T10:12:45Z",
+  "last_modified": "2026-08-26T10:12:45Z"
+ },
+ {
+  "id": "1zBDJfK7XBKCT6IBHEfrVT",
+  "name": "Last Call — Aug 25",
+  "description": "The after-hours torch song, 1954–59: Julie’s voice-and-guitar hush into the cool-school women, Verve warmth, Lady in Satin heartbreak — closing on Sinatra’s wee small hours. Mostly new corners; Julie Is Her Name holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02320b023f0b74149959eb8069ab67616d00001e028784c5715d403295be3acc1cab67616d00001e02f12f8e33e377ba119ecbd26bab67616d00001e02f83ec4c71c609a7c37b19f38",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-08-25T10:14:02Z",
+  "last_modified": "2026-08-25T10:14:02Z"
+ },
+ {
+  "id": "66H7ekfP14A6UeLBzOXFsv",
+  "name": "Sonora Noir — Aug 24",
+  "description": "Sixty-five years of desert twang: Sleep Walk steel and spaghetti-western gold into Paris, Texas slide, the Tucson school, and the Latin-psych instrumental revival — Los Ojos Del Cóndor holding the thread.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020ad3b2f55143d448884077a6ab67616d00001e0288eb37784eee4c3651807406ab67616d00001e02bc0e1b686e5d098b1ecdbd96ab67616d00001e02e5a3793c3e55472a240240d3",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-08-24T10:20:45Z",
+  "last_modified": "2026-08-24T10:20:45Z"
  }
 ]
