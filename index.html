@@ -1279,7 +1279,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.35';
+const PAGE_VERSION = 'p3.36';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2026,6 +2026,14 @@ function updateHouseTabDots() {
 // ══════════════════════════════════════════════════════════════════════════════
 let _elwOpen = false;
 let _elwTimer = null;
+// p3.36 thaw guard: after a long background sleep (iOS freezes JS + SSE), the page's
+// per-house rooms_playing is pre-sleep memory — rendering it as live ▶ rows is the
+// ghost-drawer bug (field-hit 2026-08-31: phone slept before Shed Arc's stop event,
+// woke 28 min later, drawer showed ghost \"▶ Shed Arc\" until replay corrected it).
+// E6 precedent: unknown state → hidden strip, never a confident lie. Suspect window
+// clears on fresh evidence (state-file seed or fresh SSE snapshot) or 15s safety cap.
+let _elwThawSuspect = 0;  // ms epoch when thaw suspicion started (0 = trusted)
+let _elwHiddenAt = 0;     // ms epoch when page last went hidden
 const _ewStateTs = {};   // house -> newest state-file last_updated ms (freshness input)
 
 function _renderElsewhereSoon() {
@@ -2116,6 +2124,8 @@ function _ewTrackFor(h, g) {
 function renderElsewhere() {
   const wrap = document.getElementById('elw-wrap');
   if (!wrap) return;
+  // p3.36 thaw guard: state is pre-sleep memory — hide rather than lie (E6 precedent).
+  if (_elwThawSuspect) { wrap.hidden = true; return; }
   const segs = [], rows = [];
   const mySel = new Set(house !== 'roaming' ? (selectedRooms[house] || []) : []);
   const labels = { caphill: 'Cap Hill', vashon: 'Vashon' };
@@ -2455,6 +2465,14 @@ const _qRefetchLast = {}; // per-house SSE-triggered refetch throttle
 // fresh SSE event ts per house; when the published state file is >30 min old while SSE
 // is demonstrably newer, the F2 footer says "publish delayed" instead of quietly aging.
 const _sseFreshByHouse = {}; // house -> ms epoch of newest fresh SSE event
+// p3.36: out-of-order snapshot guard (Rule 27). ntfy can deliver LATE (observed
+// 25–30 min delays, 2026-08-31) and replays ?since=16m on reconnect — an older
+// full-state snapshot must never overwrite a newer applied one. This clock stamps
+// the evtTs of the newest snapshot whose STATE FIELDS (rooms_playing/groups/modes)
+// were applied per house; strictly-older messages skip state application entirely.
+// (now_playing/stopped have their own U-M3 guard; this closes the same hole for
+// the "always process state fields" section — the ▶ dot / Elsewhere flap bug.)
+const _sseStateAppliedTs = {}; // house -> ms epoch of newest APPLIED state snapshot
 const _freshWarnLast = {};   // house -> ms epoch of last [freshness] console.warn (10-min throttle)
 
 function _queueOnStateFiles(stateFiles) {
@@ -3980,6 +3998,8 @@ function applyStateNowPlaying(stateFiles) {
       updateSyncButton(h);
     }
   }
+  // p3.36 thaw guard: state files just seeded = fresh canonical truth → trust restored.
+  if (_elwThawSuspect) { console.log('[elw] thaw guard cleared by state-file seed'); _elwThawSuspect = 0; }
   updateHouseTabDots();
 }
 
@@ -5597,6 +5617,16 @@ function connectSSE() {
       // v1.70 bundled SSE: messages have "events" array (new) or "event" string (old)
       const events = msg.events || (msg.event ? [msg.event] : []);
 
+      // p3.36: is this message's full-state snapshot OLDER than one we already applied
+      // for this house? Strict < so same-second bundles (ntfy time = unix seconds)
+      // still apply in arrival order. Guards groups/rooms_playing/modes below.
+      const stateIsStale = !!(sseHouse && evtTs < (_sseStateAppliedTs[sseHouse] || 0));
+      if (stateIsStale) {
+        console.log('[sse] p3.36: dropping out-of-order state snapshot for ' + sseHouse +
+          ' (evt ' + Math.round(evtAge / 1000) + 's old; newer snapshot already applied ' +
+          Math.round((_sseStateAppliedTs[sseHouse] - evtTs) / 1000) + 's ahead)');
+      }
+
       // p2.54: red error toast — a command failed on the client. Green send-toasts
       // only confirm delivery; this is the truth channel. Guards: skip ntfy replays
       // (>2 min old) and dedup by originating cmd_ts.
@@ -5662,8 +5692,8 @@ function connectSSE() {
       }
 
       // --- Always process state fields (every bundled message is a full snapshot) ---
-      if (msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }
-      if (msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }
+      if (!stateIsStale && msg.play_modes !== undefined) { _playModes = msg.play_modes; updateMuteRepeatButtons(); }  // p3.36
+      if (!stateIsStale && msg.mute_states !== undefined) { _muteStates = msg.mute_states; updateMuteRepeatButtons(); }  // p3.36
       // p2.81 (v2.56 D1/D8): pending-session snapshot + freshness fields → live history.
       // Level-triggered: each push carries the machine's whole pending buffer; SH
       // sticky-merges (only a published head refresh removes rows). Replay-safe:
@@ -5681,7 +5711,7 @@ function connectSSE() {
       // p2.59: capture live group topology (v2.53+ services include groups on every
       // message). A dedicated 'topology' event = regroup happened (from ANY controller,
       // incl. the native Sonos app) — quietly re-render chips; no toast (boring, Rule 5).
-      if (sseHouse && Array.isArray(msg.groups)) {
+      if (sseHouse && !stateIsStale && Array.isArray(msg.groups)) {  // p3.36: stale-snapshot guard
         // p3.18 (Bundle C): level-triggered chip re-render (Rule 27) — compare a
         // membership SIGNATURE before/after, so ANY event carrying changed groups
         // (sync_rooms_result, status_update, ...) refreshes chips. Previously only
@@ -5715,7 +5745,11 @@ function connectSSE() {
           try { if (typeof updateSyncButton === 'function') updateSyncButton(sseHouse); } catch (e) {}
         }
       }
-      if (sseHouse && msg.rooms_playing) {
+      if (sseHouse && !stateIsStale && msg.rooms_playing) {  // p3.36: stale-snapshot guard
+        // p3.36: this snapshot is the newest applied for this house — advance the clock
+        _sseStateAppliedTs[sseHouse] = evtTs;
+        // p3.36 thaw guard: a FRESH snapshot restores trust (replayed old ones don't)
+        if (_elwThawSuspect && evtAge < EVT_FRESH_MS) { console.log('[elw] thaw guard cleared by fresh SSE snapshot (' + sseHouse + ')'); _elwThawSuspect = 0; }
         // Track all visible rooms for offline detection
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
         // U-M2: always store rooms state under the event's own house (not just current tab)
@@ -6422,7 +6456,16 @@ async function houseMaybeRun(trigger) {
 setTimeout(() => houseMaybeRun('startup').then(() => geoMaybeRun('startup')), 1500);
 
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { _elwHiddenAt = Date.now(); return; }
   if (!document.hidden) {
+    // p3.36 thaw guard: hidden ≥10 min → per-house state is suspect; hide the
+    // Elsewhere strip until fresh evidence lands (seed/SSE below clear it; 15s cap).
+    if (_elwHiddenAt && Date.now() - _elwHiddenAt >= 600000) {
+      _elwThawSuspect = Date.now();
+      console.log('[elw] p3.36 thaw guard armed (hidden ' + Math.round((Date.now() - _elwHiddenAt) / 60000) + 'm) — strip hidden pending fresh state');
+      renderElsewhere();  // immediate, not debounced — the ghost window is short
+      setTimeout(() => { if (_elwThawSuspect) { console.log('[elw] thaw guard 15s safety clear'); _elwThawSuspect = 0; _renderElsewhereSoon(); } }, 15000);
+    }
     connectSSE();
     // p3.32 D1: staleness sweep re-runs on EVERY foreground, not once per session
     // (2026-08-26 iPad incident: long-lived resumed session never re-checked, a 17h-old
