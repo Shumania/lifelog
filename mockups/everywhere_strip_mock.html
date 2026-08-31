@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mockup — Hero + Elsewhere Line (p3.35 candidate, Rev 4)</title>
+<title>Mockup — Hero + Two Drawers (p3.35 candidate, Rev 4.2)</title>
 <style>
   :root {
     --bg: #0a0e1a; --panel: #111827; --panel2: #182236;
@@ -30,7 +30,7 @@
   select.other-playing { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(52,211,153,.35); }
   .gear { margin-left: auto; color: var(--text-dim); }
 
-  /* ---- HERO: your selected house + group, unmistakable ---- */
+  /* ---- HERO ---- */
   .hero { margin: 6px 12px 10px; border: 1px solid var(--border); border-radius: 14px;
           background: linear-gradient(180deg, #14203a, #101827); padding: 14px 14px 12px; }
   .hero.playing { border-color: rgba(52,211,153,.5); }
@@ -48,22 +48,48 @@
   .hero.moon .hero-track { font-size: 15px; font-weight: 500; font-style: italic; color: var(--moon); }
   .hero-controls { display: flex; gap: 18px; margin-top: 10px; font-size: 17px; color: var(--text-dim); }
 
-  /* ---- ELSEWHERE: one info-only line for every other group ---- */
-  .elw { margin: 0 12px 12px; border-radius: 10px; background: var(--panel);
-         border: 1px solid var(--border); overflow: hidden; }
-  .elw-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
-  .elw-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
-               color: var(--text-dim); flex: none; }
-  .elw-sum { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden;
-             text-overflow: ellipsis; flex: 1; }
-  .elw-sum b { color: var(--text); font-weight: 550; }
-  .elw-sum .seg-play { color: var(--accent2); }
-  .elw-sum .seg-warn { color: var(--warn); }
-  .elw-sum .seg-moon { color: var(--moon); }
-  .elw-caret { color: var(--text-dim); font-size: 11px; flex: none; transition: transform .15s; }
-  .elw.open .elw-caret { transform: rotate(180deg); }
-  .elw-detail { display: none; border-top: 1px solid var(--border); }
-  .elw.open .elw-detail { display: block; }
+  /* ---- drawers (shared shell for Speakers&Queue + Elsewhere) ---- */
+  .dw { margin: 0 12px 10px; border-radius: 10px; background: var(--panel);
+        border: 1px solid var(--border); overflow: hidden; }
+  .dw-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
+  .dw-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+              color: var(--text-dim); flex: none; }
+  .dw-sum { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; flex: 1; }
+  .dw-sum b { color: var(--text); font-weight: 550; }
+  .dw-sum .seg-play { color: var(--accent2); }
+  .dw-sum .seg-warn { color: var(--warn); }
+  .dw-sum .seg-moon { color: var(--moon); }
+  .dw-caret { color: var(--text-dim); font-size: 11px; flex: none; transition: transform .15s; }
+  .dw.open .dw-caret { transform: rotate(180deg); }
+  .dw-detail { display: none; border-top: 1px solid var(--border); }
+  .dw.open .dw-detail { display: block; }
+
+  /* speakers & queue drawer innards */
+  .dw-sec { padding: 8px 10px 10px; }
+  .dw-sec + .dw-sec { border-top: 1px solid var(--border); }
+  .dw-h { font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+          color: var(--text-dim); margin: 2px 0 7px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+  .chip { font-size: 11px; padding: 4px 9px; border-radius: 13px; background: var(--panel2);
+          border: 1px solid var(--border); color: var(--text-dim); }
+  .chip.on { background: #12301f; border-color: var(--accent); color: var(--accent2); }
+  .volrow { display: flex; align-items: center; gap: 9px; font-size: 12px; padding: 3px 0; }
+  .volrow .vr-name { flex: 1; }
+  .volrow .vr-bar { flex: 1.4; height: 4px; background: var(--panel2); border-radius: 2px; position: relative; }
+  .volrow .vr-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent);
+                     border-radius: 2px; opacity: .65; }
+  .volrow .vr-n { width: 22px; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .nudge { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+  .nudge button { background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+                  border-radius: 8px; padding: 2px 11px; font-size: 12px; }
+  .nudge .grp { margin-left: auto; color: var(--accent2); }
+  .qrow { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; color: var(--text-dim); }
+  .qrow.now { color: var(--accent2); }
+  .qrow .qn { width: 16px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .qempty { font-size: 12px; color: var(--text-dim); font-style: italic; }
+
+  /* elsewhere detail rows */
   .ew-line { display: flex; align-items: center; gap: 9px; padding: 8px 10px; cursor: pointer; }
   .ew-line:hover { background: var(--panel2); }
   .ew-line + .ew-line { border-top: 1px solid rgba(35,45,66,.55); }
@@ -77,15 +103,13 @@
   .ew-track b { color: var(--text); font-weight: 550; }
   .ew-stale .ew-where, .ew-stale .ew-icon { color: var(--warn); }
   .ew-stale .ew-track { font-style: italic; }
+  .ew-stale { cursor: default; }
   .ew-moon .ew-where, .ew-moon .ew-icon { color: var(--moon); }
   .ew-moon .ew-track { font-style: italic; }
+  .ew-moon { cursor: default; }
   .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
 
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 12px 14px; }
-  .chip { font-size: 12px; padding: 5px 10px; border-radius: 14px; background: var(--panel);
-          border: 1px solid var(--border); color: var(--text-dim); }
-  .chip.on { background: #12301f; border-color: var(--accent); color: var(--accent2); }
-  .body-hint { padding: 20px 12px 30px; text-align: center; color: var(--text-dim); font-size: 12px; }
+  .body-hint { padding: 18px 12px 28px; text-align: center; color: var(--text-dim); font-size: 12px; }
 
   /* ---- scenario switcher (mock chrome only) ---- */
   .scenarios { max-width: 430px; margin: 0 auto 40px; padding: 0 4px; }
@@ -111,10 +135,10 @@
   </div>
 
   <div class="hero" id="hero"></div>
-  <div class="elw" id="elw"></div>
-  <div class="chips" id="chips"></div>
+  <div class="dw" id="hdw"></div>
+  <div class="dw" id="elw"></div>
 
-  <div class="body-hint">… rest of page unchanged (queue drawer, History, Playlists, Shortcuts) …</div>
+  <div class="body-hint">… rest of page unchanged (History, Playlists, Shortcuts) …</div>
 </div>
 
 <div class="scenarios">
@@ -126,44 +150,49 @@
 <script>
 const SCENARIOS = {
   "Both houses playing": {
-    note: "Happy path: your group is the hero; every other group collapses into one info-only line.",
+    note: "Happy path: your group is the hero; every other group collapses into the Elsewhere drawer.",
     lines: [
-      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×5", track: "<b>Whole Lotta Love</b> — Led Zeppelin", go: "›" },
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream", go: "›" }
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×5", track: "<b>Whole Lotta Love</b> — Led Zeppelin", go: "›",
+        queue: ["Whole Lotta Love — Led Zeppelin", "What Is and What Should Never Be", "The Lemon Song", "Thank You"] },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream", go: "›", stream: true }
     ]
   },
   "Both houses, multi-zone": {
-    note: "Busiest realistic case: two groups per house. Your group = hero. The OTHER group in your own house joins the elsewhere line too — 'elsewhere' means every group that isn't yours, same house or not. Tap the line to expand detail.",
+    note: "Busiest realistic case: two groups per house. Your group = hero. The OTHER group in your own house joins Elsewhere too — 'elsewhere' means every group that isn't yours, same house or not.",
     lines: [
-      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×3", track: "<b>La Femme d'Argent</b> — Air", go: "›" },
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×3", track: "<b>La Femme d'Argent</b> — Air", go: "›",
+        queue: ["La Femme d'Argent — Air", "Sexy Boy", "All I Need", "Kelly Watch the Stars"] },
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Master Suite ×2", track: "♪ playing", go: "›" },
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>Prisma Tropical</b> — Balún", go: "›" },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>El Espanto</b> — Balún", go: "›",
+        queue: ["El Espanto — Balún", "Vaivén", "La Nueva Ciudad", "Reflejo"] },
       { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "♪ playing", go: "›" }
     ]
   },
   "One group, one house": {
-    note: "Most common case. If it's YOUR group: big hero, no elsewhere line at all. If it's the other house: quiet hero + one-line summary below.",
+    note: "Most common case. If it's YOUR group: hero + drawers, no Elsewhere at all. If it's the other house: quiet hero + one Elsewhere line.",
     lines: [
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "<b>El Espanto</b> — Balún", go: "›" }
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "<b>El Espanto</b> — Balún", go: "›",
+        queue: ["El Espanto — Balún", "Teléfono", "Años Atrás"] }
     ]
   },
   "Garbage title (E5)": {
-    note: "E5: Sonos sometimes reports junk metadata (\"? — ?\"). Renders as ♪ playing rather than asserting nonsense; radio streams show the station name.",
+    note: "E5: Sonos sometimes reports junk metadata (\"? — ?\"). Renders as ♪ playing rather than asserting nonsense. Queue unknown → honest em-dash empty state, never another room's queue.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Basement Study", track: "♪ playing", go: "›" }
     ]
   },
   "Stale: track overdue (⚠)": {
-    note: "E1+D6b: staleness judged by STATE, not a heartbeat clock. A playing track has a known length — long past its end with no event = ⚠. If the stale house is the one you're VIEWING, the warning takes over the hero (past tense, never rendered live). Otherwise it's a compact ⚠ segment in the elsewhere line.",
+    note: "E1+D6b: staleness judged by STATE, not a heartbeat clock. A playing track has a known length — long past its end with no event = ⚠. Viewing the stale house → warning takes over the hero (past tense). Otherwise it's a compact ⚠ segment in Elsewhere.",
     lines: [
-      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Backyard", track: "<b>Harvest Moon</b> — Neil Young", go: "›" },
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Backyard", track: "<b>Harvest Moon</b> — Neil Young", go: "›",
+        queue: ["Harvest Moon — Neil Young", "Unknown Legend", "From Hank to Hendrix"] },
       { icon: "⚠", cls: "ew-stale", house: "Vashon", rooms: "last seen 72m ago", track: "was playing: Shed Arc — Balún \u201cEl Espanto\u201d · track ended ~55m ago, no update since", go: "" }
     ]
   },
   "Long stream, aging honestly": {
-    note: "A stream can play for hours with zero events — silence is NOT suspicious, no ⚠. Past ~30 min the display stops implying real-time knowledge and carries an as-of stamp.",
+    note: "A stream can play for hours with zero events — silence is NOT suspicious, no ⚠. Past ~30 min the display carries an as-of stamp. Streams have no queue — the drawer says so instead of pretending.",
     lines: [
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream · as of 43m ago", go: "›" }
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream · as of 43m ago", go: "›", stream: true }
     ]
   },
   "Quiet hours (countdown)": {
@@ -173,17 +202,17 @@ const SCENARIOS = {
     ]
   },
   "All quiet": {
-    note: "Hero says so plainly for your group; no elsewhere line at all — silence elsewhere costs zero pixels.",
+    note: "Hero says so plainly; Speakers & Queue drawer still works (your selection, honest empty queue); no Elsewhere drawer at all.",
     lines: []
   }
 };
 
-const hero = document.getElementById('hero'), elw = document.getElementById('elw'),
-      chips = document.getElementById('chips'), btns = document.getElementById('btns'),
+const hero = document.getElementById('hero'), hdw = document.getElementById('hdw'),
+      elw = document.getElementById('elw'), btns = document.getElementById('btns'),
       note = document.getElementById('note'), housesel = document.getElementById('housesel');
 let currentScenario = "Both houses playing";
-let elwOpen = false;
-let heroPick = null; // rooms label of the group the user tapped in Elsewhere
+let elwOpen = false, hdwOpen = false;
+let heroPick = null;
 
 function pickGroup(house, rooms) {
   // Selecting an elsewhere row = make that the active house + speaker group.
@@ -201,10 +230,21 @@ function selectedHouse() {
   return "Roaming";
 }
 
-const DEFAULT_CHIPS = {
-  "Vashon": ["Maury", "Green Kitchen Move", "Sonos Move"],
-  "Cap Hill": ["Living Room", "Dining Room", "Kitchen"]
+const HOUSE_ROOMS = {
+  "Vashon": [["Maury",18],["Green Kitchen Move",18],["Sonos Move",18],["Garage",30],["Shed Arc",18],["Shed Boombox",18],["Sauna Porch",35],["Main Lower Deck",39]],
+  "Cap Hill": [["Living Room",9],["Dining Room",9],["Kitchen",9],["Master Bedroom",12],["Master Bathroom",18],["Basement Study",12],["Media Room",7],["Backyard",18]]
 };
+const GROUP_MEMBERS = {
+  "Main Floor ×5": ["Living Room","Dining Room","Kitchen","Media Room","Backyard"],
+  "Main Floor ×3": ["Living Room","Dining Room","Kitchen"],
+  "Master Suite ×2": ["Master Bedroom","Master Bathroom"],
+  "Backyard": ["Backyard"],
+  "Basement Study": ["Basement Study"],
+  "Shed Arc +1": ["Shed Arc","Shed Boombox"],
+  "Shed Arc": ["Shed Arc"],
+  "Garage": ["Garage"]
+};
+const DEFAULT_GROUP = { "Vashon": ["Maury","Green Kitchen Move","Sonos Move"], "Cap Hill": ["Living Room","Dining Room","Kitchen"] };
 
 function titleOf(l) {
   const m = l.track.match(/<b>(.*?)<\/b>/);
@@ -217,15 +257,14 @@ function renderHero(sel, mine) {
     hero.innerHTML = `<span class="hero-state">roaming</span>
       <div class="hero-where">📱 ROAMING</div>
       <div class="hero-track">No speakers here — deep links open Spotify ↗</div>
-      <div class="hero-sub">All homes appear below.</div>`;
-    chips.innerHTML = "";
+      <div class="hero-sub">Both homes appear in Elsewhere below.</div>`;
     return;
   }
   const line = mine[0];
   if (!line) {
     hero.className = "hero quiet";
     hero.innerHTML = `<span class="hero-state">quiet</span>
-      <div class="hero-where">${sel.toUpperCase()} · ${DEFAULT_CHIPS[sel].join(" + ")}</div>
+      <div class="hero-where">${sel.toUpperCase()} · ${DEFAULT_GROUP[sel].join(" + ")}</div>
       <div class="hero-track">Nothing playing</div>
       <div class="hero-sub">Pick something from Playlists or Shortcuts ↓</div>`;
   } else if (line.cls === "ew-stale") {
@@ -249,14 +288,51 @@ function renderHero(sel, mine) {
       ${rest ? `<div class="hero-artist">${rest}</div>` : ""}
       <div class="hero-controls"><span>⏮</span><span>⏯</span><span>⏭</span><span style="margin-left:auto">🔊 18</span></div>`;
   }
-  chips.innerHTML = (line && line.cls === "" ? roomChips(line.rooms, sel) : DEFAULT_CHIPS[sel])
-    .map((c, i) => `<span class="chip ${i < 3 ? "on" : ""}">${c}</span>`).join("");
 }
 
-function roomChips(rooms, sel) {
-  if (rooms.includes("Main Floor")) return ["Living Room", "Dining Room", "Kitchen"];
-  if (rooms.includes("Master Suite")) return ["Master Bedroom", "Master Bathroom"];
-  return [rooms.split(" +")[0], ...DEFAULT_CHIPS[sel].slice(0, 2)];
+function renderHdw(sel, mine) {
+  if (sel === "Roaming") { hdw.style.display = "none"; return; }
+  hdw.style.display = "block";
+  hdw.className = "dw" + (hdwOpen ? " open" : "");
+  const line = mine[0] && mine[0].cls === "" ? mine[0] : null;
+  const members = line ? (GROUP_MEMBERS[line.rooms] || [line.rooms]) : DEFAULT_GROUP[sel];
+  const label = line ? line.rooms : DEFAULT_GROUP[sel].join(" + ");
+  const rooms = HOUSE_ROOMS[sel];
+  const memberRows = rooms.filter(([r]) => members.includes(r));
+
+  let qsum, qbody;
+  if (line && line.queue) {
+    qsum = `queue ${line.queue.length}`;
+    qbody = line.queue.map((t, i) =>
+      `<div class="qrow ${i === 0 ? "now" : ""}"><span class="qn">${i === 0 ? "▶" : i}</span><span>${t}</span></div>`).join("");
+  } else if (line && line.stream) {
+    qsum = "stream — no queue";
+    qbody = `<div class="qempty">Live stream — no queue</div>`;
+  } else {
+    qsum = "queue: —";
+    qbody = `<div class="qempty">Queue — ${label}: —</div>`;
+  }
+
+  hdw.innerHTML = `
+    <div class="dw-bar" onclick="toggleHdw()">
+      <span class="dw-label">🔊 Speakers &amp; Queue</span>
+      <span class="dw-sum">${memberRows.length} speaker${memberRows.length > 1 ? "s" : ""} · ${qsum}</span>
+      <span class="dw-caret">⌄</span>
+    </div>
+    <div class="dw-detail">
+      <div class="dw-sec">
+        <div class="dw-h">Speakers — ${label}</div>
+        <div class="chips">${rooms.map(([r]) =>
+          `<span class="chip ${members.includes(r) ? "on" : ""}">${r}</span>`).join("")}</div>
+        ${memberRows.map(([r, v]) =>
+          `<div class="volrow"><span class="vr-name">${r}</span><span class="vr-bar"><span class="vr-fill" style="width:${Math.min(v, 100)}%"></span></span><span class="vr-n">${v}</span></div>`).join("")}
+        <div class="nudge"><button>−3</button><button>+3</button><span>group nudge</span><span class="grp">Group Speakers…</span></div>
+      </div>
+      <div class="dw-sec">
+        <div class="dw-h">Queue — ${label}</div>
+        ${qbody}
+      </div>
+    </div>`;
 }
 
 function seg(l, sel) {
@@ -273,7 +349,6 @@ function render(name) {
   const sel = selectedHouse();
 
   let mine = sel === "Roaming" ? [] : sc.lines.filter(l => l.house === sel);
-  // If the user tapped an elsewhere row, that group becomes the hero.
   if (heroPick) {
     const i = mine.findIndex(l => l.rooms === heroPick);
     if (i > 0) mine = [mine[i], ...mine.slice(0, i), ...mine.slice(i + 1)];
@@ -281,19 +356,20 @@ function render(name) {
   const elsewhere = [...mine.slice(1), ...sc.lines.filter(l => l.house !== sel)];
 
   renderHero(sel, mine);
+  renderHdw(sel, mine);
 
   if (elsewhere.length === 0) {
     elw.style.display = "none";
   } else {
     elw.style.display = "block";
-    elw.className = "elw" + (elwOpen ? " open" : "");
+    elw.className = "dw" + (elwOpen ? " open" : "");
     elw.innerHTML = `
-      <div class="elw-bar" onclick="toggleElw()">
-        <span class="elw-label">Elsewhere</span>
-        <span class="elw-sum">${elsewhere.map(l => seg(l, sel)).join(" &nbsp;·&nbsp; ")}</span>
-        <span class="elw-caret">⌄</span>
+      <div class="dw-bar" onclick="toggleElw()">
+        <span class="dw-label">Elsewhere</span>
+        <span class="dw-sum">${elsewhere.map(l => seg(l, sel)).join(" &nbsp;·&nbsp; ")}</span>
+        <span class="dw-caret">⌄</span>
       </div>
-      <div class="elw-detail">${elsewhere.map(l => `
+      <div class="dw-detail">${elsewhere.map(l => `
         <div class="ew-line ${l.cls}" ${l.cls === "" ? `onclick="pickGroup('${l.house}','${l.rooms}')"` : ""}>
           <span class="ew-icon ${l.cls ? "" : "ew-play"}">${l.icon}</span>
           <span class="ew-main">
@@ -308,11 +384,12 @@ function render(name) {
   const live = elsewhere.some(l => l.icon === "▶");
   housesel.classList.toggle("other-playing", live);
 
-  note.textContent = sc.note + `\n\nViewing: ${sel}. Elsewhere = every group that isn't yours (same house or other house). Collapsed by default; tap to expand. Tap a live detail row → that house + group becomes your ACTIVE selection (hero + chips follow; audio untouched). ⚠/🌙 rows aren't selectable — no live group to adopt.`;
+  note.textContent = sc.note + `\n\nViewing: ${sel}. Two independent drawers, both collapsed by default: 🔊 Speakers & Queue = YOUR group (chips, per-room volumes, group nudge, this group's queue — honest — when unknown). Elsewhere = every other group; tap a live row → adopt that house+group as your active selection (audio untouched). ⚠/🌙 rows aren't selectable.`;
   [...btns.children].forEach(b => b.classList.toggle("active", b.textContent === name));
 }
 
 function toggleElw() { elwOpen = !elwOpen; render(currentScenario); }
+function toggleHdw() { hdwOpen = !hdwOpen; render(currentScenario); }
 housesel.onchange = () => render(currentScenario);
 
 Object.keys(SCENARIOS).forEach(name => {
