@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mockup — Everywhere Strip (p3.35 candidate)</title>
+<title>Mockup — Everywhere Strip (p3.35 candidate, Rev 2)</title>
 <style>
   :root {
     --bg: #0a0e1a; --panel: #111827; --panel2: #182236;
     --text: #e5e9f2; --text-dim: #7a8599; --accent: #34d399; --accent2: #6ee7b7;
-    --warn: #fbbf24; --border: #232d42;
+    --warn: #fbbf24; --moon: #93a7d1; --border: #232d42;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -38,11 +38,19 @@
   .ew-track { font-size: 12px; color: var(--text-dim); white-space: nowrap;
               overflow: hidden; text-overflow: ellipsis; }
   .ew-track b { color: var(--text); font-weight: 550; }
-  .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
+
+  /* stale / unknown lines */
   .ew-stale .ew-where { color: var(--warn); font-weight: 550; }
   .ew-stale .ew-icon { color: var(--warn); }
+  .ew-stale .ew-track { font-style: italic; }
   .ew-stale { cursor: default; }
   .ew-stale:hover { background: transparent; }
+  .ew-moon .ew-where { color: var(--moon); font-weight: 550; }
+  .ew-moon .ew-icon { color: var(--moon); }
+  .ew-moon .ew-track { font-style: italic; }
+  .ew-moon { cursor: default; }
+  .ew-moon:hover { background: transparent; }
+  .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
 
   /* ---- house selector + chips (context, simplified) ---- */
   .houserow { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
@@ -63,7 +71,7 @@
   .sc-btns button { background: var(--panel2); color: var(--text); border: 1px solid var(--border);
                     border-radius: 10px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
   .sc-btns button.active { border-color: var(--accent); color: var(--accent2); }
-  .sc-note { margin: 10px 8px 0; font-size: 12px; color: var(--text-dim); min-height: 34px; }
+  .sc-note { margin: 10px 8px 0; font-size: 12px; color: var(--text-dim); min-height: 50px; }
 </style>
 </head>
 <body>
@@ -104,18 +112,20 @@ const SCENARIOS = {
     ],
     otherPlaying: true
   },
+  "Both houses, multi-zone": {
+    note: "Busiest realistic case: two groups per house, four lines. Per house, the page knows the most recent track (that group gets the title); other groups get an honest ♪ playing. Strip grows one compact row per group and stays scannable.",
+    lines: [
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×3", track: "<b>La Femme d'Argent</b> — Air", go: "›" },
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Master Suite ×2", track: "♪ playing", go: "›" },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>Prisma Tropical</b> — Balún", go: "›" },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "♪ playing", go: "›" }
+    ],
+    otherPlaying: true
+  },
   "One group, one house": {
     note: "Most common case: a single line. Strip stays one row tall.",
     lines: [
       { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "<b>El Espanto</b> — Balún", go: "›" }
-    ],
-    otherPlaying: false
-  },
-  "Multi-group house (E2)": {
-    note: "E2: two groups playing in one house, but the page only knows the latest track per house. The known group gets the title; the other gets an honest ♪ playing — never a guessed or stale title.",
-    lines: [
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>Moon Safari</b> — Air", go: "›" },
-      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "♪ playing", go: "›" }
     ],
     otherPlaying: false
   },
@@ -126,13 +136,27 @@ const SCENARIOS = {
     ],
     otherPlaying: true
   },
-  "Stale house (E1)": {
-    note: "E1: Vashon's machine hasn't been heard from in 26 min — the strip refuses to assert silence. Stale line is informational (not tappable-to-rooms); Cap Hill still renders live. All-quiet + all-fresh = no strip at all.",
+  "Stale: track overdue (⚠)": {
+    note: "E1+D6b: staleness is judged by STATE, not a heartbeat clock (heartbeats are near-timeless by design; idle keepalive is only a 4h liveness signal). A playing TRACK has a known length — if it should have ended long ago and no event arrived, something's wrong. Line shows when last heard + what was last reported, past tense, never rendered live.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Backyard", track: "<b>Harvest Moon</b> — Neil Young", go: "›" },
-      { icon: "⚠", cls: "ew-stale", house: "Vashon", rooms: "state stale (26m)", track: "", go: "" }
+      { icon: "⚠", cls: "ew-stale", house: "Vashon", rooms: "last seen 72m ago", track: "was playing: Shed Arc — Balún \u201cEl Espanto\u201d · track ended ~55m ago, no update since", go: "" }
     ],
     otherPlaying: true
+  },
+  "Long stream, aging honestly": {
+    note: "A radio stream can legitimately play for hours with zero events — silence is NOT suspicious, so no ⚠. But past ~30 min the line stops implying real-time knowledge and carries an as-of stamp. This is the honest middle: probably still true, timestamped so you can judge.",
+    lines: [
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream · as of 43m ago", go: "›" }
+    ],
+    otherPlaying: false
+  },
+  "Quiet hours (countdown)": {
+    note: "Machines deliberately sleep 10 PM–7 AM. That's not an outage, so no ⚠ — a 🌙 line with the next-report countdown instead (the one place a countdown is honest: the 7 AM wake is scheduled). If all was quiet at 10 PM, the strip stays hidden.",
+    lines: [
+      { icon: "🌙", cls: "ew-moon", house: "Vashon", rooms: "sleeping (quiet hours)", track: "last seen 11:58 PM: all quiet · next check-in ~7:00 AM (in 4h 12m)", go: "" }
+    ],
+    otherPlaying: false
   },
   "All quiet": {
     note: "D6: silence costs zero pixels — the strip is simply gone. (The ▶ house-dropdown cue disappears too.)",
