@@ -183,6 +183,16 @@ const hero = document.getElementById('hero'), elw = document.getElementById('elw
       note = document.getElementById('note'), housesel = document.getElementById('housesel');
 let currentScenario = "Both houses playing";
 let elwOpen = false;
+let heroPick = null; // rooms label of the group the user tapped in Elsewhere
+
+function pickGroup(house, rooms) {
+  // Selecting an elsewhere row = make that the active house + speaker group.
+  // View/selection change ONLY — never touches audio (same rule as geo/house switching).
+  housesel.value = house === "Vashon" ? "🏝 Vashon" : "🏠 Cap Hill";
+  heroPick = rooms;
+  elwOpen = false;
+  render(currentScenario);
+}
 
 function selectedHouse() {
   const v = housesel.value;
@@ -262,7 +272,12 @@ function render(name) {
   const sc = SCENARIOS[name];
   const sel = selectedHouse();
 
-  const mine = sel === "Roaming" ? [] : sc.lines.filter(l => l.house === sel);
+  let mine = sel === "Roaming" ? [] : sc.lines.filter(l => l.house === sel);
+  // If the user tapped an elsewhere row, that group becomes the hero.
+  if (heroPick) {
+    const i = mine.findIndex(l => l.rooms === heroPick);
+    if (i > 0) mine = [mine[i], ...mine.slice(0, i), ...mine.slice(i + 1)];
+  }
   const elsewhere = [...mine.slice(1), ...sc.lines.filter(l => l.house !== sel)];
 
   renderHero(sel, mine);
@@ -279,7 +294,7 @@ function render(name) {
         <span class="elw-caret">⌄</span>
       </div>
       <div class="elw-detail">${elsewhere.map(l => `
-        <div class="ew-line ${l.cls}">
+        <div class="ew-line ${l.cls}" ${l.cls === "" ? `onclick="pickGroup('${l.house}','${l.rooms}')"` : ""}>
           <span class="ew-icon ${l.cls ? "" : "ew-play"}">${l.icon}</span>
           <span class="ew-main">
             <span class="ew-where"><span class="house">${l.house}</span> · ${l.rooms}</span>
@@ -293,7 +308,7 @@ function render(name) {
   const live = elsewhere.some(l => l.icon === "▶");
   housesel.classList.toggle("other-playing", live);
 
-  note.textContent = sc.note + `\n\nViewing: ${sel}. Elsewhere = every group that isn't yours (same house or other house). Collapsed by default; tap to expand; tap a detail row → jump to that house/group.`;
+  note.textContent = sc.note + `\n\nViewing: ${sel}. Elsewhere = every group that isn't yours (same house or other house). Collapsed by default; tap to expand. Tap a live detail row → that house + group becomes your ACTIVE selection (hero + chips follow; audio untouched). ⚠/🌙 rows aren't selectable — no live group to adopt.`;
   [...btns.children].forEach(b => b.classList.toggle("active", b.textContent === name));
 }
 
