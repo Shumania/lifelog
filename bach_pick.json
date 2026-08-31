@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-30T10:22:30.737Z",
- "pick_date": "2026-08-30",
- "work_key": "BWV1079",
- "work": "Musical Offering",
- "performer": "Ricercar Consort",
- "album": "Bach, J.S.: Musical Offering",
- "spotify_album_uri": "spotify:album:1x4ZMf6zu9vpHwAZyTkoGB",
- "instrumentation": "chamber",
- "approx_minutes": 55,
- "reason": "✨ never heard",
+ "picked_at": "2026-08-31T10:24:36.731Z",
+ "pick_date": "2026-08-31",
+ "work_key": "ARR-ALIO-MODO",
+ "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
+ "performer": "Fretwork",
+ "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
+ "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 65,
+ "reason": "✨ never heard · avoided chamber",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-II",
-  "work": "The Well-Tempered Consort II",
-  "performer": "Phantasm",
-  "album": "J.S. Bach: The Well-Tempered Consort – II",
-  "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
+  "work_key": "BWV971+972-987sel",
+  "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
+  "performer": "Alexandre Tharaud",
+  "album": "Bach: Concertos Italiens",
+  "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU"
  }
 }
