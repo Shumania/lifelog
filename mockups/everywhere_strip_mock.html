@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — Everywhere Strip (p3.35 candidate)</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --panel: #111827; --panel2: #182236;
+    --text: #e5e9f2; --text-dim: #7a8599; --accent: #34d399; --accent2: #6ee7b7;
+    --warn: #fbbf24; --border: #232d42;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .phone { max-width: 430px; margin: 24px auto; border: 1px solid var(--border);
+           border-radius: 18px; overflow: hidden; background: var(--bg);
+           box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+
+  /* ---- app header (mimics real page) ---- */
+  .hdr { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px;
+         border-bottom: 1px solid var(--border); }
+  .hdr .logo { font-size: 16px; font-weight: 700; }
+  .vchips { margin-left: auto; display: flex; gap: 6px; font-size: 10px; color: var(--text-dim); }
+  .vchips span { background: var(--panel); padding: 2px 6px; border-radius: 8px; }
+
+  /* ---- EVERYWHERE STRIP (the new thing) ---- */
+  .ew { border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #0d1424, #0a0e1a); }
+  .ew-line { display: flex; align-items: center; gap: 9px; padding: 8px 12px;
+             cursor: pointer; transition: background .15s; }
+  .ew-line:hover { background: var(--panel); }
+  .ew-line + .ew-line { border-top: 1px solid rgba(35,45,66,.55); }
+  .ew-icon { font-size: 13px; width: 16px; text-align: center; flex: none; }
+  .ew-play { color: var(--accent); }
+  .ew-main { min-width: 0; flex: 1; }
+  .ew-where { font-size: 12px; font-weight: 650; letter-spacing: .01em; }
+  .ew-where .house { color: var(--accent2); }
+  .ew-track { font-size: 12px; color: var(--text-dim); white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; }
+  .ew-track b { color: var(--text); font-weight: 550; }
+  .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
+  .ew-stale .ew-where { color: var(--warn); font-weight: 550; }
+  .ew-stale .ew-icon { color: var(--warn); }
+  .ew-stale { cursor: default; }
+  .ew-stale:hover { background: transparent; }
+
+  /* ---- house selector + chips (context, simplified) ---- */
+  .houserow { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--border);
+           border-radius: 8px; padding: 5px 8px; font-size: 13px; }
+  select.other-playing { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(52,211,153,.35); }
+  .gear { margin-left: auto; color: var(--text-dim); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 14px; }
+  .chip { font-size: 12px; padding: 5px 10px; border-radius: 14px; background: var(--panel);
+          border: 1px solid var(--border); color: var(--text-dim); }
+  .chip.on { background: #12301f; border-color: var(--accent); color: var(--accent2); }
+  .body-hint { padding: 26px 12px 34px; text-align: center; color: var(--text-dim); font-size: 12px; }
+
+  /* ---- scenario switcher (mock chrome, not part of design) ---- */
+  .scenarios { max-width: 430px; margin: 0 auto 40px; padding: 0 4px; }
+  .scenarios h3 { font-size: 13px; color: var(--text-dim); font-weight: 600; margin: 18px 8px 8px; }
+  .sc-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sc-btns button { background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+                    border-radius: 10px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
+  .sc-btns button.active { border-color: var(--accent); color: var(--accent2); }
+  .sc-note { margin: 10px 8px 0; font-size: 12px; color: var(--text-dim); min-height: 34px; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="hdr">
+    <span class="logo">🎵 Listening Log</span>
+    <div class="vchips"><span>Mind v2.67.0</span><span>ShumaFrame v2.67.0</span><span>p3.35</span></div>
+  </div>
+
+  <div class="ew" id="ew"></div>
+
+  <div class="houserow">
+    <select id="housesel"><option>🏝 Vashon</option><option>🏠 Cap Hill</option><option>📱 Roaming</option></select>
+    <span class="gear">⚙</span>
+  </div>
+  <div class="chips">
+    <span class="chip on">Maury</span><span class="chip on">Green Kitchen Move</span>
+    <span class="chip on">Sonos Move</span><span class="chip">Garage</span>
+    <span class="chip">Shed Arc</span><span class="chip">Shed Boombox</span>
+  </div>
+  <div class="body-hint">… rest of page unchanged (Now Playing, History, Playlists, Shortcuts) …</div>
+</div>
+
+<div class="scenarios">
+  <h3>Mock scenarios — tap to preview</h3>
+  <div class="sc-btns" id="btns"></div>
+  <div class="sc-note" id="note"></div>
+</div>
+
+<script>
+const SCENARIOS = {
+  "Both houses playing": {
+    note: "The happy path. One line per playing group, anywhere. Tap a line → that house tab with those rooms selected.",
+    lines: [
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×5", track: "<b>Whole Lotta Love</b> — Led Zeppelin", go: "›" },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream", go: "›" }
+    ],
+    otherPlaying: true
+  },
+  "One group, one house": {
+    note: "Most common case: a single line. Strip stays one row tall.",
+    lines: [
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "<b>El Espanto</b> — Balún", go: "›" }
+    ],
+    otherPlaying: false
+  },
+  "Multi-group house (E2)": {
+    note: "E2: two groups playing in one house, but the page only knows the latest track per house. The known group gets the title; the other gets an honest ♪ playing — never a guessed or stale title.",
+    lines: [
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>Moon Safari</b> — Air", go: "›" },
+      { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "♪ playing", go: "›" }
+    ],
+    otherPlaying: false
+  },
+  "Garbage title (E5)": {
+    note: "E5: Sonos sometimes reports junk metadata (\"? — ?\"). The strip renders ♪ playing instead of asserting nonsense. Radio streams show the station name.",
+    lines: [
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Basement Study", track: "♪ playing", go: "›" }
+    ],
+    otherPlaying: true
+  },
+  "Stale house (E1)": {
+    note: "E1: Vashon's machine hasn't been heard from in 26 min — the strip refuses to assert silence. Stale line is informational (not tappable-to-rooms); Cap Hill still renders live. All-quiet + all-fresh = no strip at all.",
+    lines: [
+      { icon: "▶", cls: "", house: "Cap Hill", rooms: "Backyard", track: "<b>Harvest Moon</b> — Neil Young", go: "›" },
+      { icon: "⚠", cls: "ew-stale", house: "Vashon", rooms: "state stale (26m)", track: "", go: "" }
+    ],
+    otherPlaying: true
+  },
+  "All quiet": {
+    note: "D6: silence costs zero pixels — the strip is simply gone. (The ▶ house-dropdown cue disappears too.)",
+    lines: [],
+    otherPlaying: false
+  }
+};
+
+const ew = document.getElementById('ew');
+const btns = document.getElementById('btns');
+const note = document.getElementById('note');
+const housesel = document.getElementById('housesel');
+
+function render(name) {
+  const sc = SCENARIOS[name];
+  ew.innerHTML = sc.lines.map(l => `
+    <div class="ew-line ${l.cls}">
+      <span class="ew-icon ${l.cls ? '' : 'ew-play'}">${l.icon}</span>
+      <span class="ew-main">
+        <span class="ew-where"><span class="house">${l.house}</span> · ${l.rooms}</span>
+        ${l.track ? `<div class="ew-track">${l.track}</div>` : ''}
+      </span>
+      <span class="ew-go">${l.go}</span>
+    </div>`).join('');
+  ew.style.display = sc.lines.length ? 'block' : 'none';
+  housesel.classList.toggle('other-playing', sc.otherPlaying);
+  note.textContent = sc.note;
+  [...btns.children].forEach(b => b.classList.toggle('active', b.textContent === name));
+}
+
+Object.keys(SCENARIOS).forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => render(name);
+  btns.appendChild(b);
+});
+render("Both houses playing");
+</script>
+</body>
+</html>
