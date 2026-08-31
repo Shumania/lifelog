@@ -2142,13 +2142,13 @@ function renderElsewhere() {
           segs.push('<span class="elw-moon">🌙 ' + esc(label) + ' asleep</span>');
           rows.push('<div class="elw-row er-moon"><span class="er-icon">🌙</span><span class="er-main">' +
             '<span class="er-where">' + esc(label) + ' · asleep (quiet hours)</span>' +
-            '<div class="er-track">was playing: ' + where + ' — ' + what +
+            '<div class="er-track">was playing: ' + where + ' · last known: ' + what +
             ' · next check-in ~7:00 AM (in ' + _ewFmtMins(_ewUntil7()) + ')</div></span></div>');
         } else {
           segs.push('<span class="elw-warn">⚠ ' + esc(label) + ' last seen ' + _ewFmtMins(ageMin) + '</span>');
           rows.push('<div class="elw-row er-warn"><span class="er-icon">⚠</span><span class="er-main">' +
             '<span class="er-where">' + esc(label) + ' · last seen ' + _ewFmtMins(ageMin) + ' ago</span>' +
-            '<div class="er-track">was playing: ' + where + ' — ' + what +
+            '<div class="er-track">was playing: ' + where + ' · last known: ' + what +
             ' · no update since — speakers may still be playing (Sonos app works normally)</div></span></div>');
         }
         continue; // one honest machine-level row replaces the house's group rows
@@ -2159,6 +2159,11 @@ function renderElsewhere() {
         // group still lists here on purpose: selection is truth, and the row is the
         // one-tap way to adopt it (Rev 4.1).
         if (h === house && g.members.some(r => mySel.has(r))) continue;
+        // Empty selection: the hero's group (house-level NP) counts as yours — the big
+        // card right above already shows it; listing it here too is pure duplication
+        // (field-hit during p3.35 testing: viewing Vashon with no chips selected
+        // duplicated the Shed Arc line). With ANY selection, selection stays truth.
+        if (h === house && !mySel.size && sse && g.members.some(r => (sse.rooms || []).includes(r))) continue;
         const tk = _ewTrackFor(h, g);
         const roomsLabel = esc(g.coordinator) + (g.playing.length > 1 ? ' +' + (g.playing.length - 1) : '');
         const aging = (tk && tk.stream && ageMin !== null && ageMin > 30) ? ' · as of ' + _ewFmtMins(ageMin) + ' ago' : '';
