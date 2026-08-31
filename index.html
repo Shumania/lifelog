@@ -855,6 +855,44 @@
 .queue-line .q-text b { color: var(--text, #e8eaf0); font-weight: 600; }
 .queue-line .q-chev { flex-shrink: 0; font-size: 14px; transition: transform 0.2s; color: var(--text-dim, #8a8fa3); }
 .queue-line .q-chev.open { transform: rotate(90deg); }
+/* p3.35: Elsewhere drawer (design_global_now_v1.md Rev 4.2) — one collapsed line for
+   every playing group that ISN'T yours (other houses + other groups in your house).
+   Same visual shell as .queue-line so the two drawers read as siblings. The wrap
+   carries the panel backdrop so the drawer looks attached to the house panel above. */
+.elw-wrap { background: var(--surface2); padding: 0 16px 12px; border-top: none; }
+.elw-wrap[hidden] { display: none; }
+.elw { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09));
+  border-radius: 8px; font-size: 12px; color: var(--text-dim, #8a8fa3); cursor: pointer; user-select: none;
+  -webkit-tap-highlight-color: transparent; }
+.elw .elw-label { flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.elw .elw-sum { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.elw .elw-sum b { color: var(--text, #e8eaf0); font-weight: 600; }
+.elw-play { color: var(--accent2, #6ee7b7); }
+.elw-warn { color: #fbbf24; }
+.elw-moon { color: #93a7d1; }
+.elw .elw-chev { flex-shrink: 0; font-size: 14px; transition: transform 0.2s; color: var(--text-dim, #8a8fa3); }
+.elw .elw-chev.open { transform: rotate(90deg); }
+.elw-exp { display: none; }
+.elw-exp.open { display: block; }
+.elw-row { display: flex; align-items: center; gap: 9px; padding: 7px 10px; margin-top: 5px;
+  background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09));
+  border-radius: 8px; font-size: 12px; color: var(--text-dim, #8a8fa3); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; }
+.elw-row:active { transform: scale(.99); }
+.elw-row .er-icon { flex-shrink: 0; width: 16px; text-align: center; }
+.elw-row .er-main { flex: 1; min-width: 0; }
+.elw-row .er-where { font-weight: 600; color: var(--text, #e8eaf0); }
+.elw-row .er-where .er-house { color: var(--accent2, #6ee7b7); }
+.elw-row .er-track { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.elw-row .er-track b { color: var(--text, #e8eaf0); font-weight: 600; }
+.elw-row .er-go { flex-shrink: 0; color: var(--text-dim, #8a8fa3); }
+.elw-row.er-warn { cursor: default; }
+.elw-row.er-warn .er-icon, .elw-row.er-warn .er-where { color: #fbbf24; }
+.elw-row.er-warn .er-track { font-style: italic; }
+.elw-row.er-moon { cursor: default; }
+.elw-row.er-moon .er-icon, .elw-row.er-moon .er-where { color: #93a7d1; }
+.elw-row.er-moon .er-track { font-style: italic; }
 .q-stale-badge {
   font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
   background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); flex-shrink: 0;
@@ -1135,6 +1173,18 @@ body.house-roaming .shortcut-card { opacity: .4; }
     <div id="roaming-devices"></div>
     <!-- p2.57: Roaming sync button removed — ⟳ Refresh (shared toolbar) covers roaming Spotify poll -->
   </div>
+
+  <!-- p3.35: Elsewhere drawer (design_global_now_v1.md Rev 4.2) — global (outside house
+       panels, visible in ALL views incl. Roaming). renderElsewhere() owns the contents;
+       hidden entirely when nothing is playing anywhere else (silence costs zero pixels). -->
+  <div class="elw-wrap" id="elw-wrap" hidden>
+    <div class="elw" id="elw-bar" onclick="toggleElsewhere()">
+      <span class="elw-label">Elsewhere</span>
+      <span class="elw-sum" id="elw-sum"></span>
+      <span class="elw-chev" id="elw-chev">›</span>
+    </div>
+    <div class="elw-exp" id="elw-exp"></div>
+  </div>
 </div>
 
 <!-- ==================== BOTTOM SECTION ==================== -->
@@ -1229,7 +1279,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.34';
+const PAGE_VERSION = 'p3.35';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1713,6 +1763,7 @@ function setHouse(h, isUserClick) {
     renderRooms(h);
     renderNowPlayingSonos(h);
   }
+  _renderElsewhereSoon();  // p3.35 D7: drawer re-filters on every house switch ("elsewhere" moved)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1957,7 +2008,220 @@ function updateHouseTabDots() {
     if (playing && th !== house) otherPlaying = true;
   }
   sel.classList.toggle('other-playing', otherPlaying);
+  // p3.35: every call site of this function is exactly a cross-house state transition —
+  // piggyback the Elsewhere drawer render here (level-triggered, Rule 27).
+  _renderElsewhereSoon();
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// p3.35: ELSEWHERE DRAWER (design_global_now_v1.md Rev 4.2)
+// One collapsed line summarizing every playing group that ISN'T yours — the other
+// house always, plus other groups in your OWN house ("yours" = intersects your
+// chip selection; the hero + queue drawer own that group). Roaming: everything is
+// elsewhere. Level-triggered (Rule 27): pure render of current cross-house state.
+// Staleness is judged by STATE, not a heartbeat clock (Rev 2, Andrew): a playing
+// TRACK emits an event at every boundary, so long silence under a track claim is
+// suspicious (⚠); a STREAM is legitimately silent for hours (ages with an as-of
+// stamp, never ⚠); a quiet machine makes no claim at all (hidden).
+// ══════════════════════════════════════════════════════════════════════════════
+let _elwOpen = false;
+let _elwTimer = null;
+const _ewStateTs = {};   // house -> newest state-file last_updated ms (freshness input)
+
+function _renderElsewhereSoon() {
+  // E3: 250ms debounce coalesces SSE reconnect replay bursts into one converged render
+  if (_elwTimer) return;
+  _elwTimer = setTimeout(() => { _elwTimer = null; renderElsewhere(); }, 250);
+}
+
+function _ewFreshest(h) {
+  // Machine freshness = newest of: state file, fresh SSE event, client heartbeat.
+  let seen = 0;
+  if (data && data.client_status) for (const c of data.client_status) {
+    if (c.house === h && c.last_seen) seen = Math.max(seen, new Date(c.last_seen).getTime() || 0);
+  }
+  return Math.max(_ewStateTs[h] || 0, _sseFreshByHouse[h] || 0, seen);
+}
+
+// Hoisted mini radio detector (mirror of renderNowPlayingSonos's local one — that one
+// stays local by design; this copy serves cross-house rows where h !== house).
+function _ewRadio(obj) {
+  if (!obj) return null;
+  const uri = (obj.uri || '').toLowerCase(), svc = (obj.service || obj.source || '').toLowerCase();
+  if (uri.includes('kexp') || svc.includes('kexp')) return 'KEXP';
+  if (uri.includes('kcrw') || svc.includes('kcrw')) return 'KCRW Eclectic 24';
+  return null;
+}
+function _ewIsStream(obj) {
+  if (!obj) return false;
+  if (_ewRadio(obj)) return true;
+  const svc = (obj.service || '').toLowerCase(), uri = (obj.uri || '').toLowerCase();
+  return svc.includes('tunein') || uri.startsWith('x-sonosapi-stream') ||
+         uri.startsWith('x-rincon-mp3radio') || uri.includes('x-sonosapi-radio');
+}
+
+function _ewSeattleHM() {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+    return { h: +p.find(x => x.type === 'hour').value % 24, m: +p.find(x => x.type === 'minute').value };
+  } catch (e) { const d = new Date(); return { h: d.getHours(), m: d.getMinutes() }; }
+}
+function _ewQuietHours() { const hm = _ewSeattleHM(); return hm.h >= 22 || hm.h < 7; }
+function _ewUntil7() {
+  // Minutes until the next 7:00 AM Seattle — the ONE honest countdown (the wake is
+  // scheduled; heartbeats are otherwise near-timeless by design, v2.49).
+  const hm = _ewSeattleHM();
+  const mins = ((hm.h >= 7 ? 24 + 7 - hm.h : 7 - hm.h) * 60) - hm.m;
+  return Math.max(0, mins);
+}
+function _ewFmtMins(mins) {
+  if (mins < 60) return mins + 'm';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h + 'h' + (m ? ' ' + m + 'm' : '');
+}
+
+function _ewGroupsFor(h) {
+  // Cluster the house's playing rooms into live topology groups. Rooms with no known
+  // group fold into one pseudo-group — never invent structure we don't have.
+  const rp = [...new Set(_roomsPlayingByHouse[h] || [])];
+  if (!rp.length) return [];
+  const groups = _groupsByHouse[h] || [];
+  const out = []; const claimed = new Set();
+  for (const g of groups) {
+    const members = (g.members && g.members.length) ? g.members : [g.coordinator];
+    const playing = members.filter(r => rp.includes(r));
+    if (!playing.length) continue;
+    playing.forEach(r => claimed.add(r));
+    out.push({ coordinator: g.coordinator || playing[0], members: [...members], playing });
+  }
+  const orphans = rp.filter(r => !claimed.has(r));
+  if (orphans.length) out.push({ coordinator: orphans[0], members: [...orphans], playing: [...orphans] });
+  return out;
+}
+
+function _ewTrackFor(h, g) {
+  // E2 honesty: only the group matching the house's (single) now-playing snapshot gets
+  // a title claim; other playing groups render "♪ playing" — we genuinely don't know
+  // (known MG3/MG6 limitation; the service tracks one now-playing per house).
+  const sse = _sseNowPlaying[h];
+  if (!sse) return null;
+  const npRooms = new Set(sse.rooms || []);
+  if (!g.members.some(r => npRooms.has(r))) return null;
+  const radio = _ewRadio(sse);
+  if (radio) return { html: '📻 <b>' + esc(radio) + '</b>', stream: true };
+  if (isGarbageTitle(sse.title)) return { html: '♪ playing', stream: _ewIsStream(sse) };  // E5
+  return { html: '<b>' + esc(sse.title) + '</b>' + (sse.artist ? ' — ' + esc(sse.artist) : ''), stream: _ewIsStream(sse) };
+}
+
+function renderElsewhere() {
+  const wrap = document.getElementById('elw-wrap');
+  if (!wrap) return;
+  const segs = [], rows = [];
+  const mySel = new Set(house !== 'roaming' ? (selectedRooms[house] || []) : []);
+  const labels = { caphill: 'Cap Hill', vashon: 'Vashon' };
+
+  for (const h of ['caphill', 'vashon']) {
+    const label = labels[h];
+    const groups = _ewGroupsFor(h);
+    const fresh = _ewFreshest(h);
+    const ageMin = fresh ? Math.round((Date.now() - fresh) / 60000) : null;
+
+    if (groups.length) {
+      const sse = _sseNowPlaying[h];
+      const isStream = _ewIsStream(sse);
+      // E1/D6b (state-aware staleness): "playing a TRACK" + >45 min of silence = overdue.
+      // (No track duration on page → 45 min stands in for track_end + grace; tracks emit
+      // boundary events every few minutes while genuinely playing.) Streams exempt.
+      // D7: the SELECTED house's staleness belongs to the main NP card, not this drawer.
+      if (h !== house && ageMin !== null && ageMin > 45 && !isStream) {
+        const what = sse && sse.title && !isGarbageTitle(sse.title)
+          ? esc(sse.title) + (sse.artist ? ' — ' + esc(sse.artist) : '')
+          : 'music';
+        const where = groups.map(g => esc(g.coordinator) + (g.playing.length > 1 ? ' +' + (g.playing.length - 1) : '')).join(', ');
+        if (_ewQuietHours()) {
+          segs.push('<span class="elw-moon">🌙 ' + esc(label) + ' asleep</span>');
+          rows.push('<div class="elw-row er-moon"><span class="er-icon">🌙</span><span class="er-main">' +
+            '<span class="er-where">' + esc(label) + ' · asleep (quiet hours)</span>' +
+            '<div class="er-track">was playing: ' + where + ' · last known: ' + what +
+            ' · next check-in ~7:00 AM (in ' + _ewFmtMins(_ewUntil7()) + ')</div></span></div>');
+        } else {
+          segs.push('<span class="elw-warn">⚠ ' + esc(label) + ' last seen ' + _ewFmtMins(ageMin) + '</span>');
+          rows.push('<div class="elw-row er-warn"><span class="er-icon">⚠</span><span class="er-main">' +
+            '<span class="er-where">' + esc(label) + ' · last seen ' + _ewFmtMins(ageMin) + ' ago</span>' +
+            '<div class="er-track">was playing: ' + where + ' · last known: ' + what +
+            ' · no update since — speakers may still be playing (Sonos app works normally)</div></span></div>');
+        }
+        continue; // one honest machine-level row replaces the house's group rows
+      }
+      for (const g of groups) {
+        // "Yours" = intersects your selection in your selected house (hero + queue own it).
+        // NOTE: the house-level NP hero may show a group you have NOT selected — that
+        // group still lists here on purpose: selection is truth, and the row is the
+        // one-tap way to adopt it (Rev 4.1).
+        if (h === house && g.members.some(r => mySel.has(r))) continue;
+        // Empty selection: the hero's group (house-level NP) counts as yours — the big
+        // card right above already shows it; listing it here too is pure duplication
+        // (field-hit during p3.35 testing: viewing Vashon with no chips selected
+        // duplicated the Shed Arc line). With ANY selection, selection stays truth.
+        if (h === house && !mySel.size && sse && g.members.some(r => (sse.rooms || []).includes(r))) continue;
+        const tk = _ewTrackFor(h, g);
+        const roomsLabel = esc(g.coordinator) + (g.playing.length > 1 ? ' +' + (g.playing.length - 1) : '');
+        const aging = (tk && tk.stream && ageMin !== null && ageMin > 30) ? ' · as of ' + _ewFmtMins(ageMin) + ' ago' : '';
+        const housePrefix = h === house ? '' : '<span class="er-house">' + esc(label) + '</span> · ';
+        const trackHtml = (tk ? tk.html : '♪ playing') + aging;
+        segs.push('<span class="elw-play">▶</span> ' + (h === house ? '' : esc(label) + ': ') + roomsLabel +
+          (tk && tk.html !== '♪ playing' ? ' — ' + trackHtml : ''));
+        const coordArg = g.coordinator.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        rows.push('<div class="elw-row" onclick="elsewhereAdopt(\'' + h + '\',\'' + coordArg + '\')">' +
+          '<span class="er-icon elw-play">▶</span><span class="er-main">' +
+          '<span class="er-where">' + housePrefix + roomsLabel + '</span>' +
+          '<div class="er-track">' + trackHtml + '</div></span><span class="er-go">›</span></div>');
+      }
+    } else if (h !== house && ageMin !== null && ageMin > 300 && !_ewQuietHours()) {
+      // Quiet house: silence is expected → no claim. Exception: machine dark >5h outside
+      // quiet hours (missed 4h keepalive + grace) → honest last-seen line (Rev 2, rare).
+      segs.push('<span class="elw-warn">⚠ ' + esc(label) + ' last seen ' + _ewFmtMins(ageMin) + '</span>');
+      rows.push('<div class="elw-row er-warn"><span class="er-icon">⚠</span><span class="er-main">' +
+        '<span class="er-where">' + esc(label) + ' · last seen ' + _ewFmtMins(ageMin) + ' ago</span>' +
+        '<div class="er-track">was quiet — no signal since (machine may be down)</div></span></div>');
+    }
+  }
+
+  if (!segs.length) { wrap.hidden = true; return; }
+  wrap.hidden = false;
+  const sum = document.getElementById('elw-sum'), exp = document.getElementById('elw-exp'),
+        chev = document.getElementById('elw-chev');
+  if (sum) sum.innerHTML = segs.join(' &nbsp;·&nbsp; ');
+  if (exp) { exp.innerHTML = rows.join(''); exp.classList.toggle('open', _elwOpen); }
+  if (chev) chev.classList.toggle('open', _elwOpen);
+}
+
+function toggleElsewhere() { _elwOpen = !_elwOpen; renderElsewhere(); }
+
+function elsewhereAdopt(h, coord) {
+  // Rev 4.1 (Andrew): tapping a live elsewhere row ADOPTS that house + group as the
+  // active selection. Selection/view change ONLY — audio is never touched (same
+  // invariant as geo house switching). Counts as a deliberate manual selection:
+  // sticky house override (D9: selector wins) + chip touch clock stamped (no
+  // stale-confirm nag after the most deliberate selection possible).
+  const g = (_groupsByHouse[h] || []).find(g => g.coordinator === coord || (g.members || []).includes(coord));
+  const members = g ? [...new Set((g.members && g.members.length) ? g.members : [g.coordinator])] : [coord];
+  selectedRooms[h] = members;
+  try { localStorage.setItem('ll_rooms_' + h, JSON.stringify(members)); } catch (e) {}
+  _stampSelTouch(h);
+  _geoUserTouched = true;
+  if (typeof geoDismissHint === 'function') geoDismissHint('elsewhere adopt');
+  console.log('[elsewhere] adopt → ' + h + ' · coord=' + coord + ' · rooms: ' + members.join(', '));
+  _elwOpen = false;
+  setHouse(h, true);
+  updateSyncButton(h);
+  _renderElsewhereSoon();
+}
+
+// Aging labels ("as of 43m ago", ⚠ ages, 🌙 countdown) drift with time even when no
+// events arrive — refresh once a minute. Cheap: render is skipped-equivalent when
+// hidden (segments recompute from the same state).
+setInterval(_renderElsewhereSoon, 60000);
 
 function toggleRoom(h, room) {
   // p3.13: manual chip interaction → geo never preselects again this session
@@ -3659,6 +3923,7 @@ function applyStateNowPlaying(stateFiles) {
   for (const [h, state] of Object.entries(stateFiles)) {
     if (!state) continue;
     const stateTs = new Date(state.last_updated || 0).getTime();
+    if (stateTs > (_ewStateTs[h] || 0)) _ewStateTs[h] = stateTs;  // p3.35: elsewhere freshness input
     const sseTs = _sseNowPlaying[h]?.ts || 0;
     // State is fresher than current SSE data
     if (stateTs > sseTs) {
@@ -5379,6 +5644,7 @@ function connectSSE() {
           }
         }
         if (house === 'roaming') renderNowPlayingRoaming();
+        _renderElsewhereSoon();  // p3.35: title changes in NON-selected houses repaint the drawer
       }
 
       // --- Handle stopped ---
@@ -5391,6 +5657,7 @@ function connectSSE() {
           _sseNowPlayingGlobal = null;
           if (sseHouse) { delete _sseNowPlaying[sseHouse]; if (sseHouse === house) renderNowPlayingSonos(house); }
           if (house === 'roaming') renderNowPlayingRoaming();
+          _renderElsewhereSoon();  // p3.35
         }, 3000);
       }
 
@@ -5546,6 +5813,7 @@ setInterval(() => {
       if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === h) _sseNowPlayingGlobal = null;
       if (h === house) renderNowPlayingSonos(house);
       if (house === 'roaming') renderNowPlayingRoaming();
+      _renderElsewhereSoon();  // p3.35: watchdog clears repaint the drawer too
     }
   }
 }, 60000);
