@@ -2026,6 +2026,14 @@ function updateHouseTabDots() {
 // ══════════════════════════════════════════════════════════════════════════════
 let _elwOpen = false;
 let _elwTimer = null;
+// p3.36 thaw guard: after a long background sleep (iOS freezes JS + SSE), the page's
+// per-house rooms_playing is pre-sleep memory — rendering it as live ▶ rows is the
+// ghost-drawer bug (field-hit 2026-08-31: phone slept before Shed Arc's stop event,
+// woke 28 min later, drawer showed ghost \"▶ Shed Arc\" until replay corrected it).
+// E6 precedent: unknown state → hidden strip, never a confident lie. Suspect window
+// clears on fresh evidence (state-file seed or fresh SSE snapshot) or 15s safety cap.
+let _elwThawSuspect = 0;  // ms epoch when thaw suspicion started (0 = trusted)
+let _elwHiddenAt = 0;     // ms epoch when page last went hidden
 const _ewStateTs = {};   // house -> newest state-file last_updated ms (freshness input)
 
 function _renderElsewhereSoon() {
@@ -2116,6 +2124,8 @@ function _ewTrackFor(h, g) {
 function renderElsewhere() {
   const wrap = document.getElementById('elw-wrap');
   if (!wrap) return;
+  // p3.36 thaw guard: state is pre-sleep memory — hide rather than lie (E6 precedent).
+  if (_elwThawSuspect) { wrap.hidden = true; return; }
   const segs = [], rows = [];
   const mySel = new Set(house !== 'roaming' ? (selectedRooms[house] || []) : []);
   const labels = { caphill: 'Cap Hill', vashon: 'Vashon' };
@@ -3988,6 +3998,8 @@ function applyStateNowPlaying(stateFiles) {
       updateSyncButton(h);
     }
   }
+  // p3.36 thaw guard: state files just seeded = fresh canonical truth → trust restored.
+  if (_elwThawSuspect) { console.log('[elw] thaw guard cleared by state-file seed'); _elwThawSuspect = 0; }
   updateHouseTabDots();
 }
 
@@ -5736,6 +5748,8 @@ function connectSSE() {
       if (sseHouse && !stateIsStale && msg.rooms_playing) {  // p3.36: stale-snapshot guard
         // p3.36: this snapshot is the newest applied for this house — advance the clock
         _sseStateAppliedTs[sseHouse] = evtTs;
+        // p3.36 thaw guard: a FRESH snapshot restores trust (replayed old ones don't)
+        if (_elwThawSuspect && evtAge < EVT_FRESH_MS) { console.log('[elw] thaw guard cleared by fresh SSE snapshot (' + sseHouse + ')'); _elwThawSuspect = 0; }
         // Track all visible rooms for offline detection
         if (msg.rooms_all) { _roomsAll[sseHouse] = [...msg.rooms_all]; }
         // U-M2: always store rooms state under the event's own house (not just current tab)
@@ -6442,7 +6456,16 @@ async function houseMaybeRun(trigger) {
 setTimeout(() => houseMaybeRun('startup').then(() => geoMaybeRun('startup')), 1500);
 
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { _elwHiddenAt = Date.now(); return; }
   if (!document.hidden) {
+    // p3.36 thaw guard: hidden ≥10 min → per-house state is suspect; hide the
+    // Elsewhere strip until fresh evidence lands (seed/SSE below clear it; 15s cap).
+    if (_elwHiddenAt && Date.now() - _elwHiddenAt >= 600000) {
+      _elwThawSuspect = Date.now();
+      console.log('[elw] p3.36 thaw guard armed (hidden ' + Math.round((Date.now() - _elwHiddenAt) / 60000) + 'm) — strip hidden pending fresh state');
+      renderElsewhere();  // immediate, not debounced — the ghost window is short
+      setTimeout(() => { if (_elwThawSuspect) { console.log('[elw] thaw guard 15s safety clear'); _elwThawSuspect = 0; _renderElsewhereSoon(); } }, 15000);
+    }
     connectSSE();
     // p3.32 D1: staleness sweep re-runs on EVERY foreground, not once per session
     // (2026-08-26 iPad incident: long-lived resumed session never re-checked, a 17h-old
