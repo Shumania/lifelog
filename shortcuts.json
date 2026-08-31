@@ -1,6 +1,6 @@
 {
-  "version": 13,
-  "generated_at": "2026-08-26T04:50:00Z",
+  "version": 14,
+  "generated_at": "2026-08-31T14:35:00Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -152,6 +152,33 @@
       ]
     },
     {
+      "id": "daily-bach-vashon-main",
+      "label": "Daily Bach → Main Living Room",
+      "sub": "Today's pick",
+      "icon": "🎼",
+      "house": "vashon",
+      "dynamic": "bach_pick",
+      "note": "Daily Bach for Vashon main-house interior (added 2026-08-31, Andrew). Bach ungroup-first pattern: sync_rooms pins topology to the Main Interior trio (Maury + Green Kitchen Move + Sonos Move, same cluster as geo structure mapping), then replace_queue today's pick on Maury (coordinator). Volumes inherit at tap time per D11 (all three currently volume_fallback=18). replace_queue resets shuffle OFF server-side (fresh intent).",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Main Living Room Maury",
+            "Main Kitchen Green Move 2",
+            "Sonos Move"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "replace_queue",
+          "resolve": {
+            "bach_pick": true
+          },
+          "room": "Main Living Room Maury"
+        }
+      ]
+    },
+    {
       "id": "daily-bach-caphill-main",
       "label": "Daily Bach → Main Floor",
       "sub": "Today's pick",
@@ -201,6 +228,7 @@
   "updated_at": "2026-08-25",
   "notes": {
     "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
-    "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9)."
+    "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9).",
+    "v14": "daily-bach-vashon-main added: Daily Bach → Main Interior trio (Maury + Green Kitchen Move + Sonos Move, Vashon). Bach ungroup-first; coordinator Maury; D11 tap-time volumes (fallback 18 ×3)."
   }
 }
