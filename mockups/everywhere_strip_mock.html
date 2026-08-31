@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mockup — Everywhere Strip (p3.35 candidate, Rev 2)</title>
+<title>Mockup — Everywhere Strip (p3.35 candidate, Rev 3)</title>
 <style>
   :root {
     --bg: #0a0e1a; --panel: #111827; --panel2: #182236;
@@ -170,9 +170,26 @@ const btns = document.getElementById('btns');
 const note = document.getElementById('note');
 const housesel = document.getElementById('housesel');
 
+let currentScenario = "Both houses playing";
+
+function selectedHouse() {
+  const v = housesel.value;
+  if (v.includes("Vashon")) return "Vashon";
+  if (v.includes("Cap Hill")) return "Cap Hill";
+  return "Roaming"; // roaming: every house is "elsewhere"
+}
+
 function render(name) {
+  currentScenario = name;
   const sc = SCENARIOS[name];
-  ew.innerHTML = sc.lines.map(l => `
+  const sel = selectedHouse();
+
+  // D7 house-awareness: the strip only shows houses you are NOT looking at.
+  // The selected house's state lives in the big Now Playing card below.
+  const visible = sc.lines.filter(l => l.house !== sel);
+  const hidden = sc.lines.filter(l => l.house === sel);
+
+  ew.innerHTML = visible.map(l => `
     <div class="ew-line ${l.cls}">
       <span class="ew-icon ${l.cls ? '' : 'ew-play'}">${l.icon}</span>
       <span class="ew-main">
@@ -181,11 +198,25 @@ function render(name) {
       </span>
       <span class="ew-go">${l.go}</span>
     </div>`).join('');
-  ew.style.display = sc.lines.length ? 'block' : 'none';
-  housesel.classList.toggle('other-playing', sc.otherPlaying);
-  note.textContent = sc.note;
+  ew.style.display = visible.length ? 'block' : 'none';
+
+  // Dropdown cue: green tint only when a NON-selected house is actively playing.
+  const otherLive = visible.some(l => l.icon === "▶");
+  housesel.classList.toggle('other-playing', otherLive);
+
+  let extra = `\n\nViewing: ${sel}.`;
+  if (hidden.length) {
+    extra += ` ${sel}'s own ${hidden.length} line(s) are hidden from the strip — that house's state is the main Now Playing card below${hidden.some(l => l.cls) ? " (incl. its stale/sleep notice, which would surface on the main card, not the strip)" : ""}.`;
+  } else if (sel === "Roaming") {
+    extra += " In Roaming, every house is \u201celsewhere\u201d \u2014 the strip shows all of them.";
+  } else {
+    extra += ` Nothing was playing at ${sel}, so nothing is hidden.`;
+  }
+  note.textContent = sc.note + extra;
   [...btns.children].forEach(b => b.classList.toggle('active', b.textContent === name));
 }
+
+housesel.onchange = () => render(currentScenario);
 
 Object.keys(SCENARIOS).forEach(name => {
   const b = document.createElement('button');
