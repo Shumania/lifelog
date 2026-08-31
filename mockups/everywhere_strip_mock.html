@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mockup — Everywhere Strip (p3.35 candidate, Rev 3)</title>
+<title>Mockup — Hero + Elsewhere Line (p3.35 candidate, Rev 4)</title>
 <style>
   :root {
     --bg: #0a0e1a; --panel: #111827; --panel2: #182236;
@@ -17,61 +17,84 @@
            border-radius: 18px; overflow: hidden; background: var(--bg);
            box-shadow: 0 8px 40px rgba(0,0,0,.5); }
 
-  /* ---- app header (mimics real page) ---- */
+  /* ---- app header ---- */
   .hdr { display: flex; align-items: center; gap: 8px; padding: 10px 12px 8px;
          border-bottom: 1px solid var(--border); }
   .hdr .logo { font-size: 16px; font-weight: 700; }
   .vchips { margin-left: auto; display: flex; gap: 6px; font-size: 10px; color: var(--text-dim); }
   .vchips span { background: var(--panel); padding: 2px 6px; border-radius: 8px; }
 
-  /* ---- EVERYWHERE STRIP (the new thing) ---- */
-  .ew { border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #0d1424, #0a0e1a); }
-  .ew-line { display: flex; align-items: center; gap: 9px; padding: 8px 12px;
-             cursor: pointer; transition: background .15s; }
-  .ew-line:hover { background: var(--panel); }
-  .ew-line + .ew-line { border-top: 1px solid rgba(35,45,66,.55); }
-  .ew-icon { font-size: 13px; width: 16px; text-align: center; flex: none; }
-  .ew-play { color: var(--accent); }
-  .ew-main { min-width: 0; flex: 1; }
-  .ew-where { font-size: 12px; font-weight: 650; letter-spacing: .01em; }
-  .ew-where .house { color: var(--accent2); }
-  .ew-track { font-size: 12px; color: var(--text-dim); white-space: nowrap;
-              overflow: hidden; text-overflow: ellipsis; }
-  .ew-track b { color: var(--text); font-weight: 550; }
-
-  /* stale / unknown lines */
-  .ew-stale .ew-where { color: var(--warn); font-weight: 550; }
-  .ew-stale .ew-icon { color: var(--warn); }
-  .ew-stale .ew-track { font-style: italic; }
-  .ew-stale { cursor: default; }
-  .ew-stale:hover { background: transparent; }
-  .ew-moon .ew-where { color: var(--moon); font-weight: 550; }
-  .ew-moon .ew-icon { color: var(--moon); }
-  .ew-moon .ew-track { font-style: italic; }
-  .ew-moon { cursor: default; }
-  .ew-moon:hover { background: transparent; }
-  .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
-
-  /* ---- house selector + chips (context, simplified) ---- */
-  .houserow { display: flex; align-items: center; gap: 8px; padding: 10px 12px 4px; }
+  .houserow { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
   select { background: var(--panel); color: var(--text); border: 1px solid var(--border);
            border-radius: 8px; padding: 5px 8px; font-size: 13px; }
   select.other-playing { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(52,211,153,.35); }
   .gear { margin-left: auto; color: var(--text-dim); }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 14px; }
+
+  /* ---- HERO: your selected house + group, unmistakable ---- */
+  .hero { margin: 6px 12px 10px; border: 1px solid var(--border); border-radius: 14px;
+          background: linear-gradient(180deg, #14203a, #101827); padding: 14px 14px 12px; }
+  .hero.playing { border-color: rgba(52,211,153,.5); }
+  .hero-where { font-size: 12px; color: var(--accent2); font-weight: 650; letter-spacing: .02em; }
+  .hero-state { float: right; font-size: 11px; color: var(--text-dim); }
+  .hero-track { font-size: 19px; font-weight: 700; margin-top: 6px; line-height: 1.25; }
+  .hero-artist { font-size: 14px; color: var(--text-dim); margin-top: 2px; }
+  .hero-sub { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+  .hero.quiet .hero-track { color: var(--text-dim); font-weight: 500; font-size: 16px; }
+  .hero.stale { border-color: rgba(251,191,36,.55); }
+  .hero.stale .hero-state { color: var(--warn); }
+  .hero.stale .hero-track { font-size: 15px; font-weight: 500; font-style: italic; }
+  .hero.moon { border-color: rgba(147,167,209,.5); }
+  .hero.moon .hero-state { color: var(--moon); }
+  .hero.moon .hero-track { font-size: 15px; font-weight: 500; font-style: italic; color: var(--moon); }
+  .hero-controls { display: flex; gap: 18px; margin-top: 10px; font-size: 17px; color: var(--text-dim); }
+
+  /* ---- ELSEWHERE: one info-only line for every other group ---- */
+  .elw { margin: 0 12px 12px; border-radius: 10px; background: var(--panel);
+         border: 1px solid var(--border); overflow: hidden; }
+  .elw-bar { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
+  .elw-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+               color: var(--text-dim); flex: none; }
+  .elw-sum { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden;
+             text-overflow: ellipsis; flex: 1; }
+  .elw-sum b { color: var(--text); font-weight: 550; }
+  .elw-sum .seg-play { color: var(--accent2); }
+  .elw-sum .seg-warn { color: var(--warn); }
+  .elw-sum .seg-moon { color: var(--moon); }
+  .elw-caret { color: var(--text-dim); font-size: 11px; flex: none; transition: transform .15s; }
+  .elw.open .elw-caret { transform: rotate(180deg); }
+  .elw-detail { display: none; border-top: 1px solid var(--border); }
+  .elw.open .elw-detail { display: block; }
+  .ew-line { display: flex; align-items: center; gap: 9px; padding: 8px 10px; cursor: pointer; }
+  .ew-line:hover { background: var(--panel2); }
+  .ew-line + .ew-line { border-top: 1px solid rgba(35,45,66,.55); }
+  .ew-icon { font-size: 13px; width: 16px; text-align: center; flex: none; }
+  .ew-play { color: var(--accent); }
+  .ew-main { min-width: 0; flex: 1; }
+  .ew-where { font-size: 12px; font-weight: 650; }
+  .ew-where .house { color: var(--accent2); }
+  .ew-track { font-size: 12px; color: var(--text-dim); white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; }
+  .ew-track b { color: var(--text); font-weight: 550; }
+  .ew-stale .ew-where, .ew-stale .ew-icon { color: var(--warn); }
+  .ew-stale .ew-track { font-style: italic; }
+  .ew-moon .ew-where, .ew-moon .ew-icon { color: var(--moon); }
+  .ew-moon .ew-track { font-style: italic; }
+  .ew-go { color: var(--text-dim); font-size: 12px; flex: none; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 12px 14px; }
   .chip { font-size: 12px; padding: 5px 10px; border-radius: 14px; background: var(--panel);
           border: 1px solid var(--border); color: var(--text-dim); }
   .chip.on { background: #12301f; border-color: var(--accent); color: var(--accent2); }
-  .body-hint { padding: 26px 12px 34px; text-align: center; color: var(--text-dim); font-size: 12px; }
+  .body-hint { padding: 20px 12px 30px; text-align: center; color: var(--text-dim); font-size: 12px; }
 
-  /* ---- scenario switcher (mock chrome, not part of design) ---- */
+  /* ---- scenario switcher (mock chrome only) ---- */
   .scenarios { max-width: 430px; margin: 0 auto 40px; padding: 0 4px; }
   .scenarios h3 { font-size: 13px; color: var(--text-dim); font-weight: 600; margin: 18px 8px 8px; }
   .sc-btns { display: flex; flex-wrap: wrap; gap: 8px; }
   .sc-btns button { background: var(--panel2); color: var(--text); border: 1px solid var(--border);
                     border-radius: 10px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
   .sc-btns button.active { border-color: var(--accent); color: var(--accent2); }
-  .sc-note { margin: 10px 8px 0; font-size: 12px; color: var(--text-dim); min-height: 50px; }
+  .sc-note { margin: 10px 8px 0; font-size: 12px; color: var(--text-dim); min-height: 64px; white-space: pre-line; }
 </style>
 </head>
 <body>
@@ -82,22 +105,20 @@
     <div class="vchips"><span>Mind v2.67.0</span><span>ShumaFrame v2.67.0</span><span>p3.35</span></div>
   </div>
 
-  <div class="ew" id="ew"></div>
-
   <div class="houserow">
     <select id="housesel"><option>🏝 Vashon</option><option>🏠 Cap Hill</option><option>📱 Roaming</option></select>
     <span class="gear">⚙</span>
   </div>
-  <div class="chips">
-    <span class="chip on">Maury</span><span class="chip on">Green Kitchen Move</span>
-    <span class="chip on">Sonos Move</span><span class="chip">Garage</span>
-    <span class="chip">Shed Arc</span><span class="chip">Shed Boombox</span>
-  </div>
-  <div class="body-hint">… rest of page unchanged (Now Playing, History, Playlists, Shortcuts) …</div>
+
+  <div class="hero" id="hero"></div>
+  <div class="elw" id="elw"></div>
+  <div class="chips" id="chips"></div>
+
+  <div class="body-hint">… rest of page unchanged (queue drawer, History, Playlists, Shortcuts) …</div>
 </div>
 
 <div class="scenarios">
-  <h3>Mock scenarios — tap to preview</h3>
+  <h3>Mock scenarios — tap to preview, then flip the house selector</h3>
   <div class="sc-btns" id="btns"></div>
   <div class="sc-note" id="note"></div>
 </div>
@@ -105,78 +126,135 @@
 <script>
 const SCENARIOS = {
   "Both houses playing": {
-    note: "The happy path. One line per playing group, anywhere. Tap a line → that house tab with those rooms selected.",
+    note: "Happy path: your group is the hero; every other group collapses into one info-only line.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×5", track: "<b>Whole Lotta Love</b> — Led Zeppelin", go: "›" },
       { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream", go: "›" }
-    ],
-    otherPlaying: true
+    ]
   },
   "Both houses, multi-zone": {
-    note: "Busiest realistic case: two groups per house, four lines. Per house, the page knows the most recent track (that group gets the title); other groups get an honest ♪ playing. Strip grows one compact row per group and stays scannable.",
+    note: "Busiest realistic case: two groups per house. Your group = hero. The OTHER group in your own house joins the elsewhere line too — 'elsewhere' means every group that isn't yours, same house or not. Tap the line to expand detail.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Main Floor ×3", track: "<b>La Femme d'Argent</b> — Air", go: "›" },
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Master Suite ×2", track: "♪ playing", go: "›" },
       { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc +1", track: "<b>Prisma Tropical</b> — Balún", go: "›" },
       { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "♪ playing", go: "›" }
-    ],
-    otherPlaying: true
+    ]
   },
   "One group, one house": {
-    note: "Most common case: a single line. Strip stays one row tall.",
+    note: "Most common case. If it's YOUR group: big hero, no elsewhere line at all. If it's the other house: quiet hero + one-line summary below.",
     lines: [
       { icon: "▶", cls: "", house: "Vashon", rooms: "Garage", track: "<b>El Espanto</b> — Balún", go: "›" }
-    ],
-    otherPlaying: false
+    ]
   },
   "Garbage title (E5)": {
-    note: "E5: Sonos sometimes reports junk metadata (\"? — ?\"). The strip renders ♪ playing instead of asserting nonsense. Radio streams show the station name.",
+    note: "E5: Sonos sometimes reports junk metadata (\"? — ?\"). Renders as ♪ playing rather than asserting nonsense; radio streams show the station name.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Basement Study", track: "♪ playing", go: "›" }
-    ],
-    otherPlaying: true
+    ]
   },
   "Stale: track overdue (⚠)": {
-    note: "E1+D6b: staleness is judged by STATE, not a heartbeat clock (heartbeats are near-timeless by design; idle keepalive is only a 4h liveness signal). A playing TRACK has a known length — if it should have ended long ago and no event arrived, something's wrong. Line shows when last heard + what was last reported, past tense, never rendered live.",
+    note: "E1+D6b: staleness judged by STATE, not a heartbeat clock. A playing track has a known length — long past its end with no event = ⚠. If the stale house is the one you're VIEWING, the warning takes over the hero (past tense, never rendered live). Otherwise it's a compact ⚠ segment in the elsewhere line.",
     lines: [
       { icon: "▶", cls: "", house: "Cap Hill", rooms: "Backyard", track: "<b>Harvest Moon</b> — Neil Young", go: "›" },
       { icon: "⚠", cls: "ew-stale", house: "Vashon", rooms: "last seen 72m ago", track: "was playing: Shed Arc — Balún \u201cEl Espanto\u201d · track ended ~55m ago, no update since", go: "" }
-    ],
-    otherPlaying: true
+    ]
   },
   "Long stream, aging honestly": {
-    note: "A radio stream can legitimately play for hours with zero events — silence is NOT suspicious, so no ⚠. But past ~30 min the line stops implying real-time knowledge and carries an as-of stamp. This is the honest middle: probably still true, timestamped so you can judge.",
+    note: "A stream can play for hours with zero events — silence is NOT suspicious, no ⚠. Past ~30 min the display stops implying real-time knowledge and carries an as-of stamp.",
     lines: [
       { icon: "▶", cls: "", house: "Vashon", rooms: "Shed Arc", track: "<b>KEXP 90.3</b> · live stream · as of 43m ago", go: "›" }
-    ],
-    otherPlaying: false
+    ]
   },
   "Quiet hours (countdown)": {
-    note: "Machines deliberately sleep 10 PM–7 AM. That's not an outage, so no ⚠ — a 🌙 line with the next-report countdown instead (the one place a countdown is honest: the 7 AM wake is scheduled). If all was quiet at 10 PM, the strip stays hidden.",
+    note: "Machines sleep 10 PM–7 AM by design — 🌙, not ⚠. The 7 AM wake is scheduled, so this is the one honest countdown.",
     lines: [
       { icon: "🌙", cls: "ew-moon", house: "Vashon", rooms: "sleeping (quiet hours)", track: "last seen 11:58 PM: all quiet · next check-in ~7:00 AM (in 4h 12m)", go: "" }
-    ],
-    otherPlaying: false
+    ]
   },
   "All quiet": {
-    note: "D6: silence costs zero pixels — the strip is simply gone. (The ▶ house-dropdown cue disappears too.)",
-    lines: [],
-    otherPlaying: false
+    note: "Hero says so plainly for your group; no elsewhere line at all — silence elsewhere costs zero pixels.",
+    lines: []
   }
 };
 
-const ew = document.getElementById('ew');
-const btns = document.getElementById('btns');
-const note = document.getElementById('note');
-const housesel = document.getElementById('housesel');
-
+const hero = document.getElementById('hero'), elw = document.getElementById('elw'),
+      chips = document.getElementById('chips'), btns = document.getElementById('btns'),
+      note = document.getElementById('note'), housesel = document.getElementById('housesel');
 let currentScenario = "Both houses playing";
+let elwOpen = false;
 
 function selectedHouse() {
   const v = housesel.value;
   if (v.includes("Vashon")) return "Vashon";
   if (v.includes("Cap Hill")) return "Cap Hill";
-  return "Roaming"; // roaming: every house is "elsewhere"
+  return "Roaming";
+}
+
+const DEFAULT_CHIPS = {
+  "Vashon": ["Maury", "Green Kitchen Move", "Sonos Move"],
+  "Cap Hill": ["Living Room", "Dining Room", "Kitchen"]
+};
+
+function titleOf(l) {
+  const m = l.track.match(/<b>(.*?)<\/b>/);
+  return m ? m[1] : (l.track.startsWith("♪") ? "♪" : l.track);
+}
+
+function renderHero(sel, mine) {
+  if (sel === "Roaming") {
+    hero.className = "hero quiet";
+    hero.innerHTML = `<span class="hero-state">roaming</span>
+      <div class="hero-where">📱 ROAMING</div>
+      <div class="hero-track">No speakers here — deep links open Spotify ↗</div>
+      <div class="hero-sub">All homes appear below.</div>`;
+    chips.innerHTML = "";
+    return;
+  }
+  const line = mine[0];
+  if (!line) {
+    hero.className = "hero quiet";
+    hero.innerHTML = `<span class="hero-state">quiet</span>
+      <div class="hero-where">${sel.toUpperCase()} · ${DEFAULT_CHIPS[sel].join(" + ")}</div>
+      <div class="hero-track">Nothing playing</div>
+      <div class="hero-sub">Pick something from Playlists or Shortcuts ↓</div>`;
+  } else if (line.cls === "ew-stale") {
+    hero.className = "hero stale";
+    hero.innerHTML = `<span class="hero-state">⚠ ${line.rooms}</span>
+      <div class="hero-where">${sel.toUpperCase()}</div>
+      <div class="hero-track">${line.track}</div>
+      <div class="hero-sub">This house's reporter has gone quiet — speakers may still be playing. Sonos app works normally.</div>`;
+  } else if (line.cls === "ew-moon") {
+    hero.className = "hero moon";
+    hero.innerHTML = `<span class="hero-state">🌙 quiet hours</span>
+      <div class="hero-where">${sel.toUpperCase()}</div>
+      <div class="hero-track">${line.track}</div>`;
+  } else {
+    const parts = line.track.replace(/<\/?b>/g, "§").split("§");
+    const title = parts[1] || line.track, rest = (parts[2] || "").replace(/^ — /, "").replace(/^ · /, "");
+    hero.className = "hero playing";
+    hero.innerHTML = `<span class="hero-state">▶ playing</span>
+      <div class="hero-where">${sel.toUpperCase()} · ${line.rooms}</div>
+      <div class="hero-track">${title === "♪ playing" ? "♪ Playing" : title}</div>
+      ${rest ? `<div class="hero-artist">${rest}</div>` : ""}
+      <div class="hero-controls"><span>⏮</span><span>⏯</span><span>⏭</span><span style="margin-left:auto">🔊 18</span></div>`;
+  }
+  chips.innerHTML = (line && line.cls === "" ? roomChips(line.rooms, sel) : DEFAULT_CHIPS[sel])
+    .map((c, i) => `<span class="chip ${i < 3 ? "on" : ""}">${c}</span>`).join("");
+}
+
+function roomChips(rooms, sel) {
+  if (rooms.includes("Main Floor")) return ["Living Room", "Dining Room", "Kitchen"];
+  if (rooms.includes("Master Suite")) return ["Master Bedroom", "Master Bathroom"];
+  return [rooms.split(" +")[0], ...DEFAULT_CHIPS[sel].slice(0, 2)];
+}
+
+function seg(l, sel) {
+  const houseTag = l.house === sel ? "" : `${l.house}: `;
+  if (l.cls === "ew-stale") return `<span class="seg-warn">⚠ ${l.house} last seen 72m</span>`;
+  if (l.cls === "ew-moon") return `<span class="seg-moon">🌙 ${l.house} asleep</span>`;
+  const t = titleOf(l);
+  return `<span class="seg-play">▶</span> ${houseTag}${l.rooms}${t === "♪" ? "" : ` — <b>${t}</b>`}`;
 }
 
 function render(name) {
@@ -184,47 +262,51 @@ function render(name) {
   const sc = SCENARIOS[name];
   const sel = selectedHouse();
 
-  // D7 house-awareness: the strip only shows houses you are NOT looking at.
-  // The selected house's state lives in the big Now Playing card below.
-  const visible = sc.lines.filter(l => l.house !== sel);
-  const hidden = sc.lines.filter(l => l.house === sel);
+  const mine = sel === "Roaming" ? [] : sc.lines.filter(l => l.house === sel);
+  const elsewhere = [...mine.slice(1), ...sc.lines.filter(l => l.house !== sel)];
 
-  ew.innerHTML = visible.map(l => `
-    <div class="ew-line ${l.cls}">
-      <span class="ew-icon ${l.cls ? '' : 'ew-play'}">${l.icon}</span>
-      <span class="ew-main">
-        <span class="ew-where"><span class="house">${l.house}</span> · ${l.rooms}</span>
-        ${l.track ? `<div class="ew-track">${l.track}</div>` : ''}
-      </span>
-      <span class="ew-go">${l.go}</span>
-    </div>`).join('');
-  ew.style.display = visible.length ? 'block' : 'none';
+  renderHero(sel, mine);
 
-  // Dropdown cue: green tint only when a NON-selected house is actively playing.
-  const otherLive = visible.some(l => l.icon === "▶");
-  housesel.classList.toggle('other-playing', otherLive);
-
-  let extra = `\n\nViewing: ${sel}.`;
-  if (hidden.length) {
-    extra += ` ${sel}'s own ${hidden.length} line(s) are hidden from the strip — that house's state is the main Now Playing card below${hidden.some(l => l.cls) ? " (incl. its stale/sleep notice, which would surface on the main card, not the strip)" : ""}.`;
-  } else if (sel === "Roaming") {
-    extra += " In Roaming, every house is \u201celsewhere\u201d \u2014 the strip shows all of them.";
+  if (elsewhere.length === 0) {
+    elw.style.display = "none";
   } else {
-    extra += ` Nothing was playing at ${sel}, so nothing is hidden.`;
+    elw.style.display = "block";
+    elw.className = "elw" + (elwOpen ? " open" : "");
+    elw.innerHTML = `
+      <div class="elw-bar" onclick="toggleElw()">
+        <span class="elw-label">Elsewhere</span>
+        <span class="elw-sum">${elsewhere.map(l => seg(l, sel)).join(" &nbsp;·&nbsp; ")}</span>
+        <span class="elw-caret">⌄</span>
+      </div>
+      <div class="elw-detail">${elsewhere.map(l => `
+        <div class="ew-line ${l.cls}">
+          <span class="ew-icon ${l.cls ? "" : "ew-play"}">${l.icon}</span>
+          <span class="ew-main">
+            <span class="ew-where"><span class="house">${l.house}</span> · ${l.rooms}</span>
+            ${l.track ? `<div class="ew-track">${l.track}</div>` : ""}
+          </span>
+          <span class="ew-go">${l.go}</span>
+        </div>`).join("")}
+      </div>`;
   }
-  note.textContent = sc.note + extra;
-  [...btns.children].forEach(b => b.classList.toggle('active', b.textContent === name));
+
+  const live = elsewhere.some(l => l.icon === "▶");
+  housesel.classList.toggle("other-playing", live);
+
+  note.textContent = sc.note + `\n\nViewing: ${sel}. Elsewhere = every group that isn't yours (same house or other house). Collapsed by default; tap to expand; tap a detail row → jump to that house/group.`;
+  [...btns.children].forEach(b => b.classList.toggle("active", b.textContent === name));
 }
 
+function toggleElw() { elwOpen = !elwOpen; render(currentScenario); }
 housesel.onchange = () => render(currentScenario);
 
 Object.keys(SCENARIOS).forEach(name => {
-  const b = document.createElement('button');
+  const b = document.createElement("button");
   b.textContent = name;
   b.onclick = () => render(name);
   btns.appendChild(b);
 });
-render("Both houses playing");
+render("Both houses, multi-zone");
 </script>
 </body>
 </html>
