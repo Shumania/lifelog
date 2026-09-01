@@ -1279,7 +1279,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.36';
+const PAGE_VERSION = 'p3.37';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1288,6 +1288,10 @@ const NTFY = {
 const NTFY_UI_SSE = 'https://ntfy.sh/lifelog-ui-caphill-b1f1ef,lifelog-ui-vashon-b84d1d/sse';
 const DATA_HEAD_URL = 'https://shumania.github.io/lifelog/data-head.json';
 const DATA_FULL_URL = 'https://shumania.github.io/lifelog/data.json';
+// p3.37: Shazams (published nightly from consumption_history via publish_shazams.ts).
+// Merged client-side into allItems as type:'shazam' rows — the head/archive pipeline
+// is deliberately untouched (standalone file, same pattern as archive: fetch + 6h refresh).
+const SHAZAMS_URL = 'https://shumania.github.io/lifelog/shazams.json';
 const STATE_URLS = {
   caphill: 'https://shumania.github.io/lifelog/state-caphill.json',
   vashon: 'https://shumania.github.io/lifelog/state-vashon.json'
@@ -1344,7 +1348,8 @@ let data = null;  // data-head.json
 let archiveItems = [];
 let archiveLoaded = false;
 let _archiveFetchedAt = 0;  // p2.53: wall-clock of last data.json fetch (6h re-fetch)
-let allItems = [];  // merged head + archive
+let _shazamItems = [];      // p3.37: shazams.json items (type:'shazam'), fetched with the archive
+let allItems = [];  // merged head + archive + shazams
 let commanderId = null;
 
 // SSE state
@@ -4037,7 +4042,7 @@ async function loadData(loadArchive) {
     // so every 60s tick rebuilt allItems from a ~75-item head + a stale archive.
     // Tracks older than the head window but newer than the archive snapshot were
     // silently dropped → multi-day "gaps" in History. Keep previously merged items.
-    allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
+    allItems = sortItemsDesc(mergeItems(mergeItems(mergeItems(headItems, allItems), archiveItems), _shazamItems));  // p3.37: shazams ride the same idempotent merge (dedup key ts|title)
     pruneTracksProv(); // p2.85: published truth removes provisional live rows
     // p2.81 Rider A: _reinferPaused() deleted — pause clocks come from the service now
     // p2.62: auto tab flip removed — dot on inactive tab shows other-house activity instead
@@ -4061,7 +4066,19 @@ async function loadData(loadArchive) {
   if (loadArchive || !archiveLoaded || archiveStale) {
     try {
       if (archiveStale) console.log('[loadData] archive snapshot >6h old — re-fetching data.json');
-      const r2 = await fetch(DATA_FULL_URL + '?t=' + Date.now());
+      // p3.37: shazams fetched alongside the archive (same cadence: cold load + 6h + deep refresh).
+      // Failure is non-fatal — Tracks view just renders without shazam rows until next fetch.
+      const [r2, rShz] = await Promise.all([
+        fetch(DATA_FULL_URL + '?t=' + Date.now()),
+        fetch(SHAZAMS_URL + '?t=' + Date.now()).catch(() => null)
+      ]);
+      if (rShz && rShz.ok) {
+        try {
+          const shz = await rShz.json();
+          _shazamItems = (shz.items || []).filter(s => s && s.timestamp && s.title);
+          console.log('[loadData] shazams.json: ' + _shazamItems.length + ' items');
+        } catch (eS) { console.warn('[loadData] shazams.json parse failed:', eS && eS.message); }
+      } else if (rShz) { console.warn('[loadData] shazams.json HTTP ' + rShz.status); }
       const full = await r2.json();
       archiveItems = full.items || [];
       archiveLoaded = true;
@@ -4070,7 +4087,7 @@ async function loadData(loadArchive) {
       // p2.41: also merge current allItems — the old code rebuilt from raw head+archive
       // only, silently dropping fresher tracks merged in after a Sync (they vanished
       // from History until the next full publish).
-      allItems = sortItemsDesc(mergeItems(mergeItems(headItems, allItems), archiveItems));
+      allItems = sortItemsDesc(mergeItems(mergeItems(mergeItems(headItems, allItems), archiveItems), _shazamItems));  // p3.37: shazams ride the same idempotent merge (dedup key ts|title)
       pruneTracksProv(); // p2.85: published truth removes provisional live rows
       renderHistory();
       updateCounts();
@@ -4246,9 +4263,38 @@ async function enrichRadioSession(sessionId) {
   }
 }
 
+// p3.37: Shazam row — a song Andrew reached for his phone to identify. Data arrives via
+// shazams.json (type:'shazam'); timestamp is the real Shazam moment (Spotify sync added_at).
+// No location label (Shazam happens out in the world), no album/ctx panel (not captured).
+// ▶/+/♥/🔍 all work off track_id+uri like any history row.
+function renderShazamItem(item) {
+  const playData = encodeURIComponent(JSON.stringify({uri:item.uri||'',sonos_uri:'',track_id:item.track_id||'',title:item.title,artist:item.artist||'',album:'',service:'spotify'})).replace(/'/g,'%27');
+  const exploreData = encodeURIComponent(JSON.stringify({title:item.title,artist:item.artist,album:'',source:'shazam',uri:item.uri||'',
+    ctx:{uri:item.uri||'',album:'',artist:item.artist||'',title:item.title||'',context_type:'',context_uri:'',service:'shazam',sonos_uri:'',album_id:''}})).replace(/'/g,'%27');
+  return `<div class="history-item">
+    <div class="hi-time-col"><div class="hi-time">${fmtTime(item.timestamp)}</div></div>
+    <div class="hi-info">
+      <div class="hi-line1">
+        <span class="hi-track">${esc(item.title)}</span>
+        ${item.artist ? '<span class="hi-sep">·</span><span class="hi-artist">' + esc(item.artist) + '</span>' : ''}
+      </div>
+      <div class="hi-line2">
+        <span class="hi-source-badge" title="Shazamed — identified in the wild">🔍 Shazam</span>
+      </div>
+    </div>
+    <div class="hi-actions">
+      <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
+      <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
+      ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', 'shazam')}
+      ${exploreButton(item.artist, exploreData)}
+      <span class="action-btn ctx-spacer" style="visibility:hidden;pointer-events:none">▾</span>
+    </div>
+  </div>`;
+}
+
 function renderHistory() {
   const el = document.getElementById('music-list');
-  const music = allItems.filter(i => i.type === 'music' || i.type === 'radio_session');
+  const music = allItems.filter(i => i.type === 'music' || i.type === 'radio_session' || i.type === 'shazam');  // p3.37: shazams in the timeline
   if (music.length === 0) { el.innerHTML = '<div class="empty-state">🎧 No music history yet</div>'; return; }
 
   let html = '', lastDay = '';
@@ -4262,6 +4308,12 @@ function renderHistory() {
     // Radio session — special rendering
     if (item.type === 'radio_session') {
       html += renderRadioSession(item);
+      continue;
+    }
+
+    // p3.37: Shazam — compact row, distinct 🔍 badge, no location claim (Shazam happens anywhere)
+    if (item.type === 'shazam') {
+      html += renderShazamItem(item);
       continue;
     }
 
@@ -4347,13 +4399,15 @@ function updateCounts() {
 // p2.96: Tracks-zoom ledger row — mirrors the Sessions/Days summary line so the
 // Tracks|Sessions|Days toggles all keep the toolbar populated (was blank in Tracks).
 function tracksLedgerLine() {
-  let music = 0, radio = 0, pods = 0; const days = new Set();
+  let music = 0, radio = 0, pods = 0, shz = 0; const days = new Set();
   for (const i of allItems) {
     if (i.type === 'music') { music++; days.add(dayKey(i.timestamp)); }
     else if (i.type === 'radio_session') { radio++; days.add(dayKey(i.timestamp)); }
+    else if (i.type === 'shazam') { shz++; days.add(dayKey(i.timestamp)); }  // p3.37
     else if (i.type === 'podcast' && (i.duration_seconds || 0) > 0) pods++;
   }
   let line = music + ' tracks' + (radio ? ' · ' + radio + ' radio sessions' : '')
+    + (shz ? ' · ' + shz + ' shazams' : '')
     + (pods ? ' · ' + pods + ' podcasts' : '') + ' · ' + days.size + ' days loaded';
   if (data && data.generated_at) line += ' · updated ' + fmtRelative(new Date(data.generated_at));
   return line;
