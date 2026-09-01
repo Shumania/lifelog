@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-08-31T10:24:36.731Z",
- "pick_date": "2026-08-31",
- "work_key": "ARR-ALIO-MODO",
- "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
- "performer": "Fretwork",
- "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
- "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY",
- "instrumentation": "viol_consort",
- "approx_minutes": 65,
- "reason": "✨ never heard · avoided chamber",
+ "picked_at": "2026-09-01T10:22:17.651Z",
+ "pick_date": "2026-09-01",
+ "work_key": "BWV971+972-987sel",
+ "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
+ "performer": "Alexandre Tharaud",
+ "album": "Bach: Concertos Italiens",
+ "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU",
+ "instrumentation": "piano",
+ "approx_minutes": 70,
+ "reason": "✨ never heard · avoided viol_consort",
  "fallback": {
-  "work_key": "BWV971+972-987sel",
-  "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
-  "performer": "Alexandre Tharaud",
-  "album": "Bach: Concertos Italiens",
-  "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU"
+  "work_key": "BWV1021+1023+misc",
+  "work": "Sonatas for Violin & Continuo",
+  "performer": "Isabelle Faust & Kristian Bezuidenhout",
+  "album": "J.S. Bach: Sonatas for Violin and Continuo",
+  "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0"
  }
 }
