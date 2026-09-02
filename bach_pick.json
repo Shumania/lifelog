@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-01T10:22:17.651Z",
- "pick_date": "2026-09-01",
- "work_key": "BWV971+972-987sel",
- "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
- "performer": "Alexandre Tharaud",
- "album": "Bach: Concertos Italiens",
- "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU",
- "instrumentation": "piano",
- "approx_minutes": 70,
- "reason": "✨ never heard · avoided viol_consort",
+ "picked_at": "2026-09-02T10:52:42.754Z",
+ "pick_date": "2026-09-02",
+ "work_key": "BWV1014-1019-vol1",
+ "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 1 (three of six)",
+ "performer": "Rachel Podger & Trevor Pinnock",
+ "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 1",
+ "spotify_album_uri": "spotify:album:7vRnQ9WbUYJ7mmVygqfU9k",
+ "instrumentation": "chamber",
+ "approx_minutes": 71,
+ "reason": "✨ never heard · avoided piano",
  "fallback": {
-  "work_key": "BWV1021+1023+misc",
-  "work": "Sonatas for Violin & Continuo",
-  "performer": "Isabelle Faust & Kristian Bezuidenhout",
-  "album": "J.S. Bach: Sonatas for Violin and Continuo",
-  "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0"
+  "work_key": "ARR-WTC-CONSORT-II",
+  "work": "The Well-Tempered Consort II",
+  "performer": "Phantasm",
+  "album": "J.S. Bach: The Well-Tempered Consort – II",
+  "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
  }
 }
