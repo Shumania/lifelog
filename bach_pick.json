@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-02T10:52:42.754Z",
- "pick_date": "2026-09-02",
- "work_key": "BWV1014-1019-vol1",
- "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 1 (three of six)",
- "performer": "Rachel Podger & Trevor Pinnock",
- "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 1",
- "spotify_album_uri": "spotify:album:7vRnQ9WbUYJ7mmVygqfU9k",
- "instrumentation": "chamber",
- "approx_minutes": 71,
- "reason": "✨ never heard · avoided piano",
+ "picked_at": "2026-09-03T10:20:35.859Z",
+ "pick_date": "2026-09-03",
+ "work_key": "BWV846-869",
+ "work": "The Well-Tempered Clavier, Book I",
+ "performer": "Glenn Gould",
+ "album": "Bach: The Well-Tempered Clavier, Book I, Preludes & Fugues BWV 846-869",
+ "spotify_album_uri": "spotify:album:5NqQLA1NCo6hP2GHiHxip5",
+ "instrumentation": "piano",
+ "approx_minutes": 105,
+ "reason": "last heard 82d ago · avoided chamber",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-II",
-  "work": "The Well-Tempered Consort II",
-  "performer": "Phantasm",
-  "album": "J.S. Bach: The Well-Tempered Consort – II",
-  "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
+  "work_key": "BWV1007-1012",
+  "work": "Six Cello Suites",
+  "performer": "Yo-Yo Ma",
+  "album": "Six Evolutions - Bach: Cello Suites",
+  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
  }
 }
