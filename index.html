@@ -317,6 +317,11 @@
     border-bottom: 1px solid rgba(35, 41, 64, 0.6);
   }
   .history-item:active { background: var(--surface2); }
+  /* p3.38: expanded radio tracklist is a 3rd flex child of the row — must wrap onto its own
+     full-width line and be allowed to shrink, else nowrap track rows push the page wider than
+     the phone viewport (IMG_9494, 2026-09-02). */
+  .history-item.radio-session { flex-wrap: wrap; }
+  .history-item.radio-session .radio-tracks { flex: 1 1 100%; width: 100%; min-width: 0; box-sizing: border-box; }
 
   .hi-time-col { width: 50px; flex-shrink: 0; text-align: right; padding: 3px 8px 0 6px; }
   .hi-time { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
@@ -1279,7 +1284,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.37';
+const PAGE_VERSION = 'p3.38';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
