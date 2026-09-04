@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-03T10:20:35.859Z",
- "pick_date": "2026-09-03",
- "work_key": "BWV846-869",
- "work": "The Well-Tempered Clavier, Book I",
- "performer": "Glenn Gould",
- "album": "Bach: The Well-Tempered Clavier, Book I, Preludes & Fugues BWV 846-869",
- "spotify_album_uri": "spotify:album:5NqQLA1NCo6hP2GHiHxip5",
- "instrumentation": "piano",
- "approx_minutes": 105,
- "reason": "last heard 82d ago · avoided chamber",
+ "picked_at": "2026-09-04T10:18:03.565Z",
+ "pick_date": "2026-09-04",
+ "work_key": "BWV1021+1023+misc",
+ "work": "Sonatas for Violin & Continuo",
+ "performer": "Isabelle Faust & Kristian Bezuidenhout",
+ "album": "J.S. Bach: Sonatas for Violin and Continuo",
+ "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0",
+ "instrumentation": "chamber",
+ "approx_minutes": 70,
+ "reason": "✨ never heard · avoided piano",
  "fallback": {
-  "work_key": "BWV1007-1012",
-  "work": "Six Cello Suites",
-  "performer": "Yo-Yo Ma",
-  "album": "Six Evolutions - Bach: Cello Suites",
-  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
+  "work_key": "ARR-WTC-CONSORT-II",
+  "work": "The Well-Tempered Consort II",
+  "performer": "Phantasm",
+  "album": "J.S. Bach: The Well-Tempered Consort – II",
+  "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
  }
 }
