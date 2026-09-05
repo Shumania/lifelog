@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.67.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.68.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -751,6 +751,10 @@ print("[v2.65.0] coordinator hardening + move_music: phantom-playing guard in _s
 # v2.67.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
 print("[v2.67.0] fresh-topology stamp in _setup_rooms: play-path regroups now stamp "
       "_poll_snapshot['groups'] immediately (no ~15s stale-topology window after play-now regroup)")
+# v2.68.0 boot marker (Rule 24 §3: verify a log line UNIQUE to the new version)
+print("[v2.68.0] member-relay phantom guard in _setup_rooms: x-rincon: slave URIs are not media, "
+      "never promoted to group primary (fixes UPnP 800 queue wipe, system_errors #117); "
+      "[ctx-diag] field-study log line removed")
 
 # --- GITHUB STATE PUSH (real-time state.json for cross-device UX) -----------
 # DESIGN NOTE: Pushes a small state-{house}.json to GitHub after each track change.
@@ -3754,29 +3758,16 @@ def get_track_info(device):
                 log(f"[DIDL-safety] No valid title after clearing non-string on {name}")
                 return None
         ctx = get_container_context(device)
-        _ctx_pre = dict(ctx) if isinstance(ctx, dict) else None
         # v2.59 C3: sanitize ONCE at the source — history buffer, SSE rows,
         # state ring (F9) and room_state all receive the same cleaned container.
         # _san_fields carries suppression archaeology (+ Q6 inserted_track flag)
         # onto track_info so buffer rows land them in raw_metadata.
         ctx, _san_fields = sanitize_container(ctx, uri, album_raw, device.player_name)
-        # v2.62 DIAG [ctx-diag] (field study, 2026-08-15): one line per track
-        # change showing what the speaker REPORTED (EnqueuedTransportURI harvest,
-        # pre-sanitize) vs what SURVIVED sanitize — measures how often native
-        # Sonos-app / Spotify-cast plays name their container, before we build
-        # insert-attribution on that signal. Never raises; remove after study.
-        try:
-            def _cd(c):
-                if not c: return "none"
-                cu = c.get("container_uri", "") or ""
-                kind = cu.split(":", 1)[0] if cu else "-"
-                nm = (c.get("container_name", "") or "")[:60]
-                sp = c.get("spotify_context", "") or "-"
-                return f"kind={kind} name='{nm}' spotify={sp}"
-            _sup = ",".join(sorted(_san_fields.keys())) if _san_fields else "-"
-            log(f"[ctx-diag] {device.player_name}: pre[{_cd(_ctx_pre)}] post[{_cd(ctx)}] san_fields={_sup}")
-        except Exception as _cd_err:
-            log(f"[ctx-diag] diag line failed (non-fatal): {_cd_err}")
+        # v2.62 [ctx-diag] field-study line lived here (v2.62.0–v2.67.0). Verdict
+        # harvested 2026-08-25: organic Spotify/Sonos-app plays report NO container
+        # name (empty string), only the spotify context URI; pre==post always.
+        # Removed in v2.68.0 — container display names for radio/organic plays must
+        # come from our own resolution, not the speaker.
         # v2.62 INSERT-RANGE ATTRIBUTION: sanitize left this row honest-blank
         # (typical for our own play_next/add_to_queue container inserts — the
         # speaker still reports the PREVIOUS load's Enqueued container, which
@@ -4224,11 +4215,27 @@ def _setup_rooms(cmd, devices, _no_prefer=False):
                         # and keep scanning. A failed read also skips (fail closed) — an
                         # unreadable device must not be handed group leadership.
                         _has_media = False
+                        _is_member_relay = False
+                        _cur_uri = ""
                         try:
                             _mi = _coord.avTransport.GetMediaInfo([("InstanceID", 0)])
-                            _has_media = bool((_mi.get("CurrentURI") or "").strip())
+                            _cur_uri = (_mi.get("CurrentURI") or "").strip()
+                            # v2.68.0 MEMBER-RELAY GUARD (2026-09-04 incident, system_errors #117):
+                            # a group SLAVE reports PLAYING with CurrentURI = "x-rincon:RINCON_..."
+                            # — that is not media, it is the slave's pointer to its coordinator.
+                            # Stale SoCo topology right after a regroup made Dining Room look like
+                            # its own coordinator; the v2.65 non-empty check passed it, it got
+                            # promoted to primary, the queue-replace hit a non-coordinator
+                            # (UPnP 800) and the queue was wiped with nothing playing. Exact
+                            # "x-rincon:" prefix only — legit coordinator forms x-rincon-queue: /
+                            # x-rincon-stream: / x-rincon-mp3radio: have a hyphen, never match.
+                            _is_member_relay = _cur_uri.startswith("x-rincon:")
+                            _has_media = bool(_cur_uri) and not _is_member_relay
                         except Exception as _mi_err:
                             log(f"_setup_rooms: [phantom-guard] GetMediaInfo failed on '{_cname}' ({_mi_err}) — treating as phantom, not promoting")
+                        if _is_member_relay:
+                            log(f"_setup_rooms: [phantom-guard v2.68] '{_cname}' claims PLAYING but is a group MEMBER relaying its coordinator ({_cur_uri}) — not promoted")
+                            continue
                         if not _has_media:
                             log(f"_setup_rooms: [phantom-guard] '{_cname}' claims PLAYING but has no media URI — phantom read, not promoted")
                             continue
