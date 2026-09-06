@@ -1,19 +1,13 @@
 {
- "picked_at": "2026-09-05T10:20:34.194Z",
- "pick_date": "2026-09-05",
- "work_key": "BWV1080-consort",
- "work": "The Art of Fugue (viol consort)",
- "performer": "Fretwork",
- "album": "J.S. Bach: The Art of Fugue",
- "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx",
- "instrumentation": "viol_consort",
- "approx_minutes": 80,
- "reason": "last heard 50d ago · avoided chamber",
- "fallback": {
-  "work_key": "BWV1004-1006",
-  "work": "Violin Partitas Nos. 2 & 3, Sonata No. 3",
-  "performer": "Hilary Hahn",
-  "album": "Hilary Hahn Plays Bach",
-  "spotify_album_uri": "spotify:album:2GLJLkriVbdfDi5W5e3LJM"
- }
+ "picked_at": "2026-09-06T10:16:41.478Z",
+ "pick_date": "2026-09-06",
+ "work_key": "BWV1014-1019-vol2",
+ "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+ "performer": "Rachel Podger & Trevor Pinnock",
+ "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+ "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn",
+ "instrumentation": "chamber",
+ "approx_minutes": 71,
+ "reason": "✨ never heard · avoided viol_consort",
+ "fallback": null
 }
