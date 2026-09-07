@@ -1,13 +1,13 @@
 {
- "picked_at": "2026-09-06T10:16:41.478Z",
- "pick_date": "2026-09-06",
- "work_key": "BWV1014-1019-vol2",
- "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
- "performer": "Rachel Podger & Trevor Pinnock",
- "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
- "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn",
- "instrumentation": "chamber",
- "approx_minutes": 71,
- "reason": "✨ never heard · avoided viol_consort",
+ "picked_at": "2026-09-07T10:27:41.626Z",
+ "pick_date": "2026-09-07",
+ "work_key": "ARR-WTC-CONSORT-II",
+ "work": "The Well-Tempered Consort II",
+ "performer": "Phantasm",
+ "album": "J.S. Bach: The Well-Tempered Consort – II",
+ "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 65,
+ "reason": "✨ never heard · avoided chamber",
  "fallback": null
 }
