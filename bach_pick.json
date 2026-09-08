@@ -1,13 +1,19 @@
 {
- "picked_at": "2026-09-07T10:27:41.626Z",
- "pick_date": "2026-09-07",
- "work_key": "ARR-WTC-CONSORT-II",
- "work": "The Well-Tempered Consort II",
- "performer": "Phantasm",
- "album": "J.S. Bach: The Well-Tempered Consort – II",
- "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg",
- "instrumentation": "viol_consort",
- "approx_minutes": 65,
- "reason": "✨ never heard · avoided chamber",
- "fallback": null
+ "picked_at": "2026-09-08T10:22:58.062Z",
+ "pick_date": "2026-09-08",
+ "work_key": "BWV825-830",
+ "work": "Six Partitas",
+ "performer": "Schaghajegh Nosrati",
+ "album": "Bach: Partitas, BWV 825-830",
+ "spotify_album_uri": "spotify:album:7G4SER0hlDv7APJrgIuYEh",
+ "instrumentation": "piano",
+ "approx_minutes": 150,
+ "reason": "last heard 73d ago",
+ "fallback": {
+  "work_key": "BWV1007-1012",
+  "work": "Six Cello Suites",
+  "performer": "Yo-Yo Ma",
+  "album": "Six Evolutions - Bach: Cello Suites",
+  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
+ }
 }
