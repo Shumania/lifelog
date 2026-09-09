@@ -915,10 +915,19 @@
 .elw-row.er-moon { cursor: default; }
 .elw-row.er-moon .er-icon, .elw-row.er-moon .er-where { color: #93a7d1; }
 .elw-row.er-moon .er-track { font-style: italic; }
+/* p3.41: "stale" is informative, not a problem — dim outline pill, no ⚠️/amber (Andrew 2026-09-09). */
 .q-stale-badge {
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
-  background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); flex-shrink: 0;
+  font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 8px;
+  background: transparent; color: var(--text-dim, #8a8fa3); border: 1px solid var(--border, rgba(255,255,255,0.14)); flex-shrink: 0; opacity: 0.8;
 }
+/* p3.41: header machine/version chips — color = actionable only. Dim by default; red bold only on
+   version mismatch vs versions.json; dim 💤 suffix after ≥12h silence (same "alive" threshold as tabs). */
+.hdr-machine { white-space: nowrap; font-size: 11px; font-weight: 500; color: var(--text-dim, #8a8fa3); }
+.hdr-machine .hm-ver { font-weight: 400; opacity: 0.8; }
+.hdr-machine.hm-mismatch, .hdr-machine.hm-mismatch .hm-ver { color: #f87171; font-weight: 700; opacity: 1; }
+.hdr-machine .hm-zz { font-weight: 400; opacity: 0.6; margin-left: 2px; }
+.hdr-page { white-space: nowrap; font-size: 10px; opacity: 0.45; font-weight: 400; }
+.hdr-page.hm-mismatch { color: #f87171; font-weight: 700; opacity: 1; cursor: pointer; }
 .q-inline-expand { display: none; margin-top: 5px; padding: 9px 12px;
   background: var(--card, rgba(255,255,255,0.04)); border: 1px solid var(--border, rgba(255,255,255,0.09)); border-radius: 8px; }
 .q-inline-expand.open { display: block; }
@@ -1085,7 +1094,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
          with no queue it reads "Speakers — <selection> ›" -->
     <div class="queue-line" id="qline-caphill" onclick="toggleQueueExpand('caphill')">
       <span class="q-text" id="qtext-caphill">Speakers</span>
-      <span class="q-stale-badge" id="qstale-caphill" hidden>⚠️ stale</span>
+      <span class="q-stale-badge" id="qstale-caphill" hidden>stale</span>
       <span class="q-chev" id="qchev-caphill">›</span>
     </div>
     <div class="q-inline-expand" id="qexp-caphill">
@@ -1150,7 +1159,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
          with no queue it reads "Speakers — <selection> ›" -->
     <div class="queue-line" id="qline-vashon" onclick="toggleQueueExpand('vashon')">
       <span class="q-text" id="qtext-vashon">Speakers</span>
-      <span class="q-stale-badge" id="qstale-vashon" hidden>⚠️ stale</span>
+      <span class="q-stale-badge" id="qstale-vashon" hidden>stale</span>
       <span class="q-chev" id="qchev-vashon">›</span>
     </div>
     <div class="q-inline-expand" id="qexp-vashon">
@@ -1301,7 +1310,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.40';
+const PAGE_VERSION = 'p3.41';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2955,7 +2964,7 @@ function _renderQueueSheet() {
     const _shSrc = _qSourcesHtml(e); // p3.10: sources chain beats single label
     qb += '<span class="q-prov">' + (isPl ? '☰ ' : '') + (_shSrc || esc(e.provenance_label || (e.track_count + ' tracks'))) +
       (loadedMs != null ? ' · loaded ' + fmtAge(loadedMs) : '') + '</span>' +
-      (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">⚠️ stale</span>' : '') + '</div>' + grpRow;
+      (loadedMs != null && loadedMs > 12 * 3600 * 1000 ? '<span class="q-stale-badge">stale</span>' : '') + '</div>' + grpRow;
     qb += '<div class="qs-upnext"><div class="q-upnext-label">Up next · ' + (e.current_pos || 0) + ' of ' + (e.track_count || 0) + '</div>';
     const up = e.upcoming || [];
     if (!up.length) qb += '<div class="q-more" style="padding-left:0;">Nothing after the current track.</div>';
@@ -3764,6 +3773,7 @@ function renderNowPlayingRoaming() {
 // ══════════════════════════════════════════════════════════════════════════════
 // STATUS BAR
 // ══════════════════════════════════════════════════════════════════════════════
+let _versionsInfo = null; // p3.41: versions.json snapshot (see _pageVersionChip below)
 function renderStatusBar() {
   const bar = document.getElementById('status-bar');
   if (!data || !data.client_status) { bar.innerHTML = ''; return; }
@@ -3775,13 +3785,45 @@ function renderStatusBar() {
     if (!c.client_id.startsWith('lifelog_') && cids.has('lifelog_' + c.client_id.toLowerCase())) return false;
     return true;
   });
+  // p3.41 (Andrew 2026-09-09): color = actionable. The old liveness traffic light (green <10m /
+  // yellow <30m / red) went red on every idle machine — red meant "quiet", not "down". Now:
+  //   • dim by default; RED BOLD only when a machine's reported version ≠ versions.json
+  //     service_version (fleet update didn't land) — tooltip names the expected build;
+  //   • liveness lives in the tooltip ("last seen 12m ago"); ≥12h silence gets a dim 💤 suffix
+  //     (same "alive" threshold the tabs use) — gray, never red;
+  //   • page chip goes red only when versions.json says a newer page is live (tap = 🔄).
+  // Real fleet failures still surface via the yellow ⚠️N badge (nightly fleet-health audit).
+  const expectedSvc = _versionsInfo && _versionsInfo.service_version ? String(_versionsInfo.service_version) : null;
   bar.innerHTML = filtered.map(c => {
-    const age = c.last_seen ? Math.round((now - new Date(c.last_seen).getTime()) / 60000) : null;
-    const color = age === null ? '#f87171' : age < 10 ? 'var(--accent)' : age < 30 ? '#eab308' : '#f87171';
+    const ageMs = c.last_seen ? (now - new Date(c.last_seen).getTime()) : null;
     const label = names[c.client_id] || c.client_id;
     const ver = c.version ? ` v${c.version}` : '';
-    return `<span style="white-space:nowrap;color:${color};font-weight:600;font-size:11px">${esc(label)}<span style="font-weight:400;opacity:0.7">${esc(ver)}</span></span>`;
-  }).join('') + ` <span style="white-space:nowrap;font-size:10px;opacity:0.45;font-weight:400">${esc(PAGE_VERSION)}</span>` + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>' + errorIndicator();
+    const mismatch = !!(expectedSvc && c.version && String(c.version) !== expectedSvc);
+    const asleep = ageMs === null || ageMs >= 12 * 3600 * 1000;
+    const seenTxt = ageMs === null ? 'never seen this session' : 'last seen ' + fmtAge(ageMs); // fmtAge already says "ago"
+    const tip = esc(label) + (ver ? esc(ver) : '') + ' · ' + seenTxt + (mismatch ? ' · expected v' + esc(expectedSvc) : '');
+    const zzAge = ageMs === null ? '' : fmtAge(ageMs).replace(/ ago$/, ''); // "16h", not "16h ago"
+    const zz = asleep ? `<span class="hm-zz" title="${esc(seenTxt)}">💤${zzAge}</span>` : '';
+    return `<span class="hdr-machine${mismatch ? ' hm-mismatch' : ''}" title="${tip}">${esc(label)}<span class="hm-ver">${esc(ver)}</span>${zz}</span>`;
+  }).join('') + ' ' + _pageVersionChip() + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>' + errorIndicator();
+}
+
+// p3.41: versions.json snapshot captured at load (service_version / page_version / clients) so the
+// header can judge "is this machine on the expected build?" instead of "how long since it spoke?".
+// (declared above renderStatusBar to stay clear of the TDZ)
+function _parsePageVer(v) { // 'p3.41' -> [3, 41]; anything unparseable -> null
+  const m = /^p(\d+)\.(\d+)$/.exec(String(v || '').trim());
+  return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : null;
+}
+function _pageVersionChip() {
+  const live = _versionsInfo && _versionsInfo.page_version ? String(_versionsInfo.page_version) : null;
+  const a = _parsePageVer(PAGE_VERSION), b = _parsePageVer(live);
+  const newer = !!(a && b && (b[0] > a[0] || (b[0] === a[0] && b[1] > a[1])));
+  if (newer) {
+    console.log('[hdr] page ' + PAGE_VERSION + ' is behind published ' + live + ' — red chip, tap = hard refresh');
+    return `<span class="hdr-page hm-mismatch" onclick="hardRefresh()" title="${esc(live)} is live — tap to refresh">${esc(PAGE_VERSION)}</span>`;
+  }
+  return `<span class="hdr-page">${esc(PAGE_VERSION)}</span>`;
 }
 
 // p2.60: ⚠️ error indicator — unresolved system_errors (24h) surfaced by the publishers
@@ -4044,9 +4086,12 @@ async function loadData(loadArchive) {
     // staggered upgrades that hides which machine is still on the old build. Per-client
     // truth order: versions.json clients[id].version > client's own reported version
     // (heartbeat/SSE) > global service_version only when the client reports nothing.
+    _versionsInfo = versionsResp || null; // p3.41: header judges version mismatch against this
+    if (versionsResp) console.log('[hdr] versions.json: service=' + versionsResp.service_version + ' page=' + versionsResp.page_version + ' (this page: ' + PAGE_VERSION + ')');
     if (versionsResp && data.client_status) {
       for (const c of data.client_status) {
-        const vc = versionsResp.clients ? versionsResp.clients[c.client_id] : null;
+        let vc = versionsResp.clients ? versionsResp.clients[c.client_id] : null;
+        if (typeof vc === 'string') vc = { version: vc }; // p3.41: clients map is bare version strings (bump_versions_client.ts)
         if (vc) {
           if (vc.version) c.version = vc.version;
           if (vc.sonos_commander !== undefined) c.sonos_commander = vc.sonos_commander ? 1 : 0;
@@ -4140,7 +4185,7 @@ function renderAll() {
     const genD = new Date(data.generated_at);
     const ageMin = (Date.now() - genD.getTime()) / 60000;
     document.getElementById('updated-label').innerHTML = 'Updated ' + esc(fmtRelative(genD)) +
-      (ageMin > 30 ? ' <span style="color:#e0a020;font-weight:600" title="Published data is over 30 min old">· stale</span>' : '');
+      (ageMin > 30 ? ' <span style="opacity:0.6" title="Published data is over 30 min old — a deep refresh would fetch something">· stale</span>' : ''); // p3.41: neutral, informative only
   }
 }
 
