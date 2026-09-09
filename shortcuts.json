@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 15,
   "generated_at": "2026-08-31T14:35:00Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
@@ -222,7 +222,8 @@
       "Main Upstairs Master Bedroom": 12,
       "Main Upstairs Bathroom White Roams": 12,
       "Parents Bedroom": 18,
-      "Master Bathroom": 18
+      "Master Bathroom": 18,
+      "Basement Study": 30
     }
   },
   "updated_at": "2026-08-25",
