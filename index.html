@@ -62,6 +62,15 @@
       padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 16px);
     }
     .top-header select, .top-header button, .status-dots { -webkit-app-region: no-drag; app-region: no-drag; }
+    /* p3.40: the ✕/▢/— caption cluster sits ON TOP of the page's scrollbar, so at scrollTop 0 the thumb
+       was hidden under it until you'd scrolled a long way. Inset the track by the title-bar height so the
+       thumb's travel starts below the controls. Chromium ignores ::-webkit-scrollbar when the standard
+       scrollbar-* props are non-auto, so reset those here (WCO is Chromium-only anyway). */
+    html { scrollbar-width: auto; scrollbar-color: auto; }
+    html::-webkit-scrollbar { width: 10px; background: var(--bg); }
+    html::-webkit-scrollbar-track { background: var(--bg); margin-top: env(titlebar-area-height, 33px); }
+    html::-webkit-scrollbar-thumb { background: #2e3650; border-radius: 5px; }
+    html::-webkit-scrollbar-thumb:hover { background: #3a4460; }
   }
   .status-dots { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim); flex-wrap: wrap; }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
@@ -1292,7 +1301,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.39';
+const PAGE_VERSION = 'p3.40';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
