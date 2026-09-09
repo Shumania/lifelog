@@ -13,6 +13,9 @@
 <title>Listening Log</title>
 <style>
   :root {
+    /* p3.39: tell the UA we're dark — Windows Chromium was painting its light native scrollbar
+       (and light form-control chrome) against the dark shell. Also enables dark <select> popups. */
+    color-scheme: dark;
     --bg: #0a0e1a;
     --surface: #131829;
     --surface2: #1a2035;
@@ -39,6 +42,11 @@
     min-height: 100vh; min-height: 100dvh;
     display: flex; flex-direction: column;
   }
+  /* p3.39: slim, theme-matched scrollbars on desktop (Chromium 121+/Firefox honor these; iOS/Safari
+     ignore them and keep their overlay bars). The document is the real scroller (header scrolls away by
+     design), so this targets html + the inner scrollers. Track blends into --bg; thumb = border tone. */
+  html, .content-panel, .playlist-list, .qsheet { scrollbar-width: thin; scrollbar-color: #2e3650 var(--bg); }
+  .qsheet { scrollbar-color: #2e3650 transparent; }
 
   /* ========== TOP SECTION ========== */
   .top-section { background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
