@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-09T10:11:00.784Z",
- "pick_date": "2026-09-09",
- "work_key": "BWV1004-1006",
- "work": "Violin Partitas Nos. 2 & 3, Sonata No. 3",
- "performer": "Hilary Hahn",
- "album": "Hilary Hahn Plays Bach",
- "spotify_album_uri": "spotify:album:2GLJLkriVbdfDi5W5e3LJM",
- "instrumentation": "violin",
- "approx_minutes": 72,
- "reason": "last heard 27d ago · avoided piano",
+ "picked_at": "2026-09-10T10:11:14.417Z",
+ "pick_date": "2026-09-10",
+ "work_key": "BWV1007-1012",
+ "work": "Six Cello Suites",
+ "performer": "Yo-Yo Ma",
+ "album": "Six Evolutions - Bach: Cello Suites",
+ "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb",
+ "instrumentation": "cello",
+ "approx_minutes": 150,
+ "reason": "last heard 28d ago",
  "fallback": {
-  "work_key": "BWV1007-1012",
-  "work": "Six Cello Suites",
-  "performer": "Yo-Yo Ma",
-  "album": "Six Evolutions - Bach: Cello Suites",
-  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
+  "work_key": "BWV996-998",
+  "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+  "performer": "Sean Shibe",
+  "album": "Bach",
+  "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo"
  }
 }
