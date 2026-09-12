@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-11T10:23:34.329Z",
- "pick_date": "2026-09-11",
- "work_key": "ARR-BACH-TRIOS",
- "work": "Bach Trios (mandolin/bass/cello arrangements)",
- "performer": "Yo-Yo Ma, Chris Thile & Edgar Meyer",
- "album": "Bach Trios",
- "spotify_album_uri": "spotify:album:5SbylfazVixJi7hahuuzvH",
- "instrumentation": "chamber",
- "approx_minutes": 72,
- "reason": "last heard 29d ago",
+ "picked_at": "2026-09-12T10:19:13.590Z",
+ "pick_date": "2026-09-12",
+ "work_key": "BWV996-998",
+ "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+ "performer": "Sean Shibe",
+ "album": "Bach",
+ "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
+ "instrumentation": "lute_guitar",
+ "approx_minutes": 62,
+ "reason": "last heard 23d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV996-998",
-  "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
-  "performer": "Sean Shibe",
-  "album": "Bach",
-  "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo"
+  "work_key": "ARR-WTC-CONSORT-III",
+  "work": "The Well-Tempered Consort III",
+  "performer": "Phantasm",
+  "album": "Bach: The Well-Tempered Consort – III",
+  "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96"
  }
 }
