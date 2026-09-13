@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Rebecca Black)",
+  "description": "Updated weekly. (Photo: Sylvan Esso)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da8472e7202c52ca6ef66ad7cf23",
+  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da843d7025eeed745e7d1c886ac7",
   "followers_total": 84760,
-  "tracks_total": 29,
+  "tracks_total": 24,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-09-04T11:46:19Z"
+  "last_modified": "2026-09-11T13:33:07Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1498,5 +1498,125 @@
   "tracks_total": 138,
   "created_approx": "2017-03-02T17:08:59Z",
   "last_modified": "2026-09-01T16:07:21Z"
+ },
+ {
+  "id": "7D7c2aH1Uv8NJslCssJdG8",
+  "name": "After Esbjörn — Sep 12",
+  "description": "European piano trios, 1998–2019 — the e.s.t. generation: Stenson to Rymden, with Mehldau as prologue and Dawn of Midi as the Brooklyn echo. Three players, one band.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024681e7544fa71c8ca38f82f8ab67616d00001e02834285880bdff6945d4b2ea0ab67616d00001e02a6e9d4c521770de653727753ab67616d00001e02f84873189e9d358ada384ad9",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-09-12T10:14:30Z",
+  "last_modified": "2026-09-12T10:14:30Z"
+ },
+ {
+  "id": "00qnkHiHC4GbodbjyZmCo6",
+  "name": "The Married Men — Sep 11",
+  "description": "Women songwriters, 1975–2025: sister-harmony folk (Roches, McGarrigles, Christine McVie) through Guyville and Moon Pix to golden-hour Americana. Pen-first songs; every one unheard.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02152f87dab60dcbd929169daaab67616d00001e029260500509b140d5598485a3ab67616d00001e02aba2e3e945da48ff804e1070ab67616d00001e02e52a59a28efa4773dd2bfe1b",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-09-12T00:09:48Z",
+  "last_modified": "2026-09-12T00:09:48Z"
+ },
+ {
+  "id": "6Kj0hXUSZZJPBfEaVesfgL",
+  "name": "Call You Rose — Sep 11",
+  "description": "Modern soul 2016–2026 — the sweet-soul revival (Penrose, Daptone, Big Crown, Colemine) and the neo-soul elders it grew up on: falsetto ballads, lowrider slow-dances, warm tape, one bolero.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e023351ce955e3a370a5e105b10ab67616d00001e024bc05e5b1e506a6acea17148ab67616d00001e02681eb8e092c304999678e5d1ab67616d00001e02a869397e90fb5e8aead2cc04",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-09-11T14:15:10Z",
+  "last_modified": "2026-09-11T14:15:10Z"
+ },
+ {
+  "id": "4vfyEtBINp9eHvmo744KsT",
+  "name": "Talkin' All That Jazz — Sep 11",
+  "description": "Jazz-rap, New York 1988–96 — Native Tongues, Gang Starr and Guru&#x27;s Jazzmatazz, Digable, Pete Rock, and the Blue Note and Flying Dutchman records they looped.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021093b1a9528d6ac67479228bab67616d00001e02947b2df58bb53f8c4334cccaab67616d00001e02abd1663f041d6f1cbc59ba48ab67616d00001e02ad5aedd9b21f1efa0cd6c9b4",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-09-11T10:18:43Z",
+  "last_modified": "2026-09-11T10:18:43Z"
+ },
+ {
+  "id": "6PmpLF5YYPs5n7j9mjIcKU",
+  "name": "Shack Up & After — Sep 10",
+  "description": "Punk-funk 1979–2025 — the 45-year bassline A Certain Ratio&#x27;s &#x27;Shack Up&#x27; set loose: NY no wave &amp; 99 Records, Factory Manchester, Bristol, Madchester, DFA, and today&#x27;s UK dance-punk.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e023609074affa9e3d2fde0c5c7ab67616d00001e02888c50e6d25e71b81099c44aab67616d00001e02bf344d3df6b132f85e245e9cab67616d00001e02dee62c351eaaa0599575e80e",
+  "followers_total": 0,
+  "tracks_total": 24,
+  "created_approx": "2026-09-11T02:56:13Z",
+  "last_modified": "2026-09-11T02:56:13Z"
+ },
+ {
+  "id": "6NnFtTavd2xQZBqMUrrN47",
+  "name": "Smooth Operators — Sep 10",
+  "description": "UK sophisti-pop, 1980–88 — Gaucho, The Nightfly and Avalon as the template, then the Sade &#x2F; Blue Nile &#x2F; Prefab Sprout years: jazz chords, fretless bass, a sax at midnight, and heartbreak in a good coat.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0253e10b63c25c7f7a3d7e0f9dab67616d00001e028caf2c8facd9a38850626b80ab67616d00001e029c3be4e1c786475f9489529fab67616d00001e02c7972702cff224328b39f8a6",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-09-10T10:22:06Z",
+  "last_modified": "2026-09-10T10:22:06Z"
+ },
+ {
+  "id": "1fOOqQUo0hqG35urIgQvbf",
+  "name": "Field Notes at Dusk — Sep 9",
+  "description": "Mellow cross-section of the Discovery cards, 1959–2021 — harp, viols, Bill Evans, Ethio-jazz, MPB, quiet storm and indie folk. Mostly unheard, a few anchors.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02aa7095502034a9f703bdc9e5ab67616d00001e02af740b37d7cce3cfd00485b2ab67616d00001e02e23cccf2cca3df5078a0f393ab67616d00001e02ef60cc32af0cdb983529c8a1",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-09-09T17:02:49Z",
+  "last_modified": "2026-09-09T17:02:49Z"
+ },
+ {
+  "id": "5t1QMTZJoWSDVLK29DSTsR",
+  "name": "Recomposed",
+  "description": "Recomposed Baroque, 1959–2019: Bach, Vivaldi and Purcell rebuilt by later hands — Loussier&#x27;s trio, the Swingles, Pärt, Nyman, Richter&#x27;s Vivaldi, Gregson&#x27;s cello suites, Ólafsson&#x27;s reworks. The old scores as raw material.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022cc887333610c18c8f133764ab67616d00001e02ba87119b30e44cea23ac5f68ab67616d00001e02c36b0858b1ada3734cdc31d2ab67616d00001e02dc27f4e4d615061ee1486c32",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-09-09T10:21:00Z",
+  "last_modified": "2026-09-09T10:21:00Z"
+ },
+ {
+  "id": "1TNwLqh6aQThJk1fnTaNfy",
+  "name": "Second Wind — Sep 8",
+  "description": "Soul comeback records, 2002–2020 — veterans in their sixties and seventies rediscovered by Fat Possum, Anti-, Daptone and a reborn Stax. Weathered voices, second acts.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02558ba952fda997e0955b286aab67616d00001e02833be36afe77b9c7d2bdc7f9ab67616d00001e028ec9a7ae0b7d185c3815c43dab67616d00001e02c611d154ea8da9b489d5276e",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-09-08T10:18:30Z",
+  "last_modified": "2026-09-08T10:18:30Z"
+ },
+ {
+  "id": "5rwViLa071XKAUEOOM9bVX",
+  "name": "Plainspoken — Sep 7",
+  "description": "Talk-sung guitar rock, 1976–2024 — Modern Lovers to MJ Lenderman by way of the Fall, Pavement, Parquet Courts and Courtney Barnett: deadpan voices, wiry guitars, every shrug lands.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024de964b9e028a2d181611595ab67616d00001e02b099d03bb44b48861ac62594ab67616d00001e02b44ebe6e50148bca8bce584dab67616d00001e02e56fa8c916dc6ce419dcf557",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-09-07T10:34:38Z",
+  "last_modified": "2026-09-07T10:34:38Z"
  }
 ]
