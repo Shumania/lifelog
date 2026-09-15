@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-14T10:22:02.571Z",
- "pick_date": "2026-09-14",
- "work_key": "ARR-WTC-CONSORT-III",
- "work": "The Well-Tempered Consort III",
- "performer": "Phantasm",
- "album": "Bach: The Well-Tempered Consort – III",
- "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
- "instrumentation": "viol_consort",
- "approx_minutes": 64,
- "reason": "last heard 24d ago · avoided piano",
+ "picked_at": "2026-09-15T10:11:04.024Z",
+ "pick_date": "2026-09-15",
+ "work_key": "ARR-MARIMBA-KUNIKO",
+ "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+ "performer": "Kuniko",
+ "album": "J.S. Bach: Solo Works for Marimba",
+ "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
+ "instrumentation": "marimba_other",
+ "approx_minutes": 100,
+ "reason": "last heard 24d ago",
  "fallback": {
-  "work_key": "ARR-MARIMBA-KUNIKO",
-  "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
-  "performer": "Kuniko",
-  "album": "J.S. Bach: Solo Works for Marimba",
-  "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
+  "work_key": "BWV806-811",
+  "work": "English Suites",
+  "performer": "Masaaki Suzuki",
+  "album": "J.S. Bach: English Suites",
+  "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
  }
 }
