@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-16T10:13:22.999Z",
- "pick_date": "2026-09-16",
- "work_key": "BWV525-530",
- "work": "Six Trio Sonatas (chamber arrangement)",
- "performer": "London Baroque",
- "album": "Bach, J.S.: Trio Sonatas, BWV 525-530",
- "spotify_album_uri": "spotify:album:23BryN671pRG2CRHHhXORG",
- "instrumentation": "chamber",
- "approx_minutes": 80,
- "reason": "last heard 28d ago",
+ "picked_at": "2026-09-17T10:09:39.455Z",
+ "pick_date": "2026-09-17",
+ "work_key": "BWV806-811",
+ "work": "English Suites",
+ "performer": "Masaaki Suzuki",
+ "album": "J.S. Bach: English Suites",
+ "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb",
+ "instrumentation": "harpsichord",
+ "approx_minutes": 150,
+ "reason": "last heard 23d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV806-811",
-  "work": "English Suites",
-  "performer": "Masaaki Suzuki",
-  "album": "J.S. Bach: English Suites",
-  "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
+  "work_key": "BWV1080",
+  "work": "The Art of Fugue (keyboard)",
+  "performer": "Angela Hewitt",
+  "album": "Bach: The Art of Fugue",
+  "spotify_album_uri": "spotify:album:5DwmkbUX4qcALVAfZnogVt"
  }
 }
