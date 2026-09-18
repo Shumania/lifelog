@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-17T10:09:39.455Z",
- "pick_date": "2026-09-17",
- "work_key": "BWV806-811",
- "work": "English Suites",
- "performer": "Masaaki Suzuki",
- "album": "J.S. Bach: English Suites",
- "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb",
- "instrumentation": "harpsichord",
- "approx_minutes": 150,
- "reason": "last heard 23d ago · avoided chamber",
+ "picked_at": "2026-09-18T10:11:17.332Z",
+ "pick_date": "2026-09-18",
+ "work_key": "BWV1080",
+ "work": "The Art of Fugue (keyboard)",
+ "performer": "Angela Hewitt",
+ "album": "Bach: The Art of Fugue",
+ "spotify_album_uri": "spotify:album:5DwmkbUX4qcALVAfZnogVt",
+ "instrumentation": "piano",
+ "approx_minutes": 87,
+ "reason": "last heard 63d ago · avoided harpsichord",
  "fallback": {
-  "work_key": "BWV1080",
-  "work": "The Art of Fugue (keyboard)",
-  "performer": "Angela Hewitt",
-  "album": "Bach: The Art of Fugue",
-  "spotify_album_uri": "spotify:album:5DwmkbUX4qcALVAfZnogVt"
+  "work_key": "ARR-WTC-CONSORT-I",
+  "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
+  "performer": "Phantasm",
+  "album": "Bach: The Well-Tempered Consort – I",
+  "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA"
  }
 }
