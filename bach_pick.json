@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-18T10:11:17.332Z",
- "pick_date": "2026-09-18",
- "work_key": "BWV1080",
- "work": "The Art of Fugue (keyboard)",
- "performer": "Angela Hewitt",
- "album": "Bach: The Art of Fugue",
- "spotify_album_uri": "spotify:album:5DwmkbUX4qcALVAfZnogVt",
- "instrumentation": "piano",
- "approx_minutes": 87,
- "reason": "last heard 63d ago · avoided harpsichord",
+ "picked_at": "2026-09-19T10:24:52.736Z",
+ "pick_date": "2026-09-19",
+ "work_key": "ARR-WTC-CONSORT-I",
+ "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
+ "performer": "Phantasm",
+ "album": "Bach: The Well-Tempered Consort – I",
+ "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 70,
+ "reason": "last heard 22d ago · avoided piano",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-I",
-  "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
-  "performer": "Phantasm",
-  "album": "Bach: The Well-Tempered Consort – I",
-  "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA"
+  "work_key": "BWV1001-1003",
+  "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
+  "performer": "Hilary Hahn",
+  "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
+  "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ"
  }
 }
