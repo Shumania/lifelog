@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Sylvan Esso)",
+  "description": "Updated weekly. (Photo: Carly Rae Jepsen)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da843d7025eeed745e7d1c886ac7",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84d4c7feffdb2454e6efadd7de",
   "followers_total": 84760,
-  "tracks_total": 24,
+  "tracks_total": 27,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-09-11T13:33:07Z"
+  "last_modified": "2026-09-18T13:52:56Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1493,11 +1493,11 @@
   "description": "",
   "owner": "Andrew Shuman",
   "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0230efd5d7c7ff0956a9709300ab67616d00001e0248f99aceb9d1d2b9961be005ab67616d00001e026649091b513fe7ac992a92b5ab67616d00001e0287a7cb4cff1869085a220cf6",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e027f32595bfa8417eb2489c10dab67616d00001e0287a7cb4cff1869085a220cf6ab67616d00001e029a76bbfd7ed73adb852eb9f1ab67616d00001e02ad32830b1b457c3ac2fd195c",
   "followers_total": 0,
-  "tracks_total": 138,
+  "tracks_total": 197,
   "created_approx": "2017-03-02T17:08:59Z",
-  "last_modified": "2026-09-01T16:07:21Z"
+  "last_modified": "2026-09-14T00:44:31Z"
  },
  {
   "id": "7D7c2aH1Uv8NJslCssJdG8",
@@ -1618,5 +1618,17 @@
   "tracks_total": 19,
   "created_approx": "2026-09-07T10:34:38Z",
   "last_modified": "2026-09-07T10:34:38Z"
+ },
+ {
+  "id": "76i3iK4rrYbaVXxOm9KnSO",
+  "name": "The Small Hours — Sep 20",
+  "description": "Solo-piano nocturnes, 1812–2025 — from John Field&#x27;s first night piece to Alice Sara Ott&#x27;s Jóhannsson: one instrument, two centuries of hush. Chopin, Fauré, Satie, Bill Evans, Pärt, Hania Rani.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0220313748783e0a188bf6aadeab67616d00001e02650af287df1a7741171932b0ab67616d00001e0283d68822bb78e49569811116ab67616d00001e02bd5cf411dd68244b661194aa",
+  "followers_total": 0,
+  "tracks_total": 18,
+  "created_approx": "2026-09-20T10:31:05Z",
+  "last_modified": "2026-09-20T10:31:05Z"
  }
 ]
