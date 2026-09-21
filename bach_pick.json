@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-20T10:13:01.082Z",
- "pick_date": "2026-09-20",
- "work_key": "BWV1001-1003",
- "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
- "performer": "Hilary Hahn",
- "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
- "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ",
- "instrumentation": "violin",
- "approx_minutes": 78,
- "reason": "last heard 22d ago",
+ "picked_at": "2026-09-21T10:17:45.060Z",
+ "pick_date": "2026-09-21",
+ "work_key": "BWV1027-1029",
+ "work": "Sonatas for Viola da gamba & Harpsichord",
+ "performer": "Jordi Savall & Ton Koopman",
+ "album": "Bach: Sonatas for Viola da gamba und Cembalo",
+ "spotify_album_uri": "spotify:album:3tLlsEPZy5PIxrvPJg6EgF",
+ "instrumentation": "chamber",
+ "approx_minutes": 55,
+ "reason": "last heard 29d ago",
  "fallback": {
-  "work_key": "BWV1030-1035",
-  "work": "Flute Sonatas",
-  "performer": "Emmanuel Pahud & Trevor Pinnock",
-  "album": "Bach: Complete Flute Sonatas",
-  "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen"
+  "work_key": "BWV910-916",
+  "work": "Seven Toccatas",
+  "performer": "Mahan Esfahani",
+  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
  }
 }
