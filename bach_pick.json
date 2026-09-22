@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-21T10:17:45.060Z",
- "pick_date": "2026-09-21",
- "work_key": "BWV1027-1029",
- "work": "Sonatas for Viola da gamba & Harpsichord",
- "performer": "Jordi Savall & Ton Koopman",
- "album": "Bach: Sonatas for Viola da gamba und Cembalo",
- "spotify_album_uri": "spotify:album:3tLlsEPZy5PIxrvPJg6EgF",
- "instrumentation": "chamber",
- "approx_minutes": 55,
- "reason": "last heard 29d ago",
+ "picked_at": "2026-09-22T10:13:11.689Z",
+ "pick_date": "2026-09-22",
+ "work_key": "BWV910-916",
+ "work": "Seven Toccatas",
+ "performer": "Mahan Esfahani",
+ "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+ "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O",
+ "instrumentation": "harpsichord",
+ "approx_minutes": 78,
+ "reason": "last heard 25d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV910-916",
-  "work": "Seven Toccatas",
-  "performer": "Mahan Esfahani",
-  "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
-  "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O"
+  "work_key": "BWV812-815",
+  "work": "French Suites Nos. 1-4",
+  "performer": "Glenn Gould",
+  "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
+  "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh"
  }
 }
