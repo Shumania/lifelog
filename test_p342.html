@@ -136,6 +136,7 @@
      "NOW PLAYING · SPOTIFY" wrapped and titles cut at ~12 chars. The hatch drops its word and
      becomes a 32px square like its neighbours (~60pt back to the title); the label stays one line. */
   @media (max-width: 480px) {
+    .now-playing { gap: 8px; }  /* 4 buttons × 4px = 16px more for the title; buttons stay 32px for touch */
     .now-playing .sonos-hatch { width: 32px; height: 32px; padding: 0; display: flex; align-items: center;
       justify-content: center; font-size: 15px; border-radius: 8px; }
     .now-playing .sonos-hatch .sh-word { display: none; }
