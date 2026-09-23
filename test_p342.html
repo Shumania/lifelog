@@ -186,6 +186,7 @@
     margin: 6px 0 2px auto; padding: 6px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--surface);
     display: flex; flex-direction: column; gap: 4px; width: max-content;
+    max-width: 100%; box-sizing: border-box;  /* p3.42: fleet-detail rows can be long; never grow past the panel */
   }
   .ctrl-settings-pop[hidden] { display: none; }  /* p2.54: hidden attr must beat display:flex */
   .ctrl-settings-item {
