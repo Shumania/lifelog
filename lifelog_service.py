@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.68.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.69.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1109,6 +1109,7 @@ _track_changes           = []   # ring buffer of last 10 track changes [{room, a
 _ntfy_connected          = False
 _ntfy_reconnects         = 0
 _ntfy_last_event_ts      = 0.0    # monotonic ts of last ntfy stream event (keepalive or message)
+_ntfy_backoff_s          = 0.0    # v2.69: current reconnect backoff (0 = healthy); doubles 2s->60s on short-lived streams, resets on keepalive/message
 _last_transport_states   = {}   # room -> state string (updated by get_rooms_playing)
 _prev_diag_fingerprint   = ""   # for change detection
 
@@ -1956,6 +1957,8 @@ def build_status_snapshot():
             "reconnects": _ntfy_reconnects,
             # v2.45: populate staleness age so the [STALE] diagnostic can actually fire
             "last_event_age_s": int(time.time() - _ntfy_last_event_ts) if _ntfy_last_event_ts else None,
+            # v2.69: current reconnect backoff — 0 when healthy; >0 means connections are dying young (Rule 27: state, not events)
+            "backoff_s": int(_ntfy_backoff_s),
         },
         "track_changes": list(_track_changes[-5:]),
     }
@@ -7056,16 +7059,34 @@ def execute_command(cmd, source="unknown"):
 # [ROLLBACK-UNSAFE] Receives update_check commands from ntfy and dispatches to
 # execute_command() -> self_update_check(). The old version's parsing + dispatch runs here.
 def ntfy_listener_thread():
-    global _ntfy_connected, _ntfy_reconnects, _ntfy_last_event_ts
-    log(f"ntfy listener: topic={ntfy_topic}")
+    global _ntfy_connected, _ntfy_reconnects, _ntfy_last_event_ts, _ntfy_backoff_s
+    # [reconnect-backoff v2.69] Why this loop is shaped the way it is (Mind, 2026-09-23 14:00Z):
+    # a Vashon network blip made this loop reconnect 52 times in 18 s. Two gaps caused it:
+    #   (1) a CLEAN stream end (server closed, or a fast non-2xx like ntfy 429/502/503 whose body
+    #       simply iterates to EOF) fell out of the `with` block and looped straight back to
+    #       `requests.get` with NO delay — only the exception path slept; and
+    #   (2) `_ntfy_connected` stayed True / `_ntfy_reconnects` never bumped on that path, so health
+    #       looked green throughout.
+    # Fix: treat non-2xx as an error; on ANY reconnect mark disconnected + count it; sleep a backoff
+    # that doubles 2 s -> 60 s while connections keep dying young, and RESET it (Rule 11 release) as
+    # soon as a stream proves alive by delivering a keepalive or message event. The `open` handshake
+    # event does NOT count as proof of life — every connect emits one, even ones ntfy closes 100 ms later.
+    _BACKOFF_MIN_S, _BACKOFF_MAX_S = 2.0, 60.0
+    _ntfy_backoff_s = 0.0
+    log(f"ntfy listener: topic={ntfy_topic} [reconnect-backoff v2.69: {_BACKOFF_MIN_S:.0f}s->{_BACKOFF_MAX_S:.0f}s on short-lived streams, reset on keepalive/message]")
     while True:
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
         # In-memory dedup (_already_executed) prevents double-execution within same process.
         url   = f"https://ntfy.sh/{ntfy_topic}/json?since=5m"
         ntfy_headers = {"Authorization": f"Bearer {NTFY_TOKEN}"} if NTFY_TOKEN else {}
-        log(f"ntfy connecting: {url}")
+        log(f"ntfy connecting: {url}" + (f" (after {_ntfy_backoff_s:.0f}s backoff)" if _ntfy_backoff_s else ""))
+        _t_conn = time.time()
+        _alive_events = 0   # keepalive/message lines seen on THIS connection (proof of life)
         try:
             with requests.get(url, stream=True, headers=ntfy_headers, timeout=90) as r:
+                if not (200 <= r.status_code < 300):
+                    # Without this check a 429/502/503 body iterated as "lines" and counted as a clean stream.
+                    raise RuntimeError(f"HTTP {r.status_code} from ntfy: {(r.text or '')[:120]!r}")
                 _ntfy_connected = True
                 _ntfy_last_event_ts = time.time()
                 for line in r.iter_lines():
@@ -7074,6 +7095,11 @@ def ntfy_listener_thread():
                     if not line: continue
                     try:    msg = json.loads(line)
                     except: continue
+                    if msg.get("event") in ("keepalive", "message"):
+                        _alive_events += 1
+                        if _ntfy_backoff_s:
+                            log(f"[reconnect-backoff v2.69] stream alive again ({msg.get('event')}) -- backoff reset from {_ntfy_backoff_s:.0f}s")
+                        _ntfy_backoff_s = 0.0
                     if msg.get("event") != "message": continue
                     raw = msg.get("message", "")
                     log(f"[!] ntfy: {raw[:120]}")
@@ -7101,11 +7127,28 @@ def ntfy_listener_thread():
                         execute_command(cmd, source="ntfy")
                     except Exception as e:
                         log(f"ntfy parse/execute error: {e}")
+            # Clean stream end (server closed the connection, or iter_lines hit EOF). Pre-v2.69 this path
+            # looped back instantly and left health green; now it is a counted reconnect like any other.
+            _ntfy_connected = False
+            _ntfy_reconnects += 1
+            _lived = time.time() - _t_conn
+            if _alive_events:
+                # Healthy stream that ended normally (ntfy recycles long-lived connections) — backoff is
+                # already 0 from the reset above; a 1 s pause just keeps a misbehaving server from hot-looping us.
+                log(f"[reconnect-backoff v2.69] ntfy stream ended cleanly after {_lived:.0f}s / {_alive_events} events -- reconnecting in 1s (reconnects: {_ntfy_reconnects})")
+                time.sleep(1)
+            else:
+                _ntfy_backoff_s = _BACKOFF_MIN_S if not _ntfy_backoff_s else min(_ntfy_backoff_s * 2, _BACKOFF_MAX_S)
+                log(f"[reconnect-backoff v2.69] ntfy stream ended after {_lived:.1f}s with NO keepalive/message -- reconnecting in {_ntfy_backoff_s:.0f}s (reconnects: {_ntfy_reconnects})")
+                time.sleep(_ntfy_backoff_s)
         except Exception as e:
             _ntfy_connected = False
             _ntfy_reconnects += 1
-            log(f"ntfy stream error: {e} -- reconnecting in 5s (reconnects: {_ntfy_reconnects})")
-            time.sleep(5)
+            # Network errors / non-2xx share the same doubling backoff, floored at the historical 5 s.
+            _ntfy_backoff_s = _BACKOFF_MIN_S if not _ntfy_backoff_s else min(_ntfy_backoff_s * 2, _BACKOFF_MAX_S)
+            _delay = max(5.0, _ntfy_backoff_s)
+            log(f"ntfy stream error: {e} -- reconnecting in {_delay:.0f}s (reconnects: {_ntfy_reconnects}) [reconnect-backoff v2.69]")
+            time.sleep(_delay)
 
 # --- SONOS MAIN LOOP --------------------------------------------------------
 def sonos_main_loop():
