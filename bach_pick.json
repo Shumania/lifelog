@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-23T10:10:57.061Z",
- "pick_date": "2026-09-23",
- "work_key": "BWV816-817+831",
- "work": "French Suites Nos. 5 & 6; Overture in the French Style",
- "performer": "Glenn Gould",
- "album": "Bach: The French Suites Nos. 5 & 6, BWV 816 & 817; Overture in the French Style, BWV 831",
- "spotify_album_uri": "spotify:album:1mtWt3qH4K6QQgvDJMEUP1",
- "instrumentation": "piano",
- "approx_minutes": 55,
- "reason": "last heard 30d ago",
+ "picked_at": "2026-09-24T10:14:06.641Z",
+ "pick_date": "2026-09-24",
+ "work_key": "ARR-ALIO-MODO",
+ "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
+ "performer": "Fretwork",
+ "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
+ "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 65,
+ "reason": "last heard 24d ago · avoided piano",
  "fallback": {
-  "work_key": "ARR-ALIO-MODO",
-  "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
-  "performer": "Fretwork",
-  "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
-  "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY"
+  "work_key": "BWV1030-1035",
+  "work": "Flute Sonatas",
+  "performer": "Emmanuel Pahud & Trevor Pinnock",
+  "album": "Bach: Complete Flute Sonatas",
+  "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen"
  }
 }
