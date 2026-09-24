@@ -90,6 +90,25 @@
   /* Another house is playing — tint the border as the cue (replaces the old tab ▶ dot) */
   .house-select.other-playing { border-color: var(--accent); }
   .th-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  /* p3.42 (Andrew 2026-09-23, option A "quiet header"): on a 393pt iPhone the wordmark + house
+     picker + fleet badges need ~450pt for ~360pt of width — the h1 broke into three lines
+     ("🎵 / Listening / Log") and the badges wrapped ragged. Phones now hide the INFORMATIONAL
+     badges (dim machine versions, dim page chip) and keep every ACTIONABLE one (red version
+     mismatch, red newer-page chip, yellow ⚠️N, the 🔄 button) — same "color = actionable" rule
+     as p3.41, extended to visibility. The full fleet line (with last-seen, which desktop only
+     shows on hover) lives in the ⚙ popover (.fleet-detail) on every screen size. */
+  @media (max-width: 480px) {
+    .top-header { flex-wrap: wrap; row-gap: 2px; }
+    .top-header h1 { white-space: nowrap; }
+    .status-dots { flex-wrap: nowrap; margin-left: auto; }
+    .status-dots .hdr-machine:not(.hm-mismatch), .status-dots .hdr-page:not(.hm-mismatch) { display: none; }
+  }
+  /* p3.42: fleet detail inside the ⚙ popover (rendered by renderStatusBar) */
+  .fleet-detail { font-size: 12px; color: var(--text-dim); line-height: 1.5; cursor: default; }
+  .fleet-detail .fd-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; opacity: .7; margin-bottom: 2px; }
+  .fleet-detail .fd-row { white-space: normal; overflow-wrap: anywhere; }  /* healthy rows fit one line; mismatch rows wrap, never clip */
+  .fleet-detail .fd-row.hm-mismatch { color: #f87171; font-weight: 700; }
+  .fleet-detail .fd-row.hm-mismatch[onclick] { cursor: pointer; }
   .house-panel { background: var(--surface2); border-top: 1px solid var(--border); padding: 12px 16px 14px; }
   .house-panel[hidden] { display: none; }
 
@@ -113,6 +132,16 @@
     color: var(--text-dim, #8b93a3); text-decoration: none; white-space: nowrap;
     border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 4px 9px; }
   .now-playing .sonos-hatch:active { transform: scale(.95); }
+  /* p3.42: on phones the four action buttons (♥ 🔍 ▾ Sonos ↗) squeezed the text column to ~110pt —
+     "NOW PLAYING · SPOTIFY" wrapped and titles cut at ~12 chars. The hatch drops its word and
+     becomes a 32px square like its neighbours (~60pt back to the title); the label stays one line. */
+  @media (max-width: 480px) {
+    .now-playing { gap: 8px; }  /* 4 buttons × 4px = 16px more for the title; buttons stay 32px for touch */
+    .now-playing .sonos-hatch { width: 32px; height: 32px; padding: 0; display: flex; align-items: center;
+      justify-content: center; font-size: 15px; border-radius: 8px; }
+    .now-playing .sonos-hatch .sh-word { display: none; }
+    .np-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
   .np-label { font-size: 10px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
   .np-track { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .np-artist { font-size: 13px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -157,6 +186,7 @@
     margin: 6px 0 2px auto; padding: 6px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--surface);
     display: flex; flex-direction: column; gap: 4px; width: max-content;
+    max-width: 100%; box-sizing: border-box;  /* p3.42: fleet-detail rows can be long; never grow past the panel */
   }
   .ctrl-settings-pop[hidden] { display: none; }  /* p2.54: hidden attr must beat display:flex */
   .ctrl-settings-item {
@@ -1089,6 +1119,9 @@ body.house-roaming .shortcut-card { opacity: .4; }
           <option value="__ch_mainfloor">Cap Hill — Main Floor ×3</option>
         </select>
       </div>
+      <!-- p3.42: fleet detail (machine versions + last seen + page build) — the header hides the dim
+           badges on phones; this is the always-available home. Filled by renderStatusBar(). -->
+      <div class="ctrl-settings-item fleet-detail" id="fleet-detail-caphill" onclick="event.stopPropagation()"></div>
     </div>
     <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
          with no queue it reads "Speakers — <selection> ›" -->
@@ -1154,6 +1187,8 @@ body.house-roaming .shortcut-card { opacity: .4; }
           <option value="__ch_mainfloor">Cap Hill — Main Floor ×3</option>
         </select>
       </div>
+      <!-- p3.42: fleet detail — see the Cap Hill popover note; filled by renderStatusBar(). -->
+      <div class="ctrl-settings-item fleet-detail" id="fleet-detail-vashon" onclick="event.stopPropagation()"></div>
     </div>
     <!-- p2.92: queue expando (Phase 2) · p3.04: line is ALWAYS visible (the one speaker surface);
          with no queue it reads "Speakers — <selection> ›" -->
@@ -1310,7 +1345,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.41';
+const PAGE_VERSION = 'p3.42';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3529,7 +3564,8 @@ function npCtxInfo(h) {
 // p3.31 (sonos-handoff D-H1, locked 2026-08-25): app-launch hatch. sonos:// is the
 // entire deep-link surface Sonos offers — no room/queue/screen targeting exists.
 // Rendered by the HOUSE now-playing renderer only; roaming never shows it (off-LAN).
-function _sonosHatch() { return '<a class="sonos-hatch" href="sonos://" title="Open the Sonos app">Sonos ↗</a>'; }
+// p3.42: the word sits in .sh-word so phones can hide it (icon-only 32px square, see CSS).
+function _sonosHatch() { return '<a class="sonos-hatch" href="sonos://" title="Open the Sonos app" aria-label="Open the Sonos app"><span class="sh-word">Sonos </span>↗</a>'; }
 
 function renderNowPlayingSonos(h) {
   const el = document.getElementById('np-' + h);
@@ -3794,18 +3830,42 @@ function renderStatusBar() {
   //   • page chip goes red only when versions.json says a newer page is live (tap = 🔄).
   // Real fleet failures still surface via the yellow ⚠️N badge (nightly fleet-health audit).
   const expectedSvc = _versionsInfo && _versionsInfo.service_version ? String(_versionsInfo.service_version) : null;
-  bar.innerHTML = filtered.map(c => {
+  // p3.42: one row model feeds both the header badges and the ⚙ popover's fleet detail
+  const rows = filtered.map(c => {
     const ageMs = c.last_seen ? (now - new Date(c.last_seen).getTime()) : null;
     const label = names[c.client_id] || c.client_id;
     const ver = c.version ? ` v${c.version}` : '';
     const mismatch = !!(expectedSvc && c.version && String(c.version) !== expectedSvc);
     const asleep = ageMs === null || ageMs >= 12 * 3600 * 1000;
     const seenTxt = ageMs === null ? 'never seen this session' : 'last seen ' + fmtAge(ageMs); // fmtAge already says "ago"
-    const tip = esc(label) + (ver ? esc(ver) : '') + ' · ' + seenTxt + (mismatch ? ' · expected v' + esc(expectedSvc) : '');
     const zzAge = ageMs === null ? '' : fmtAge(ageMs).replace(/ ago$/, ''); // "16h", not "16h ago"
-    const zz = asleep ? `<span class="hm-zz" title="${esc(seenTxt)}">💤${zzAge}</span>` : '';
-    return `<span class="hdr-machine${mismatch ? ' hm-mismatch' : ''}" title="${tip}">${esc(label)}<span class="hm-ver">${esc(ver)}</span>${zz}</span>`;
+    return { label, ver, mismatch, asleep, seenTxt, zzAge };
+  });
+  bar.innerHTML = rows.map(r => {
+    const tip = esc(r.label) + (r.ver ? esc(r.ver) : '') + ' · ' + r.seenTxt + (r.mismatch ? ' · expected v' + esc(expectedSvc) : '');
+    const zz = r.asleep ? `<span class="hm-zz" title="${esc(r.seenTxt)}">💤${r.zzAge}</span>` : '';
+    return `<span class="hdr-machine${r.mismatch ? ' hm-mismatch' : ''}" title="${tip}">${esc(r.label)}<span class="hm-ver">${esc(r.ver)}</span>${zz}</span>`;
   }).join('') + ' ' + _pageVersionChip() + ' <span id="hard-refresh-btn" onclick="hardRefresh()" style="cursor:pointer;font-size:13px;opacity:0.6;vertical-align:middle" title="Hard refresh">' + (_hrPending ? '<span class="hr-spin">⟳</span>' : '🔄') + '</span>' + errorIndicator();
+  _renderFleetDetail(rows, expectedSvc);
+}
+
+// p3.42 (quiet header, option A): the ⚙ popover carries the full fleet line on every screen size —
+// phones hide the dim header badges, and phones have no hover, so "last seen" is spelled out here.
+// Same rows as the header; a mismatch row goes red, the page row goes red + tap=🔄 when a newer
+// page is live (mirrors _pageVersionChip). Absent elements (roaming has no ⚙) are simply skipped.
+function _renderFleetDetail(rows, expectedSvc) {
+  const els = document.querySelectorAll('.fleet-detail');
+  if (!els.length) return;
+  const live = _versionsInfo && _versionsInfo.page_version ? String(_versionsInfo.page_version) : null;
+  const a = _parsePageVer(PAGE_VERSION), b = _parsePageVer(live);
+  const newer = !!(a && b && (b[0] > a[0] || (b[0] === a[0] && b[1] > a[1])));
+  const html = '<div class="fd-title">Fleet</div>' + rows.map(r =>
+    `<div class="fd-row${r.mismatch ? ' hm-mismatch' : ''}">${esc(r.label)}${esc(r.ver)} · ${esc(r.seenTxt)}` +
+    (r.asleep ? ' 💤' : '') + (r.mismatch ? ` · expected v${esc(expectedSvc)}` : '') + '</div>'
+  ).join('') + (newer
+    ? `<div class="fd-row hm-mismatch" onclick="hardRefresh()">page ${esc(PAGE_VERSION)} · ${esc(live)} is live — tap to refresh</div>`
+    : `<div class="fd-row">page ${esc(PAGE_VERSION)}</div>`);
+  els.forEach(el => { el.innerHTML = html; });
 }
 
 // p3.41: versions.json snapshot captured at load (service_version / page_version / clients) so the
