@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.69.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.70.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -343,7 +343,7 @@ def _get_queue_provenance(coord_name):
         return None
     return p
 
-def _overlay_prov_guard(prov, track_album, coord_name, track_started_epoch=None):
+def _overlay_prov_guard(prov, track_album, coord_name, track_started_epoch=None, track_service=None):
     """v2.59.2 OVERLAY GUARD (Rule 27): the v2.55 provenance overlay previously
     stamped the remembered pointer with NO validation against the observed
     track -- a stale album-typed pointer poisoned every subsequent queue play
@@ -369,7 +369,19 @@ def _overlay_prov_guard(prov, track_album, coord_name, track_started_epoch=None)
     v2.63 IDENTITY CHECK: staleness verdicts may now be reached from a
     SNAPSHOT of the pointer (taken at track start, see prov_at_start). Only
     clear the LIVE pointer when it is the SAME entry that was judged
-    (loaded_at match) -- never wipe a newer pointer on an old verdict."""
+    (loaded_at match) -- never wipe a newer pointer on an old verdict.
+    v2.70 SERVICE-MISMATCH GATE (Rule 27, Andrew-approved 2026-09-26): a
+    `spotify:` pointer cannot describe a track another service is playing.
+    Playlist-typed pointers have no album name to compare, so they were never
+    validated -- a play.ts/UX playlist play's pointer survived an organic
+    Sonos-app album start on the same coordinator and stamped every track
+    (Goldberg/Qobuz 2026-08-25 'Last Call'; Jacklin/Qobuz 2026-09-25/26 'Takoma
+    Park' x3, 34 h stale). When the caller knows the track's service and it is a
+    KNOWN non-Spotify service, treat the pointer as stale: skip the overlay and
+    clear the LIVE pointer (same identity rule as the album gate) so the machine
+    stops stamping the rest of the album. Returns the string "service_mismatch"
+    (truthy) so callers can record context_suppressed_reason accurately; the
+    other verdicts still return True. Fails open on ""/None/sonos_unknown."""
     try:
         if (track_started_epoch and prov.get("loaded_at")
                 and track_started_epoch < prov["loaded_at"] - 2.0):
@@ -377,6 +389,20 @@ def _overlay_prov_guard(prov, track_album, coord_name, track_started_epoch=None)
                 f"{prov['loaded_at'] - track_started_epoch:.0f}s AFTER track start -- "
                 f"cannot describe this play; overlay SKIPPED, pointer RETAINED (v2.63 temporal gate)")
             return True
+        if (track_service and track_service not in ("sonos_spotify", "sonos_unknown")
+                and (prov.get("uri") or "").lower().startswith("spotify:")):
+            _live = queue_provenance.get(coord_name)
+            if _live and _live.get("loaded_at") == prov.get("loaded_at"):
+                log(f"[overlay-guard v2.70] {coord_name}: SERVICE MISMATCH -- spotify {prov.get('type','') or 'container'} "
+                    f"pointer '{prov.get('name','')}' vs track service '{track_service}' -- "
+                    f"overlay SKIPPED, pointer CLEARED (self-heal)")
+                _clear_queue_provenance(coord_name,
+                                        f"overlay-guard service mismatch (track_service='{track_service}')")
+            else:
+                log(f"[overlay-guard v2.70] {coord_name}: SERVICE MISMATCH -- spotify {prov.get('type','') or 'container'} "
+                    f"pointer '{prov.get('name','')}' vs track service '{track_service}' -- "
+                    f"overlay SKIPPED; live pointer is a NEWER entry, left untouched (v2.63 identity check)")
+            return "service_mismatch"
         if ((prov.get("type") or "").lower() == "album" and track_album
                 and prov.get("name")
                 # v2.61: fuzzy match (was strict equality) — decorated sender
@@ -826,7 +852,8 @@ def _retire_to_state_ring(track_info, rooms_list, started_at=None,
             # never judged by / stamped onto an older track).
             if (_prov and _prov.get("uri")
                     and not _overlay_prov_guard(_prov, track_info.get("album", ""), _rg_coord,
-                                                track_started_epoch=started_epoch)):
+                                                track_started_epoch=started_epoch,
+                                                track_service=track_info.get("service", ""))):
                 _ctx_uri, _ctx_type = _prov["uri"], _prov["type"]
         entry["context_uri"] = _ctx_uri or ""
         entry["context_type"] = _ctx_type or ""
@@ -3957,13 +3984,18 @@ def post_history(track, room, started_at, ended_at, prov_snapshot=_PROV_UNSET):
         # v2.59.2: validate the pointer against the observed track BEFORE
         # stamping (overlay guard). Stale album-typed pointer -> honest
         # no-context + archaeology fields, pointer self-heals (cleared).
-        if (_prov and _prov.get("uri")
-                and _overlay_prov_guard(_prov, track.get("album", ""), _pg_coord,
-                                        track_started_epoch=_started_epoch)):
+        # v2.70: the guard also sees the track's SERVICE (spotify: pointer on a
+        # non-Spotify track = stale) and returns "service_mismatch" for that verdict.
+        _guard = (_overlay_prov_guard(_prov, track.get("album", ""), _pg_coord,
+                                      track_started_epoch=_started_epoch,
+                                      track_service=track.get("service", ""))
+                  if (_prov and _prov.get("uri")) else False)
+        if _guard:
             item["suppressed_container_name"] = _prov.get("name", "")
             item["suppressed_container_uri"]  = _prov.get("uri", "")
             item["suppressed_container_type"] = _prov.get("type", "")
-            item["context_suppressed_reason"] = "overlay_album_mismatch"
+            item["context_suppressed_reason"] = ("overlay_service_mismatch" if _guard == "service_mismatch"
+                                                 else "overlay_album_mismatch")
         elif _prov and _prov.get("uri"):
             item["container_uri"]  = _prov["uri"]
             item["container_name"] = _prov["name"]
