@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-25T10:11:18.788Z",
- "pick_date": "2026-09-25",
- "work_key": "BWV812-815",
- "work": "French Suites Nos. 1-4",
- "performer": "Glenn Gould",
- "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
- "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh",
- "instrumentation": "piano",
- "approx_minutes": 47,
- "reason": "last heard 37d ago",
+ "picked_at": "2026-09-26T10:13:13.117Z",
+ "pick_date": "2026-09-26",
+ "work_key": "BWV1079",
+ "work": "Musical Offering",
+ "performer": "Ricercar Consort",
+ "album": "Bach, J.S.: Musical Offering",
+ "spotify_album_uri": "spotify:album:1x4ZMf6zu9vpHwAZyTkoGB",
+ "instrumentation": "chamber",
+ "approx_minutes": 55,
+ "reason": "last heard 27d ago · avoided piano",
  "fallback": {
-  "work_key": "BWV1030-1035",
-  "work": "Flute Sonatas",
-  "performer": "Emmanuel Pahud & Trevor Pinnock",
-  "album": "Bach: Complete Flute Sonatas",
-  "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen"
+  "work_key": "BWV1080-consort",
+  "work": "The Art of Fugue (viol consort)",
+  "performer": "Fretwork",
+  "album": "J.S. Bach: The Art of Fugue",
+  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
  }
 }
