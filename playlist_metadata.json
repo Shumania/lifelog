@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Carly Rae Jepsen)",
+  "description": "Updated weekly. (Photo: Julia Jacklin)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84d4c7feffdb2454e6efadd7de",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000d72cc31a64680311de230a25a733",
   "followers_total": 84760,
-  "tracks_total": 27,
+  "tracks_total": 24,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-09-18T13:52:56Z"
+  "last_modified": "2026-09-25T13:21:11Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1630,5 +1630,101 @@
   "tracks_total": 18,
   "created_approx": "2026-09-20T10:31:05Z",
   "last_modified": "2026-09-20T10:31:05Z"
+ },
+ {
+  "id": "2TjfZ3mLkml9oEjW5XyDug",
+  "name": "Studio Uno — Sep 27",
+  "description": "Italian canzone 1959–72 — Sanremo ballads, Genoa&#x27;s cantautori, Mina&#x27;s TV stage and the Piper beat, arranged like film scores; it ends on the one song that only pretends to be English.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0207e99d6e552a2238509f2b37ab67616d00001e02d7d2cf290e60b8b4a21bd814ab67616d00001e02e2d66cdb44b57992b55f7095ab67616d00001e02ef1f8a44079e8663daa72e5a",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-09-27T10:29:01Z",
+  "last_modified": "2026-09-27T10:29:01Z"
+ },
+ {
+  "id": "0dfy3uvMo3VZqFiQ1ZBLoQ",
+  "name": "Homegame",
+  "description": "Scottish indie &amp; lo-fi folk-pop from Fife, 1997–2014 — the Beta Band family tree: Steve Mason, the Anderson brothers, King Creosote&#x27;s Fence Collective and the road to Diamond Mine.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021570e9fc32fa3b80546137a5ab67616d00001e0243a88f6cbfacea90593f31eeab67616d00001e0272f22defb6d6ce5b619e7c4bab67616d00001e02d60945ad4e26a13d605f331a",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-09-26T10:31:12Z",
+  "last_modified": "2026-09-26T10:31:12Z"
+ },
+ {
+  "id": "25vwFszBug4gta91ixes4v",
+  "name": "Takoma Park",
+  "description": "American Primitive guitar, 1926–2025 — the solo steel-string from Sam McGee and Blind Willie Johnson through John Fahey&#x27;s Takoma label to Gwenifer Raymond&#x27;s Welsh hills. No singers: the guitar does all the talking.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020611e65ba66e3946c18c61baab67616d00001e02b423a2b57dbc25b159586b20ab67616d00001e02becd6d92c25fabf88c02c54eab67616d00001e02ca26ce52fd1ac32db22ecacc",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-09-25T10:31:11Z",
+  "last_modified": "2026-09-25T10:31:20Z"
+ },
+ {
+  "id": "6B8AZIYRDJ6EF7fsVj4bXf",
+  "name": "Ninety-Three 'til",
+  "description": "Jazz-rap, 1993 — the year the crate-diggers ran hip-hop, in release order: Reachin&#x27;, Jazzmatazz, Buhloone Mindstate, Midnight Marauders and the undergrounds that answered them.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0225ee6dd2af35e94578094d3aab67616d00001e029f1f96b2d132b62ef0e3da18ab67616d00001e02b6472a8f3bcb6ff05e7a2a2eab67616d00001e02c9f6a742f2337f938e89f599",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-09-24T10:29:12Z",
+  "last_modified": "2026-09-24T10:29:12Z"
+ },
+ {
+  "id": "13KL1EYbonJiiqlMolabDi",
+  "name": "Bukom to Kalakuta — Sep 23",
+  "description": "Afrobeat, Afro-rock &amp; highlife-funk, Lagos–Accra–London 1971–79 — the oil-boom decade when Fela&#x27;s Shrine, Accra&#x27;s dance bands and the London émigrés were one scene. Closes in London, 2018.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0238535bfd0b125be236a99e03ab67616d00001e0285f54bc7af6ef0d20688c720ab67616d00001e02c33ca42ca586b0eade3135c8ab67616d00001e02dac65c0288bb956396671950",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-09-23T10:36:16Z",
+  "last_modified": "2026-09-23T10:36:16Z"
+ },
+ {
+  "id": "5I0ZWchkPw7XYGGuLTXGqe",
+  "name": "Grey Area — Sep 22",
+  "description": "Producer pop, 2005–2024 — Danger Mouse&#x27;s stable: Morricone strings, dusty drums and minor-key hooks, from DOOM and Gnarls Barkley through Broken Bells, Rome and Kiwanuka.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e023277cf16b24ce7cb3622df8dab67616d00001e02ab051a2c680f39c0d9827706ab67616d00001e02c546761c7ea42c7402365548ab67616d00001e02e198b6b9c5bfe013458e8ec9",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-09-22T10:34:11Z",
+  "last_modified": "2026-09-22T10:34:11Z"
+ },
+ {
+  "id": "7dpym9XE338XuFWZwlI71z",
+  "name": "The Shepherd's Bush Squat — Sep 21",
+  "description": "Lineage map, 1969–1997: The Beta Band&#x27;s record collection, unheard half — the sampled crate (Bob James, Curtis Knight, John Barry), Steve Mason&#x27;s punk-to-dub gateway (Dead Kennedys, PiL, Tapper Zukie), the hip-hop vocabulary (Paris, KRS-One, Company Flow), and a KLF comedown.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02199a634c960b1f1304471a3cab67616d00001e02385113575341a15ea6fad251ab67616d00001e02916d5384316d7d87388ce8e8ab67616d00001e02b60af1192fefe6df58d24a90",
+  "followers_total": 0,
+  "tracks_total": 16,
+  "created_approx": "2026-09-21T16:16:36Z",
+  "last_modified": "2026-09-21T16:16:36Z"
+ },
+ {
+  "id": "3PMJNCYMt1NAJdpBpP9FBf",
+  "name": "Suburban Light — Sep 21",
+  "description": "Indie reverb-pop, 1983–2023 — the hushed, jangling afternoon-light lineage from Felt and Galaxie 500 through The Clientele to Real Estate and Kurt Vile.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021a82444d66871f88bdacd9c1ab67616d00001e022d8aaa127cc56cd7d3a1b17bab67616d00001e02354af3e86870e9920d2e7fc8ab67616d00001e02879f4010327edb45564399fb",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-09-21T10:26:07Z",
+  "last_modified": "2026-09-21T10:26:07Z"
  }
 ]
