@@ -1046,6 +1046,13 @@
 .geo-hint { margin: 6px 0 2px; padding: 7px 10px; background: rgba(80,160,255,.08); border: 1px solid rgba(80,160,255,.25); border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .geo-hint b { font-weight: 600; }
 .geo-hint button { margin: 0 2px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(80,160,255,.4); background: rgba(80,160,255,.15); color: inherit; font-size: 13px; cursor: pointer; }
+/* p3.43 P2 (design_geo_house_v1.md Rev 2): house auto-switch note under the header, all views.
+   Neutral tone on purpose — informational, not an alarm (color = actionable only). Stays until acted on. */
+.house-note { position: relative; margin: 6px 16px 0; padding: 5px 28px 5px 10px; font-size: 12px; line-height: 1.6; color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; }
+.house-note b { color: var(--text); font-weight: 600; }
+.house-note button { margin: 0 1px; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.5; cursor: pointer; vertical-align: baseline; }
+.house-note button:hover { border-color: var(--accent2); }
+.house-note .hn-x { position: absolute; right: 4px; top: 3px; border: none; background: none; color: var(--text-dim); padding: 0 5px; font-size: 13px; }
 /* p3.26 (D7): roaming — play verbs deep-link into Spotify. Tint by ONCLICK attribute
    (play-verb callers only; queue/+ verbs stay untinted because they stay API-backed).
    ::after ↗ marks the app-switch; suppressed on icon-only .action-btn to avoid wrap. */
@@ -1345,7 +1352,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.42';
+const PAGE_VERSION = 'p3.43';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1812,6 +1819,8 @@ function setHouse(h, isUserClick) {
   if (isUserClick) {
     try { localStorage.setItem('ll_house_override', JSON.stringify({ house: h, zone_at: _houseLastDetected, ts: Date.now() })); } catch (e) {}
     console.log('[house] manual override → ' + h + ' (zone_at=' + (_houseLastDetected || 'unknown') + ')');
+    // p3.43 P2: a user pick ends the "auto → X" story — drop the record and its note.
+    try { _houseAutoClear('user pick'); houseNoteDismiss('user pick'); } catch (e) { console.log('[house] auto-clear on pick ERROR: ' + e); }
   }
   house = h;
   localStorage.setItem('ll_house', h);
@@ -6161,6 +6170,7 @@ function geoSetPin(v) {
       showToast('📌 Device pinned to ' + lbl);
       console.log('[geo] pin set → ' + v);
     }
+    if (v) { _houseAutoClear('pin set'); houseNoteDismiss('pin set'); } // p3.43 P2: pin wins — the auto-switch story is over
     _geoApplied = false; _geoLastRun = 0; _geoStateWaits = 0; _houseLastRun = 0; // immediate re-decide (house + structure)
     houseMaybeRun('pin-change').then(() => geoMaybeRun('pin-change'));
   } catch (e) { console.log('[geo] setPin ERROR: ' + e); }
@@ -6540,10 +6550,11 @@ async function geoMaybeRun(trigger) {
 // HOUSE PICK — p3.25 (design_geo_house_v1.md Rev 1, D1–D7 signed off 2026-08-22)
 // Outer loop: which VIEW (caphill / vashon / roaming) should the page show, from
 // GPS. Level-triggered (Rule 27): evaluated at startup/foreground behind a 5-min
-// re-arm; a pure function of (zones, fix, pin, override). Structure geo above is
-// the INNER loop and is unchanged — it still runs only when house === 'vashon'.
-// Switching the view NEVER touches audio. Auto-entering roaming starts Spotify
-// polling via setHouse (existing behavior — the "grabbed my phone and left" case).
+// re-arm; a pure function of (zones, fix, pin, override, device class). Structure
+// geo above is the INNER loop and is unchanged — it still runs only when house ===
+// 'vashon'. Switching the view NEVER touches audio. Auto-entering roaming starts
+// Spotify polling via setHouse (existing behavior — the "grabbed my phone and left"
+// case). p3.43 = Rev 2 (P1 log coords, P2 persistent note, P3 desktop guard) below.
 let _houseLastRun = 0;         // ts of last completed evaluation (re-arm gate)
 let _houseLastDetected = null; // last confident zone; setHouse(D4) stamps it into overrides
 const HOUSE_LABELS = { caphill: 'Cap Hill', vashon: 'Vashon', roaming: 'Roaming' };
@@ -6567,6 +6578,122 @@ function _houseDecide(lat, lon, acc) {
   return inCh ? 'caphill' : (inV ? 'vashon' : 'roaming');
 }
 
+// ── p3.43 · design_geo_house_v1.md Rev 2 (P1–P3, Andrew 2026-09-27) ─────────────
+// P3 — device class. Desktops/laptops have no GPS: Windows/macOS answer from a
+// Wi-Fi/IP database whose ACCURACY CLAIM IS UNCORRELATED WITH TRUTH (2026-09-27
+// probe: the RIGHT fix at Cap Hill came flagged ±381 m and was rejected by the gate;
+// the 2.5 km-WRONG fix at Vashon came flagged ±159 m and was accepted → Roaming).
+// A wrong fix landing inside the OTHER house's 200–250 m ring is ~impossible;
+// "anywhere else on Earth" is exactly what a mislocated Wi-Fi entry produces. So a
+// non-mobile device may auto-ENTER a house ring but never auto-enter Roaming, and a
+// Roaming verdict never clears a house override — it becomes a note + one-tap switch
+// (houseMaybeRun). Phones/tablets (GPS) are unchanged. userAgentData.mobile is
+// authoritative where present (Chromium); Safari/Firefox fall back to touch points
+// (iPhone/iPad report 5, desktops 0). _houseDecide stays pure geometry.
+function _houseIsMobile() {
+  try { const u = navigator.userAgentData; if (u && typeof u.mobile === 'boolean') return u.mobile; } catch (e) {}
+  return (navigator.maxTouchPoints || 0) > 0;
+}
+const HOUSE_ICONS = { caphill: '🏠', vashon: '🏝', roaming: '📱' };
+function _houseFmtDist(m) { return m < 1000 ? Math.round(m) + ' m' : m < 10000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m / 1000) + ' km'; }
+function _houseBearing(fromLat, fromLon, toLat, toLon) { // compass point FROM a house TO the fix ("2.5 km N of Vashon")
+  const toR = Math.PI / 180, dLon = (toLon - fromLon) * toR;
+  const y = Math.sin(dLon) * Math.cos(toLat * toR);
+  const x = Math.cos(fromLat * toR) * Math.sin(toLat * toR) - Math.sin(fromLat * toR) * Math.cos(toLat * toR) * Math.cos(dLon);
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360) / 45) % 8];
+}
+// P1/P2 — describe a fix against both houses. all: "2.5 km N of Vashon · 29 km SW of Cap Hill"
+// (nearest first, for the console); near: "2.5 km N of Vashon ±159 m" / "at Vashon ±65 m" (for the note).
+function _houseFixDesc(lat, lon, acc) {
+  const d = [];
+  for (const h of ['vashon', 'caphill']) {
+    const z = _geoZones && _geoZones[h];
+    if (z && z.centroid) d.push({ h, m: _geoDistM(lat, lon, z.centroid.lat, z.centroid.lon), dir: _houseBearing(z.centroid.lat, z.centroid.lon, lat, lon) });
+  }
+  d.sort((a, b) => a.m - b.m);
+  const n = d[0], accTxt = ' ±' + Math.round(acc) + ' m';
+  return {
+    all: d.map(x => _houseFmtDist(x.m) + ' ' + x.dir + ' of ' + HOUSE_LABELS[x.h]).join(' · '),
+    near: n ? (n.m <= (_geoZones[n.h].presence_radius_m || 250) ? 'at ' + HOUSE_LABELS[n.h] : _houseFmtDist(n.m) + ' ' + n.dir + ' of ' + HOUSE_LABELS[n.h]) + accTxt : 'fix' + accTxt,
+  };
+}
+// P2 — persistent note under the header (visible in every view). D3 promised "status
+// line notes source" on auto-switch; p3.25 only toasted, so a reboot left a Roaming
+// view with no "why". The note is a RENDERING of state (Rule 27): ll_house_auto =
+// {house,from,ts,why} says "the current view was chosen automatically"; it is written
+// on auto-switch, restored on load while the view still matches, and cleared by any
+// user pick, any pin, or ✕. The P3 desktop note is not stored — the fix is
+// deterministic, so it re-derives on every run (✕ snoozes it for the session; Rule 11
+// release = reload or a different verdict).
+let _houseNoteSnooze = null;
+function _houseBtn(label, js, title) { return '<button onclick="' + js + '" title="' + title + '">' + label + '</button>'; }
+function _houseNote(kind, html) {
+  try {
+    let el = document.getElementById('house-note');
+    if (!el) {
+      const hdr = document.querySelector('.top-header');
+      if (!hdr) { console.log('[house] note: no .top-header anchor'); return; }
+      el = document.createElement('div'); el.id = 'house-note'; el.className = 'house-note';
+      hdr.insertAdjacentElement('afterend', el);
+    }
+    el.dataset.kind = kind;
+    el.innerHTML = html + '<button class="hn-x" onclick="houseNoteDismiss(\'user\')" title="Dismiss">✕</button>';
+  } catch (e) { console.log('[house] note ERROR: ' + e); }
+}
+function houseNoteDismiss(reason) {
+  const el = document.getElementById('house-note');
+  if (!el) return;
+  const kind = el.dataset.kind || '?';
+  el.remove();
+  console.log('[house] note (' + kind + ') dismissed (' + reason + ')');
+  if (reason === 'user') {
+    if (kind === 'auto') _houseAutoClear('dismissed');          // seen it — don't re-show on reload
+    if (kind === 'desktop-roaming') _houseNoteSnooze = kind;     // stays quiet for this session
+  }
+}
+function _houseAutoClear(reason) {
+  try { if (localStorage.getItem('ll_house_auto')) { localStorage.removeItem('ll_house_auto'); console.log('[house] auto-switch record cleared (' + reason + ')'); } } catch (e) {}
+}
+function _houseFmtWhen(ts) {
+  const d = new Date(ts), t = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
+}
+// "📍 auto → 📱 Roaming 6:10 AM · fix 2.5 km N of Vashon ±159 m · [↩ Vashon] [📌 pin…]"
+function _houseAutoNote(rec) {
+  const L = h => HOUSE_LABELS[h] || h, pinH = rec.house !== 'roaming' ? rec.house : rec.from;
+  _houseNote('auto', '📍 auto → <b>' + (HOUSE_ICONS[rec.house] || '') + ' ' + L(rec.house) + '</b> ' + _houseFmtWhen(rec.ts) + ' · fix ' + rec.why +
+    ' · ' + _houseBtn('↩ ' + L(rec.from), "houseNoteSwitch('" + rec.from + "')", 'Back to ' + L(rec.from) + ' (records an 8h override)') +
+    (pinH && pinH !== 'roaming' ? ' ' + _houseBtn('📌 pin…', "houseNotePin('" + pinH + "')", 'Pin this device to a location — stops auto-switching for good') : ''));
+}
+function _houseAutoRecord(to, from, why) {
+  const rec = { house: to, from: from, ts: Date.now(), why: why };
+  try { localStorage.setItem('ll_house_auto', JSON.stringify(rec)); } catch (e) {}
+  _houseAutoNote(rec);
+}
+// Startup: the view may still be an automatic choice from a previous load — say so.
+function _houseAutoRestore() {
+  try {
+    const raw = localStorage.getItem('ll_house_auto'); if (!raw) return;
+    const rec = JSON.parse(raw), pin = _geoPin();
+    if (pin && pin.house) { _houseAutoClear('pinned device'); return; }
+    if (rec && rec.house === house) { _houseAutoNote(rec); console.log('[house] view is still the auto pick from ' + _houseFmtWhen(rec.ts) + ' (' + rec.why + ') — note restored'); }
+    else _houseAutoClear('view no longer matches');
+  } catch (e) { console.log('[house] autoRestore ERROR: ' + e); }
+}
+function houseNoteSwitch(h) { // one-tap correction — user intent, so D4 override semantics apply
+  setHouse(h, true);
+  showToast((HOUSE_ICONS[h] || '') + ' ' + (HOUSE_LABELS[h] || h));
+}
+function houseNotePin(h) { // "⚙ pin to stop" — land in that house's view with the ⚙ pin picker open
+  try {
+    if (house !== h) setHouse(h, true);
+    _houseAutoClear('pin menu'); houseNoteDismiss('pin menu');
+    const pop = document.getElementById('ctrl-settings-' + h);
+    if (pop && pop.hidden) toggleCtrlSettings(h);  // opens + syncs the picker to the current pin
+    showToast('📌 Pick a pin for this device');
+  } catch (e) { console.log('[house] notePin ERROR: ' + e); }
+}
+
 async function houseMaybeRun(trigger) {
   try {
     const rearmMs = (((_geoZones && _geoZones.house) || {}).rearm_s || 300) * 1000;
@@ -6576,6 +6703,7 @@ async function houseMaybeRun(trigger) {
     const pin = _geoPin();
     if (pin && pin.house) {
       _houseLastRun = Date.now();
+      _houseAutoClear('pinned device'); // p3.43 P2: the view is the pin's, not an auto pick
       if (house !== pin.house) {
         console.log('[house] device pin → ' + pin.house + ' (was ' + house + ')');
         setHouse(pin.house);
@@ -6608,8 +6736,24 @@ async function houseMaybeRun(trigger) {
     if (!fix) { console.log('[house] no fix — manual rules (D6), retry next open/rearm'); return; }
     const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
     const zone = _houseDecide(lat, lon, acc);
-    console.log('[house] ' + trigger + ': fix ±' + Math.round(acc) + 'm → ' + (zone || 'NO DECISION') + ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ')');
+    const desc = _houseFixDesc(lat, lon, acc), mobile = _houseIsMobile(), gateM = hz.gate_m || 300;
+    // p3.43 P1: coordinates + distance/bearing to each house in the log. The 2026-09-27
+    // Vashon→Roaming flip needed an OS-level probe just to learn WHERE the fix landed.
+    console.log('[house] ' + trigger + ': fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · ' + (desc.all || 'zones?') +
+      ' → ' + (zone || ('NO DECISION' + (acc > gateM ? ' (±' + Math.round(acc) + 'm > ' + gateM + 'm gate)' : ''))) +
+      ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ' · ' + (mobile ? 'mobile' : 'desktop') + ')');
     if (!zone) return;
+    // p3.43 P3: desktop guard (see _houseIsMobile). Returns BEFORE the override logic, so a
+    // Roaming verdict on a non-mobile device can neither switch the view nor clear/backfill
+    // an override, and never becomes _houseLastDetected. It becomes a note + one-tap switch.
+    if (zone === 'roaming' && !mobile) {
+      if (house === 'roaming') { console.log('[house] P3 desktop guard: Roaming verdict, already viewing Roaming — nothing to do'); return; }
+      console.log('[house] P3 desktop guard: Roaming verdict IGNORED on a desktop — view stays ' + house + ', override untouched' + (_houseNoteSnooze ? ' (note snoozed this session)' : ' — note shown'));
+      if (!_houseNoteSnooze) _houseNote('desktop-roaming', '📍 ' + _houseFmtWhen(Date.now()) + ' fix says <b>📱 Roaming</b> (' + desc.near + ') · desktop keeps ' + HOUSE_LABELS[house] +
+        ' · ' + _houseBtn('→ Roaming', "houseNoteSwitch('roaming')", 'Switch to Roaming (records an 8h override)') +
+        ' ' + _houseBtn('📌 pin…', "houseNotePin('" + house + "')", 'Pin this device here — the fix is never consulted again'));
+      return;
+    }
     _houseLastDetected = zone;
     if (ov) {
       // D4: sticky until you ACTUALLY move zones. zone_at backfills on the first
@@ -6625,13 +6769,17 @@ async function houseMaybeRun(trigger) {
       console.log('[house] zone changed ' + ov.zone_at + ' → ' + zone + ' — override cleared, auto resumes');
     }
     if (zone !== house) {
+      const from = house;
       setHouse(zone); // programmatic — records no override
+      _houseAutoRecord(zone, from, desc.near); // p3.43 P2: persistent note + ll_house_auto (survives reload while the view is still this pick)
       showToast('📍 ' + (HOUSE_LABELS[zone] || zone) + ' (detected)');
-      console.log('[house] switched view → ' + zone);
+      console.log('[house] switched view ' + from + ' → ' + zone + ' (auto · note shown · ll_house_auto written)');
     }
   } catch (e) { console.log('[house] ERROR: ' + e); }
 }
 
+// p3.43 P2: if this view is still an earlier automatic pick, say so before geo re-runs.
+try { _houseAutoRestore(); } catch (e) { console.log('[house] autoRestore boot ERROR: ' + e); }
 // House pick runs FIRST so structure geo sees the post-switch house (e.g. arriving
 // at Vashon: view flips, then the structure chip decides within the same pass).
 setTimeout(() => houseMaybeRun('startup').then(() => geoMaybeRun('startup')), 1500);
