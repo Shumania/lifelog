@@ -6602,7 +6602,7 @@ function _houseBearing(fromLat, fromLon, toLat, toLon) { // compass point FROM a
   const x = Math.cos(fromLat * toR) * Math.sin(toLat * toR) - Math.sin(fromLat * toR) * Math.cos(toLat * toR) * Math.cos(dLon);
   return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round((((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360) / 45) % 8];
 }
-// P1/P2 — describe a fix against both houses. all: "Vashon 2.5 km N · Cap Hill 29 km SW"
+// P1/P2 — describe a fix against both houses. all: "2.5 km N of Vashon · 29 km SW of Cap Hill"
 // (nearest first, for the console); near: "2.5 km N of Vashon ±159 m" / "at Vashon ±65 m" (for the note).
 function _houseFixDesc(lat, lon, acc) {
   const d = [];
@@ -6613,7 +6613,7 @@ function _houseFixDesc(lat, lon, acc) {
   d.sort((a, b) => a.m - b.m);
   const n = d[0], accTxt = ' ±' + Math.round(acc) + ' m';
   return {
-    all: d.map(x => HOUSE_LABELS[x.h] + ' ' + _houseFmtDist(x.m) + ' ' + x.dir).join(' · '),
+    all: d.map(x => _houseFmtDist(x.m) + ' ' + x.dir + ' of ' + HOUSE_LABELS[x.h]).join(' · '),
     near: n ? (n.m <= (_geoZones[n.h].presence_radius_m || 250) ? 'at ' + HOUSE_LABELS[n.h] : _houseFmtDist(n.m) + ' ' + n.dir + ' of ' + HOUSE_LABELS[n.h]) + accTxt : 'fix' + accTxt,
   };
 }
