@@ -1352,7 +1352,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.43';
+const PAGE_VERSION = 'p3.44';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4024,7 +4024,11 @@ async function fetchStateFiles() {
   await Promise.all(Object.entries(STATE_URLS).map(async ([h, url]) => {
     try {
       const r = await fetch(url + '?t=' + Date.now());
-      if (r.ok) results[h] = await r.json();
+      if (r.ok) {
+        results[h] = await r.json();
+        // p3.44 N3: seed the house-pick network cache from the same bytes (no second fetch on cold load)
+        try { const st = results[h]; if (typeof _netHouse === 'object') _netHouse[h] = { fp: (st.net && st.net.fp) || null, ts: (st.net && st.net.ts) || null, at: Date.now(), ver: st.version }; } catch (e) {}
+      }
       else console.warn('[stateFiles] ' + h + ' fetch HTTP ' + r.status); // U-M6
     } catch(e) { console.warn('[stateFiles] ' + h + ' fetch failed:', e && e.message); } // U-M6: was silent
   }));
@@ -6555,6 +6559,8 @@ async function geoMaybeRun(trigger) {
 // 'vashon'. Switching the view NEVER touches audio. Auto-entering roaming starts
 // Spotify polling via setHouse (existing behavior — the "grabbed my phone and left"
 // case). p3.43 = Rev 2 (P1 log coords, P2 persistent note, P3 desktop guard) below.
+// p3.44 = Rev 3 §8 (network fingerprint fallback when geo yields no house) — see the
+// NET block above houseMaybeRun.
 let _houseLastRun = 0;         // ts of last completed evaluation (re-arm gate)
 let _houseLastDetected = null; // last confident zone; setHouse(D4) stamps it into overrides
 const HOUSE_LABELS = { caphill: 'Cap Hill', vashon: 'Vashon', roaming: 'Roaming' };
@@ -6659,14 +6665,15 @@ function _houseFmtWhen(ts) {
   return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
 }
 // "📍 auto → 📱 Roaming 6:10 AM · fix 2.5 km N of Vashon ±159 m · [↩ Vashon] [📌 pin…]"
+// p3.44: a network verdict reads "📍 auto → 🏝 Vashon 7:58 AM · Vashon network · …" (rec.src === 'net'; older records have no src → "fix").
 function _houseAutoNote(rec) {
   const L = h => HOUSE_LABELS[h] || h, pinH = rec.house !== 'roaming' ? rec.house : rec.from;
-  _houseNote('auto', '📍 auto → <b>' + (HOUSE_ICONS[rec.house] || '') + ' ' + L(rec.house) + '</b> ' + _houseFmtWhen(rec.ts) + ' · fix ' + rec.why +
+  _houseNote('auto', '📍 auto → <b>' + (HOUSE_ICONS[rec.house] || '') + ' ' + L(rec.house) + '</b> ' + _houseFmtWhen(rec.ts) + (rec.src === 'net' ? ' · ' : ' · fix ') + rec.why +
     ' · ' + _houseBtn('↩ ' + L(rec.from), "houseNoteSwitch('" + rec.from + "')", 'Back to ' + L(rec.from) + ' (records an 8h override)') +
     (pinH && pinH !== 'roaming' ? ' ' + _houseBtn('📌 pin…', "houseNotePin('" + pinH + "')", 'Pin this device to a location — stops auto-switching for good') : ''));
 }
-function _houseAutoRecord(to, from, why) {
-  const rec = { house: to, from: from, ts: Date.now(), why: why };
+function _houseAutoRecord(to, from, why, src) {
+  const rec = { house: to, from: from, ts: Date.now(), why: why, src: src || 'geo' };
   try { localStorage.setItem('ll_house_auto', JSON.stringify(rec)); } catch (e) {}
   _houseAutoNote(rec);
 }
@@ -6694,6 +6701,90 @@ function houseNotePin(h) { // "⚙ pin to stop" — land in that house's view wi
   } catch (e) { console.log('[house] notePin ERROR: ' + e); }
 }
 
+// ── p3.44 · design_geo_house_v1.md Rev 3 §8 (N1–N6, Andrew OK 2026-09-28 09:03 PT) ──
+// NETWORK FINGERPRINT FALLBACK — "am I on a house network?" when geo has no answer.
+// WHY: Windows Location lies at Vashon (Wi-Fi DB puts the house 2.5 km north, on every
+// PC that hears the same access points), so after p3.43 a desktop could never auto-enter
+// Roaming — but nothing could pull it BACK into Vashon either. Browsers can't see the
+// SSID; the one network property every device behind a house's router shares AND a page
+// can observe is the public IPv4 (NAT). Probe 2026-09-28: laptop on CocoNetz == Mind on
+// the wire == one Comcast lease; Cap Hill is a different lease; both LANs are the same
+// 192.168.4.0/24 so LAN-side detection could never tell the houses apart.
+// HOW: the service (v2.71) publishes fp = sha256('lifelog-net-v1:' + WAN_IPv4)[:5] in
+// state-{house}.json ("net": {fp, ts}). 20 bits is k-anonymity, not secrecy — the salt is
+// right here, so ~4,100 IPv4s share every bucket (no usable house IP in the public repo)
+// while our false-match odds are ~1 in 1M per check. The page asks an echo service for
+// its own IPv4 (4 s abort, cached for the re-arm window), hashes it with WebCrypto, and
+// compares against both houses. Raw IPs stay in this device's console only.
+// WHEN (N3): only after geo yielded no HOUSE — Roaming verdict, NO DECISION, no fix,
+// permission denied, or no geolocation API. Precedence (N4): geo in-ring house > network
+// house > geo Roaming (mobile only). A network verdict enters the SAME D4 override path as
+// a geo house verdict. Anything unavailable → one log line and today's behaviour (fail-open).
+// N6 caveat: a laptop using a house PC as a Tailscale exit node fingerprints as that house.
+const NET_FP_SALT = 'lifelog-net-v1:';
+const NET_ECHO_URLS = ['https://api.ipify.org', 'https://ipv4.icanhazip.com'];
+let _netOwn = null;    // {fp, ip, ts} — this device's WAN fingerprint, cached for the re-arm window
+const _netHouse = {};  // house → {fp, ts, at, ver} — published fingerprints; seeded by fetchStateFiles(), refreshed ≤1h (≤re-arm while null)
+async function _netSha5(s) { // sha256 hex[:5] — MUST equal the service's hashlib.sha256(...).hexdigest()[:5]
+  if (!(window.crypto && crypto.subtle)) return null;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 5);
+}
+async function _netOwnFp(maxAgeMs) {
+  if (_netOwn && Date.now() - _netOwn.ts < maxAgeMs) return _netOwn;
+  const errs = [];
+  for (const url of NET_ECHO_URLS) {
+    const tag = url.replace('https://', '');
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch(url, { signal: ctl.signal, cache: 'no-store' });
+      clearTimeout(t);
+      const ip = (await r.text()).trim();
+      if (r.ok && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+        const fp = await _netSha5(NET_FP_SALT + ip);
+        if (!fp) { errs.push('no WebCrypto (insecure context?)'); break; }
+        _netOwn = { fp: fp, ip: ip, ts: Date.now(), via: tag };
+        return _netOwn;
+      }
+      errs.push(tag + ' → HTTP ' + r.status + ' ' + JSON.stringify(ip.slice(0, 30)));
+    } catch (e) { errs.push(tag + ' → ' + (e && e.name === 'AbortError' ? 'timeout 4s' : (e && e.message || e))); }
+  }
+  console.log('[house] net: own IP unavailable (' + errs.join('; ') + ') — fail-open');
+  return null;
+}
+async function _netHouseFps() {
+  const out = {}, stale = [];
+  for (const h of Object.keys(STATE_URLS)) {
+    const c = _netHouse[h];
+    if (!c || !c.fp || Date.now() - c.at > 3600000) stale.push(h); else out[h] = c; // a null fp (service < v2.71 / first refresh pending) is transitional — re-fetch every run
+  }
+  if (stale.length) await Promise.all(stale.map(async h => {
+    try {
+      const r = await fetch(STATE_URLS[h] + '?t=' + Date.now());
+      if (!r.ok) { console.log('[house] net: state-' + h + '.json HTTP ' + r.status); return; }
+      const st = await r.json();
+      _netHouse[h] = { fp: (st.net && st.net.fp) || null, ts: (st.net && st.net.ts) || null, at: Date.now(), ver: st.version };
+      out[h] = _netHouse[h];
+    } catch (e) { console.log('[house] net: state-' + h + '.json fetch failed: ' + (e && e.message || e)); }
+  }));
+  return out;
+}
+// Returns 'caphill' | 'vashon' on exactly one match, else null (fail-open). One honest log line either way.
+async function _houseNetCheck(reason, rearmMs) {
+  try {
+    const [own, fps] = await Promise.all([_netOwnFp(rearmMs), _netHouseFps()]);
+    const pub = Object.keys(STATE_URLS).filter(h => fps[h] && fps[h].fp); // STATE_URLS order → stable log line (fetch order is not)
+    if (!pub.length) { console.log('[house] net: no house fingerprints published yet (service < v2.71 or first hourly refresh pending) — fail-open (' + reason + ')'); return null; }
+    if (!own) return null; // already logged by _netOwnFp
+    const desc = pub.map(h => h + ' fp ' + fps[h].fp + ' (' + (fps[h].ts ? String(fps[h].ts).slice(11, 16) + 'Z' : '?') + ')').join(' · ');
+    const hit = pub.filter(h => fps[h].fp === own.fp);
+    const head = '[house] net: own fp ' + own.fp + ' (' + own.ip + ' via ' + own.via + ') · ' + desc + ' → ';
+    if (hit.length === 1) { console.log(head + hit[0] + ' (' + reason + ')'); return hit[0]; }
+    console.log(head + (hit.length ? 'AMBIGUOUS ' + hit.join('+') + ' — both houses publish the same fingerprint?!' : 'no match') + ' (' + reason + ') — fail-open');
+    return null;
+  } catch (e) { console.log('[house] net: ERROR ' + e + ' — fail-open'); return null; }
+}
+
 async function houseMaybeRun(trigger) {
   try {
     const rearmMs = (((_geoZones && _geoZones.house) || {}).rearm_s || 300) * 1000;
@@ -6711,7 +6802,9 @@ async function houseMaybeRun(trigger) {
       }
       return;
     }
-    if (!('geolocation' in navigator)) { _houseLastRun = Number.MAX_SAFE_INTEGER; console.log('[house] no geolocation API — manual only'); return; }
+    // p3.44 N3: no geolocation API is no longer terminal — the network check below still runs.
+    const hasGeo = ('geolocation' in navigator);
+    if (!hasGeo) console.log('[house] no geolocation API — network fingerprint only');
     if (!_geoZones) {
       const r = await fetch(GEO_ZONES_URL + '?t=' + (Date.now() >> 16));
       if (!r.ok) { console.log('[house] zones fetch HTTP ' + r.status + ' — retry after rearm'); _houseLastRun = Date.now(); return; }
@@ -6727,25 +6820,38 @@ async function houseMaybeRun(trigger) {
       console.log('[house] override expired (>' + (hz.override_expiry_h || 8) + 'h) — auto resumes');
     }
     // D2: looser fix than structure geo — houses don't move. Cached fixes ≤2 min OK.
-    const fix = await new Promise((res) => {
+    const fix = !hasGeo ? null : await new Promise((res) => {
       navigator.geolocation.getCurrentPosition(p => res(p),
         e => { console.log('[house] fix unavailable: code=' + e.code + ' ' + e.message); res(null); },
         { enableHighAccuracy: false, timeout: 8000, maximumAge: (hz.fix_max_age_s || 120) * 1000 });
     });
     _houseLastRun = Date.now();
-    if (!fix) { console.log('[house] no fix — manual rules (D6), retry next open/rearm'); return; }
-    const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
-    const zone = _houseDecide(lat, lon, acc);
-    const desc = _houseFixDesc(lat, lon, acc), mobile = _houseIsMobile(), gateM = hz.gate_m || 300;
-    // p3.43 P1: coordinates + distance/bearing to each house in the log. The 2026-09-27
-    // Vashon→Roaming flip needed an OS-level probe just to learn WHERE the fix landed.
-    console.log('[house] ' + trigger + ': fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · ' + (desc.all || 'zones?') +
-      ' → ' + (zone || ('NO DECISION' + (acc > gateM ? ' (±' + Math.round(acc) + 'm > ' + gateM + 'm gate)' : ''))) +
-      ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ' · ' + (mobile ? 'mobile' : 'desktop') + ')');
+    const mobile = _houseIsMobile(), gateM = hz.gate_m || 300;
+    let zone = null, src = 'geo', why = '', desc = null;
+    if (fix) {
+      const lat = fix.coords.latitude, lon = fix.coords.longitude, acc = fix.coords.accuracy || 999;
+      zone = _houseDecide(lat, lon, acc);
+      desc = _houseFixDesc(lat, lon, acc); why = desc.near;
+      // p3.43 P1: coordinates + distance/bearing to each house in the log. The 2026-09-27
+      // Vashon→Roaming flip needed an OS-level probe just to learn WHERE the fix landed.
+      console.log('[house] ' + trigger + ': fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · ' + (desc.all || 'zones?') +
+        ' → ' + (zone || ('NO DECISION' + (acc > gateM ? ' (±' + Math.round(acc) + 'm > ' + gateM + 'm gate)' : ''))) +
+        ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ' · ' + (mobile ? 'mobile' : 'desktop') + ')');
+    } else if (hasGeo) console.log('[house] no fix — D6 manual rules; asking the network (N3)');
+    // p3.44 N3/N4: geo produced no HOUSE (no fix, NO DECISION, or Roaming) → ask the network.
+    // A match becomes the verdict (src 'net') and flows through the very same D4 path below;
+    // no match / unavailable → fall through to exactly the pre-p3.44 behaviour (fail-open).
+    const geoZone = zone;
+    if (zone !== 'caphill' && zone !== 'vashon') {
+      const netZone = await _houseNetCheck(zone ? 'fix said ' + zone : (fix ? 'no decision' : 'no fix'), rearmMs);
+      if (netZone) { zone = netZone; src = 'net'; why = HOUSE_LABELS[netZone] + ' network'; }
+    }
     if (!zone) return;
+    if (src === 'net' && zone === house) console.log('[house] network confirms the current view (' + zone + ') — nothing to change' + (geoZone === 'roaming' && !mobile ? ' · desktop "fix says Roaming" note suppressed (N4)' : ''));
     // p3.43 P3: desktop guard (see _houseIsMobile). Returns BEFORE the override logic, so a
     // Roaming verdict on a non-mobile device can neither switch the view nor clear/backfill
     // an override, and never becomes _houseLastDetected. It becomes a note + one-tap switch.
+    // p3.44: only reached when the network had no opinion either (N4 precedence).
     if (zone === 'roaming' && !mobile) {
       if (house === 'roaming') { console.log('[house] P3 desktop guard: Roaming verdict, already viewing Roaming — nothing to do'); return; }
       console.log('[house] P3 desktop guard: Roaming verdict IGNORED on a desktop — view stays ' + house + ', override untouched' + (_houseNoteSnooze ? ' (note snoozed this session)' : ' — note shown'));
@@ -6771,9 +6877,9 @@ async function houseMaybeRun(trigger) {
     if (zone !== house) {
       const from = house;
       setHouse(zone); // programmatic — records no override
-      _houseAutoRecord(zone, from, desc.near); // p3.43 P2: persistent note + ll_house_auto (survives reload while the view is still this pick)
-      showToast('📍 ' + (HOUSE_LABELS[zone] || zone) + ' (detected)');
-      console.log('[house] switched view ' + from + ' → ' + zone + ' (auto · note shown · ll_house_auto written)');
+      _houseAutoRecord(zone, from, why, src); // p3.43 P2: persistent note + ll_house_auto (survives reload while the view is still this pick); p3.44: src 'geo'|'net'
+      showToast('📍 ' + (HOUSE_LABELS[zone] || zone) + (src === 'net' ? ' (home network)' : ' (detected)'));
+      console.log('[house] switched view ' + from + ' → ' + zone + ' (auto · ' + src + ' · note shown · ll_house_auto written)');
     }
   } catch (e) { console.log('[house] ERROR: ' + e); }
 }
