@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.70.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.71.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1061,6 +1061,10 @@ def _build_state_payload():
         "volumes": dict(_poll_snapshot.get("volumes", {})),  # v2.63 telemetry (playing rooms)
         "queue_summary": _build_queue_summary(),  # v2.57 queue management (§3.3)
         "recent_tracks": list(_state_ring_buffer),
+        # v2.71 [net-fp]: 20-bit k-anonymous WAN IPv4 fingerprint + when it was last
+        # observed (geo_house §8 N1/N2). fp null until the first hourly refresh on a
+        # fresh install. The raw IP is NEVER published -- see _net_fp_refresh().
+        "net": {"fp": _net_fp["fp"], "ts": _net_fp["ts"]},
     }
 
 def _do_state_push():
@@ -1125,6 +1129,78 @@ def schedule_state_push():
         _state_push_timer = threading.Timer(STATE_PUSH_DEBOUNCE_S, _do_state_push)
         _state_push_timer.daemon = True
         _state_push_timer.start()
+
+# --- NETWORK FINGERPRINT (v2.71) ---------------------------------------------
+# [net-fp v2.71] design_geo_house_v1.md §8 (Rev 3, Andrew OK 2026-09-28 09:03 PT).
+# WHY: a web page cannot see the Wi-Fi SSID, and Windows Location lies at Vashon
+# (the Wi-Fi DB puts the house 2.5 km north, deterministically, on every PC that
+# hears the same access points). The one network property every device behind
+# this house's router shares AND a page can observe is the public IPv4 (NAT) --
+# probe 2026-09-28: laptop on CocoNetz == Mind on the wire == 73.140.12.50; Cap
+# Hill is a different Comcast lease. So "on the house Wi-Fi" == "same WAN IPv4".
+# WHAT: publish a k-anonymous fingerprint in state-{house}.json (already fetched
+# by the page on cold load): fp = sha256('lifelog-net-v1:' + ip)[:5] -- 20 bits.
+# The salt is public (page source), so hashing is NOT secrecy -- ~4,100 IPv4s
+# share every bucket, which is what keeps a usable house IP out of the public
+# repo, while a false match on the page is ~1 in 1M and only consulted after geo
+# has already failed. The raw IP stays in this machine's logs, never published.
+# WHEN: refreshed hourly on the version-check tick (5 s timeout, fallback echo,
+# keep last good); pushed only on change; persisted to net_fp.json so the boot
+# state push already carries the last-known value with its honest timestamp.
+NET_FP_SALT = "lifelog-net-v1:"
+NET_FP_ECHO = ("https://api.ipify.org", "https://ipv4.icanhazip.com")
+_net_fp = {"fp": None, "ts": None, "ip": None}   # ip is local-only (logs/health), never in the state file
+
+def _net_fp_path():
+    return INSTALL_DIR / "net_fp.json"
+
+def _net_fp_load():
+    """Boot: seed from the persisted last-known fingerprint so the boot push isn't blank for 2 min."""
+    try:
+        p = _net_fp_path()
+        if not p.exists():
+            log("[net-fp v2.71] no persisted fingerprint yet -- first refresh at boot+2min on the version tick")
+            return
+        d = json.loads(p.read_text(encoding="utf-8"))
+        if d.get("fp") and d.get("ts"):
+            _net_fp["fp"], _net_fp["ts"] = str(d["fp"]), str(d["ts"])
+            log(f"[net-fp v2.71] loaded last-known fingerprint {_net_fp['fp']} from {_net_fp['ts']} (refresh at boot+2min)")
+        else:
+            log(f"[net-fp v2.71] persisted file lacks fp/ts -- starting blank: {str(d)[:80]}")
+    except Exception as e:
+        log(f"[net-fp v2.71] load failed (starting blank): {e}")
+
+def _net_fp_refresh():
+    """Fetch WAN IPv4 from an echo service, hash to the 20-bit fingerprint, persist, push state on change.
+    Never raises (rides the version-check thread -- a crash here must not kill self-update)."""
+    try:
+        ip, notes = None, []
+        for url in NET_FP_ECHO:
+            try:
+                r = requests.get(url, timeout=5)
+                cand = (r.text or "").strip()
+                if r.status_code == 200 and re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", cand):
+                    ip = cand
+                    break
+                notes.append(f"{url} -> HTTP {r.status_code} '{cand[:40]}'")
+            except Exception as e:
+                notes.append(f"{url} -> {e}")
+        if not ip:
+            log(f"[net-fp v2.71] WAN IPv4 unavailable this tick ({'; '.join(notes)}) -- keeping last good fp={_net_fp['fp']} @ {_net_fp['ts']}")
+            return
+        fp = hashlib.sha256((NET_FP_SALT + ip).encode("utf-8")).hexdigest()[:5]
+        changed = fp != _net_fp["fp"]
+        _net_fp["fp"], _net_fp["ts"], _net_fp["ip"] = fp, now_iso(), ip
+        try:
+            _net_fp_path().write_text(json.dumps({"fp": fp, "ts": _net_fp["ts"]}), encoding="utf-8")
+        except Exception as e:
+            log(f"[net-fp v2.71] persist to net_fp.json failed: {e}")
+        log(f"[net-fp v2.71] WAN IPv4 {ip} -> fp {fp} ({'CHANGED -- state push scheduled' if changed else 'unchanged'})"
+            + (f" (via fallback; {'; '.join(notes)})" if notes else ""))
+        if changed:
+            schedule_state_push()
+    except Exception as e:
+        log(f"[net-fp v2.71] refresh ERROR (kept last good fp={_net_fp['fp']}): {e}")
 
 # --- DIAGNOSTIC STATE -------------------------------------------------------
 _service_start_ts        = 0.0
@@ -1987,6 +2063,9 @@ def build_status_snapshot():
             # v2.69: current reconnect backoff — 0 when healthy; >0 means connections are dying young (Rule 27: state, not events)
             "backoff_s": int(_ntfy_backoff_s),
         },
+        # v2.71 [net-fp]: fingerprint as published + the raw WAN IP (heartbeat/DB only,
+        # never the public state file) so the agent can audit a page mismatch report.
+        "net": {"fp": _net_fp["fp"], "ts": _net_fp["ts"], "ip": _net_fp["ip"]},
         "track_changes": list(_track_changes[-5:]),
     }
 
@@ -2724,6 +2803,9 @@ def version_check_thread():
     try:
         time.sleep(120)  # wait 2 min after start
         while True:
+            # v2.71 [net-fp]: the hourly WAN-fingerprint refresh rides this tick, BEFORE
+            # self_update_check() so a version restart can't skip it. Never raises.
+            _net_fp_refresh()
             self_update_check()
             time.sleep(VERSION_CHECK_INTERVAL)
     except Exception as e:
@@ -7534,6 +7616,10 @@ def main():
                 flush_buffer(reason="crash-recovery")
         except Exception as e:
             log(f"Warning: couldn't load crash buffer: {e}")
+
+    # v2.71 [net-fp]: seed the WAN fingerprint from disk BEFORE threads start, so the
+    # boot state push (heartbeat thread, first cycle) carries the last-known value.
+    _net_fp_load()
 
     # Start background threads
     # v1.83: buffer_monitor_thread removed — direct SSE replaces real-time relay need.
