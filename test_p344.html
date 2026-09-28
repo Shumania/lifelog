@@ -6752,11 +6752,11 @@ async function _netOwnFp(maxAgeMs) {
   console.log('[house] net: own IP unavailable (' + errs.join('; ') + ') — fail-open');
   return null;
 }
-async function _netHouseFps(rearmMs) {
+async function _netHouseFps() {
   const out = {}, stale = [];
   for (const h of Object.keys(STATE_URLS)) {
     const c = _netHouse[h];
-    if (!c || Date.now() - c.at > (c.fp ? 3600000 : rearmMs)) stale.push(h); else out[h] = c; // a null fp (service < v2.71 / first refresh pending) is re-checked every run
+    if (!c || !c.fp || Date.now() - c.at > 3600000) stale.push(h); else out[h] = c; // a null fp (service < v2.71 / first refresh pending) is transitional — re-fetch every run
   }
   if (stale.length) await Promise.all(stale.map(async h => {
     try {
@@ -6772,8 +6772,8 @@ async function _netHouseFps(rearmMs) {
 // Returns 'caphill' | 'vashon' on exactly one match, else null (fail-open). One honest log line either way.
 async function _houseNetCheck(reason, rearmMs) {
   try {
-    const [own, fps] = await Promise.all([_netOwnFp(rearmMs), _netHouseFps(rearmMs)]);
-    const pub = Object.keys(fps).filter(h => fps[h] && fps[h].fp);
+    const [own, fps] = await Promise.all([_netOwnFp(rearmMs), _netHouseFps()]);
+    const pub = Object.keys(STATE_URLS).filter(h => fps[h] && fps[h].fp); // STATE_URLS order → stable log line (fetch order is not)
     if (!pub.length) { console.log('[house] net: no house fingerprints published yet (service < v2.71 or first hourly refresh pending) — fail-open (' + reason + ')'); return null; }
     if (!own) return null; // already logged by _netOwnFp
     const desc = pub.map(h => h + ' fp ' + fps[h].fp + ' (' + (fps[h].ts ? String(fps[h].ts).slice(11, 16) + 'Z' : '?') + ')').join(' · ');
