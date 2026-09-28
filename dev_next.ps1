@@ -1,144 +1,89 @@
-# dev_next: 2026-09-27 geo-diag-v1 - read-only Windows Location Platform probe (why did the UX pick Roaming on reboot?)
-$ErrorActionPreference = "Continue"
-Write-Output ("=== geo-diag-v1 on {0} as {1}\{2} at {3} ===" -f $env:COMPUTERNAME, $env:USERDOMAIN, $env:USERNAME, (Get-Date -Format o))
-
-# --- zones (geo_zones.json v5) + the page's _houseDecide verdict, reproduced -----------------
-function DistM($lat1, $lon1, $lat2, $lon2) {
-  $R = 6371000.0; $toRad = [Math]::PI / 180.0
-  $dLat = ($lat2 - $lat1) * $toRad; $dLon = ($lon2 - $lon1) * $toRad
-  $a = [Math]::Sin($dLat / 2) * [Math]::Sin($dLat / 2) + [Math]::Cos($lat1 * $toRad) * [Math]::Cos($lat2 * $toRad) * [Math]::Sin($dLon / 2) * [Math]::Sin($dLon / 2)
-  return 2 * $R * [Math]::Asin([Math]::Sqrt($a))
-}
-function Verdict($lat, $lon, $acc) {
-  $dV = DistM $lat $lon 47.365742 (-122.4681911)
-  $dC = DistM $lat $lon 47.62734 (-122.30392)
-  $line = ("  dist->Vashon centroid={0:F0}m  dist->Cap Hill={1:F0}m  acc={2:F0}m" -f $dV, $dC, $acc)
-  if ($acc -gt 300) { return $line + "  => page verdict: NO DECISION (acc > 300m gate; view unchanged)" }
-  $inV = ($dV - $acc) -le 250; $inC = ($dC - $acc) -le 200
-  if ($inV -and $inC) { return $line + "  => page verdict: NO DECISION (both zones?!)" }
-  if ($inC) { return $line + "  => page verdict: caphill" }
-  if ($inV) { return $line + "  => page verdict: vashon" }
-  return $line + "  => page verdict: ROAMING"
-}
-
-# --- 0. machine context ------------------------------------------------------------------------
-Write-Output "--- machine ---"
-try { $os = Get-CimInstance Win32_OperatingSystem; $up = (Get-Date) - $os.LastBootUpTime; Write-Output ("machine boot: {0:u}  uptime: {1:F0} min  os: {2} {3}" -f $os.LastBootUpTime.ToUniversalTime(), $up.TotalMinutes, $os.Caption, $os.Version) } catch { Write-Output "uptime ERR: $_" }
-try { $e = @(Get-Process msedge -ErrorAction SilentlyContinue); Write-Output ("msedge processes: {0}" -f $e.Count); if ($e.Count -gt 0) { $st = ($e | Sort-Object StartTime | Select-Object -First 1).StartTime; Write-Output ("  oldest msedge start: {0:u}" -f $st.ToUniversalTime()) } } catch { Write-Output "msedge ERR: $_" }
-try { Write-Output ("sessions: " + ((quser 2>&1 | Out-String).Trim() -replace "\s{2,}", " | ")) } catch { Write-Output "quser ERR: $_" }
-
-# --- 1. Geolocation service --------------------------------------------------------------------
-Write-Output "--- lfsvc (Geolocation Service) ---"
-try { Get-Service lfsvc -ErrorAction Stop | ForEach-Object { Write-Output ("lfsvc: Status={0} StartType={1}" -f $_.Status, $_.StartType) } } catch { Write-Output "lfsvc ERR: $_" }
-
-# --- 2. Location consent: system toggle + every loaded user hive + desktop apps that used it ----
-Write-Output "--- location consent ---"
-try { $sys = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -ErrorAction Stop; Write-Output ("HKLM location Value = {0}" -f $sys.Value) } catch { Write-Output "HKLM consent ERR: $_" }
-foreach ($hive in (Get-ChildItem Registry::HKEY_USERS -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -like 'S-1-5-21-*' -and $_.PSChildName -notlike '*_Classes' })) {
-  $sid = $hive.PSChildName
-  $base = "Registry::HKEY_USERS\$sid\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location"
-  try {
-    $u = Get-ItemProperty $base -ErrorAction Stop
-    Write-Output ("user ...{0}: location Value = {1}" -f $sid.Substring($sid.Length - 6), $u.Value)
-    $np = Join-Path $base "NonPackaged"
-    if (Test-Path $np) {
-      foreach ($app in (Get-ChildItem $np -ErrorAction SilentlyContinue)) {
-        $p = Get-ItemProperty $app.PSPath
-        $name = $app.PSChildName -replace '#', '\'
-        $start = '-'; $stop = '-'
-        if ($p.LastUsedTimeStart) { $start = [DateTime]::FromFileTimeUtc([int64]$p.LastUsedTimeStart).ToString('u') }
-        if ($p.LastUsedTimeStop)  { $stop  = [DateTime]::FromFileTimeUtc([int64]$p.LastUsedTimeStop).ToString('u') }
-        Write-Output ("  desktop app used location: {0}  start={1} stop={2}" -f $name, $start, $stop)
-      }
-    }
-  } catch { Write-Output ("user ...{0}: no consent key" -f $sid.Substring($sid.Length - 6)) }
-}
-
-# --- 3. Edge profile: geolocation permission for the LifeLog origin ----------------------------
-Write-Output "--- Edge geolocation site permissions (shumania.github.io) ---"
-foreach ($u in (Get-ChildItem "C:\Users" -Directory -ErrorAction SilentlyContinue)) {
-  foreach ($prof in (Get-ChildItem (Join-Path $u.FullName "AppData\Local\Microsoft\Edge\User Data") -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Default' -or $_.Name -like 'Profile *' })) {
-    $pf = Join-Path $prof.FullName "Preferences"
-    if (-not (Test-Path $pf)) { continue }
-    try {
-      $j = Get-Content $pf -Raw -ErrorAction Stop | ConvertFrom-Json
-      $geo = $j.profile.content_settings.exceptions.geolocation
-      if ($geo) {
-        $hits = $geo.PSObject.Properties | Where-Object { $_.Name -like '*shumania*' }
-        if ($hits) { foreach ($h in $hits) { Write-Output ("{0}\{1}: {2} -> setting={3} last_modified={4}" -f $u.Name, $prof.Name, $h.Name, $h.Value.setting, $h.Value.last_modified) } }
-        else { Write-Output ("{0}\{1}: no shumania geolocation entry ({2} entries total)" -f $u.Name, $prof.Name, @($geo.PSObject.Properties).Count) }
-      } else { Write-Output ("{0}\{1}: no geolocation exceptions block" -f $u.Name, $prof.Name) }
-    } catch { Write-Output ("{0}\{1}: Preferences parse ERR: {2}" -f $u.Name, $prof.Name, $_.Exception.Message) }
-  }
-}
-
-# --- 4. Adapters: is there a Wi-Fi radio Windows can position with? ----------------------------
-Write-Output "--- adapters ---"
-try { Get-NetAdapter -ErrorAction Stop | ForEach-Object { Write-Output ("{0} | {1} | {2} | {3} | {4}" -f $_.Name, $_.InterfaceDescription, $_.Status, $_.PhysicalMediaType, $_.LinkSpeed) } } catch { Write-Output "Get-NetAdapter ERR: $_" }
-Write-Output "--- wlan interfaces ---"
-try { Write-Output ((netsh wlan show interfaces 2>&1 | Out-String).Trim()) } catch { Write-Output "netsh interfaces ERR: $_" }
-Write-Output "--- visible Wi-Fi networks ---"
-try {
-  $nets = netsh wlan show networks mode=bssid 2>&1 | Out-String
-  $ssids = @([regex]::Matches($nets, '(?m)^SSID \d+ : (.*)$') | ForEach-Object { $_.Groups[1].Value.Trim() })
-  $bssids = [regex]::Matches($nets, '(?m)^\s+BSSID \d+\s*:').Count
-  Write-Output ("SSIDs visible: {0}   BSSIDs visible: {1}" -f $ssids.Count, $bssids)
-  $ssids | Select-Object -First 12 | ForEach-Object { Write-Output ("  {0}" -f $_) }
-  if ($ssids.Count -eq 0) { Write-Output ("netsh said: " + (($nets.Trim() -split "`n") | Select-Object -First 2 | Out-String).Trim()) }
-} catch { Write-Output "netsh networks ERR: $_" }
-
-# --- 5. WinRT Geolocator: the platform API Edge/Chromium use on Windows; exposes PositionSource -
-Write-Output "--- WinRT Geolocator (DesiredAccuracy=Default, same as the page's enableHighAccuracy:false) ---"
-try {
-  [Windows.Devices.Geolocation.Geolocator,Windows.Devices.Geolocation,ContentType=WindowsRuntime] | Out-Null
-  Add-Type -AssemblyName System.Runtime.WindowsRuntime
-  $script:asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
-  function Await($WinRtTask, $ResultType) {
-    $asTask = $script:asTaskGeneric.MakeGenericMethod($ResultType)
-    $netTask = $asTask.Invoke($null, @($WinRtTask))
-    if (-not $netTask.Wait(20000)) { throw "timed out after 20s" }
-    return $netTask.Result
-  }
-  try {
-    $access = Await ([Windows.Devices.Geolocation.Geolocator]::RequestAccessAsync()) ([Windows.Devices.Geolocation.GeolocationAccessStatus])
-    Write-Output ("RequestAccessAsync: {0}" -f $access)
-  } catch { Write-Output ("RequestAccessAsync ERR (normal outside an interactive session): {0}" -f $_.Exception.Message) }
-  $geo = New-Object Windows.Devices.Geolocation.Geolocator
-  $geo.DesiredAccuracy = [Windows.Devices.Geolocation.PositionAccuracy]::Default
-  Write-Output ("LocationStatus before: {0}" -f $geo.LocationStatus)
+# net-diag-v1: READ-ONLY network fingerprint diagnostics (WAN IPv4, ISP/CGNAT hints, LAN gateway, Wi-Fi profiles+BSSIDs, Tailscale exit node). Modifies nothing.
+$ErrorActionPreference = 'Continue'
+function Sec($t) { Write-Output ""; Write-Output "--- $t ---" }
+function Get-Url($u, $t = 8) {
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
-  $pos = Await ($geo.GetGeopositionAsync()) ([Windows.Devices.Geolocation.Geoposition])
-  $sw.Stop()
-  $c = $pos.Coordinate
-  Write-Output ("FIX: lat={0:F6} lon={1:F6} acc={2:F0}m source={3} ts={4:u} ({5} ms)" -f $c.Point.Position.Latitude, $c.Point.Position.Longitude, $c.Accuracy, $c.PositionSource, $c.Timestamp.UtcDateTime, $sw.ElapsedMilliseconds)
-  Write-Output (Verdict $c.Point.Position.Latitude $c.Point.Position.Longitude $c.Accuracy)
-  Write-Output ("LocationStatus after: {0}" -f $geo.LocationStatus)
-  # second sample with high accuracy requested, to see whether a better source exists at all
   try {
-    $geo2 = New-Object Windows.Devices.Geolocation.Geolocator
-    $geo2.DesiredAccuracy = [Windows.Devices.Geolocation.PositionAccuracy]::High
-    $pos2 = Await ($geo2.GetGeopositionAsync()) ([Windows.Devices.Geolocation.Geoposition])
-    $c2 = $pos2.Coordinate
-    Write-Output ("FIX(high): lat={0:F6} lon={1:F6} acc={2:F0}m source={3}" -f $c2.Point.Position.Latitude, $c2.Point.Position.Longitude, $c2.Accuracy, $c2.PositionSource)
-  } catch { Write-Output ("FIX(high) ERR: {0}" -f $_.Exception.Message) }
-} catch {
-  $msg = $_.Exception.Message; if ($_.Exception.InnerException) { $msg = $msg + " / " + $_.Exception.InnerException.Message }
-  Write-Output ("WinRT Geolocator ERR: {0}" -f $msg)
+    $r = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec $t -Headers @{ 'User-Agent' = 'LifeLog-NetDiag' }
+    $sw.Stop(); return @{ ok = $true; body = ([string]$r.Content).Trim(); ms = $sw.ElapsedMilliseconds }
+  } catch { $sw.Stop(); return @{ ok = $false; body = $_.Exception.Message; ms = $sw.ElapsedMilliseconds } }
+}
+Write-Output "=== net-diag-v1 on $env:COMPUTERNAME at $(Get-Date -Format o) (read-only) ==="
+
+Sec "WAN IPv4 - what a browser on this LAN reports to an echo service"
+$wan = $null
+foreach ($u in @('https://api.ipify.org', 'https://ipv4.icanhazip.com', 'https://checkip.amazonaws.com')) {
+  $g = Get-Url $u
+  if ($g.ok) {
+    Write-Output ("  {0} -> {1} ({2} ms)" -f $u, $g.body, $g.ms)
+    if (-not $wan -and $g.body -match '^\d+\.\d+\.\d+\.\d+$') { $wan = $g.body }
+  } else { Write-Output ("  {0} -> FAILED ({1} ms): {2}" -f $u, $g.ms, $g.body) }
 }
 
-# --- 6. .NET GeoCoordinateWatcher (older Location API) - second opinion -------------------------
-Write-Output "--- System.Device GeoCoordinateWatcher ---"
-try {
-  Add-Type -AssemblyName System.Device
-  $wt = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::Default)
-  $started = $wt.TryStart($false, [TimeSpan]::FromSeconds(15))
-  Write-Output ("TryStart={0} Status={1} Permission={2}" -f $started, $wt.Status, $wt.Permission)
-  $loc = $wt.Position.Location
-  if ($loc -and -not $loc.IsUnknown) {
-    Write-Output ("FIX2: lat={0:F6} lon={1:F6} acc={2:F0}m ts={3:u}" -f $loc.Latitude, $loc.Longitude, $loc.HorizontalAccuracy, $wt.Position.Timestamp.UtcDateTime)
-    Write-Output (Verdict $loc.Latitude $loc.Longitude $loc.HorizontalAccuracy)
-  } else { Write-Output "FIX2: unknown (no position)" }
-  $wt.Stop(); $wt.Dispose()
-} catch { Write-Output "GeoCoordinateWatcher ERR: $_" }
+Sec "WAN IPv6 (per-device address; only the prefix is shared by the LAN)"
+$g6 = Get-Url 'https://api64.ipify.org'
+if ($g6.ok) { Write-Output ("  api64.ipify.org -> " + $g6.body) } else { Write-Output ("  api64.ipify.org FAILED: " + $g6.body) }
 
-Write-Output "=== geo-diag-v1 done (read-only, nothing modified) ==="
+Sec "ISP / geo hint for the WAN IPv4 (ipinfo.io, no token) + reverse DNS"
+if ($wan) {
+  $gi = Get-Url ("https://ipinfo.io/{0}/json" -f $wan)
+  if ($gi.ok) {
+    try { $j = $gi.body | ConvertFrom-Json; Write-Output ("  org={0} | city={1} region={2} | loc={3} | hostname={4}" -f $j.org, $j.city, $j.region, $j.loc, $j.hostname) }
+    catch { Write-Output ("  raw: " + $gi.body) }
+  } else { Write-Output ("  ipinfo FAILED: " + $gi.body) }
+  try { $ptr = Resolve-DnsName -Name $wan -Type PTR -ErrorAction Stop | Select-Object -First 1 -ExpandProperty NameHost; Write-Output ("  PTR={0}" -f $ptr) }
+  catch { Write-Output "  PTR: none" }
+} else { Write-Output "  (no WAN IPv4 obtained)" }
+
+Sec "First 3 hops toward 1.1.1.1 (a private/100.64.x SECOND hop = CGNAT or double NAT)"
+try {
+  $tr = & tracert -d -h 3 -w 700 1.1.1.1 2>&1 | Out-String
+  ($tr -split "`r?`n" | Where-Object { $_ -match '^\s*\d+\s' }) | ForEach-Object { Write-Output ("  " + ($_.Trim() -replace '\s+', ' ')) }
+} catch { Write-Output ("  tracert failed: " + $_.Exception.Message) }
+
+Sec "LAN: default-route interfaces (more than one = dual-WAN / VPN)"
+try {
+  Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | ForEach-Object {
+    $ip4 = (Get-NetIPAddress -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty IPAddress)
+    Write-Output ("  {0}: gw={1} metric={2} ip={3}" -f $_.InterfaceAlias, $_.NextHop, $_.RouteMetric, $ip4)
+  }
+} catch { Write-Output ("  Get-NetRoute failed: " + $_.Exception.Message) }
+
+Sec "Wi-Fi: interface state / known profiles / visible BSSIDs with signal"
+try {
+  $wi = & netsh wlan show interfaces 2>&1 | Out-String
+  ($wi -split "`r?`n" | Where-Object { $_ -match '^\s*(Name|State|SSID|BSSID|Signal|Band|Channel)\s*:' }) | ForEach-Object { Write-Output ("  " + ($_.Trim() -replace '\s+', ' ')) }
+} catch { Write-Output "  netsh interfaces failed" }
+try {
+  $wp = & netsh wlan show profiles 2>&1 | Out-String
+  $profs = @($wp -split "`r?`n" | Where-Object { $_ -match 'All User Profile\s*:\s*(.+)$' } | ForEach-Object { $Matches[1].Trim() })
+  Write-Output ("  known profiles ({0}): {1}" -f $profs.Count, ($profs -join ', '))
+} catch { Write-Output "  netsh profiles failed" }
+try {
+  $wn = & netsh wlan show networks mode=bssid 2>&1 | Out-String
+  $cur = ''; $b = ''
+  foreach ($ln in ($wn -split "`r?`n")) {
+    if ($ln -match '^\s*SSID\s+\d+\s*:\s*(.*)$') { $cur = $Matches[1].Trim(); if (-not $cur) { $cur = '(hidden)' } }
+    elseif ($ln -match '^\s*BSSID\s+\d+\s*:\s*([0-9a-fA-F:]+)') { $b = $Matches[1] }
+    elseif ($ln -match '^\s*Signal\s*:\s*(\d+%)') { Write-Output ("  {0,-30} {1}  {2}" -f $cur, $b, $Matches[1]) }
+  }
+} catch { Write-Output "  netsh networks failed" }
+
+Sec "Tailscale (an exit node in use would replace the WAN IP seen by echo services)"
+$ts = 'C:\Program Files\Tailscale\tailscale.exe'
+if (Test-Path $ts) {
+  try {
+    $raw = & $ts status --json 2>&1 | Out-String
+    $st = $raw | ConvertFrom-Json
+    $peerObjs = @()
+    if ($st.Peer) { $peerObjs = @($st.Peer.PSObject.Properties | ForEach-Object { $_.Value }) }
+    $exit = $peerObjs | Where-Object { $_.ExitNode -eq $true } | Select-Object -First 1
+    Write-Output ("  self={0} tailscaleIPs={1} backend={2}" -f $st.Self.HostName, ($st.Self.TailscaleIPs -join ','), $st.BackendState)
+    Write-Output ("  exit node in use: {0}" -f $(if ($exit) { $exit.HostName } else { 'none' }))
+    $peers = $peerObjs | ForEach-Object { "{0}{1}{2}" -f $_.HostName, $(if ($_.Online) { '' } else { '(offline)' }), $(if ($_.ExitNodeOption) { '[exit-capable]' } else { '' }) }
+    Write-Output ("  peers ({0}): {1}" -f $peers.Count, ($peers -join ', '))
+  } catch { Write-Output ("  tailscale status failed: " + $_.Exception.Message) }
+} else { Write-Output "  tailscale.exe not found" }
+
+Write-Output ""
+Write-Output "=== net-diag-v1 done (read-only, nothing modified) ==="
