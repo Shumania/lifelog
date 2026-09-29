@@ -1352,7 +1352,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.44';
+const PAGE_VERSION = 'p3.45';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -6560,7 +6560,8 @@ async function geoMaybeRun(trigger) {
 // Spotify polling via setHouse (existing behavior — the "grabbed my phone and left"
 // case). p3.43 = Rev 2 (P1 log coords, P2 persistent note, P3 desktop guard) below.
 // p3.44 = Rev 3 §8 (network fingerprint fallback when geo yields no house) — see the
-// NET block above houseMaybeRun.
+// NET block above houseMaybeRun. p3.45 = Rev 4 §9 B (phones: a fresh GPS fix must
+// confirm any Roaming / NO DECISION from the coarse fix) — inside houseMaybeRun.
 let _houseLastRun = 0;         // ts of last completed evaluation (re-arm gate)
 let _houseLastDetected = null; // last confident zone; setHouse(D4) stamps it into overrides
 const HOUSE_LABELS = { caphill: 'Cap Hill', vashon: 'Vashon', roaming: 'Roaming' };
@@ -6820,9 +6821,10 @@ async function houseMaybeRun(trigger) {
       console.log('[house] override expired (>' + (hz.override_expiry_h || 8) + 'h) — auto resumes');
     }
     // D2: looser fix than structure geo — houses don't move. Cached fixes ≤2 min OK.
+    let coarseErr = 0; // p3.45 B: a permission denial (1) means the GPS confirm below would be denied too — skip it
     const fix = !hasGeo ? null : await new Promise((res) => {
       navigator.geolocation.getCurrentPosition(p => res(p),
-        e => { console.log('[house] fix unavailable: code=' + e.code + ' ' + e.message); res(null); },
+        e => { coarseErr = e.code || 0; console.log('[house] fix unavailable: code=' + e.code + ' ' + e.message); res(null); },
         { enableHighAccuracy: false, timeout: 8000, maximumAge: (hz.fix_max_age_s || 120) * 1000 });
     });
     _houseLastRun = Date.now();
@@ -6837,16 +6839,52 @@ async function houseMaybeRun(trigger) {
       console.log('[house] ' + trigger + ': fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · ' + (desc.all || 'zones?') +
         ' → ' + (zone || ('NO DECISION' + (acc > gateM ? ' (±' + Math.round(acc) + 'm > ' + gateM + 'm gate)' : ''))) +
         ' (view=' + house + (ov ? ' · override=' + ov.house + '@' + ov.zone_at : '') + ' · ' + (mobile ? 'mobile' : 'desktop') + ')');
-    } else if (hasGeo) console.log('[house] no fix — D6 manual rules; asking the network (N3)');
+    } else if (hasGeo) console.log('[house] no fix — D6 manual rules; ' + (mobile && coarseErr !== 1 ? 'B: GPS confirm first, then the network (N3)' : 'asking the network (N3)'));
+    // ── p3.45 B · design_geo_house_v1.md Rev 4 §9 (Andrew "let's do B", 2026-09-28 19:44 PT) ──
+    // MOBILE GPS CONFIRM. The coarse request above (enableHighAccuracy:false, ≤2-min cache) is
+    // answered INDOORS from Wi-Fi/cell positioning — the same crowd-sourced class of fix that
+    // puts Vashon 2.5 km north on the Windows machines, or a ±1–3 km cell fix that fails the
+    // gate. Outdoors (or ≤2 min after any app's GPS fix) it is answered from GPS — which is why
+    // "walk around Vashon → chips follow" worked while "sit on the living-room Wi-Fi" left the
+    // iPhone in Roaming (2026-09-28). Rule: a phone never ENTERS (or is held in) Roaming on a
+    // coarse fix alone — one fresh high-accuracy fix (maximumAge 0: a cached one would just echo
+    // the coarse answer) has to agree. In-ring HOUSE verdicts from the coarse fix still flip at
+    // once (D7 unchanged for houses). Runs only on mobile, only when the coarse pass produced no
+    // house (Roaming / NO DECISION / timeout), never after a permission denial (code 1 — GPS
+    // would be denied too); ≤8 s. Precedence stays N4: geo house > network house > Roaming.
+    // Caveat: a Wi-Fi-only iPad's "high accuracy" fix IS the Wi-Fi fix and will agree with
+    // itself — stationary tablets stay on the D5 pin. Desktops: byte-identical to p3.44.
+    const coarseZone = zone, coarseDesc = fix ? (coarseZone || 'NO DECISION') : 'no fix';
+    let gpsZone = undefined; // undefined = no confirm ran · null = it gave no verdict · else its zone
+    if (mobile && hasGeo && zone !== 'caphill' && zone !== 'vashon' && coarseErr !== 1) {
+      const gps = await new Promise((res) => {
+        navigator.geolocation.getCurrentPosition(p => res(p),
+          e => { console.log('[house] B: GPS confirm unavailable: code=' + e.code + ' ' + e.message); res(null); },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+      });
+      gpsZone = null;
+      if (gps) {
+        const lat = gps.coords.latitude, lon = gps.coords.longitude, acc = gps.coords.accuracy || 999;
+        gpsZone = _houseDecide(lat, lon, acc);
+        const gd = _houseFixDesc(lat, lon, acc);
+        console.log('[house] B: GPS confirm (coarse ' + coarseDesc + '): fix ' + lat.toFixed(6) + ',' + lon.toFixed(6) + ' ±' + Math.round(acc) + 'm · ' + (gd.all || 'zones?') +
+          ' → ' + (gpsZone || ('NO DECISION' + (acc > gateM ? ' (±' + Math.round(acc) + 'm > ' + gateM + 'm gate)' : ''))));
+        if (gpsZone) { zone = gpsZone; desc = gd; why = gd.near; } // the GPS verdict (a house, or a CONFIRMED Roaming) replaces the coarse one
+      }
+    }
+    // Coarse Roaming that GPS did not confirm is demoted to NO DECISION: the network below may
+    // still name a house, but it can never become a Roaming verdict on its own.
+    const roamingUnconfirmed = coarseZone === 'roaming' && gpsZone === null;
+    if (roamingUnconfirmed) { zone = null; console.log('[house] B: coarse Roaming NOT confirmed by GPS — demoted to NO DECISION (phones never enter Roaming on a Wi-Fi/cell fix alone)'); }
     // p3.44 N3/N4: geo produced no HOUSE (no fix, NO DECISION, or Roaming) → ask the network.
     // A match becomes the verdict (src 'net') and flows through the very same D4 path below;
     // no match / unavailable → fall through to exactly the pre-p3.44 behaviour (fail-open).
     const geoZone = zone;
     if (zone !== 'caphill' && zone !== 'vashon') {
-      const netZone = await _houseNetCheck(zone ? 'fix said ' + zone : (fix ? 'no decision' : 'no fix'), rearmMs);
+      const netZone = await _houseNetCheck(roamingUnconfirmed ? 'roaming unconfirmed' : (zone ? 'fix said ' + zone : (fix ? 'no decision' : 'no fix')), rearmMs);
       if (netZone) { zone = netZone; src = 'net'; why = HOUSE_LABELS[netZone] + ' network'; }
     }
-    if (!zone) return;
+    if (!zone) { if (roamingUnconfirmed) console.log('[house] B: no house from GPS or the network either — view stays ' + house + ', override untouched'); return; }
     if (src === 'net' && zone === house) console.log('[house] network confirms the current view (' + zone + ') — nothing to change' + (geoZone === 'roaming' && !mobile ? ' · desktop "fix says Roaming" note suppressed (N4)' : ''));
     // p3.43 P3: desktop guard (see _houseIsMobile). Returns BEFORE the override logic, so a
     // Roaming verdict on a non-mobile device can neither switch the view nor clear/backfill
