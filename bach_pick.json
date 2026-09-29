@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-28T10:18:57.955Z",
- "pick_date": "2026-09-28",
- "work_key": "BWV1030-1035",
- "work": "Flute Sonatas",
- "performer": "Emmanuel Pahud & Trevor Pinnock",
- "album": "Bach: Complete Flute Sonatas",
- "spotify_album_uri": "spotify:album:6zhaPcUDGMFm77JHynxWen",
- "instrumentation": "chamber",
- "approx_minutes": 100,
- "reason": "last heard 41d ago · avoided piano",
+ "picked_at": "2026-09-29T10:13:13.226Z",
+ "pick_date": "2026-09-29",
+ "work_key": "ARR-WTC-CONSORT-II",
+ "work": "The Well-Tempered Consort II",
+ "performer": "Phantasm",
+ "album": "J.S. Bach: The Well-Tempered Consort – II",
+ "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 65,
+ "reason": "last heard 22d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV1080-consort",
-  "work": "The Art of Fugue (viol consort)",
-  "performer": "Fretwork",
-  "album": "J.S. Bach: The Art of Fugue",
-  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
+  "work_key": "BWV971+972-987sel",
+  "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
+  "performer": "Alexandre Tharaud",
+  "album": "Bach: Concertos Italiens",
+  "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU"
  }
 }
