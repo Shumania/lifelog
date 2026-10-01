@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-09-30T10:15:00.693Z",
- "pick_date": "2026-09-30",
- "work_key": "BWV1014-1019-vol1",
- "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 1 (three of six)",
- "performer": "Rachel Podger & Trevor Pinnock",
- "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 1",
- "spotify_album_uri": "spotify:album:7vRnQ9WbUYJ7mmVygqfU9k",
- "instrumentation": "chamber",
- "approx_minutes": 71,
- "reason": "last heard 28d ago · avoided viol_consort",
+ "picked_at": "2026-10-01T10:21:28.500Z",
+ "pick_date": "2026-10-01",
+ "work_key": "BWV1004-1006",
+ "work": "Violin Partitas Nos. 2 & 3, Sonata No. 3",
+ "performer": "Hilary Hahn",
+ "album": "Hilary Hahn Plays Bach",
+ "spotify_album_uri": "spotify:album:2GLJLkriVbdfDi5W5e3LJM",
+ "instrumentation": "violin",
+ "approx_minutes": 72,
+ "reason": "last heard 21d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV971+972-987sel",
-  "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
-  "performer": "Alexandre Tharaud",
-  "album": "Bach: Concertos Italiens",
-  "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU"
+  "work_key": "BWV1007-1012",
+  "work": "Six Cello Suites",
+  "performer": "Yo-Yo Ma",
+  "album": "Six Evolutions - Bach: Cello Suites",
+  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
  }
 }
