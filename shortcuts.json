@@ -1,6 +1,6 @@
 {
-  "version": 15,
-  "generated_at": "2026-08-31T14:35:00Z",
+  "version": 16,
+  "generated_at": "2026-10-02T23:21:00Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise.",
   "shortcuts": [
     {
@@ -16,6 +16,35 @@
           "uri": "aac://https://streams.kcrw.com/e24_aac?aw_0_1st.playerid=TuneIn",
           "title": "KCRW Eclectic 24",
           "artist": "KCRW"
+        }
+      ]
+    },
+    {
+      "id": "kexp-deck-sauna",
+      "label": "KEXP → Deck + Sauna",
+      "sub": "Main Lower Deck · Sauna Porch",
+      "icon": "📻",
+      "house": "vashon",
+      "note": "KEXP (TuneIn stream) → Main Lower Deck + Sauna Porch (added 2026-10-02, Andrew). URI = the TuneIn-resolved KEXP 160k AAC stream exactly as Sonos reports it in our own KEXP radio sessions (ids 13351/23928/24280, Jun–Aug 2026); ingest detects 'kexp' in the URI → sonos_kexp radio session → KEXP enrichment, same path as the KCRW tiles. Same two-step shape as kcrw-e24-caphill-main: sync_rooms pins topology to exactly the two outdoor rooms (Lower Deck coordinator, 6s settle), then play_uri. play_uri carries BOTH rooms in `rooms` (service plays on rooms[0]'s live coordinator; the page's D10 tap-time inheritance then sets BOTH rooms to their live defaults — Lower Deck 39, Sauna Porch 35 — and D9 chips follow both). No baked volumes (D11).",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Main Lower Deck",
+            "Sauna Porch"
+          ],
+          "delay_after_ms": 6000
+        },
+        {
+          "action": "play_uri",
+          "rooms": [
+            "Main Lower Deck",
+            "Sauna Porch"
+          ],
+          "room": "Main Lower Deck",
+          "uri": "aac://https://kexp.streamguys1.com/kexp160.aac",
+          "title": "KEXP 90.3 FM",
+          "artist": "KEXP"
         }
       ]
     },
@@ -226,10 +255,11 @@
       "Basement Study": 30
     }
   },
-  "updated_at": "2026-08-25",
+  "updated_at": "2026-10-02",
   "notes": {
     "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
     "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9).",
-    "v14": "daily-bach-vashon-main added: Daily Bach → Main Interior trio (Maury + Green Kitchen Move + Sonos Move, Vashon). Bach ungroup-first; coordinator Maury; D11 tap-time volumes (fallback 18 ×3)."
+    "v14": "daily-bach-vashon-main added: Daily Bach → Main Interior trio (Maury + Green Kitchen Move + Sonos Move, Vashon). Bach ungroup-first; coordinator Maury; D11 tap-time volumes (fallback 18 ×3).",
+    "v16": "kexp-deck-sauna added: KEXP (TuneIn-resolved stream aac://https://kexp.streamguys1.com/kexp160.aac) → Main Lower Deck + Sauna Porch (Vashon). sync_rooms pair first (Lower Deck coordinator), then play_uri with rooms=[both] so D10 tap-time inheritance sets BOTH rooms (39/35) and D9 chips follow both. No baked volumes (D11)."
   }
 }
