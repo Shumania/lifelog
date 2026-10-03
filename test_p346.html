@@ -226,7 +226,7 @@
   .pc-open-spotify:hover { text-decoration: underline; }
   /* p2.86: blocked ghost cards render compact — less visual weight than real playlists */
   .playlist-card.blocked { opacity: 0.7; }
-  .playlist-card.blocked .pc-header { padding: 5px 12px; min-height: 40px; gap: 10px; }
+  .playlist-card.blocked .pc-header { padding: 5px 12px; min-height: 40px; column-gap: 10px; } /* p3.46: column-gap (header is a grid; a row-gap would pad the empty desc row) */
   .playlist-card.blocked .pc-art, .playlist-card.blocked .pc-art-placeholder { width: 26px; height: 26px; border-radius: 4px; font-size: 13px; }
   .playlist-card.blocked img.pc-art { width: 26px !important; height: 26px !important; min-width: 26px !important; min-height: 26px !important; }
   .playlist-card.blocked .pc-name { font-size: 13px; font-weight: 500; }
@@ -654,9 +654,26 @@
   }
   .playlist-card:hover { border-color: var(--text-dim); }
   .playlist-card.open { border-color: rgba(74, 222, 128, 0.3); }
+  /* p3.46: header is a 2-row grid so line 3 (.pc-desc, a direct child) can sit under the
+     info column on desktop but span the FULL card width on phones — at ≤480px the info
+     column is only ~120–130px and four chips alone ate both clamped lines (sentence never
+     showed). Art/actions/expand span both rows on desktop (centred against all 3 lines,
+     same look as the old flex); row 2 collapses to 0 when there is no desc. Art column is
+     auto (blocked cards use 26px art). */
   .pc-header {
-    display: flex; align-items: center; gap: 12px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "art info actions expand" "art desc actions expand";
+    column-gap: 12px; row-gap: 0; align-items: center; align-content: center;
     padding: 12px 14px; cursor: pointer; user-select: none; min-height: 72px;
+  }
+  .pc-art, .pc-art-placeholder { grid-area: art; }
+  .pc-actions { grid-area: actions; }
+  .pc-expand { grid-area: expand; }
+  .playlist-card.ghost .pc-header { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "art info actions" "art desc actions"; }
+  @media (max-width: 480px) {
+    .pc-header { grid-template-areas: "art info actions expand" "desc desc desc desc"; }
+    .playlist-card.ghost .pc-header { grid-template-areas: "art info actions" "desc desc desc"; }
+    .pc-desc { margin-top: 7px; }
   }
   .pc-art {
     width: 48px; height: 48px; border-radius: 6px; object-fit: cover;
@@ -667,7 +684,7 @@
     display: flex; align-items: center; justify-content: center;
     color: var(--text-dim); font-size: 20px; flex-shrink: 0;
   }
-  .pc-info { flex: 1; min-width: 0; }
+  .pc-info { grid-area: info; min-width: 0; }
   .pc-name {
     font-size: 14px; font-weight: 600;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -677,6 +694,7 @@
      mood · era) + one sentence (our one-liner / Spotify description / generated artists
      summary), clamped to 2 lines so card heights stay even (A4). Informational → no color. */
   .pc-desc {
+    grid-area: desc; min-width: 0;
     font-size: 11.5px; line-height: 1.35; color: var(--text-dim); opacity: 0.85; margin-top: 3px;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     overflow-wrap: anywhere;
@@ -8042,15 +8060,18 @@ function renderPlaylists() {
       ? '<img class="pc-art" src="' + esc(p.image_url) + '" alt="">'
       : '<div class="pc-art-placeholder">\u266b</div>';
 
-    var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + (isBlocked ? ' blocked' : '') + '" id="pl-' + p.id + '">';
+    var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + (isBlocked ? ' blocked' : '') + (isGhost ? ' ghost' : '') + '" id="pl-' + p.id + '">'; // p3.46: .ghost → 3-column header grid (no expand chevron)
     // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
     card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + (isBlocked ? ' title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play."' : '') + '>';
     card += artHtml;
     card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) +
       (sortKey === 'recent' && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + '</div>'; // p3.03 item 3
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div>';
-    if (!isBlocked) card += _plLine3(p); // p3.46: line 3 = chips + one sentence ('' when nothing to say); blocked cards stay compact
     card += '</div>';
+    // p3.46: line 3 = chips + one sentence ('' when nothing to say); blocked cards stay compact.
+    // Direct child of .pc-header (grid area "desc"), NOT inside .pc-info — on phones it spans
+    // the full card width (see .pc-header CSS); on desktop the grid puts it under the info column.
+    if (!isBlocked) card += _plLine3(p);
     card += '<div class="pc-actions">';
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
