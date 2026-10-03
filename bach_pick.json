@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-02T10:24:34.919Z",
- "pick_date": "2026-10-02",
- "work_key": "BWV846-869",
- "work": "The Well-Tempered Clavier, Book I",
- "performer": "Glenn Gould",
- "album": "Bach: The Well-Tempered Clavier, Book I, Preludes & Fugues BWV 846-869",
- "spotify_album_uri": "spotify:album:5NqQLA1NCo6hP2GHiHxip5",
- "instrumentation": "piano",
- "approx_minutes": 105,
- "reason": "last heard 28d ago",
+ "picked_at": "2026-10-03T10:17:00.587Z",
+ "pick_date": "2026-10-03",
+ "work_key": "BWV1007-1012",
+ "work": "Six Cello Suites",
+ "performer": "Yo-Yo Ma",
+ "album": "Six Evolutions - Bach: Cello Suites",
+ "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb",
+ "instrumentation": "cello",
+ "approx_minutes": 150,
+ "reason": "last heard 23d ago · avoided piano",
  "fallback": {
-  "work_key": "BWV1007-1012",
-  "work": "Six Cello Suites",
-  "performer": "Yo-Yo Ma",
-  "album": "Six Evolutions - Bach: Cello Suites",
-  "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
+  "work_key": "BWV996-998",
+  "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+  "performer": "Sean Shibe",
+  "album": "Bach",
+  "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo"
  }
 }
