@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- Phone-width test harness (p3.46, 2026-10-03): same-origin iframe so media queries, localStorage and
+     fetches all behave exactly as on a 390×844 phone. Usage: test_phone.html?p=test_p346&hash=playlists
+     (p defaults to index). Agent-only; not linked from the app. -->
+<html><head><meta charset="utf-8"><title>phone frame</title>
+<style>body{margin:0;background:#1b1b1b;display:flex;justify-content:center;align-items:flex-start;padding:12px}iframe{width:390px;height:844px;border:0;border-radius:18px;background:#000}</style>
+</head><body>
+<iframe id="f"></iframe>
+<script>
+  const q = new URLSearchParams(location.search);
+  const p = (q.get('p') || 'index').replace(/[^a-z0-9_]/gi, '');
+  const h = (q.get('hash') || 'playlists').replace(/[^a-z]/gi, '');
+  document.getElementById('f').src = p + '.html?cb=' + Date.now() + '#' + h;
+</script>
+</body></html>
