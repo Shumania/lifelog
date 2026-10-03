@@ -226,7 +226,7 @@
   .pc-open-spotify:hover { text-decoration: underline; }
   /* p2.86: blocked ghost cards render compact — less visual weight than real playlists */
   .playlist-card.blocked { opacity: 0.7; }
-  .playlist-card.blocked .pc-header { padding: 5px 12px; min-height: 40px; gap: 10px; }
+  .playlist-card.blocked .pc-header { padding: 5px 12px; min-height: 40px; column-gap: 10px; } /* p3.46: column-gap (header is a grid; a row-gap would pad the empty desc row) */
   .playlist-card.blocked .pc-art, .playlist-card.blocked .pc-art-placeholder { width: 26px; height: 26px; border-radius: 4px; font-size: 13px; }
   .playlist-card.blocked img.pc-art { width: 26px !important; height: 26px !important; min-width: 26px !important; min-height: 26px !important; }
   .playlist-card.blocked .pc-name { font-size: 13px; font-weight: 500; }
@@ -634,6 +634,14 @@
   .sc-elsewhere .shortcut-card { opacity: 0.5; }
   .sc-elsewhere .shortcut-card:hover { opacity: 0.75; }
   .sc-elsewhere .shortcut-card.sc-running { opacity: 0.75; }
+  /* p3.46: "On selected speakers" — pinned section of target:"selection" tiles. The header
+     carries the LIVE selection summary (re-rendered on every chip change) so it says where
+     the tap will land before the tap. Disabled look (no selection) stays tappable: the tap
+     gets an honest toast, same pattern as the roaming guard. */
+  .sc-sel-head { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--text-dim); margin: 2px 2px 8px; user-select: none; }
+  .sc-sel-head .sc-sel-sum { color: var(--text); font-weight: 600; }
+  .sc-sel-head .sc-sel-sum.none { color: var(--text-dim); font-weight: 400; font-style: italic; }
+  .sc-sel-section .shortcut-card.sc-disabled { opacity: 0.45; }
   .sc-icon { font-size: 22px; flex-shrink: 0; }
   .sc-body { flex: 1; min-width: 0; }
   .sc-label { font-size: 14px; font-weight: 600; }
@@ -646,9 +654,26 @@
   }
   .playlist-card:hover { border-color: var(--text-dim); }
   .playlist-card.open { border-color: rgba(74, 222, 128, 0.3); }
+  /* p3.46: header is a 2-row grid so line 3 (.pc-desc, a direct child) can sit under the
+     info column on desktop but span the FULL card width on phones — at ≤480px the info
+     column is only ~120–130px and four chips alone ate both clamped lines (sentence never
+     showed). Art/actions/expand span both rows on desktop (centred against all 3 lines,
+     same look as the old flex); row 2 collapses to 0 when there is no desc. Art column is
+     auto (blocked cards use 26px art). */
   .pc-header {
-    display: flex; align-items: center; gap: 12px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "art info actions expand" "art desc actions expand";
+    column-gap: 12px; row-gap: 0; align-items: center; align-content: center;
     padding: 12px 14px; cursor: pointer; user-select: none; min-height: 72px;
+  }
+  .pc-art, .pc-art-placeholder { grid-area: art; }
+  .pc-actions { grid-area: actions; }
+  .pc-expand { grid-area: expand; }
+  .playlist-card.ghost .pc-header { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "art info actions" "art desc actions"; }
+  @media (max-width: 480px) {
+    .pc-header { grid-template-areas: "art info actions expand" "desc desc desc desc"; }
+    .playlist-card.ghost .pc-header { grid-template-areas: "art info actions" "desc desc desc"; }
+    .pc-desc { margin-top: 7px; }
   }
   .pc-art {
     width: 48px; height: 48px; border-radius: 6px; object-fit: cover;
@@ -659,12 +684,27 @@
     display: flex; align-items: center; justify-content: center;
     color: var(--text-dim); font-size: 20px; flex-shrink: 0;
   }
-  .pc-info { flex: 1; min-width: 0; }
+  .pc-info { grid-area: info; min-width: 0; }
   .pc-name {
     font-size: 14px; font-weight: 600;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .pc-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  /* p3.46: card line 3 — "what is this, at a glance": quiet ledger chips (genre · lang ·
+     mood · era) + one sentence (our one-liner / Spotify description / generated artists
+     summary), clamped to 2 lines so card heights stay even (A4). Informational → no color. */
+  .pc-desc {
+    grid-area: desc; min-width: 0;
+    font-size: 11.5px; line-height: 1.35; color: var(--text-dim); opacity: 0.85; margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .pc-chip {
+    display: inline-block; font-size: 10px; line-height: 14px; padding: 0 5px; margin-right: 4px;
+    border: 1px solid var(--border); border-radius: 7px; color: var(--text-dim); white-space: nowrap;
+    vertical-align: 1px; letter-spacing: 0.01em;
+  }
+  .playlist-card.blocked .pc-desc { display: none; }
   .pc-owner-badge {
     display: inline-block; font-size: 10px; padding: 1px 6px;
     border-radius: 8px; background: rgba(96,165,250,0.1);
@@ -1352,7 +1392,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.45';
+const PAGE_VERSION = 'p3.46';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1951,6 +1991,7 @@ function renderRooms(h) {
   updateSyncButton(h);
   updateHouseTabDots();
   renderQueueLine(h); // p3.04: the no-queue line shows the current selection — keep it live with chip taps (renderQueueLine never calls back here)
+  if (typeof _scRefreshSelHeader === 'function') _scRefreshSelHeader(h); // p3.46: "On selected speakers" header follows the chips (patch-in-place, never calls back here)
 }
 
 // p2.62: cluster tap = treat as ONE speaker. none/partial -> select all members; all -> none.
@@ -7466,31 +7507,67 @@ function renderShortcuts() {
   // house topic (postNtfy(p, sc.house)), so a below-the-line tap aims correctly.
   // Roaming keeps the p3.26 D6 guard: hint on top, all tiles below the line, taps
   // blocked with a toast in runShortcut until roaming-native deep-link tiles exist.
-  const _scCard = s => {
+  const _scCard = (s, disabled) => {
     const running = _scBusy === s.id;
-    return '<div class="shortcut-card' + (running ? ' sc-running' : '') + '" id="sc-' + esc(s.id) + '" onclick="runShortcut(\'' + esc(s.id) + '\')">' +
+    const isSel = s.target === 'selection';
+    return '<div class="shortcut-card' + (running ? ' sc-running' : '') + (disabled ? ' sc-disabled' : '') + '" id="sc-' + esc(s.id) + '" onclick="runShortcut(\'' + esc(s.id) + '\')">' +
       '<span class="sc-icon">' + esc(s.icon || '⚡') + '</span>' +
       '<span class="sc-body"><div class="sc-label">' + esc(s.label) + '</div>' +
       (s.sub ? '<div class="sc-sub">' + esc(s.sub) + '</div>' : '') + '</span>' +
-      '<span class="sc-house">' + (_SC_HOUSE_BADGE[s.house] || esc(s.house || '')) + '</span>' +
+      (isSel ? '' : '<span class="sc-house">' + (_SC_HOUSE_BADGE[s.house] || esc(s.house || '')) + '</span>') +
       (running ? '<span class="hr-spin" style="font-size:16px">⟳</span>' : '') +
       '</div>';
   };
-  const inScope = house === 'roaming' ? [] : _shortcuts.filter(s => s.house === house);
-  const elsewhere = _shortcuts.filter(s => !inScope.includes(s));
+  // p3.46: target:"selection" tiles (design_playlist_line3_selection_shortcuts_v1.md §B, Andrew
+  // 2026-10-03) — no house, no rooms; they play on whatever chips are selected in the SELECTED
+  // house (D9). Pinned at the very top under a live header ("▶ On selected speakers · Maury +5",
+  // re-rendered by _scRefreshSelHeader on every chip change), hidden in roaming (D6 covers the
+  // rest), dimmed-but-tappable when nothing is selected. House tiles follow under a thin divider.
+  const selTiles = _shortcuts.filter(s => s.target === 'selection');
+  const houseTiles = _shortcuts.filter(s => s.target !== 'selection');
+  const inScope = house === 'roaming' ? [] : houseTiles.filter(s => s.house === house);
+  const elsewhere = houseTiles.filter(s => !inScope.includes(s));
   let html = '';
   if (house === 'roaming') {
     html += '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">📱 Roaming — shortcuts drive home speakers. Pick a house to run them.</p></div>';
-  } else if (!inScope.length) {
-    html += '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">No shortcuts for this house yet — ask the agent to add one.</p></div>';
+  } else {
+    if (selTiles.length) {
+      const sum = _scSelSummary(house);
+      html += '<div class="sc-sel-section">' +
+        '<div class="sc-sel-head">\u25b6 On selected speakers \u00b7 <span class="sc-sel-sum' + (sum.rooms.length ? '' : ' none') + '" id="sc-sel-sum">' + esc(sum.label) + '</span></div>' +
+        selTiles.map(s => _scCard(s, !sum.rooms.length)).join('') +
+        '</div>';
+      if (inScope.length || elsewhere.length) html += '<div class="sc-divider">· · ·&nbsp; speaker groups &nbsp;· · ·</div>';
+    }
+    if (!inScope.length) html += '<div class="empty-state" style="padding:8px 0 12px"><p style="font-size:12px;opacity:.7">No shortcuts for this house yet — ask the agent to add one.</p></div>';
   }
-  html += inScope.map(_scCard).join('');
+  html += inScope.map(s => _scCard(s)).join('');
   if (elsewhere.length) {
     html += '<div class="sc-divider">· · ·&nbsp; other locations &nbsp;· · ·</div>';
-    html += '<div class="sc-elsewhere">' + elsewhere.map(_scCard).join('') + '</div>';
+    html += '<div class="sc-elsewhere">' + elsewhere.map(s => _scCard(s)).join('') + '</div>';
   }
   el.innerHTML = html;
-  console.log('[shortcuts] house-aware render: ' + inScope.length + ' in scope (' + house + '), ' + elsewhere.length + ' elsewhere');
+  console.log('[shortcuts] house-aware render: ' + selTiles.length + ' selection tile(s)' + (house === 'roaming' ? ' (hidden in roaming)' : ' → ' + _scSelSummary(house).label) + ', ' + inScope.length + ' in scope (' + house + '), ' + elsewhere.length + ' elsewhere');
+}
+
+// p3.46: live selection summary for the pinned section — "Living Room Maury +5" / "no speakers selected".
+function _scSelSummary(h) {
+  const rooms = (h && h !== 'roaming') ? (selectedRooms[h] || []) : [];
+  if (!rooms.length) return { rooms, label: 'no speakers selected' };
+  const first = rooms[0].replace(/^Main /, '');
+  return { rooms, label: rooms.length > 1 ? first + ' +' + (rooms.length - 1) : first };
+}
+// Called from renderRooms (every chip change). Patches the header text + disabled state in place —
+// never re-renders the tiles (a running tile's spinner must survive chip taps) and never calls back
+// into renderRooms.
+function _scRefreshSelHeader(h) {
+  if (h && h !== house) return;
+  const el = document.getElementById('sc-sel-sum');
+  if (!el) return;
+  const sum = _scSelSummary(house);
+  el.textContent = sum.label;
+  el.classList.toggle('none', !sum.rooms.length);
+  document.querySelectorAll('.sc-sel-section .shortcut-card').forEach(c => c.classList.toggle('sc-disabled', !sum.rooms.length));
 }
 
 async function _scFetchState(h) {
@@ -7509,9 +7586,23 @@ async function _scExpandStep(step, h) {
   delete s.resolve; delete s.delay_after_ms;
   if (!resolve) return [s];
 
-  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick', 'garage_pick'];
+  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick', 'garage_pick', 'selection'];
   const unknown = Object.keys(resolve).filter(k => !known.includes(k));
   if (unknown.length) throw new Error('unknown resolver(s): ' + unknown.join(', ') + ' — update the app');
+
+  if (resolve.selection) {
+    // p3.46: "On selected speakers" — rooms = this house's chips, exactly as Playlists ▶ targets
+    // them (p2.62 explicit selection → filterOfflineRooms). rooms[0] is the primary: the service's
+    // play_uri goes through _find_coordinator, which plays on rooms[0]'s LIVE group and NEVER
+    // regroups — so a selection spanning two groups plays on the first room's group (B2, v1).
+    // runShortcut already ran the empty-selection and stale-selection (p3.32 D2) gates.
+    const selNow = selectedRooms[h] || [];
+    if (!selNow.length) throw new Error('select speakers first');
+    const rooms = filterOfflineRooms(selNow, h);
+    if (!rooms.length) throw new Error('all selected speakers are offline');
+    s.rooms = rooms; s.room = rooms[0];
+    console.log('[shortcuts] selection(' + h + ') → [' + rooms.join(', ') + '] (primary ' + rooms[0] + ')');
+  }
 
   if (resolve.each_room) {
     // One send per room in the house, from the LIVE state file (freshest truth).
@@ -7588,8 +7679,18 @@ async function runShortcut(id) {
   if (_scBusy) { showToast('⏳ A shortcut is already running', true); return; }
   const sc = _shortcuts.find(s => s.id === id);
   if (!sc) { console.error('[shortcuts] unknown id: ' + id); return; }
+  // p3.46: target:"selection" tiles have no house of their own — they aim at the chips of the
+  // SELECTED house (D9: the selector always wins, no inference). Same two gates Playlists ▶ runs
+  // before a play-class send: explicit selection (p2.62) and the stale-selection confirm (p3.32 D2).
+  const isSel = sc.target === 'selection';
+  const h = isSel ? house : sc.house;
+  if (isSel) {
+    const selNow = selectedRooms[h] || [];
+    if (!selNow.length) { showToast('Select speakers above first', true); return; }
+    if (!_staleSelGate(h, selNow)) return;
+  }
   _scBusy = id; renderShortcuts();
-  console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + sc.house + ' steps=' + (sc.steps || []).length + ' ═══');
+  console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + h + (isSel ? ' [selection tile]' : '') + ' steps=' + (sc.steps || []).length + (sc.inherit_volume === false ? ' inherit_volume=false' : '') + ' ═══');
   const _scPlayRooms = [];  // p3.12: rooms targeted by play-class steps → chips follow on success
   // p3.24 (D10): shortcuts INHERIT room default volumes at tap time. Any room targeted
   // by a play-class step that has NO explicit set_volume step in the shortcut gets a
@@ -7608,11 +7709,13 @@ async function runShortcut(id) {
   try {
     for (let i = 0; i < (sc.steps || []).length; i++) {
       const step = sc.steps[i];
-      const payloads = await _scExpandStep(step, sc.house);
+      const payloads = await _scExpandStep(step, h);
       console.log('[shortcuts] step ' + (i + 1) + '/' + sc.steps.length + ' (' + step.action + ') → ' + payloads.length + ' send(s)');
       for (const p of payloads) {
         // p3.24 (D10): default-volume inheritance — see block above runShortcut's try.
-        if (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue') {
+        // p3.46 (B1): tiles with inherit_volume:false (the "On selected speakers" tiles) skip it —
+        // they mean "where I am, as it is"; resetting a group you just tuned would be a surprise.
+        if (sc.inherit_volume !== false && (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue')) {
           const targets = p.rooms || (p.room ? [p.room] : []);
           for (const rm of targets) {
             if (!rm || _scVolCoversAll || _scExplicitVolRooms.has(rm) || _scVolInjected.has(rm)) continue;
@@ -7621,7 +7724,7 @@ async function runShortcut(id) {
             const vp = { action: 'set_volume', room: rm, volume: vol,
                          cmd_ts: new Date().toISOString(), shortcut_id: id, inherited_default: true };
             console.log('[shortcuts] D10 inherit: set_volume ' + rm + ' → ' + vol + (defs[rm] != null ? ' (room default)' : ' (fallback)'));
-            const vok = await postNtfy(vp, sc.house);
+            const vok = await postNtfy(vp, h);
             if (!vok) throw new Error('send failed (inherited set_volume → ' + rm + ')');
             _scVolInjected.add(rm);
             await _scSleep(400);
@@ -7629,7 +7732,7 @@ async function runShortcut(id) {
         }
         p.cmd_ts = new Date().toISOString();  // Rule 22: fresh cmd_ts on every send
         p.shortcut_id = id;                   // provenance breadcrumb in the command body
-        const ok = await postNtfy(p, sc.house);
+        const ok = await postNtfy(p, h);
         if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
         // p3.12 (D9): play-class sends are a statement of focus — remember their rooms.
         // Volume/regroup steps are NOT (vol-1% loops must never hijack selection).
@@ -7652,16 +7755,23 @@ async function runShortcut(id) {
     // rooms — subsequent volume/pause taps aim where the music actually is
     // (2026-08-14: stale Sauna Porch selection hijacked Garage volume presses).
     if (_scPlayRooms.length) {
-      selectedRooms[sc.house] = [..._scPlayRooms];
-      localStorage.setItem('ll_rooms_' + sc.house, JSON.stringify(selectedRooms[sc.house]));
-      _stampSelTouch(sc.house);  // p3.27: chip staleness clock
-      renderRooms(sc.house);
+      if (isSel) {
+        // p3.46: the target IS the selection — chips stay put; the tap is fresh intent (p3.27 clock).
+        _stampSelTouch(h);
+        console.log('[shortcuts] selection tile played on current chips → [' + _scPlayRooms.join(', ') + '] (' + h + '); selection unchanged');
+      } else {
+        selectedRooms[h] = [..._scPlayRooms];
+        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
+        _stampSelTouch(h);  // p3.27: chip staleness clock
+        renderRooms(h);
+        console.log('[shortcuts] chips follow play target → [' + _scPlayRooms.join(', ') + '] (' + h + ')');
+      }
       _geoPlaySent = true;  // p3.13: shortcut started a session → geo degrades to hint
       if (typeof geoDismissHint === 'function') geoDismissHint('shortcut play');
-      console.log('[shortcuts] chips follow play target → [' + _scPlayRooms.join(', ') + '] (' + sc.house + ')');
     }
     console.log('[shortcuts] ═══ DONE "' + sc.label + '" ═══');
-    showToast('✓ ' + sc.label);
+    // p3.46: selection tiles name their rooms in the toast (there is no fixed target to infer from the label)
+    showToast('✓ ' + sc.label + (isSel && _scPlayRooms.length ? ' → ' + _scPlayRooms.map(r => r.replace(/^Main /, '')).join(', ') : ''));
   } catch (e) {
     console.error('[shortcuts] ═══ FAILED "' + sc.label + '":', e, '═══');
     showToast('✗ ' + sc.label + ': ' + e.message, true);
@@ -7811,6 +7921,38 @@ function playPlContext(action, playlistId) {
   playContext(action, data);
 }
 
+// p3.46: card line 3 ("what is this, at a glance") — design_playlist_line3_selection_shortcuts_v1.md §A,
+// Andrew-approved 2026-10-03 (A1 chips lead line 3; A2 genre·lang·mood·era; A3 search stays name-only;
+// A4 2-line clamp everywhere). Chips come from playlist_ledger via playlists.json (our builds only —
+// null elsewhere); the sentence is `description` (SANITIZED server-side by scripts/lib/playlists_json.ts:
+// tags stripped, entities decoded, link-only text dropped) → `artists_summary` fallback ("A, B, C +N more").
+// Returns '' when there is nothing to say, so cards without data stay exactly as before.
+const _PL_GENRE_LABEL = { soul_rnb_hiphop: 'Soul/R&B', folk_country_americana: 'Folk/Americana', rock_indie: 'Indie/Rock', electronic: 'Electronic', global: 'Global', jazz: 'Jazz', pop: 'Pop', classical: 'Classical' };
+const _PL_ENERGY_LABEL = { hushed: 'hushed', mid: 'mid-tempo', high: 'high energy' };
+const _PL_LANG_LABEL = { instrumental: 'instrumental', 'non-eng': 'non-English', mixed: 'multilingual' }; // 'eng' = default, no chip
+function _plEraLabel(era) {
+  var s = String(era || '').trim();
+  if (!s) return '';
+  var m = s.match(/^(\d{4})-(\d{4})$/);
+  if (m) {
+    if (m[1] === m[2]) return m[1];                                   // "2008-2008" → 2008
+    return m[1].slice(0, 2) === m[2].slice(0, 2) ? m[1] + '\u2013' + m[2].slice(2) : m[1] + '\u2013' + m[2]; // 2007–26 · 1967–2010
+  }
+  return s.replace(/-/g, '\u2013');                                   // "2015-now" → 2015–now · "1970s" as-is
+}
+function _plLine3(p) {
+  var chips = '';
+  if (p.genre && _PL_GENRE_LABEL[p.genre]) chips += '<span class="pc-chip">' + esc(_PL_GENRE_LABEL[p.genre]) + '</span>';
+  if (p.lang && _PL_LANG_LABEL[p.lang]) chips += '<span class="pc-chip">' + esc(_PL_LANG_LABEL[p.lang]) + '</span>';
+  if (p.energy && _PL_ENERGY_LABEL[p.energy]) chips += '<span class="pc-chip">' + esc(_PL_ENERGY_LABEL[p.energy]) + '</span>';
+  var era = _plEraLabel(p.era);
+  if (era) chips += '<span class="pc-chip">' + esc(era) + '</span>';
+  // Defensive strip only — a cached pre-p3.46 playlists.json could still carry raw Spotify HTML.
+  var txt = String(p.description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || String(p.artists_summary || '').trim();
+  if (!chips && !txt) return '';
+  return '<div class="pc-desc">' + chips + esc(txt) + '</div>';
+}
+
 function renderPlaylists() {
   const el = document.getElementById('playlist-list');
   const searchEl = document.getElementById('pl-search');
@@ -7918,13 +8060,18 @@ function renderPlaylists() {
       ? '<img class="pc-art" src="' + esc(p.image_url) + '" alt="">'
       : '<div class="pc-art-placeholder">\u266b</div>';
 
-    var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + (isBlocked ? ' blocked' : '') + '" id="pl-' + p.id + '">';
+    var card = '<div class="playlist-card' + (isOpen ? ' open' : '') + (isBlocked ? ' blocked' : '') + (isGhost ? ' ghost' : '') + '" id="pl-' + p.id + '">'; // p3.46: .ghost → 3-column header grid (no expand chevron)
     // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
     card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + (isBlocked ? ' title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play."' : '') + '>';
     card += artHtml;
     card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) +
       (sortKey === 'recent' && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + '</div>'; // p3.03 item 3
-    card += '<div class="pc-meta">' + meta + ownerBadge + '</div></div>';
+    card += '<div class="pc-meta">' + meta + ownerBadge + '</div>';
+    card += '</div>';
+    // p3.46: line 3 = chips + one sentence ('' when nothing to say); blocked cards stay compact.
+    // Direct child of .pc-header (grid area "desc"), NOT inside .pc-info — on phones it spans
+    // the full card width (see .pc-header CSS); on desktop the grid puts it under the info column.
+    if (!isBlocked) card += _plLine3(p);
     card += '<div class="pc-actions">';
     card += '<button class="pc-btn" onclick="event.stopPropagation();playPlContext(\'play\',\'' + p.id + '\')" title="Play">\u25b6</button>';
     card += '<button class="pc-btn queue" onclick="event.stopPropagation();playPlContext(\'queue\',\'' + p.id + '\')" title="Queue">+</button>';
