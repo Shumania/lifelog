@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-03T10:17:00.587Z",
- "pick_date": "2026-10-03",
- "work_key": "BWV1007-1012",
- "work": "Six Cello Suites",
- "performer": "Yo-Yo Ma",
- "album": "Six Evolutions - Bach: Cello Suites",
- "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb",
- "instrumentation": "cello",
- "approx_minutes": 150,
- "reason": "last heard 23d ago · avoided piano",
+ "picked_at": "2026-10-04T10:18:02.786Z",
+ "pick_date": "2026-10-04",
+ "work_key": "BWV996-998",
+ "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+ "performer": "Sean Shibe",
+ "album": "Bach",
+ "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
+ "instrumentation": "lute_guitar",
+ "approx_minutes": 62,
+ "reason": "last heard 22d ago",
  "fallback": {
-  "work_key": "BWV996-998",
-  "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
-  "performer": "Sean Shibe",
-  "album": "Bach",
-  "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo"
+  "work_key": "BWV1080-consort",
+  "work": "The Art of Fugue (viol consort)",
+  "performer": "Fretwork",
+  "album": "J.S. Bach: The Art of Fugue",
+  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
  }
 }
