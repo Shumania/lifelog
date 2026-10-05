@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-04T10:18:02.786Z",
- "pick_date": "2026-10-04",
- "work_key": "BWV996-998",
- "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
- "performer": "Sean Shibe",
- "album": "Bach",
- "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
- "instrumentation": "lute_guitar",
- "approx_minutes": 62,
- "reason": "last heard 22d ago",
+ "picked_at": "2026-10-05T10:21:06.453Z",
+ "pick_date": "2026-10-05",
+ "work_key": "ARR-WTC-CONSORT-III",
+ "work": "The Well-Tempered Consort III",
+ "performer": "Phantasm",
+ "album": "Bach: The Well-Tempered Consort – III",
+ "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 64,
+ "reason": "last heard 21d ago",
  "fallback": {
-  "work_key": "BWV1080-consort",
-  "work": "The Art of Fugue (viol consort)",
-  "performer": "Fretwork",
-  "album": "J.S. Bach: The Art of Fugue",
-  "spotify_album_uri": "spotify:album:3lc1BaBepR2s37XWNw3lzx"
+  "work_key": "BWV1014-1019-vol2",
+  "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+  "performer": "Rachel Podger & Trevor Pinnock",
+  "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+  "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
  }
 }
