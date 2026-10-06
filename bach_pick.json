@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-05T10:21:06.453Z",
- "pick_date": "2026-10-05",
- "work_key": "ARR-WTC-CONSORT-III",
- "work": "The Well-Tempered Consort III",
- "performer": "Phantasm",
- "album": "Bach: The Well-Tempered Consort – III",
- "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
- "instrumentation": "viol_consort",
- "approx_minutes": 64,
- "reason": "last heard 21d ago",
+ "picked_at": "2026-10-06T10:18:03.737Z",
+ "pick_date": "2026-10-06",
+ "work_key": "BWV1021+1023+misc",
+ "work": "Sonatas for Violin & Continuo",
+ "performer": "Isabelle Faust & Kristian Bezuidenhout",
+ "album": "J.S. Bach: Sonatas for Violin and Continuo",
+ "spotify_album_uri": "spotify:album:4jJWVef1gmmSvFxbMtvVt0",
+ "instrumentation": "chamber",
+ "approx_minutes": 70,
+ "reason": "last heard 32d ago · avoided viol_consort",
  "fallback": {
-  "work_key": "BWV1014-1019-vol2",
-  "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
-  "performer": "Rachel Podger & Trevor Pinnock",
-  "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
-  "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
+  "work_key": "ARR-MARIMBA-KUNIKO",
+  "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+  "performer": "Kuniko",
+  "album": "J.S. Bach: Solo Works for Marimba",
+  "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
  }
 }
