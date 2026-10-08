@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-07T10:19:07.540Z",
- "pick_date": "2026-10-07",
- "work_key": "BWV772-801",
- "work": "Two- and Three-Part Inventions & Sinfonias",
- "performer": "Glenn Gould",
- "album": "Bach: The Two and Three Part Inventions, BWV 772-801",
- "spotify_album_uri": "spotify:album:42SxOjm6223yaSs0vH9Um6",
- "instrumentation": "piano",
- "approx_minutes": 48,
- "reason": "last heard 41d ago · avoided chamber",
+ "picked_at": "2026-10-08T10:17:34.872Z",
+ "pick_date": "2026-10-08",
+ "work_key": "ARR-MARIMBA-KUNIKO",
+ "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+ "performer": "Kuniko",
+ "album": "J.S. Bach: Solo Works for Marimba",
+ "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
+ "instrumentation": "marimba_other",
+ "approx_minutes": 100,
+ "reason": "last heard 23d ago · avoided piano",
  "fallback": {
-  "work_key": "ARR-MARIMBA-KUNIKO",
-  "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
-  "performer": "Kuniko",
-  "album": "J.S. Bach: Solo Works for Marimba",
-  "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
+  "work_key": "BWV806-811",
+  "work": "English Suites",
+  "performer": "Masaaki Suzuki",
+  "album": "J.S. Bach: English Suites",
+  "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
  }
 }
