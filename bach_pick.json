@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-08T10:17:34.872Z",
- "pick_date": "2026-10-08",
- "work_key": "ARR-MARIMBA-KUNIKO",
- "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
- "performer": "Kuniko",
- "album": "J.S. Bach: Solo Works for Marimba",
- "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
- "instrumentation": "marimba_other",
- "approx_minutes": 100,
- "reason": "last heard 23d ago · avoided piano",
+ "picked_at": "2026-10-09T10:19:57.679Z",
+ "pick_date": "2026-10-09",
+ "work_key": "BWV806-811",
+ "work": "English Suites",
+ "performer": "Masaaki Suzuki",
+ "album": "J.S. Bach: English Suites",
+ "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb",
+ "instrumentation": "harpsichord",
+ "approx_minutes": 150,
+ "reason": "last heard 22d ago",
  "fallback": {
-  "work_key": "BWV806-811",
-  "work": "English Suites",
-  "performer": "Masaaki Suzuki",
-  "album": "J.S. Bach: English Suites",
-  "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
+  "work_key": "BWV971+972-987sel",
+  "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
+  "performer": "Alexandre Tharaud",
+  "album": "Bach: Concertos Italiens",
+  "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU"
  }
 }
