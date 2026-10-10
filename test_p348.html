@@ -195,6 +195,11 @@
     text-align: left; transition: background 0.15s;
   }
   .ctrl-settings-item:hover { background: var(--surface2); }
+  /* p3.48: the row never overflows at ANY width — just outside the phone block (a 481–500px desktop or
+     PWA window) the ten desktop-width buttons were 1px too wide and clipped the ⚙. Items may compress
+     (buttons to 30px, the volume group with them); with spare room nothing changes. */
+  .controls-row .ctrl-btn { flex-shrink: 1; min-width: 30px; }
+  .controls-row .volume-group { min-width: 0; flex-shrink: 1; }
   /* p2.72: 390px viewport — controls-row overflowed and clipped the ⚙ button.
      Inline 36px widths on −/+ need !important to shrink here.
      p3.47: 34px × 10 buttons + gaps = 381px, but the panel is 361px on a 393pt phone (348px on a
