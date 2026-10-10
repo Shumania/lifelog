@@ -195,14 +195,23 @@
     text-align: left; transition: background 0.15s;
   }
   .ctrl-settings-item:hover { background: var(--surface2); }
+  /* p3.48: the row never overflows at ANY width — just outside the phone block (a 481–500px desktop or
+     PWA window) the ten desktop-width buttons were 1px too wide and clipped the ⚙. Items may compress
+     (buttons to 30px, the volume group with them); with spare room nothing changes. */
+  .controls-row .ctrl-btn { flex-shrink: 1; min-width: 30px; }
+  .controls-row .volume-group { min-width: 0; flex-shrink: 1; }
   /* p2.72: 390px viewport — controls-row overflowed and clipped the ⚙ button.
      Inline 36px widths on −/+ need !important to shrink here.
      p3.47: 34px × 10 buttons + gaps = 381px, but the panel is 361px on a 393pt phone (348px on a
      375pt one) — the ⚙ was still ~20px off the right edge (IMG_0018, 2026-10-04). Fixed-width
      buttons can never fit every phone, so the row now shrinks to fit: each button may compress
      from 34px down to 26px (≈32px on a 393pt phone, ≈31px at 375pt); the volume group shrinks with
-     them. Height stays 34px for the tap target. */
-  @media (max-width: 430px) {
+     them. Height stays 34px for the tap target.
+     p3.48: breakpoint 430 → 480px. Andrew's phone is a 440pt Pro Max — the compact header (480px
+     rules above) applied but this block never did, so he still saw the 40px desktop buttons and the
+     clipped ⚙ (IMG_0102, 2026-10-10). 480px matches every other phone breakpoint in this file;
+     at 440pt the ten 34px buttons fit the 408px panel without shrinking. */
+  @media (max-width: 480px) {
     .controls-row { gap: 4px; }
     .controls-row .ctrl-btn { width: 34px !important; height: 34px !important; font-size: 14px; border-radius: 9px; flex-shrink: 1; min-width: 26px; padding: 0; }
     .controls-row .volume-group { gap: 2px; min-width: 0; flex-shrink: 1; }
@@ -1397,7 +1406,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.47';
+const PAGE_VERSION = 'p3.48';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
