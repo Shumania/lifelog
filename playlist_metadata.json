@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Victoria Monét)",
+  "description": "Updated weekly. (Photo: Troye Sivan)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da844df89e8d13a52001c145ce0b",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da843d9e83cb64a6d69756538b10",
   "followers_total": 84760,
-  "tracks_total": 26,
+  "tracks_total": 39,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-10-02T05:59:13Z"
+  "last_modified": "2026-10-09T16:56:33Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -787,9 +787,9 @@
   "owner_id": "shuzamin",
   "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84a6148f27bdce66b1f52a94f7",
   "followers_total": 0,
-  "tracks_total": 818,
+  "tracks_total": 819,
   "created_approx": "2020-12-11T01:01:21Z",
-  "last_modified": "2026-06-25T00:54:16Z"
+  "last_modified": "2026-10-07T20:04:18Z"
  },
  {
   "id": "7rT4r0E9Ybl87Z3oncYwQy",
@@ -1752,18 +1752,6 @@
   "last_modified": "2026-10-03T10:30:41Z"
  },
  {
-  "id": "4lfYvH9JiiKyE4hb4BnxOi",
-  "name": "From Houston, Texas — Oct 2",
-  "description": "Funk &amp; soul, 1967–2010 — the family tree of Archie Bell &amp; the Drells&#x27; &quot;Tighten Up&quot;: the Houston band that built the groove, the answer records, the Gamble &amp; Huff years, and the covers and samples that kept it moving, Kingston to Tokyo to Akron.",
-  "owner": "Andrew Shuman",
-  "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e025c3d39e231fa39d7a63dc2d1ab67616d00001e025e4872d092fc6b31aa30cc16ab67616d00001e0287a4e22285c1e5464a34740eab67616d00001e028fd5787277135528be5da195",
-  "followers_total": 0,
-  "tracks_total": 22,
-  "created_approx": "2026-10-03T01:21:28Z",
-  "last_modified": "2026-10-03T01:21:28Z"
- },
- {
   "id": "3CsWWgCNM8meQBHA4I8wRr",
   "name": "Bosun's Locker — Oct 2",
   "description": "London nu-folk, 2008 — the year West London went folk. Flynn, Marling, Noah and the Whale and the friends who shared their stages, in the twelve months it all broke.",
@@ -1822,5 +1810,113 @@
   "tracks_total": 20,
   "created_approx": "2026-09-28T10:32:05Z",
   "last_modified": "2026-09-28T10:32:05Z"
+ },
+ {
+  "id": "4XW09Rumcttsfc0X1dQ1Om",
+  "name": "Family Tree — Oct 11",
+  "description": "Funk lineage map, 1968–80 — what Sly &amp; The Family Stone made possible: Whitfield&#x27;s Motown, Miles and Herbie, Betty Davis, the Bay Area heirs, Dayton and Chicago, and Prince&#x27;s Uptown.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020639133400fd25de423ed993ab67616d00001e02147e35fd67f22f92cb587c3bab67616d00001e02dbaa9bf27b9f7db47f5235a8ab67616d00001e02e3f61a116639ccb26edc1596",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-10-11T10:33:51Z",
+  "last_modified": "2026-10-11T10:33:51Z"
+ },
+ {
+  "id": "7xjQavdpPCCR4NHtN0B5AC",
+  "name": "Mr. Record Man — Oct 10",
+  "description": "Classic Nashville country, 1959–64 — Willie Nelson the $50-a-week Pamper Music staff writer: his Liberty sides, the publishing demos, the hits Patsy Cline, Ray Price and Billy Walker made of his songs, and the Tootsie&#x27;s Orchid Lounge circle (Cochran, Howard, Tillis, Miller) drinking beside him.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e023dcbf76973927313e9d16a17ab67616d00001e026fda96b0954b958ee44c8efcab67616d00001e02c65e380927a34cfed8985fbeab67616d00001e02d93936e3ab2516e435dc313d",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-10T10:24:34Z",
+  "last_modified": "2026-10-10T10:24:34Z"
+ },
+ {
+  "id": "3mZGKzrqKdwN0G5T67b2Td",
+  "name": "Luz Baja — Oct 9",
+  "description": "Flamenco, fado &amp; Iberian song, 1962–2025 — the hushed voices ROSALÍA&#x27;s LUX leans on: Morente, Camarón, Amália, Carminho, and the Atlantic they reach across.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022d71b82997d33c8368ec3661ab67616d00001e027c9b9ba0a6f4ceeda0ba92b6ab67616d00001e0293ee2e2f2dfb7de9befcc164ab67616d00001e02954b2c53af5fa2cb2bc62ace",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-09T10:29:43Z",
+  "last_modified": "2026-10-09T10:29:43Z"
+ },
+ {
+  "id": "3pj0SPDPitZIO5Fmb9DHrc",
+  "name": "Head Voice — Oct 8",
+  "description": "Electronic dance music&#x27;s falsetto lead, 1978–2025 — Sylvester and Jamie Principle to the 2008 crest (Hercules &amp; Love Affair, Hot Chip, Empire Of The Sun) and on to Jai Paul, Jungle and Shamir: the high male voice as the dance floor&#x27;s lead instrument.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022ec4aea38b44eba9756767faab67616d00001e02c6619148196a323b2e41d6d4ab67616d00001e02e691caf11b86a3729899a304ab67616d00001e02f899563d84b3e1438a3a5433",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-10-08T10:32:39Z",
+  "last_modified": "2026-10-08T10:32:39Z"
+ },
+ {
+  "id": "7B4ONMHR6Z8yo7fDv9iaMf",
+  "name": "Other Places — Oct 7",
+  "description": "Kenny Barron songbook, 1981–2025 — ten of his own tunes in his instrumental readings, paired with what they became in other hands: Stan Getz, Gretchen Parlato, and the Songbook singers (Salvant, Elling, Russell, Callaway, Nkwelle, McDole). 20 tracks.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022065d70306186fc154b183dcab67616d00001e025fe2247926b9479a4cabcdceab67616d00001e02bb489d72124cd96f24c7cb8eab67616d00001e02d2f5aec76518b2e3848abd07",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-10-07T10:35:27Z",
+  "last_modified": "2026-10-07T10:35:27Z"
+ },
+ {
+  "id": "5tZrohRExX78V33fGcyynE",
+  "name": "Low Sun — Oct 6",
+  "description": "Harmony-pop melancholy, 2009–2025: Panda Bear&#x27;s Sinister Grift and the family that shares its Beach Boys DNA — stacked falsettos, reverb, a slow sway, sad words in major keys. Animal Collective&#x27;s orbit, Deerhunter and Grizzly Bear, the L.A. canyon revival (Weyes Blood, Drugdealer, Jessica Pratt), the Lemon Twigs, Cindy Lee — and Brian Wilson&#x27;s &#x27;Til I Die as the root. 23 songs.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0219757748948360872bd77a95ab67616d00001e0240abcf3fa4d8cda2b45c4af0ab67616d00001e02a7f85f2df08fbeb6dac5677cab67616d00001e02d9544f2d7984eb4d6a6765f3",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-10-06T10:31:53Z",
+  "last_modified": "2026-10-06T10:31:53Z"
+ },
+ {
+  "id": "65IPXleE8fLaZDZEUSwjWb",
+  "name": "Gut Strings — Oct 5",
+  "description": "Early music on period instruments, 1971–2019: the British revival from Munrow &amp; Hogwood&#x27;s AAM to Pinnock, Fretwork, Podger, Dunedin and Egarr&#x27;s Brandenburgs. Purcell, Dowland, Handel, Vivaldi, Biber, Byrd, Monteverdi — gut strings, viols, natural trumpet. 22 works, 17 ensembles, nothing twice.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021e75273db397680c7df921b4ab67616d00001e02359278221f82719af07dadfeab67616d00001e02707f85971abc625cf66c857fab67616d00001e029f7f1486fed8661c7527adbb",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-05T10:36:35Z",
+  "last_modified": "2026-10-05T10:36:35Z"
+ },
+ {
+  "id": "6ZXwRrwiPE3iPsOWFOPrfg",
+  "name": "Gamble & Huff — Oct 4",
+  "description": "Philadelphia soul, 1967–1979 — Gamble &amp; Huff from the Cameo-Parkway and Neptune years to the Philadelphia International peak: 24 songs by 20 acts, no song twice; Sigma Sound strings over the MFSB engine, from the Intruders to the Jones Girls.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0223e7138152dc3f62eca6f925ab67616d00001e0280fb24825d7f6adcba885b08ab67616d00001e028594331b67fbc21194d2e8c8ab67616d00001e02cc91e183a9c969a989a6d638",
+  "followers_total": 0,
+  "tracks_total": 24,
+  "created_approx": "2026-10-04T21:33:19Z",
+  "last_modified": "2026-10-04T21:33:19Z"
+ },
+ {
+  "id": "4kS5QRs4d6QKa1BQY8uEja",
+  "name": "Dancing the Revolution:  From Dancehall to Reggaetón",
+  "description": "",
+  "owner": "MCA Chicago",
+  "owner_id": "mca_chicago",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da846911780d93cea49c8cd915c0",
+  "followers_total": 0,
+  "tracks_total": 52,
+  "created_approx": "2026-02-02T17:13:21Z",
+  "last_modified": "2026-02-03T21:41:51Z"
  }
 ]
