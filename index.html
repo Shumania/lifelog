@@ -1406,7 +1406,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.48';
+const PAGE_VERSION = 'p3.49';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2608,6 +2608,12 @@ const _sseFreshByHouse = {}; // house -> ms epoch of newest fresh SSE event
 // (now_playing/stopped have their own U-M3 guard; this closes the same hole for
 // the "always process state fields" section — the ▶ dot / Elsewhere flap bug.)
 const _sseStateAppliedTs = {}; // house -> ms epoch of newest APPLIED state snapshot
+// p3.49: how long a now-playing entry counts as LIVE without a fresh signal. The service
+// re-sends a status snapshot every 15 min (keepalive) and the snapshot now refreshes the
+// entry's clock when its track is still playing (see now_playing_tracks block), so only
+// 20+ min of silence means the house went dark. Was 10 min — a radio stream never changes
+// track, so the hero fell to 'last played' at +10 min and flapped on every keepalive.
+const NP_LIVE_MS = 20 * 60000;
 const _freshWarnLast = {};   // house -> ms epoch of last [freshness] console.warn (10-min throttle)
 
 function _queueOnStateFiles(stateFiles) {
@@ -3590,7 +3596,7 @@ function updateMuteRepeatButtons() {
 // Returns null when there is nothing expandable (radio, garbage title, no data).
 function npCtxInfo(h) {
   const sse = _sseNowPlaying[h];
-  const isLive = sse && (Date.now() - sse.ts) < 600000;
+  const isLive = sse && (Date.now() - sse.ts) < NP_LIVE_MS; // p3.49
   const dataNp = data && data.now_playing && data.now_playing.house === h ? data.now_playing : null;
   const dataNpAge = dataNp ? Date.now() - new Date(dataNp.timestamp || dataNp.ts || 0).getTime() : Infinity;
   let s = null;
@@ -3635,7 +3641,7 @@ function renderNowPlayingSonos(h) {
   const el = document.getElementById('np-' + h);
   if (!el) return;
   const sse = _sseNowPlaying[h];
-  const isLive = sse && (Date.now() - sse.ts) < 600000;
+  const isLive = sse && (Date.now() - sse.ts) < NP_LIVE_MS; // p3.49
 
   // Find latest history item for this house; fall back to any house if house-specific is stale
   let latestItem = null;
@@ -3852,7 +3858,7 @@ function renderNowPlayingRoaming() {
   } else {
     el.className = 'now-playing np-stale';
     let hint = '';
-    if (_sseNowPlayingGlobal && (Date.now() - _sseNowPlayingGlobal.ts) < 300000) {
+    if (_sseNowPlayingGlobal && (Date.now() - _sseNowPlayingGlobal.ts) < NP_LIVE_MS) { // p3.49 (was 5 min)
       const sonosHouse = _sseNowPlayingGlobal.house === 'caphill' ? 'Cap Hill' : 'Vashon';
       hint = `<div class="sonos-hint" style="margin-top:6px;">
         <div style="font-size:12px;color:var(--accent2);">🔊 Sonos is playing in ${esc([...new Set(_sseNowPlayingGlobal.rooms||[])].join(', '))}</div>
@@ -5860,7 +5866,7 @@ function connectSSE() {
       // below are guarded by evtTs; fresher existing state (incl. data.json) wins.
       const evtTs = outer.time ? outer.time * 1000 : Date.now();
       const evtAge = Date.now() - evtTs;
-      const EVT_FRESH_MS = 600000; // 10 min, matches stale watchdog TTL
+      const EVT_FRESH_MS = 600000; // 10 min replay guard (the live window is NP_LIVE_MS, p3.49)
       // Infer house from msg.house OR ntfy topic name
       let sseHouse = msg.house || null;
       if (!sseHouse && outer.topic) {
@@ -6050,13 +6056,39 @@ function connectSSE() {
       // --- Opportunistic now-playing from now_playing_tracks (status/snapshot) ---
       // U-M3: skip stale replayed snapshots; stamp with real event time
       if (msg.now_playing_tracks && msg.now_playing_tracks.length > 0 && !events.includes('now_playing') &&
-          evtAge <= EVT_FRESH_MS) {
+          evtAge <= EVT_FRESH_MS && !stateIsStale) {
         const t = msg.now_playing_tracks[0];
         const h = sseHouse || house;
-        if (!_sseNowPlaying[h]) {
+        const held = _sseNowPlaying[h];
+        const snapRooms = [...new Set(msg.now_playing_tracks.map(x=>x.rooms||[]).flat())];
+        // p3.49: is the held track still playing somewhere in this house? (uri match; title+artist when the wire has no uri)
+        const stillPlaying = held && msg.now_playing_tracks.some(x => (held.uri && x.uri) ? held.uri === x.uri
+          : (!held.uri && !x.uri && held.title === (x.title||'') && held.artist === (x.artist||'')));
+        if (!held) {
           _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
-            rooms: [...new Set(msg.now_playing_tracks.map(x=>x.rooms||[]).flat())], uri: t.uri||'', ts: evtTs, _fromStatus: true };
+            rooms: snapRooms, uri: t.uri||'', ts: evtTs, _fromStatus: true };
           if (h === house) renderNowPlayingSonos(house);
+        } else if (evtTs > (held.ts || 0)) {
+          if (stillPlaying) {
+            // p3.49 (Rule 27): a fresh snapshot carrying the same track is a liveness signal —
+            // refresh the clock (and rooms) instead of ignoring it. Keeps radio streams / long
+            // tracks live across the 15-min keepalives; the watchdog only fires on real silence.
+            held.ts = evtTs; held.rooms = snapRooms;
+            if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === h && evtTs > (_sseNowPlayingGlobal.ts || 0)) {
+              _sseNowPlayingGlobal.ts = evtTs; _sseNowPlayingGlobal.rooms = [...snapRooms];
+            }
+            console.log('[np] p3.49: fresh snapshot refreshed now_playing for ' + h + ' ("' + (held.title||'') + '", rooms ' + snapRooms.join('+') + ')');
+            if (h === house) renderNowPlayingSonos(house);
+          } else {
+            // p3.49: the held track is gone from the newest snapshot (missed now_playing event) — newest snapshot wins
+            console.log('[np] p3.49: held track "' + (held.title||'') + '" absent from fresh snapshot for ' + h + ' — switching to "' + (t.title||'') + '"');
+            _sseNowPlaying[h] = { title: t.title||'', artist: t.artist||'', album: t.album||'',
+              rooms: snapRooms, uri: t.uri||'', ts: evtTs, _fromStatus: true };
+            if (_sseNowPlayingGlobal && _sseNowPlayingGlobal.house === h) _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
+            if (h === house) renderNowPlayingSonos(house);
+            if (house === 'roaming') renderNowPlayingRoaming();
+            _renderElsewhereSoon();
+          }
         }
         if (!_sseNowPlayingGlobal) {
           _sseNowPlayingGlobal = { ..._sseNowPlaying[h], house: h };
@@ -6098,9 +6130,10 @@ setInterval(() => { if (Date.now() - _sseLastMsg > 120000) connectSSE(); }, 3000
 // Status bar freshness re-render (colors drift as time passes)
 setInterval(() => { renderStatusBar(); }, 60000);
 
-// Stale Now Playing watchdog — clear if >10 min since last update (missed stopped event safety net)
+// Stale Now Playing watchdog — clear if >NP_LIVE_MS since the last fresh signal (missed stopped event safety net).
+// p3.49: 20 min (was 10) — keepalive snapshots now refresh the clock, so this only fires on real silence.
 setInterval(() => {
-  const STALE_MS = 600000; // 10 min
+  const STALE_MS = NP_LIVE_MS;
   for (const h of Object.keys(_sseNowPlaying)) {
     if (Date.now() - (_sseNowPlaying[h].ts || 0) > STALE_MS) {
       console.log(`[stale-watchdog] Clearing stale now_playing for ${h} (age: ${Math.round((Date.now() - _sseNowPlaying[h].ts) / 60000)}m)`);
