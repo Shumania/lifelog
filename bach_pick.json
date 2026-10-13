@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-12T10:23:20.775Z",
- "pick_date": "2026-10-12",
- "work_key": "BWV971+972-987sel",
- "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
- "performer": "Alexandre Tharaud",
- "album": "Bach: Concertos Italiens",
- "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU",
- "instrumentation": "piano",
- "approx_minutes": 70,
- "reason": "last heard 41d ago · avoided chamber",
+ "picked_at": "2026-10-13T10:23:06.225Z",
+ "pick_date": "2026-10-13",
+ "work_key": "BWV1001-1003",
+ "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
+ "performer": "Hilary Hahn",
+ "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
+ "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ",
+ "instrumentation": "violin",
+ "approx_minutes": 78,
+ "reason": "last heard 23d ago · avoided piano",
  "fallback": {
-  "work_key": "BWV1001-1003",
-  "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
-  "performer": "Hilary Hahn",
-  "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
-  "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ"
+  "work_key": "BWV1014-1019-vol2",
+  "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+  "performer": "Rachel Podger & Trevor Pinnock",
+  "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+  "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
  }
 }
