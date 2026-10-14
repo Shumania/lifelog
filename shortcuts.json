@@ -1,7 +1,7 @@
 {
-  "version": 18,
+  "version": 19,
   "generated_at": "2026-10-04T15:19:28Z",
-  "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise. v17 (2026-10-03, p3.46): tiles with target:\"selection\" have no house/rooms — they play on the chips selected in the current house (resolve.selection → rooms = selectedRooms[house], room = rooms[0]; play_uri never regroups). inherit_volume:false skips the D10 default-volume injection (B1: leave levels as they are).",
+  "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise. v17 (2026-10-03, p3.46): tiles with target:\"selection\" have no house/rooms — they play on the chips selected in the current house (resolve.selection → rooms = selectedRooms[house], room = rooms[0]; play_uri never regroups). inherit_volume:false skips the D10 default-volume injection (B1: leave levels as they are). v19 (2026-10-14): defaults.volume_by_room gains “Sara’s Office” = 12 (new Cap Hill speaker, quiet room; name carries a curly apostrophe U+2019 exactly as Sonos reports it).",
   "shortcuts": [
     {
       "id": "sel-kexp",
@@ -288,10 +288,11 @@
       "Main Upstairs Bathroom White Roams": 12,
       "Parents Bedroom": 18,
       "Master Bathroom": 18,
-      "Basement Study": 30
+      "Basement Study": 30,
+      "Sara’s Office": 12
     }
   },
-  "updated_at": "2026-10-04",
+  "updated_at": "2026-10-14",
   "notes": {
     "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
     "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9).",
@@ -299,5 +300,5 @@
     "v16": "kexp-deck-sauna added: KEXP (TuneIn-resolved stream aac://https://kexp.streamguys1.com/kexp160.aac) → Main Lower Deck + Sauna Porch (Vashon). sync_rooms pair first (Lower Deck coordinator), then play_uri with rooms=[both] so D10 tap-time inheritance sets BOTH rooms (39/35) and D9 chips follow both. No baked volumes (D11).",
     "v18": "daily-bach-vashon-main label fixed (2026-10-04, Andrew): \"Daily Bach → Main Living Room\" → \"Daily Bach → Main Interior ×3\" — the tile always targeted the Main Interior trio (Maury + Kitchen Green Move 2 + Sonos Move; geo structure \"Interior\"); label now says so, matching the Cap Hill ×N cluster naming. Behaviour unchanged (steps byte-identical)."
   },
-  "updated": "2026-10-04"
+  "updated": "2026-10-14"
 }
