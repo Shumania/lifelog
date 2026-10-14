@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-13T10:23:06.225Z",
- "pick_date": "2026-10-13",
- "work_key": "BWV1001-1003",
- "work": "Violin Sonatas Nos. 1 & 2, Partita No. 1",
- "performer": "Hilary Hahn",
- "album": "Hilary Hahn plays J.S. Bach: Violin Sonatas Nos. 1 & 2; Partita No. 1",
- "spotify_album_uri": "spotify:album:2ot197WiXh41pOZaY726OZ",
- "instrumentation": "violin",
+ "picked_at": "2026-10-14T10:26:32.629Z",
+ "pick_date": "2026-10-14",
+ "work_key": "BWV910-916",
+ "work": "Seven Toccatas",
+ "performer": "Mahan Esfahani",
+ "album": "Bach: The Toccatas for Harpsichord, BWV 910-916",
+ "spotify_album_uri": "spotify:album:11e46nIu05nZ3Zl0SuqR3O",
+ "instrumentation": "harpsichord",
  "approx_minutes": 78,
- "reason": "last heard 23d ago · avoided piano",
+ "reason": "last heard 22d ago",
  "fallback": {
-  "work_key": "BWV1014-1019-vol2",
-  "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
-  "performer": "Rachel Podger & Trevor Pinnock",
-  "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
-  "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
+  "work_key": "BWV988",
+  "work": "Goldberg Variations",
+  "performer": "Glenn Gould",
+  "album": "Bach: The Goldberg Variations, BWV 988 (1981 Gould Remaster)",
+  "spotify_album_uri": "spotify:album:1aCpHSQE5ghxibsQ5gkBe0"
  }
 }
