@@ -1406,7 +1406,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.49';
+const PAGE_VERSION = 'p3.50';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1432,7 +1432,7 @@ const ENRICH_RADIO_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1g
 const LIKE_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=5622b453bd1554221e67daf77b930537';
 const ROOMS_LIST = {
   // p3.32: seed refreshed to live topology — 'Study Computer Playbar' retired, 'Shuma Dark Roam' added
-  caphill: ['Living Room','Dining Room','Kitchen','Master Bathroom','Parents Bedroom','Backyard','Basement Study','Shuma Dark Roam','Media Room'],
+  caphill: ['Living Room','Dining Room','Kitchen','Master Bathroom','Parents Bedroom','Backyard','Basement Study','Shuma Dark Roam','Media Room','Sara’s Office'],  // p3.50: 'Sara’s Office' added (curly apostrophe = the real Sonos name)
   vashon: ['Garage','Garage Living Room','Main Living Room Maury','Main Kitchen Green Move 2','Main Upstairs Bathroom White Roams','Main Upstairs Master Bedroom','Shed Arc','Shed Boombox','Main Lower Deck','Sauna Porch','Main Upstairs Second Bedroom','Media Room','Sonos Move']
 };
 
@@ -1447,7 +1447,7 @@ const CLUSTERS = { vashon: [
   { id: 'main-floor',   label: 'Main Floor',   members: ['Living Room','Dining Room','Kitchen'] },
   { id: 'master-suite', label: 'Master Suite', members: ['Master Bathroom','Parents Bedroom'] },
 ] };
-const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: ['Media Room'] };  // p2.64: Shed Boombox demoted (often offline); p3.32: Cap Hill Media Room demoted
+const DEMOTED_ROOMS = { vashon: ['Garage Living Room','Garage','Main Upstairs Second Bedroom','Media Room','Shed Boombox'], caphill: ['Media Room','Sara’s Office'] };  // p2.64: Shed Boombox demoted (often offline); p3.32: Cap Hill Media Room demoted; p3.50: Sara’s Office demoted (Andrew 2026-10-14: "lesser used group")
 // Bonded devices (e.g. Vashon Sub) leak into rooms_all via GROUP MEMBER names — the Sonos
 // app hides them. Page-side guard until the v2.54 service fix. Do NOT filter these out of
 // expandViaGroups results used by Group Speakers (live topology legitimately includes them).
