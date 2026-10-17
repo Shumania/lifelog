@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-16T10:15:59.159Z",
- "pick_date": "2026-10-16",
- "work_key": "BWV1014-1019-vol2",
- "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
- "performer": "Rachel Podger & Trevor Pinnock",
- "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
- "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn",
- "instrumentation": "chamber",
- "approx_minutes": 71,
- "reason": "last heard 40d ago · avoided viol_consort",
+ "picked_at": "2026-10-17T10:18:36.027Z",
+ "pick_date": "2026-10-17",
+ "work_key": "BWV825-830",
+ "work": "Six Partitas",
+ "performer": "Schaghajegh Nosrati",
+ "album": "Bach: Partitas, BWV 825-830",
+ "spotify_album_uri": "spotify:album:7G4SER0hlDv7APJrgIuYEh",
+ "instrumentation": "piano",
+ "approx_minutes": 150,
+ "reason": "last heard 39d ago · avoided chamber",
  "fallback": {
-  "work_key": "BWV825-830",
-  "work": "Six Partitas",
-  "performer": "Schaghajegh Nosrati",
-  "album": "Bach: Partitas, BWV 825-830",
-  "spotify_album_uri": "spotify:album:7G4SER0hlDv7APJrgIuYEh"
+  "work_key": "ARR-ALIO-MODO",
+  "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
+  "performer": "Fretwork",
+  "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
+  "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY"
  }
 }
