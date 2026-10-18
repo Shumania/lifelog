@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Troye Sivan)",
+  "description": "Updated weekly. (Photo: Sophia Stel)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da843d9e83cb64a6d69756538b10",
+  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da84a5157ce0eb46624583394bca",
   "followers_total": 84760,
-  "tracks_total": 39,
+  "tracks_total": 80,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-10-09T16:56:33Z"
+  "last_modified": "2026-10-16T17:16:29Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1918,5 +1918,89 @@
   "tracks_total": 52,
   "created_approx": "2026-02-02T17:13:21Z",
   "last_modified": "2026-02-03T21:41:51Z"
+ },
+ {
+  "id": "3c92aMXU7hJCVsYKQCzoXq",
+  "name": "Silver Tongued — Oct 18",
+  "description": "Country, 1971 — the year Nashville sang Kristofferson: Janis and Sammi Smith in the winter, the Silver Tongued Devil in July, Prine, Townes and Loretta by Christmas. One recording per song, January to December.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e026f8c26346723dd0531696bedab67616d00001e029fcdd2ceb84d779282b8e69bab67616d00001e02ccc8f0bc29c4203bea89a8dcab67616d00001e02f380bf0ee81f05e861f49dc0",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-18T10:26:05Z",
+  "last_modified": "2026-10-18T10:26:05Z"
+ },
+ {
+  "id": "608TX791wqhODSNKy3Amiy",
+  "name": "Kita to Kidal — Oct 17",
+  "description": "Malian songbook, 1978–2022 — the songs every Bamako band ends up playing, one reading each: the griots&#x27; Lamban, Kaira and Jarabi, Mandjou, Wassoulou, the Niger bend and the desert. Kita to Kidal, kora to Telecaster.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020055b214b8dd697e9e8737deab67616d00001e0267b110fa36e972119e7076a3ab67616d00001e027cf276fb8d07e5980540561bab67616d00001e02f00599ecb9b2b0fcba9d38af",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-10-17T10:27:31Z",
+  "last_modified": "2026-10-17T10:27:31Z"
+ },
+ {
+  "id": "7q3DPvO8PNXOtEGarl25S4",
+  "name": "Coach House — Oct 16",
+  "description": "Bristol trip-hop lineage, 1983–2024 — from Elizabeth Fraser&#x27;s siren song and the Wild Bunch&#x27;s sound system through Blue Lines, Dummy and Mezzanine, to the hushed voices that grew from them.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02201a9af6d3296d20a205adb5ab67616d00001e025bdc601a4c6699e623e96f5fab67616d00001e02790834ab13554b7287183c2aab67616d00001e02fe6211303e796f3d5b7a0e02",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-16T10:28:16Z",
+  "last_modified": "2026-10-16T10:28:16Z"
+ },
+ {
+  "id": "4sZzBv1wRaupltHkSDDRGI",
+  "name": "Piano Chair — Oct 15",
+  "description": "Hard-bop piano room, 1955–66 — pianist-led dates on Blue Note, Riverside, Prestige and Contemporary, from The Preacher to The &#x27;In&#x27; Crowd: the chair that turned bebop into soul jazz.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0224c6586919c7353089d78ed0ab67616d00001e024295e4b7650defdd5774a4c0ab67616d00001e0259be807c01e3f11d35d1df03ab67616d00001e02622281583f5aeb3e23b4b026",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-10-15T10:28:24Z",
+  "last_modified": "2026-10-15T10:28:24Z"
+ },
+ {
+  "id": "7n4zgnTac28PtanJ6d2JNI",
+  "name": "In the Corner — Oct 14",
+  "description": "Synth-pop, 2010–2026 — the sad-banger years: big-feelings dancefloor songs that cry and dance at once, Robyn to MUNA.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0214e2eafece9d75406a591978ab67616d00001e0217fb5fbacce2b1a0acabce29ab67616d00001e02550133f6d334ed152d75aa56ab67616d00001e02af1115d3ae5dad6cf7210dbe",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-10-14T10:39:50Z",
+  "last_modified": "2026-10-14T10:39:50Z"
+ },
+ {
+  "id": "69dRtf7y2BTSReZBcAru28",
+  "name": "Gesangvoll — Oct 13",
+  "description": "Late Beethoven, 1815–1826 — the last voice as a study, one recording per work: Uchida&#x27;s live Suntory sonatas, Kovacevich&#x27;s Diabelli, Schiff on Beethoven&#x27;s own Broadwood, and the five late quartets by movement. Instrumental, chronological.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e023a94438af85e02de350466d9ab67616d00001e0285ea5ffb2b975233908f6efcab67616d00001e02a72d6aa7ee414b81f3210b66ab67616d00001e02bcddfad44539936d9915dd2e",
+  "followers_total": 0,
+  "tracks_total": 14,
+  "created_approx": "2026-10-13T10:31:47Z",
+  "last_modified": "2026-10-13T10:31:47Z"
+ },
+ {
+  "id": "2hD4o1YhpO678KRnRjTWWN",
+  "name": "Pay What You Want — Oct 12",
+  "description": "Indie rock, 2007 — the autumn In Rainbows arrived unannounced: Radiohead&#x27;s hushed side and the year&#x27;s other quiet records, from Boxer and Sky Blue Sky to Untrue and There Will Be Blood.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0248473ebc10dfa3cf74da92c6ab67616d00001e02815d0d5cf4f0167ee18367d9ab67616d00001e02bdfc7608e3b6e894301be8deab67616d00001e02de3c04b5fc750b68899b20a9",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-12T10:34:35Z",
+  "last_modified": "2026-10-12T10:34:35Z"
  }
 ]
