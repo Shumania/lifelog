@@ -1,19 +1,19 @@
 {
- "picked_at": "2026-10-19T10:27:31.326Z",
- "pick_date": "2026-10-19",
- "work_key": "ARR-OLAFSSON",
- "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
- "performer": "Víkingur Ólafsson",
- "album": "Johann Sebastian Bach",
- "spotify_album_uri": "spotify:album:55XdhiY6nd3iij8msqiagR",
- "instrumentation": "piano",
- "approx_minutes": 80,
- "reason": "last heard 28d ago · avoided chamber",
+ "picked_at": "2026-10-20T10:14:40.305Z",
+ "pick_date": "2026-10-20",
+ "work_key": "ARR-ALIO-MODO",
+ "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
+ "performer": "Fretwork",
+ "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
+ "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY",
+ "instrumentation": "viol_consort",
+ "approx_minutes": 65,
+ "reason": "last heard 26d ago · avoided piano",
  "fallback": {
-  "work_key": "ARR-ALIO-MODO",
-  "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
-  "performer": "Fretwork",
-  "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
-  "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY"
+  "work_key": "BWV1079",
+  "work": "Musical Offering",
+  "performer": "Ricercar Consort",
+  "album": "Bach, J.S.: Musical Offering",
+  "spotify_album_uri": "spotify:album:1x4ZMf6zu9vpHwAZyTkoGB"
  }
 }
