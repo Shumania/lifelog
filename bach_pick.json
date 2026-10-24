@@ -1,5 +1,5 @@
 {
- "picked_at": "2026-10-24T10:20:26.741Z",
+ "picked_at": "2026-10-24T18:41:50.904Z",
  "pick_date": "2026-10-24",
  "work_key": "BWV816-817+831",
  "work": "French Suites Nos. 5 & 6; Overture in the French Style",
@@ -15,5 +15,181 @@
   "performer": "Phantasm",
   "album": "J.S. Bach: The Well-Tempered Consort – II",
   "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
- }
+ },
+ "week_start": "2026-10-24",
+ "week_end": "2026-11-01",
+ "week_days": 9,
+ "week": [
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-24",
+   "work_key": "BWV816-817+831",
+   "work": "French Suites Nos. 5 & 6; Overture in the French Style",
+   "performer": "Glenn Gould",
+   "album": "Bach: The French Suites Nos. 5 & 6, BWV 816 & 817; Overture in the French Style, BWV 831",
+   "spotify_album_uri": "spotify:album:1mtWt3qH4K6QQgvDJMEUP1",
+   "instrumentation": "piano",
+   "approx_minutes": 55,
+   "reason": "last heard 31d ago · avoided chamber",
+   "fallback": {
+    "work_key": "ARR-WTC-CONSORT-II",
+    "work": "The Well-Tempered Consort II",
+    "performer": "Phantasm",
+    "album": "J.S. Bach: The Well-Tempered Consort – II",
+    "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-25",
+   "work_key": "BWV996-998",
+   "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+   "performer": "Sean Shibe",
+   "album": "Bach",
+   "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
+   "instrumentation": "lute_guitar",
+   "approx_minutes": 62,
+   "reason": "last heard 21d ago · avoided piano",
+   "fallback": {
+    "work_key": "ARR-WTC-CONSORT-II",
+    "work": "The Well-Tempered Consort II",
+    "performer": "Phantasm",
+    "album": "J.S. Bach: The Well-Tempered Consort – II",
+    "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-26",
+   "work_key": "ARR-WTC-CONSORT-II",
+   "work": "The Well-Tempered Consort II",
+   "performer": "Phantasm",
+   "album": "J.S. Bach: The Well-Tempered Consort – II",
+   "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg",
+   "instrumentation": "viol_consort",
+   "approx_minutes": 65,
+   "reason": "last heard 27d ago",
+   "fallback": {
+    "work_key": "BWV1007-1012",
+    "work": "Six Cello Suites",
+    "performer": "Yo-Yo Ma",
+    "album": "Six Evolutions - Bach: Cello Suites",
+    "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-27",
+   "work_key": "BWV1007-1012",
+   "work": "Six Cello Suites",
+   "performer": "Yo-Yo Ma",
+   "album": "Six Evolutions - Bach: Cello Suites",
+   "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb",
+   "instrumentation": "cello",
+   "approx_minutes": 150,
+   "reason": "last heard 23d ago · avoided viol_consort",
+   "fallback": {
+    "work_key": "BWV988",
+    "work": "Goldberg Variations",
+    "performer": "Glenn Gould",
+    "album": "Bach: The Goldberg Variations, BWV 988 (1981 Gould Remaster)",
+    "spotify_album_uri": "spotify:album:1aCpHSQE5ghxibsQ5gkBe0"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-28",
+   "work_key": "BWV1014-1019-vol1",
+   "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 1 (three of six)",
+   "performer": "Rachel Podger & Trevor Pinnock",
+   "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 1",
+   "spotify_album_uri": "spotify:album:7vRnQ9WbUYJ7mmVygqfU9k",
+   "instrumentation": "chamber",
+   "approx_minutes": 71,
+   "reason": "last heard 28d ago",
+   "fallback": {
+    "work_key": "BWV812-815",
+    "work": "French Suites Nos. 1-4",
+    "performer": "Glenn Gould",
+    "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
+    "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-29",
+   "work_key": "BWV988",
+   "work": "Goldberg Variations",
+   "performer": "Glenn Gould",
+   "album": "Bach: The Goldberg Variations, BWV 988 (1981 Gould Remaster)",
+   "spotify_album_uri": "spotify:album:1aCpHSQE5ghxibsQ5gkBe0",
+   "instrumentation": "piano",
+   "approx_minutes": 51,
+   "reason": "last heard 46d ago · avoided chamber",
+   "fallback": {
+    "work_key": "ARR-MARIMBA-KUNIKO",
+    "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+    "performer": "Kuniko",
+    "album": "J.S. Bach: Solo Works for Marimba",
+    "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-30",
+   "work_key": "ARR-MARIMBA-KUNIKO",
+   "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+   "performer": "Kuniko",
+   "album": "J.S. Bach: Solo Works for Marimba",
+   "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
+   "instrumentation": "marimba_other",
+   "approx_minutes": 100,
+   "reason": "last heard 22d ago · avoided piano",
+   "fallback": {
+    "work_key": "BWV806-811",
+    "work": "English Suites",
+    "performer": "Masaaki Suzuki",
+    "album": "J.S. Bach: English Suites",
+    "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-10-31",
+   "work_key": "ARR-WTC-CONSORT-III",
+   "work": "The Well-Tempered Consort III",
+   "performer": "Phantasm",
+   "album": "Bach: The Well-Tempered Consort – III",
+   "spotify_album_uri": "spotify:album:01jqnbDFnA11Q5dUw3NI96",
+   "instrumentation": "viol_consort",
+   "approx_minutes": 64,
+   "reason": "last heard 26d ago",
+   "fallback": {
+    "work_key": "BWV806-811",
+    "work": "English Suites",
+    "performer": "Masaaki Suzuki",
+    "album": "J.S. Bach: English Suites",
+    "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb"
+   }
+  },
+  {
+   "picked_at": "2026-10-24T18:41:50.904Z",
+   "pick_date": "2026-11-01",
+   "work_key": "BWV806-811",
+   "work": "English Suites",
+   "performer": "Masaaki Suzuki",
+   "album": "J.S. Bach: English Suites",
+   "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb",
+   "instrumentation": "harpsichord",
+   "approx_minutes": 150,
+   "reason": "last heard 23d ago · avoided viol_consort",
+   "fallback": {
+    "work_key": "BWV846-869",
+    "work": "The Well-Tempered Clavier, Book I",
+    "performer": "Glenn Gould",
+    "album": "Bach: The Well-Tempered Clavier, Book I, Preludes & Fugues BWV 846-869",
+    "spotify_album_uri": "spotify:album:5NqQLA1NCo6hP2GHiHxip5"
+   }
+  }
+ ]
 }
