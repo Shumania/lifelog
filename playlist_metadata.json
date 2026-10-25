@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Sophia Stel)",
+  "description": "Updated weekly. (Photo: Anderson .Paak &amp; Cordae)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-ak.spotifycdn.com/image/ab67706c0000da84a5157ce0eb46624583394bca",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84609c511f590da709f79e26af",
   "followers_total": 84760,
-  "tracks_total": 80,
+  "tracks_total": 28,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-10-16T17:16:29Z"
+  "last_modified": "2026-10-23T13:31:33Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1493,11 +1493,11 @@
   "description": "",
   "owner": "Andrew Shuman",
   "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e025c09943bfe19de6e7d0c2cdaab67616d00001e0287a7cb4cff1869085a220cf6ab67616d00001e02916907b17c70723c70e3ad8aab67616d00001e029e7ad2cba1c24d89ec66357e",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0246c83ddb1dc2ba2378bb30b1ab67616d00001e0249130b16d4190db1d6822e59ab67616d00001e026f38c9bf671c6e7fa9e9e283ab67616d00001e02afc2d1d2c8703a10aeded0af",
   "followers_total": 0,
-  "tracks_total": 229,
+  "tracks_total": 245,
   "created_approx": "2017-03-02T17:08:59Z",
-  "last_modified": "2026-10-02T23:17:59Z"
+  "last_modified": "2026-10-23T01:38:11Z"
  },
  {
   "id": "7D7c2aH1Uv8NJslCssJdG8",
@@ -2002,5 +2002,89 @@
   "tracks_total": 22,
   "created_approx": "2026-10-12T10:34:35Z",
   "last_modified": "2026-10-12T10:34:35Z"
+ },
+ {
+  "id": "3M7wJemerEU59I6MdsQ2YL",
+  "name": "Soixante-Sept — Oct 24",
+  "description": "French pop &amp; chanson, 1967 — a year snapshot: yé-yé beat sides, Gainsbourg&#x27;s television year and the chanson grandees, from Hardy&#x27;s Voilà to Delon&#x27;s whispered Laetitia.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02135e55e7c18e58151b6ae75cab67616d00001e0224b6c71ec9e35b818bf1281eab67616d00001e026491022567e355d8633f5ff2ab67616d00001e027dfb43229cf6a424ee8daa84",
+  "followers_total": 0,
+  "tracks_total": 23,
+  "created_approx": "2026-10-24T10:29:06Z",
+  "last_modified": "2026-10-24T10:29:06Z"
+ },
+ {
+  "id": "0Q2tOsB6JxXTigkFOmtXWN",
+  "name": "Guacharaca — Oct 23",
+  "description": "Cumbia lineage, 1950s–2024 — from the gaita villages and Discos Fuentes to Pucallpa&#x27;s electric guitars, Monterrey&#x27;s barrios and Selena&#x27;s Texas, ending in LA LOM&#x27;s Los Angeles.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022758d4df11b3a5155d8bb250ab67616d00001e024e17da715261aa516215090eab67616d00001e0257c0470cd68099457b657fddab67616d00001e026729343d79876a6847e98a4a",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-10-23T10:29:06Z",
+  "last_modified": "2026-10-23T10:29:06Z"
+ },
+ {
+  "id": "2KMVZ9o1a2UYNlWNoaW3Za",
+  "name": "Gate of Horn — Oct 22",
+  "description": "American folk revival 1957–66, one reading per song — Terry Callier&#x27;s New Folk Sound as the door, then Chicago&#x27;s Gate of Horn and the Village: railroad songs, gallows ballads, hammer songs, and the new songs written in the old modes.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e024768108e37209740cf5bc514ab67616d00001e026f38c9bf671c6e7fa9e9e283ab67616d00001e02a5fa05688439ee3418d918ceab67616d00001e02b998febae33992b01da631d5",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-10-22T10:27:53Z",
+  "last_modified": "2026-10-22T10:30:20Z"
+ },
+ {
+  "id": "1rdZ5MRmy2nTysum7BWeXS",
+  "name": "Petal Ballet 2026",
+  "description": "Philip Glass &amp; Thomas Newman — the score to Helen Pickett&#x27;s Petal (ABT company premiere, 2026): two scenes from Les Enfants Terribles for piano four hands, then the End Title from Little Children.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://i.scdn.co/image/ab67616d00001e023b0c6ac51e39ca68ac106abc",
+  "followers_total": 0,
+  "tracks_total": 3,
+  "created_approx": "2026-10-22T00:17:31Z",
+  "last_modified": "2026-10-22T00:17:31Z"
+ },
+ {
+  "id": "4SiSvaGhQJ4EalHXk8LaN5",
+  "name": "Choir Loft — Oct 21",
+  "description": "Choral music, 1199–2005 — the Cantus programme On the Shoulders of Giants sung by other choirs: Pérotin to Tallis, Lotti, Schubert, Sibelius, Tormis and Rahman, one reading per work, with Cantus opening and closing the book.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022299d220cdc00b49ace2f63eab67616d00001e02365efbf32043dd52477bf951ab67616d00001e025121579acc7f12f7fc822331ab67616d00001e026e95c73034c25a37c7f7eb9e",
+  "followers_total": 0,
+  "tracks_total": 16,
+  "created_approx": "2026-10-21T10:33:22Z",
+  "last_modified": "2026-10-21T10:33:22Z"
+ },
+ {
+  "id": "1MF7vh5bzTkZtnW2aOYMHr",
+  "name": "Sketch for Autumn — Oct 20",
+  "description": "Post-punk guitar and its descendants, 1975–2026 — the melancholy electric guitar: Vini Reilly&#x27;s delay-and-reverb line from Factory&#x27;s sandpaper sleeve to Renascent, with the ancestors and relatives who let a guitar be weather.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0202be65f6903e3d12cde234c3ab67616d00001e024be74b9209d99dc3a8c682e8ab67616d00001e0259454724c7283a19523ea016ab67616d00001e028e14593c50f5464b06d558c4",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-10-20T10:24:21Z",
+  "last_modified": "2026-10-20T10:24:21Z"
+ },
+ {
+  "id": "0HWXIcWchSs8vJBBhdHYiq",
+  "name": "Thumbprint — Oct 19",
+  "description": "Funk &amp; R&amp;B 1971–2025 — the electric bass as the lead voice, one recording per bassist: Jamerson on the floor, Rainey, Prestia, Watts, Jaco, Clarke, Bootsy, Louis Johnson, Bernard Edwards, Marcus Miller, Mark King, Zender, Wooten, Saadiq, Joe Dart, Pino and Rocco Palladino — Thundercat at the door.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e022fee61bfec596bb6f5447c50ab67616d00001e02af2501338d52db5f73412cdaab67616d00001e02b36949bee43217351961ffbcab67616d00001e02ee5fcff519d1098aa5de990d",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-10-19T10:47:26Z",
+  "last_modified": "2026-10-19T10:47:26Z"
  }
 ]
