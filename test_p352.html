@@ -602,7 +602,7 @@
     transition: opacity 0.4s; white-space: nowrap; pointer-events: none;
   }
   .toast.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
-  .toast.action { pointer-events: auto; } /* p3.52: desktop link toast carries a tappable escape hatch */
+  .toast.action { pointer-events: auto; z-index: 300; } /* p3.52: tappable escape hatch; above the queue sheet (250) so its slide-out can't cover the link */
   .toast.action a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
   /* Sonos hint card */
