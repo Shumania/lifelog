@@ -602,6 +602,8 @@
     transition: opacity 0.4s; white-space: nowrap; pointer-events: none;
   }
   .toast.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
+  .toast.action { pointer-events: auto; } /* p3.52: desktop link toast carries a tappable escape hatch */
+  .toast.action a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
   /* Sonos hint card */
   .sonos-hint {
@@ -2977,7 +2979,7 @@ function _qsDeepLinkRow(c) {
   if (!dl) return '';
   return '<div class="qs-verb" onclick="openInService(\'' + dl.url + '\')">' +
     '<span class="v-icon" style="color:' + dl.tint + '">↗</span>' +
-    '<span class="v-label">Open in ' + esc(dl.svc) + ' <span class="v-hint">' + (_houseIsMobile() ? '· leaves this app' : '· opens the app, or a new window') + '</span></span></div>'; // p3.52 hint
+    '<span class="v-label">Open in ' + esc(dl.svc) + ' <span class="v-hint">' + (_houseIsMobile() ? '· leaves this app' : (_desktopLinkMode() === 'web' ? '· web player, new window' : '· the desktop app')) + '</span></span></div>'; // p3.52 hint mirrors the per-browser mode
 }
 
 function _renderQueueSheet() {
@@ -3375,33 +3377,51 @@ function roamingDeepLink(uri, label) {
 // p3.52: desktop hand-off (2026-10-27 report: on the PC, "Open in Spotify ↗" loaded the
 // web player INSIDE this window — in the installed PWA that is an out-of-scope page
 // trapped in the app frame). Phones are untouched: same-window universal link, iOS
-// routes open.spotify.com into the app (F6/F7 verified). Desktop path: hand the ref to
-// the OS via the spotify: scheme (the desktop app registers it; browsers may ask
-// "Open Spotify?" once); if nothing takes focus within 1.8 s, open the web player in a
-// NEW window instead. Blur = "something else took the foreground" (the app, or the
-// browser's permission prompt — if that prompt is dismissed, a second tap is instant
-// once "always allow" was ticked). VERY verbose — this runs outside any try/catch.
-// Returns a short path tag so callers can log which branch fired.
+// routes open.spotify.com into the app (F6/F7 verified).
+// Desktop is a per-browser MODE, not a heuristic (first cut tried "scheme, then fall back
+// to window.open if nothing took focus" — dead on arrival: Chromium CONSUMES the click's
+// user activation when it launches an external protocol, so the deferred window.open is
+// popup-blocked; and its "Open Spotify?" prompt fires blur, so focus can't tell app from
+// prompt either). Instead:
+//   app (default): hand the spotify: scheme to the OS (desktop app registers it; the
+//                  browser may ask once) + a 7 s toast whose link opens the WEB player in
+//                  a new window — a real anchor click, so it always has its own activation.
+//   web:           synchronous window.open (inside the click → allowed) + a toast link to
+//                  switch back to the app.
+// Tapping either toast link remembers that choice in THIS browser (localStorage).
+// VERY verbose — runs outside any try/catch. Returns a path tag for the caller's log line.
+const LL_DESKTOP_LINK_KEY = 'll_desktop_link_mode';
+function _desktopLinkMode() { try { return localStorage.getItem(LL_DESKTOP_LINK_KEY) === 'web' ? 'web' : 'app'; } catch (e) { return 'app'; } }
+function _setDesktopLinkMode(m) {
+  try { localStorage.setItem(LL_DESKTOP_LINK_KEY, m); } catch (e) {}
+  console.log('[deeplink p3.52] desktop link mode → ' + m + ' (remembered in this browser only)');
+}
+function _showToastHtml(html, ms) {
+  const t = document.getElementById('toast');
+  t.innerHTML = html;
+  t.className = 'toast action';
+  t.style.display = 'block';
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  clearTimeout(_showToastHtml._tm);
+  _showToastHtml._tm = setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.display = 'none'; t.className = 'toast'; }, 400); }, ms || 6000);
+}
 function _navToService(dl) {
   if (_houseIsMobile()) { window.location.href = dl.url; return 'mobile-nav'; }
   const svc = DEEPLINK_SERVICES[dl.ref.service];
   const scheme = svc && svc.scheme ? svc.scheme(dl.ref.kind, dl.ref.id) : null;
-  if (!scheme) {
-    console.log('[deeplink p3.52] desktop: no app scheme for ' + dl.ref.service + ' → web player in a new window: ' + dl.url);
-    if (!window.open(dl.url, '_blank', 'noopener')) showToast('↗ Pop-up blocked — allow pop-ups for LifeLog to open ' + dl.svc + ' in its own window', true);
-    return 'web-window';
+  const mode = scheme ? _desktopLinkMode() : 'web';
+  if (mode === 'web') {
+    console.log('[deeplink p3.52] desktop/web: ' + dl.url + ' → new window');
+    const w = window.open(dl.url, '_blank');
+    if (w) { try { w.opener = null; } catch (e) {} }
+    else { console.log('[deeplink p3.52] desktop/web: window.open returned null — pop-up blocked?'); }
+    _showToastHtml((w ? '↗ ' + esc(dl.svc) + ' web player opened in a new window' : '↗ Pop-up blocked — allow pop-ups for LifeLog')
+      + (scheme ? ' · <a href="#" onclick="event.preventDefault();_setDesktopLinkMode(\'app\');console.log(\'[deeplink p3.52] toast → app: ' + scheme + '\');window.location.href=\'' + scheme + '\';return false;">use the Spotify app instead</a>' : ''), 7000);
+    return w ? 'web-window' : 'web-window-blocked';
   }
-  let taken = false;
-  const onBlur = () => { taken = true; console.log('[deeplink p3.52] desktop: window lost focus → the app (or its permission prompt) took ' + scheme); };
-  window.addEventListener('blur', onBlur, { once: true });
-  console.log('[deeplink p3.52] desktop: handing ' + scheme + ' to the OS; web fallback armed (1.8 s) → ' + dl.url);
+  console.log('[deeplink p3.52] desktop/app: handing ' + scheme + ' to the OS (Spotify desktop app); web escape hatch in the toast → ' + dl.url);
   window.location.href = scheme;
-  setTimeout(() => {
-    window.removeEventListener('blur', onBlur);
-    if (taken) return;
-    console.log('[deeplink p3.52] desktop: nothing took ' + scheme + ' in 1.8 s → web player in a new window: ' + dl.url);
-    if (!window.open(dl.url, '_blank', 'noopener')) showToast('↗ Pop-up blocked — allow pop-ups for LifeLog to open ' + dl.svc + ' in its own window', true);
-  }, 1800);
+  _showToastHtml('↗ Sent to the ' + esc(dl.svc) + ' app · <a href="' + esc(dl.url) + '" target="_blank" rel="noopener" onclick="_setDesktopLinkMode(\'web\');console.log(\'[deeplink p3.52] toast → web player\')">open the web player instead</a>', 7000);
   return 'app-scheme';
 }
 
