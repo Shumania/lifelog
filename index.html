@@ -602,6 +602,8 @@
     transition: opacity 0.4s; white-space: nowrap; pointer-events: none;
   }
   .toast.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
+  .toast.action { pointer-events: auto; z-index: 300; } /* p3.52: tappable escape hatch; above the queue sheet (250) so its slide-out can't cover the link */
+  .toast.action a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
   /* Sonos hint card */
   .sonos-hint {
@@ -1406,7 +1408,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.51';
+const PAGE_VERSION = 'p3.52';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -2977,7 +2979,7 @@ function _qsDeepLinkRow(c) {
   if (!dl) return '';
   return '<div class="qs-verb" onclick="openInService(\'' + dl.url + '\')">' +
     '<span class="v-icon" style="color:' + dl.tint + '">↗</span>' +
-    '<span class="v-label">Open in ' + esc(dl.svc) + ' <span class="v-hint">· leaves this app</span></span></div>';
+    '<span class="v-label">Open in ' + esc(dl.svc) + ' <span class="v-hint">' + (_houseIsMobile() ? '· leaves this app' : (_desktopLinkMode() === 'web' ? '· web player, new window' : '· the desktop app')) + '</span></span></div>'; // p3.52 hint mirrors the per-browser mode
 }
 
 function _renderQueueSheet() {
@@ -3368,15 +3370,68 @@ function roamingDeepLink(uri, label) {
       }
     } catch (e) {}
   }
-  setTimeout(() => { window.location.href = dl.url; }, wait); // JS nav = B-row, verified F6/F7
+  setTimeout(() => { console.log('[deeplink] roaming nav path: ' + _navToService(dl)); }, wait); // JS nav = B-row, verified F6/F7; p3.52: desktop → app scheme / new window
   return true;
+}
+
+// p3.52: desktop hand-off (2026-10-27 report: on the PC, "Open in Spotify ↗" loaded the
+// web player INSIDE this window — in the installed PWA that is an out-of-scope page
+// trapped in the app frame). Phones are untouched: same-window universal link, iOS
+// routes open.spotify.com into the app (F6/F7 verified).
+// Desktop is a per-browser MODE, not a heuristic (first cut tried "scheme, then fall back
+// to window.open if nothing took focus" — dead on arrival: Chromium CONSUMES the click's
+// user activation when it launches an external protocol, so the deferred window.open is
+// popup-blocked; and its "Open Spotify?" prompt fires blur, so focus can't tell app from
+// prompt either). Instead:
+//   app (default): hand the spotify: scheme to the OS (desktop app registers it; the
+//                  browser may ask once) + a 7 s toast whose link opens the WEB player in
+//                  a new window — a real anchor click, so it always has its own activation.
+//   web:           synchronous window.open (inside the click → allowed) + a toast link to
+//                  switch back to the app.
+// Tapping either toast link remembers that choice in THIS browser (localStorage).
+// VERY verbose — runs outside any try/catch. Returns a path tag for the caller's log line.
+const LL_DESKTOP_LINK_KEY = 'll_desktop_link_mode';
+function _desktopLinkMode() { try { return localStorage.getItem(LL_DESKTOP_LINK_KEY) === 'web' ? 'web' : 'app'; } catch (e) { return 'app'; } }
+function _setDesktopLinkMode(m) {
+  try { localStorage.setItem(LL_DESKTOP_LINK_KEY, m); } catch (e) {}
+  console.log('[deeplink p3.52] desktop link mode → ' + m + ' (remembered in this browser only)');
+}
+function _showToastHtml(html, ms) {
+  const t = document.getElementById('toast');
+  t.innerHTML = html;
+  t.className = 'toast action';
+  t.style.display = 'block';
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  clearTimeout(_showToastHtml._tm);
+  _showToastHtml._tm = setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.display = 'none'; t.className = 'toast'; }, 400); }, ms || 6000);
+}
+function _navToService(dl) {
+  if (_houseIsMobile()) { window.location.href = dl.url; return 'mobile-nav'; }
+  const svc = DEEPLINK_SERVICES[dl.ref.service];
+  const scheme = svc && svc.scheme ? svc.scheme(dl.ref.kind, dl.ref.id) : null;
+  const mode = scheme ? _desktopLinkMode() : 'web';
+  if (mode === 'web') {
+    console.log('[deeplink p3.52] desktop/web: ' + dl.url + ' → new window');
+    const w = window.open(dl.url, '_blank');
+    if (w) { try { w.opener = null; } catch (e) {} }
+    else { console.log('[deeplink p3.52] desktop/web: window.open returned null — pop-up blocked?'); }
+    _showToastHtml((w ? '↗ ' + esc(dl.svc) + ' web player opened in a new window' : '↗ Pop-up blocked — allow pop-ups for LifeLog')
+      + (scheme ? ' · <a href="#" onclick="event.preventDefault();_setDesktopLinkMode(\'app\');console.log(\'[deeplink p3.52] toast → app: ' + scheme + '\');window.location.href=\'' + scheme + '\';return false;">use the Spotify app instead</a>' : ''), 7000);
+    return w ? 'web-window' : 'web-window-blocked';
+  }
+  console.log('[deeplink p3.52] desktop/app: handing ' + scheme + ' to the OS (Spotify desktop app); web escape hatch in the toast → ' + dl.url);
+  window.location.href = scheme;
+  _showToastHtml('↗ Sent to the ' + esc(dl.svc) + ' app · <a href="' + esc(dl.url) + '" target="_blank" rel="noopener" onclick="_setDesktopLinkMode(\'web\');console.log(\'[deeplink p3.52] toast → web player\')">open the web player instead</a>', 7000);
+  return 'app-scheme';
 }
 
 // D4: "Open in Spotify ↗" sheet row — universal affordance, ships in ALL houses.
 function openInService(url) {
   console.log('[deeplink] open-in-service → ' + url);
   if (typeof closeQueueSheet === 'function') closeQueueSheet();
-  window.location.href = url;
+  const dl = deepLinkFor(url);
+  if (!dl) { console.log('[deeplink] open-in-service: unparseable ref, raw same-window nav'); window.location.href = url; return; }
+  console.log('[deeplink] open-in-service path: ' + _navToService(dl));
 }
 
 async function fetchSpotifyDevices() {
