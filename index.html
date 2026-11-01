@@ -1408,7 +1408,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.52';
+const PAGE_VERSION = 'p3.53';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3690,7 +3690,30 @@ function npCtxInfo(h) {
 // entire deep-link surface Sonos offers — no room/queue/screen targeting exists.
 // Rendered by the HOUSE now-playing renderer only; roaming never shows it (off-LAN).
 // p3.42: the word sits in .sh-word so phones can hide it (icon-only 32px square, see CSS).
-function _sonosHatch() { return '<a class="sonos-hatch" href="sonos://" title="Open the Sonos app" aria-label="Open the Sonos app"><span class="sh-word">Sonos </span>↗</a>'; }
+// p3.53: desktop hatch (2026-11-01 report: on the PC the button did nothing, no error —
+// nothing registers sonos:// on Windows (the desktop controller is retired; Sonos's desktop
+// surface is the web app), so Chromium drops the scheme silently — same class as the p3.52
+// Spotify bug). Decided at CLICK time, not render time: phones keep the same-window sonos://
+// nav (iOS app launch, unchanged); desktop opens app.sonos.com in a NEW window via a
+// synchronous window.open inside the click (own activation → not pop-up blocked) + a toast.
+// No per-browser mode here — unlike Spotify there is no desktop app to prefer.
+// VERY verbose — runs outside any try/catch.
+const SONOS_WEB_APP = 'https://app.sonos.com/';
+function _sonosHatchClick(ev) {
+  if (_houseIsMobile()) { console.log('[sonos-hatch] mobile: sonos:// app launch, same window (p3.31)'); return true; }
+  ev.preventDefault();
+  console.log('[sonos-hatch p3.53] desktop: sonos:// has no handler here → ' + SONOS_WEB_APP + ' in a new window');
+  const w = window.open(SONOS_WEB_APP, '_blank');
+  if (w) { try { w.opener = null; } catch (e) {} }
+  else { console.log('[sonos-hatch p3.53] window.open returned null — pop-up blocked?'); }
+  _showToastHtml(w ? '↗ Sonos web app opened in a new window'
+    : '↗ Pop-up blocked — allow pop-ups for LifeLog, or <a href="' + SONOS_WEB_APP + '" target="_blank" rel="noopener">open the Sonos web app</a>', 6000);
+  return false;
+}
+function _sonosHatch() {
+  const t = _houseIsMobile() ? 'Open the Sonos app' : 'Open the Sonos web app (new window)';
+  return '<a class="sonos-hatch" href="sonos://" onclick="return _sonosHatchClick(event)" title="' + t + '" aria-label="' + t + '"><span class="sh-word">Sonos </span>↗</a>';
+}
 
 function renderNowPlayingSonos(h) {
   const el = document.getElementById('np-' + h);
