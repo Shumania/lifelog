@@ -1,35 +1,35 @@
 {
   "pick_date": "2026-11-01",
-  "playlist_id": "4CrAyOeCchediscKweOrlp",
-  "playlist_uri": "spotify:playlist:4CrAyOeCchediscKweOrlp",
-  "name": "Garage Burn 8-2026",
-  "track_count": 27,
-  "approx_minutes": 112,
-  "pool_index": 2,
-  "pool_size": 4,
+  "playlist_id": "7kAz73w7nahDFpIXoJWBBI",
+  "playlist_uri": "spotify:playlist:7kAz73w7nahDFpIXoJWBBI",
+  "name": "Garage Burn Vol. 4",
+  "track_count": 24,
+  "approx_minutes": 93,
+  "pool_index": 3,
+  "pool_size": 5,
   "week_start": "2026-11-01",
   "week_end": "2026-11-08",
   "week_days": 8,
   "week": [
     {
       "pick_date": "2026-11-01",
-      "playlist_id": "4CrAyOeCchediscKweOrlp",
-      "playlist_uri": "spotify:playlist:4CrAyOeCchediscKweOrlp",
-      "name": "Garage Burn 8-2026",
-      "track_count": 27,
-      "approx_minutes": 112,
-      "pool_index": 2,
-      "pool_size": 4
-    },
-    {
-      "pick_date": "2026-11-02",
       "playlist_id": "7kAz73w7nahDFpIXoJWBBI",
       "playlist_uri": "spotify:playlist:7kAz73w7nahDFpIXoJWBBI",
       "name": "Garage Burn Vol. 4",
       "track_count": 24,
       "approx_minutes": 93,
       "pool_index": 3,
-      "pool_size": 4
+      "pool_size": 5
+    },
+    {
+      "pick_date": "2026-11-02",
+      "playlist_id": "66GSKbCala2s2h5Kz0LV99",
+      "playlist_uri": "spotify:playlist:66GSKbCala2s2h5Kz0LV99",
+      "name": "Garage Burn Vol. 5",
+      "track_count": 25,
+      "approx_minutes": 91,
+      "pool_index": 4,
+      "pool_size": 5
     },
     {
       "pick_date": "2026-11-03",
@@ -39,7 +39,7 @@
       "track_count": 21,
       "approx_minutes": 84,
       "pool_index": 0,
-      "pool_size": 4
+      "pool_size": 5
     },
     {
       "pick_date": "2026-11-04",
@@ -49,7 +49,7 @@
       "track_count": 24,
       "approx_minutes": 96,
       "pool_index": 1,
-      "pool_size": 4
+      "pool_size": 5
     },
     {
       "pick_date": "2026-11-05",
@@ -59,7 +59,7 @@
       "track_count": 27,
       "approx_minutes": 112,
       "pool_index": 2,
-      "pool_size": 4
+      "pool_size": 5
     },
     {
       "pick_date": "2026-11-06",
@@ -69,27 +69,27 @@
       "track_count": 24,
       "approx_minutes": 93,
       "pool_index": 3,
-      "pool_size": 4
+      "pool_size": 5
     },
     {
       "pick_date": "2026-11-07",
+      "playlist_id": "66GSKbCala2s2h5Kz0LV99",
+      "playlist_uri": "spotify:playlist:66GSKbCala2s2h5Kz0LV99",
+      "name": "Garage Burn Vol. 5",
+      "track_count": 25,
+      "approx_minutes": 91,
+      "pool_index": 4,
+      "pool_size": 5
+    },
+    {
+      "pick_date": "2026-11-08",
       "playlist_id": "7mCv3RbsJnsfbbPGvntjwD",
       "playlist_uri": "spotify:playlist:7mCv3RbsJnsfbbPGvntjwD",
       "name": "Garage Burn 7-2026",
       "track_count": 21,
       "approx_minutes": 84,
       "pool_index": 0,
-      "pool_size": 4
-    },
-    {
-      "pick_date": "2026-11-08",
-      "playlist_id": "1u2tc6IoPTEq6SaFUKQzNt",
-      "playlist_uri": "spotify:playlist:1u2tc6IoPTEq6SaFUKQzNt",
-      "name": "Garage Burn Vol. 3",
-      "track_count": 24,
-      "approx_minutes": 96,
-      "pool_index": 1,
-      "pool_size": 4
+      "pool_size": 5
     }
   ]
 }
