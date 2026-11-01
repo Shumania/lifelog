@@ -1408,7 +1408,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.53';
+const PAGE_VERSION = 'p3.54';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3690,28 +3690,50 @@ function npCtxInfo(h) {
 // entire deep-link surface Sonos offers — no room/queue/screen targeting exists.
 // Rendered by the HOUSE now-playing renderer only; roaming never shows it (off-LAN).
 // p3.42: the word sits in .sh-word so phones can hide it (icon-only 32px square, see CSS).
-// p3.53: desktop hatch (2026-11-01 report: on the PC the button did nothing, no error —
-// nothing registers sonos:// on Windows (the desktop controller is retired; Sonos's desktop
-// surface is the web app), so Chromium drops the scheme silently — same class as the p3.52
-// Spotify bug). Decided at CLICK time, not render time: phones keep the same-window sonos://
-// nav (iOS app launch, unchanged); desktop opens app.sonos.com in a NEW window via a
-// synchronous window.open inside the click (own activation → not pop-up blocked) + a toast.
-// No per-browser mode here — unlike Spotify there is no desktop app to prefer.
+// p3.53: desktop hatch (2026-11-01 report: on the PC the button did nothing, no error).
+// p3.54 (same day, two corrections): (1) p3.53 pointed at app.sonos.com, which DOES NOT
+// RESOLVE (ERR_NAME_NOT_RESOLVED on Mind) — the Sonos web app is play.sonos.com; (2) the
+// Windows desktop app is NOT retired (Andrew's screenshot of the downloads page), so desktop
+// mirrors the Spotify p3.52 design: a per-browser MODE, not a heuristic (the "try the scheme,
+// then window.open if nothing took focus" idea is dead — Chromium consumes the click's
+// activation when it launches an external protocol, so a deferred window.open is pop-up
+// blocked). Decided at CLICK time: phones keep the same-window sonos:// nav (iOS, unchanged).
+//   app (default): hand sonos:// to the OS (Sonos desktop app registers it; the browser may
+//                  ask "Open Sonos?" once) + a 7 s toast whose link opens the WEB app in a
+//                  new window — a real anchor click, so it always has its own activation.
+//                  If Windows has no sonos:// handler the nav is a silent no-op, which is
+//                  exactly why the toast with the web link is unconditional.
+//   web:           synchronous window.open (inside the click → allowed) + a toast link back.
+// Tapping either toast link remembers that choice in THIS browser (localStorage).
 // VERY verbose — runs outside any try/catch.
-const SONOS_WEB_APP = 'https://app.sonos.com/';
+const SONOS_WEB_APP = 'https://play.sonos.com/';
+const SONOS_APP_SCHEME = 'sonos://';
+const LL_SONOS_LINK_KEY = 'll_sonos_link_mode';
+function _sonosLinkMode() { try { return localStorage.getItem(LL_SONOS_LINK_KEY) === 'web' ? 'web' : 'app'; } catch (e) { return 'app'; } }
+function _setSonosLinkMode(m) {
+  try { localStorage.setItem(LL_SONOS_LINK_KEY, m); } catch (e) {}
+  console.log('[sonos-hatch p3.54] desktop link mode → ' + m + ' (remembered in this browser only)');
+}
 function _sonosHatchClick(ev) {
   if (_houseIsMobile()) { console.log('[sonos-hatch] mobile: sonos:// app launch, same window (p3.31)'); return true; }
   ev.preventDefault();
-  console.log('[sonos-hatch p3.53] desktop: sonos:// has no handler here → ' + SONOS_WEB_APP + ' in a new window');
-  const w = window.open(SONOS_WEB_APP, '_blank');
-  if (w) { try { w.opener = null; } catch (e) {} }
-  else { console.log('[sonos-hatch p3.53] window.open returned null — pop-up blocked?'); }
-  _showToastHtml(w ? '↗ Sonos web app opened in a new window'
-    : '↗ Pop-up blocked — allow pop-ups for LifeLog, or <a href="' + SONOS_WEB_APP + '" target="_blank" rel="noopener">open the Sonos web app</a>', 6000);
+  const mode = _sonosLinkMode();
+  if (mode === 'web') {
+    console.log('[sonos-hatch p3.54] desktop/web: ' + SONOS_WEB_APP + ' → new window');
+    const w = window.open(SONOS_WEB_APP, '_blank');
+    if (w) { try { w.opener = null; } catch (e) {} }
+    else { console.log('[sonos-hatch p3.54] desktop/web: window.open returned null — pop-up blocked?'); }
+    _showToastHtml((w ? '↗ Sonos web app opened in a new window' : '↗ Pop-up blocked — allow pop-ups for LifeLog, or <a href="' + SONOS_WEB_APP + '" target="_blank" rel="noopener">open the Sonos web app</a>')
+      + ' · <a href="#" onclick="event.preventDefault();_setSonosLinkMode(\'app\');console.log(\'[sonos-hatch p3.54] toast → app: ' + SONOS_APP_SCHEME + '\');window.location.href=\'' + SONOS_APP_SCHEME + '\';return false;">use the Sonos app instead</a>', 7000);
+    return false;
+  }
+  console.log('[sonos-hatch p3.54] desktop/app: handing ' + SONOS_APP_SCHEME + ' to the OS (Sonos desktop app); web escape hatch in the toast → ' + SONOS_WEB_APP);
+  window.location.href = SONOS_APP_SCHEME;
+  _showToastHtml('↗ Sent to the Sonos app · nothing opened? <a href="' + SONOS_WEB_APP + '" target="_blank" rel="noopener" onclick="_setSonosLinkMode(\'web\');console.log(\'[sonos-hatch p3.54] toast → web app\')">open the web app instead</a>', 7000);
   return false;
 }
 function _sonosHatch() {
-  const t = _houseIsMobile() ? 'Open the Sonos app' : 'Open the Sonos web app (new window)';
+  const t = _houseIsMobile() ? 'Open the Sonos app' : (_sonosLinkMode() === 'web' ? 'Open the Sonos web app (new window)' : 'Open the Sonos desktop app');
   return '<a class="sonos-hatch" href="sonos://" onclick="return _sonosHatchClick(event)" title="' + t + '" aria-label="' + t + '"><span class="sh-word">Sonos </span>↗</a>';
 }
 
