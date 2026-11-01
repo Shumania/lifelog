@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Anderson .Paak &amp; Cordae)",
+  "description": "Updated weekly. (Photo: Sampa the Great)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84609c511f590da709f79e26af",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da842be12491407c6196866cd48d",
   "followers_total": 84760,
-  "tracks_total": 28,
+  "tracks_total": 27,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-10-23T13:31:33Z"
+  "last_modified": "2026-10-30T11:26:16Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -2086,5 +2086,17 @@
   "tracks_total": 21,
   "created_approx": "2026-10-19T10:47:26Z",
   "last_modified": "2026-10-19T10:47:26Z"
+ },
+ {
+  "id": "0iCuFWGKmPoj2am7MGniQi",
+  "name": "Lab Synthèse — Oct 31",
+  "description": "Montreal lo-fi &#x2F; bedroom pop, 2009–2019 — the Mile End loft scene: Arbutus Records (Grimes, TOPS, Sean Nicholas Savage, Blue Hawaii), Captured Tracks&#x27; Montreal signings (Mac DeMarco, Alex Calder) and the Homeshake generation that followed. Soft-focus synth-R&amp;B, slacker jangle and hushed synth-pop, all recorded in apartments.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0202d761ae1b125dd558664593ab67616d00001e026e5d3387ddba73c33f02125bab67616d00001e028f08b768a44efc8160263b55ab67616d00001e02ecfde7feaa212a1b60a197a1",
+  "followers_total": 0,
+  "tracks_total": 19,
+  "created_approx": "2026-10-31T10:33:13Z",
+  "last_modified": "2026-10-31T10:33:13Z"
  }
 ]
