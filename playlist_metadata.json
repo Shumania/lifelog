@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Sampa the Great)",
+  "description": "Updated weekly. (Photo: Katie Gregson-MacLeod)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da842be12491407c6196866cd48d",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000d72c74483336fb5eda39440a9534",
   "followers_total": 84760,
-  "tracks_total": 27,
+  "tracks_total": 34,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-10-30T11:26:16Z"
+  "last_modified": "2026-11-06T14:32:21Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -667,9 +667,9 @@
   "owner_id": "freeesshhhh",
   "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0253b36f6a2fa94981f7991d4eab67616d00001e02762118d89476606c875c91d3ab67616d00001e0293d12611d0665f9bb15cc79fab67616d00001e02a7ea08ab3914c5fb2084a8ac",
   "followers_total": 0,
-  "tracks_total": 50,
+  "tracks_total": 51,
   "created_approx": "2021-03-01T03:41:45Z",
-  "last_modified": "2024-07-16T09:16:36Z"
+  "last_modified": "2026-11-05T23:20:46Z"
  },
  {
   "id": "5vXISGs1hyGpDhUdNg73tj",
@@ -1493,11 +1493,11 @@
   "description": "",
   "owner": "Andrew Shuman",
   "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0246c83ddb1dc2ba2378bb30b1ab67616d00001e0249130b16d4190db1d6822e59ab67616d00001e026f38c9bf671c6e7fa9e9e283ab67616d00001e02afc2d1d2c8703a10aeded0af",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0215ecd6926b2b357a546b02fcab67616d00001e027fc4b9bc194cf676554f8f76ab67616d00001e02af96e01c5fffd8c2183df057ab67616d00001e02e7c654cc662add74a197865c",
   "followers_total": 0,
-  "tracks_total": 245,
+  "tracks_total": 250,
   "created_approx": "2017-03-02T17:08:59Z",
-  "last_modified": "2026-10-23T01:38:11Z"
+  "last_modified": "2026-11-05T05:36:20Z"
  },
  {
   "id": "7D7c2aH1Uv8NJslCssJdG8",
@@ -2098,5 +2098,65 @@
   "tracks_total": 19,
   "created_approx": "2026-10-31T10:33:13Z",
   "last_modified": "2026-10-31T10:33:13Z"
+ },
+ {
+  "id": "6krNi2dy59vc48IiNE8gn5",
+  "name": "Garage Burn Vol. 7",
+  "description": "Upbeat rock workout mix seeded from the Peloton ride history, deeper cuts (92% unheard) — blues-stomp warm-up, dance-punk climb, hardcore and metal peak, anthem finish. 1998–2023.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021989b4727337562a3f36c78fab67616d00001e027cea443d0a7131c8f9f506eaab67616d00001e02cbc75fbb1252959c9765ff4fab67616d00001e02ffa262e79ca11e55114f7fd6",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-11-01T19:21:08Z",
+  "last_modified": "2026-11-01T19:21:08Z"
+ },
+ {
+  "id": "66GSKbCala2s2h5Kz0LV99",
+  "name": "Garage Burn Vol. 5",
+  "description": "Upbeat dance workout mix, deeper cuts (92% unheard) — modern-funk warm-up, disco-house and UK-club climb, electro peak, big-beat finish. 1997–2024.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020771a97700015a50f73f14e3ab67616d00001e02164f8eec0d728605748bc4b2ab67616d00001e02312d3dbb20fac94ab05b6b43ab67616d00001e02a85b7f4cb31e2b091f428f3f",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-11-01T18:43:33Z",
+  "last_modified": "2026-11-01T18:43:33Z"
+ },
+ {
+  "id": "1KcdBZjnWFfPuZl2f8YW6n",
+  "name": "Valldemossa — Nov 7",
+  "description": "Solo-piano preludes, 1722–2018 — Bach&#x27;s C major, Chopin&#x27;s 24 (finished at Valldemossa with the Well-Tempered Clavier on the stand), and the cycles written in their key order after them: Scriabin, Shostakovich, Kapustin; the Russians, the French, and Gonzales&#x27;s 5&#x2F;4 nod back to Bach.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e020b88a4d06f61ac0770bca974ab67616d00001e020e9d00c62e822e0d9cb593e9ab67616d00001e029e24f80be11f5dbd58d035e8ab67616d00001e02a10e9dad7334dbe8ba8b8a7e",
+  "followers_total": 0,
+  "tracks_total": 21,
+  "created_approx": "2026-11-07T11:31:37Z",
+  "last_modified": "2026-11-07T11:31:37Z"
+ },
+ {
+  "id": "3rEguWrKEBJ6Mz9p8bZ0PS",
+  "name": "Scissor Sisters Adjacent",
+  "description": "Glam disco-pop and dance-rock, 1979–2018 — opens with Saturday&#x27;s exact Scissor Sisters radio run, then the cheeky cousins: Gossip, CSS, Alphabeat, Jake Shears, The Rapture, Moloko, Sparks.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e027ae6f1296b466d3c34011cb8ab67616d00001e02ace2bedb8e6cfa04207d5c0fab67616d00001e02ee320a29df2f19c3d900b83dab67616d00001e02f2a3f7668babf3e257cfdf4d",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-11-01T19:22:43Z",
+  "last_modified": "2026-11-01T19:22:43Z"
+ },
+ {
+  "id": "00yGhGC07FWDcqrmaM0wrh",
+  "name": "Garage Burn Vol. 6",
+  "description": "Upbeat hip-hop workout mix seeded from the Peloton ride history, deeper cuts (92% unheard) — Southern-funk warm-up, boom-bap and bounce climb, grime&#x2F;trap peak, party-rap finish. 1997–2024.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02a7fa3f7d0efb5f4254370aaaab67616d00001e02b275d8830eef32c207bbf573ab67616d00001e02c914bccb7d1e79e60a28d382ab67616d00001e02e9e43288cbcadeda35d67ab4",
+  "followers_total": 0,
+  "tracks_total": 25,
+  "created_approx": "2026-11-01T19:20:16Z",
+  "last_modified": "2026-11-01T19:20:16Z"
  }
 ]
