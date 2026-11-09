@@ -369,6 +369,12 @@
 
   .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
+  /* p3.55: position:sticky needs NO scroll-container ancestor — overflow-y:auto on the panel made
+     it the sticky reference (it never scrolls; the window does), so .day-header and .disc-group-head
+     silently never stuck. Discovery + History panels: visible, with horizontal bleed clipped where
+     `clip` is supported (clip + visible is the one allowed mixed pair and creates no scroll container). */
+  #tab-discovery .content-panel, #tab-history .content-panel { overflow: visible; }
+  #tab-discovery .content-panel, #tab-history .content-panel { overflow-x: clip; }
 
   /* History items */
   .history-list { padding: 4px 0; }
@@ -489,6 +495,52 @@
   body.disc-unplayed .suggestion-item[data-heard="1"] { display: none; }
   body.disc-unplayed .sugg-with-tracks:has(> .suggestion-item[data-heard="1"]) { display: none; }
   body.disc-unplayed .discovery-card:not(:has(.suggestion-item[data-heard="0"])) { display: none; }
+  /* p3.55: Discovery browse — Group by (Recent · Genre · Mood) + [Genre ▾][Mood ▾][When ▾] pills
+     (design_discovery_browse_v1.md §4, Rev 1.2 locked 2026-11-09). Chip rows scroll sideways on phones. */
+  .disc-browse { display: flex; flex-direction: column; gap: 6px; padding: 0 0 4px; }
+  .disc-browse-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); min-width: 0; }
+  .disc-browse-row .spacer { flex: 1; }
+  .disc-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .disc-seg span { padding: 3px 10px; font-size: 11px; cursor: pointer; user-select: none; color: var(--text-dim); border-right: 1px solid var(--border); -webkit-tap-highlight-color: transparent; white-space: nowrap; }
+  .disc-seg span:last-child { border-right: none; }
+  .disc-seg span.on { color: var(--text); background: var(--surface2); font-weight: 600; }
+  .disc-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; user-select: none; color: var(--text-dim); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .disc-pill.open { border-color: var(--text-dim); color: var(--text); }
+  .disc-pill.active { border-color: var(--accent); color: var(--accent); }
+  .disc-pill.off { opacity: 0.45; }
+  .disc-pill .db-n { font-size: 10px; background: var(--accent); color: #0b1020; border-radius: 8px; padding: 0 5px; font-weight: 700; line-height: 14px; }
+  .disc-pill .db-caret { font-size: 9px; opacity: 0.7; }
+  .db-clear { cursor: pointer; color: var(--text-dim); border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px; font-size: 11px; white-space: nowrap; user-select: none; }
+  .db-clear:hover { color: var(--text); }
+  .disc-chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 2px 0; }
+  .disc-chip { padding: 3px 9px; border: 1px solid var(--border); border-radius: 12px; font-size: 11px; cursor: pointer; user-select: none; color: var(--text-dim); white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+  .disc-chip .db-c { opacity: 0.6; margin-left: 4px; font-size: 10px; }
+  .disc-chip.on { border-color: var(--accent); color: var(--accent); }
+  .disc-chip.zero:not(.on) { opacity: 0.4; }
+  .db-msg { font-size: 11px; color: var(--text-dim); font-style: italic; }
+  .db-msg .db-clear { font-style: normal; margin-left: 6px; }
+  .disc-summary { font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .disc-summary .db-count { color: var(--accent); font-weight: 600; }
+  .disc-group { display: flex; flex-direction: column; gap: 10px; }
+  body.disc-unplayed .disc-group.db-empty { display: none; }
+  .disc-group-head {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    padding: 10px 0 4px; font-size: 12px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: baseline; gap: 8px;
+  }
+  .disc-group-head .db-gc { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0.8; }
+  .disc-tags { display: flex; gap: 4px; flex-wrap: wrap; row-gap: 3px; margin-top: 4px; font-size: 10px; line-height: 1; min-width: 0; }
+  .disc-tag { padding: 2px 6px; border-radius: 8px; background: var(--surface); color: var(--text-dim); white-space: nowrap; border: 1px solid var(--border); cursor: pointer; flex-shrink: 0; }
+  .disc-tag.mood { color: var(--accent2); border-color: rgba(96,165,250,0.35); }
+  .disc-tag.genre { color: var(--text); }
+  .disc-tag.sub { opacity: 0.75; cursor: default; }
+  .disc-tag.mood:hover, .disc-tag.genre:hover { border-color: var(--text-dim); }
+  .disc-none { padding: 24px 0; text-align: center; font-size: 13px; color: var(--text-dim); }
+  @media (max-width: 480px) {
+    .disc-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; -webkit-overflow-scrolling: touch; margin-right: -16px; padding-right: 16px; }
+    .disc-chips::-webkit-scrollbar { display: none; }
+    .disc-tags .disc-tag.sub { display: none; }   /* ~120px info column: mood + genre only */
+  }
   .discovery-card {
     background: var(--surface2); border: 1px solid var(--border);
     border-radius: 12px; overflow: hidden; transition: border-color 0.15s;
@@ -1408,7 +1460,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.54';
+const PAGE_VERSION = 'p3.55';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -4921,6 +4973,226 @@ function toggleDiscUnplayed() {
   renderDiscovery();
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// p3.55: DISCOVERY BROWSE — Group by (Recent · Genre · Mood) + [Genre ▾][Mood ▾][When ▾]
+// filter pills (design_discovery_browse_v1.md §4, Rev 1.2 locked with Andrew 2026-11-09).
+// Tags come from the published discovery_tags.json (keyed by exploration_id; pushed like
+// shortcuts.json — a tag correction never needs a page release). Rules:
+//  • within an axis chips are OR, across axes AND (Jazz ∧ Mellow ∧ Aug);
+//  • a card with two genres is FILED under its primary genre when grouping by Genre but
+//    MATCHES either genre chip — one card = one DOM node, so album panels/hearts keep
+//    their unique ids (rendering a card twice would break getElementById);
+//  • cards missing from the file land in an "Untagged" group and are excluded only when
+//    a genre/mood chip is active (month chips still see them);
+//  • explored-month = card timestamp in LOCAL time, same as the date printed on the card;
+//  • grouping + chips + open rows persist in localStorage (same pattern as tab memory);
+//  • ○ Unplayed stays CSS-driven (:has) and composes with everything; the post-render
+//    pass hides groups it emptied and rewrites the counts honestly.
+// ══════════════════════════════════════════════════════════════════════════════
+const DISC_TAGS_URL = 'https://shumania.github.io/lifelog/discovery_tags.json';
+const LS_DISC_BROWSE = 'discBrowse';
+let _discTags = null, _discTagsAt = 0, _discTagsLoading = false, _discTagsErr = '';
+let _discScrollTopNext = false;   // set by filter/group actions: after render, scroll back up to the bar
+const _DISC_BY = ['recent', 'genre', 'mood'];
+const _DISC_BY_LBL = { recent: 'Recent', genre: 'Genre', mood: 'Mood' };
+const _DISC_AXES = ['g', 'm', 'w'];
+const _DISC_AXIS_LBL = { g: 'Genre', m: 'Mood', w: 'When' };
+const _DISC_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function _discBrowseState() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(LS_DISC_BROWSE) || 'null'); } catch (e) { s = null; }
+  if (!s || typeof s !== 'object') s = {};
+  if (!_DISC_BY.includes(s.by)) s.by = 'recent';
+  for (const a of _DISC_AXES) if (!Array.isArray(s[a])) s[a] = [];
+  s.open = (Array.isArray(s.open) ? s.open : []).filter(a => _DISC_AXES.includes(a));
+  return s;
+}
+function _discBrowseSave(s) { try { localStorage.setItem(LS_DISC_BROWSE, JSON.stringify(s)); } catch (e) {} }
+function _discIsPhone() { try { return window.matchMedia('(max-width: 480px)').matches; } catch (e) { return false; } }
+
+async function loadDiscoveryTags(force) {
+  if (_discTagsLoading || (_discTags && !force)) return;
+  _discTagsLoading = true; _discTagsAt = Date.now();
+  const prevGen = _discTags ? _discTags.generated_at : null;
+  try {
+    const r = await fetch(DISC_TAGS_URL + '?t=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (!d || !d.cards || !d.vocab || !d.vocab.genres || !d.vocab.moods) throw new Error('malformed discovery_tags.json');
+    _discTags = d; _discTagsErr = '';
+    console.log('[disc-tags] loaded v' + d.version + ' · ' + Object.keys(d.cards).length + ' cards · generated ' + d.generated_at);
+    if (d.generated_at !== prevGen && data && data.play_commands) { try { renderDiscovery(); } catch (e) { console.warn('[disc-tags] re-render failed:', e && e.message); } }
+  } catch (e) {
+    _discTagsErr = (e && e.message) || String(e);
+    console.error('[disc-tags] load failed:', e);
+    if (!_discTags && data && data.play_commands) { try { renderDiscovery(); } catch (e2) {} }  // surface the "tags unavailable" state
+  } finally { _discTagsLoading = false; }
+}
+// Tab-show hook (setContentTab): refresh a >10-min-old copy in the background; retry a failed load after 1 min.
+function _discTagsOnShow() {
+  const age = Date.now() - _discTagsAt;
+  if (_discTags && age > 10 * 60 * 1000) loadDiscoveryTags(true);
+  else if (!_discTags && !_discTagsLoading && (!_discTagsErr || age > 60 * 1000)) loadDiscoveryTags(true);
+}
+
+function _discMonthKey(ts) {
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return 'unknown';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function _discMonthLabel(key, long, multiYear) {
+  if (key === 'unknown') return 'Undated';
+  const y = key.slice(0, 4), mi = parseInt(key.slice(5, 7), 10) - 1;
+  if (long) return _DISC_MON[mi] === undefined ? key : new Date(parseInt(y, 10), mi, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return (_DISC_MON[mi] || key) + (multiYear ? ' \u2019' + y.slice(2) : '');
+}
+function _discCardTags(cmd) {
+  if (!_discTags || cmd.exploration_id == null) return null;
+  const t = _discTags.cards[String(cmd.exploration_id)];
+  return (t && t.m && Array.isArray(t.g) && t.g.length) ? t : null;
+}
+// Does a card pass the active chips? skipAxis = the axis being counted (its own chips ignored).
+function _discMatch(info, st, skipAxis) {
+  if (skipAxis !== 'g' && st.g.length && !(info.t && info.t.g.some(g => st.g.includes(g)))) return false;
+  if (skipAxis !== 'm' && st.m.length && !(info.t && st.m.includes(info.t.m))) return false;
+  if (skipAxis !== 'w' && st.w.length && !st.w.includes(info.mk)) return false;
+  return true;
+}
+
+// Builds {st, by, groups[{key,label,cards}], matched, total, barHtml} for renderDiscovery.
+function _discBrowseModel(cmds) {
+  const st = _discBrowseState();
+  const vocabG = (_discTags && _discTags.vocab.genres) || {};
+  const vocabM = (_discTags && _discTags.vocab.moods) || {};
+  const infos = cmds.map(cmd => ({ cmd, t: _discCardTags(cmd), mk: _discMonthKey(cmd.timestamp) }));
+  const monthSet = new Set(infos.map(x => x.mk));
+  const monthKeys = [...monthSet].filter(k => k !== 'unknown').sort().reverse();   // newest first
+  if (monthSet.has('unknown')) monthKeys.push('unknown');
+  const multiYear = new Set(monthKeys.filter(k => k !== 'unknown').map(k => k.slice(0, 4))).size > 1;
+  // Prune persisted chips that no longer exist (vocab change, month rolled off) — state stays honest
+  if (_discTags) { st.g = st.g.filter(k => k in vocabG); st.m = st.m.filter(k => k in vocabM); }
+  st.w = st.w.filter(k => monthSet.has(k));
+  const matched = infos.filter(x => _discMatch(x, st, null));
+  // Live chip counts: cards passing the OTHER axes that carry this key
+  const cnt = { g: {}, m: {}, w: {} };
+  for (const x of infos) {
+    if (x.t && _discMatch(x, st, 'g')) for (const g of x.t.g) cnt.g[g] = (cnt.g[g] || 0) + 1;
+    if (x.t && _discMatch(x, st, 'm')) cnt.m[x.t.m] = (cnt.m[x.t.m] || 0) + 1;
+    if (_discMatch(x, st, 'w')) cnt.w[x.mk] = (cnt.w[x.mk] || 0) + 1;
+  }
+  // Groups (vocab order; empty groups skipped; untagged last)
+  const groups = [];
+  const push = (key, label, cards) => { if (cards.length) groups.push({ key, label, cards }); };
+  if ((st.by === 'genre' || st.by === 'mood') && !_discTags) {
+    push('untagged', 'Untagged \u2014 tags file unavailable', matched.map(x => x.cmd));
+  } else if (st.by === 'genre') {
+    const filed = new Set();
+    for (const k of Object.keys(vocabG)) { const cs = matched.filter(x => x.t && x.t.g[0] === k); cs.forEach(x => filed.add(x)); push('g:' + k, vocabG[k], cs.map(x => x.cmd)); }
+    push('untagged', 'Untagged', matched.filter(x => !filed.has(x)).map(x => x.cmd));
+  } else if (st.by === 'mood') {
+    const filed = new Set();
+    for (const k of Object.keys(vocabM)) { const cs = matched.filter(x => x.t && x.t.m === k); cs.forEach(x => filed.add(x)); push('m:' + k, (vocabM[k] && vocabM[k].label) || k, cs.map(x => x.cmd)); }
+    push('untagged', 'Untagged', matched.filter(x => !filed.has(x)).map(x => x.cmd));
+  } else {
+    for (const k of monthKeys) push('w:' + k, _discMonthLabel(k, true), matched.filter(x => x.mk === k).map(x => x.cmd));
+  }
+
+  // ── Bar ──
+  const anyFilter = (st.g.length + st.m.length + st.w.length) > 0;
+  const chip = (a, k, lbl, n, on, title) => `<span class="disc-chip${on ? ' on' : ''}${n ? '' : ' zero'}" onclick="discToggleChip('${a}','${esc(k)}')"${title ? ` title="${esc(title)}"` : ''}>${esc(lbl)}<span class="db-c">${n}</span></span>`;
+  let bar = '<div class="disc-browse">';
+  bar += '<div class="disc-browse-row"><span>Group by</span><span class="disc-seg">' +
+    _DISC_BY.map(b => `<span class="${st.by === b ? 'on' : ''}" onclick="discSetGroupBy('${b}')">${_DISC_BY_LBL[b]}</span>`).join('') +
+    '</span><span class="spacer"></span>' +
+    `<span class="disc-filter-chip${_discUnplayedOnly() ? ' on' : ''}" style="margin-left:0" onclick="toggleDiscUnplayed()" title="Show only suggestions you haven\u2019t played yet">\u25cb Unplayed only</span></div>`;
+  bar += '<div class="disc-browse-row">';
+  for (const a of _DISC_AXES) {
+    const n = st[a].length, isOpen = st.open.includes(a), off = (a !== 'w') && !_discTags;
+    bar += `<span class="disc-pill${isOpen ? ' open' : ''}${n ? ' active' : ''}${off ? ' off' : ''}" onclick="discToggleAxis('${a}')">${_DISC_AXIS_LBL[a]}${n ? ` <span class="db-n">${n}</span>` : ''} <span class="db-caret">${isOpen ? '\u25b4' : '\u25be'}</span></span>`;
+  }
+  bar += '<span class="spacer"></span>';
+  if (anyFilter) bar += '<span class="db-clear" onclick="discClearFilters()">\u2715 clear</span>';
+  bar += '</div>';
+  for (const a of st.open) {
+    let chips = '';
+    if (a !== 'w' && !_discTags) {
+      chips = `<span class="db-msg">${_discTagsLoading || !_discTagsErr ? 'Loading tags\u2026' : 'Tags file unavailable (' + esc(_discTagsErr) + ')'}<span class="db-clear" onclick="loadDiscoveryTags(true)">retry</span></span>`;
+    } else if (a === 'g') {
+      for (const k of Object.keys(vocabG)) chips += chip('g', k, vocabG[k], cnt.g[k] || 0, st.g.includes(k));
+    } else if (a === 'm') {
+      for (const k of Object.keys(vocabM)) chips += chip('m', k, (vocabM[k] && vocabM[k].label) || k, cnt.m[k] || 0, st.m.includes(k), vocabM[k] && vocabM[k].hint);
+    } else {
+      for (const k of monthKeys) chips += chip('w', k, _discMonthLabel(k, false, multiYear), cnt.w[k] || 0, st.w.includes(k), _discMonthLabel(k, true));
+    }
+    bar += `<div class="disc-chips" data-axis="${a}">${chips}</div>`;
+  }
+  if (anyFilter) {
+    const parts = [];
+    if (st.g.length) parts.push(st.g.map(k => vocabG[k] || k).join(', '));
+    if (st.m.length) parts.push(st.m.map(k => (vocabM[k] && vocabM[k].label) || k).join(', '));
+    if (st.w.length) parts.push(st.w.slice().sort().map(k => _discMonthLabel(k, false, multiYear)).join(', '));
+    bar += `<div class="disc-summary"><span>${esc(parts.join(' \u00b7 '))}</span><span>\u2192</span><span class="db-count">${matched.length} card${matched.length === 1 ? '' : 's'}</span></div>`;
+  }
+  bar += '</div>';
+  return { st, by: st.by, groups, matched: matched.length, total: infos.length, anyFilter, barHtml: bar };
+}
+
+// After the DOM rebuild: hide groups the ○ Unplayed CSS emptied, and make every count tell
+// the truth about what is actually on screen (computed display is per-element, so this works
+// even while the tab itself is hidden).
+function _discPostPass(br) {
+  const el = document.getElementById('discovery-list');
+  if (!el) return;
+  const unplayed = _discUnplayedOnly();
+  let visible = 0;
+  el.querySelectorAll('.disc-group').forEach(g => {
+    const cards = g.querySelectorAll('.discovery-card');
+    let n = 0;
+    cards.forEach(c => { if (!unplayed || getComputedStyle(c).display !== 'none') n++; });
+    visible += n;
+    g.classList.toggle('db-empty', n === 0);
+    const gc = g.querySelector('.db-gc');
+    if (gc) gc.textContent = (unplayed && n !== cards.length) ? `${n} of ${cards.length} with unplayed` : `${cards.length} card${cards.length === 1 ? '' : 's'}`;
+  });
+  const cnt = el.querySelector('.db-count');
+  if (cnt) cnt.textContent = `${visible} card${visible === 1 ? '' : 's'}` + (unplayed && visible !== br.matched ? ` with unplayed (of ${br.matched})` : '');
+  const none = el.querySelector('.disc-none');
+  if (none) none.hidden = visible > 0;
+  console.log('[disc-browse] by=' + br.by + ' groups=' + br.groups.length + ' matched=' + br.matched + '/' + br.total + (unplayed ? ' visible(unplayed)=' + visible : '') + (br.anyFilter ? ' filters=' + JSON.stringify({ g: br.st.g, m: br.st.m, w: br.st.w }) : ''));
+}
+
+function discSetGroupBy(by) {
+  const st = _discBrowseState();
+  if (!_DISC_BY.includes(by) || st.by === by) return;
+  st.by = by; _discBrowseSave(st); _discScrollTopNext = true; renderDiscovery();
+}
+function discToggleAxis(a) {
+  if (!_DISC_AXES.includes(a)) return;
+  const st = _discBrowseState();
+  // Phones: one chip row open at a time (screen budget); desktop may keep all three open.
+  st.open = st.open.includes(a) ? st.open.filter(x => x !== a) : (_discIsPhone() ? [a] : st.open.concat([a]));
+  _discBrowseSave(st); renderDiscovery();
+}
+function discToggleChip(a, k) {
+  if (!_DISC_AXES.includes(a)) return;
+  const st = _discBrowseState();
+  st[a] = st[a].includes(k) ? st[a].filter(x => x !== k) : st[a].concat([k]);
+  _discBrowseSave(st); _discScrollTopNext = true; renderDiscovery();
+}
+function discClearFilters() {
+  const st = _discBrowseState();
+  st.g = []; st.m = []; st.w = []; _discBrowseSave(st); _discScrollTopNext = true; renderDiscovery();
+}
+// Tap on a card-header tag → "more like this": that one key replaces the axis's chips, row opens.
+function discTagTap(a, k) {
+  if (!_DISC_AXES.includes(a)) return;
+  const st = _discBrowseState();
+  st[a] = [k];
+  if (!st.open.includes(a)) st.open = _discIsPhone() ? [a] : st.open.concat([a]);
+  _discBrowseSave(st); _discScrollTopNext = true; renderDiscovery();
+}
+
 // p3.21: discovery card open/closed state — survives re-renders. Field-hit 2026-08-21:
 // an SSE like confirmation re-rendered the tab, wiping the user's collapses and
 // yanking scroll to top mid-read. State keyed by exploration_id; in-memory (a fresh
@@ -4943,18 +5215,31 @@ function renderDiscovery() {
   const cmds = data.play_commands;
   // p2.60: heard dots + Unplayed filter need rollups — load once, then re-render so dots/filter appear
   if (!_heardTracks || _heardStale()) loadHeardData().then(ok => { if (ok) { try { renderDiscovery(); } catch(e) { console.warn('[heard] re-render failed:', e && e.message); } } });
+  // p3.55: browse tags — lazy first load; the load re-renders when the file lands
+  if (!_discTags && !_discTagsLoading && !_discTagsErr) loadDiscoveryTags();
   document.body.classList.toggle('disc-unplayed', _discUnplayedOnly());
   // Stat line
   const lastDate = new Date(cmds[0].timestamp);
   const statLine = `${cmds.length} artists explored · last on ${lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} at ${fmtTime(cmds[0].timestamp)}`;
-  let html = `<div class="discovery-stat">${esc(statLine)}<span class="disc-filter-chip${_discUnplayedOnly() ? ' on' : ''}" onclick="toggleDiscUnplayed()" title="Show only suggestions you haven\u2019t played yet">\u25cb Unplayed only</span></div>`;
+  // p3.55: ○ Unplayed moved into the browse bar (row 1); stat line is text only now
+  let html = `<div class="discovery-stat">${esc(statLine)}</div>`;
+  // p3.55: group-by + filters decide WHICH cards render and in what order; the card body
+  // below is unchanged (ids stay disc-{i} with i running across groups; keys stay x{eid}).
+  const br = _discBrowseModel(cmds);
+  html += br.barHtml;
+  const seq = [];
+  for (const grp of br.groups) grp.cards.forEach((cmd, j) => seq.push({ cmd, head: j === 0 ? grp : null, last: j === grp.cards.length - 1 }));
+  html += `<div class="disc-none"${seq.length ? ' hidden' : ''}>No cards match \u2014 <span class="db-clear" onclick="discClearFilters()">clear filters</span></div>`;
 
-  for (let i = 0; i < cmds.length; i++) {
-    const cmd = cmds[i];
+  for (let i = 0; i < seq.length; i++) {
+    const cmd = seq[i].cmd;
+    if (seq[i].head) html += `<div class="disc-group" data-group="${esc(seq[i].head.key)}"><div class="disc-group-head">${esc(seq[i].head.label)}<span class="db-gc">${seq[i].head.cards.length} card${seq[i].head.cards.length === 1 ? '' : 's'}</span></div>`;
     // p3.21: card open/closed state survives re-renders (SSE like refresh, heard-data
     // load, tab switches). Keyed by exploration_id (stable) not index. Default: first 3 open.
+    // p3.55: the first-3-open default applies to Recent only; grouped views start collapsed
+    // (the collapsed header IS the compact row — artist · from · date · tags).
     const cardKey = (cmd.exploration_id != null) ? 'x' + cmd.exploration_id : 't' + (cmd.timestamp || i);
-    const isOpen = (cardKey in _discOpenState) ? _discOpenState[cardKey] : i < 3;
+    const isOpen = (cardKey in _discOpenState) ? _discOpenState[cardKey] : (br.by === 'recent' && i < 3);
     const d = new Date(cmd.timestamp);
     const dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
@@ -4978,6 +5263,15 @@ function renderDiscovery() {
     html += `<div class="disc-artist-badge">${esc(cmd.artist || cmd.title)}</div>`;
     html += `<div class="disc-hinfo">`;
     html += `<div class="disc-meta">${isDeep ? `<span class="disc-deep-badge">🔬 Deep Dive ${diveLevel}</span> · ` : ''}from ${esc(fromText)} · ${dateStr}${suggCount ? ' · ' + suggCount + ' suggestions' : ''}</div>`;
+    // p3.55: tag line — mood · genre(s) · first sub-genres; mood/genre tags tap-filter ("more like this")
+    const tg = _discCardTags(cmd);
+    if (tg) {
+      const vG = _discTags.vocab.genres || {}, vM = _discTags.vocab.moods || {};
+      let tags = `<span class="disc-tag mood" onclick="event.stopPropagation();discTagTap('m','${esc(tg.m)}')" title="${esc((vM[tg.m] && vM[tg.m].hint) || '')}">${esc((vM[tg.m] && vM[tg.m].label) || tg.m)}</span>`;
+      for (const g of tg.g) tags += `<span class="disc-tag genre" onclick="event.stopPropagation();discTagTap('g','${esc(g)}')">${esc(vG[g] || g)}</span>`;
+      for (const s of (Array.isArray(tg.s) ? tg.s : []).slice(0, 3)) tags += `<span class="disc-tag sub">${esc(s)}</span>`;
+      html += `<div class="disc-tags">${tags}</div>`;
+    }
     html += `</div><div class="disc-expand">›</div></div>`;
 
     // Body
@@ -5078,10 +5372,16 @@ function renderDiscovery() {
       html += `<div class="disc-deeper-row"><button class="disc-deeper-btn" onclick="event.stopPropagation();exploreArtist(this,'${deepData}')" title="Deeper exploration: deep cuts, sidemen, producers — no repeats">🔬 Go Deeper</button></div>`;
     }
     html += '</div></div>';
+    if (seq[i].last) html += '</div>';  // p3.55: close .disc-group
   }
   el.innerHTML = html;
+  _discPostPass(br);
   // p3.21: restore scroll — rebuild must not yank a reading user to the top
-  if (_discKeepY !== null && _discKeepY > 0) requestAnimationFrame(() => window.scrollTo(0, _discKeepY));
+  // p3.55: after a filter/group action, come back up to the bar instead (only if we were below it)
+  if (_discScrollTopNext) {
+    _discScrollTopNext = false;
+    requestAnimationFrame(() => { const b = el.querySelector('.disc-browse'); if (b) { const y = b.getBoundingClientRect().top + window.scrollY - 8; if (window.scrollY > y) window.scrollTo(0, Math.max(0, y)); } });
+  } else if (_discKeepY !== null && _discKeepY > 0) requestAnimationFrame(() => window.scrollTo(0, _discKeepY));
   // Restore previously expanded album track panels
   const savedAlbums = getExpandedAlbums();
   for (const panelId of savedAlbums) {
@@ -5895,6 +6195,7 @@ function setContentTab(tab, fromPop) {
   }
   if (tab === 'playlists' && !_playlists.length) loadPlaylistData();
   if (tab === 'shortcuts' && !_shortcuts.length) loadShortcuts();  // p3.11: lazy — nothing fetched before first open
+  if (tab === 'discovery') _discTagsOnShow();  // p3.55: refresh stale browse tags / retry a failed load
   if (tab === 'sessions') SH.onShow();  // p2.70: lazy-init Sessions — nothing fetched before first open
 }
 
