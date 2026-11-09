@@ -369,6 +369,12 @@
 
   .content-panel { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .content-panel[hidden] { display: none; }
+  /* p3.55: position:sticky needs NO scroll-container ancestor — overflow-y:auto on the panel made
+     it the sticky reference (it never scrolls; the window does), so .day-header and .disc-group-head
+     silently never stuck. Discovery + History panels: visible, with horizontal bleed clipped where
+     `clip` is supported (clip + visible is the one allowed mixed pair and creates no scroll container). */
+  #tab-discovery .content-panel, #tab-history .content-panel { overflow: visible; }
+  #tab-discovery .content-panel, #tab-history .content-panel { overflow-x: clip; }
 
   /* History items */
   .history-list { padding: 4px 0; }
