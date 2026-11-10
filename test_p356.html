@@ -1159,11 +1159,18 @@
     border: 1px solid rgba(74,222,128,0.3); margin-left: 4px; vertical-align: 1px; white-space: nowrap;
   }
   .pc-upd-badge .pc-upd-short { display: none; }
+  .pc-tail-short { display: none; }
   @media (max-width: 480px) {
     .pc-upd-badge .pc-upd-long { display: none; }
     .pc-upd-badge .pc-upd-short { display: inline; }
+    .pc-tail-long { display: none; }      /* phones: the ↑53 badge already carries the count — keep meta to 2 lines */
+    .pc-tail-short { display: inline; }
   }
   .pc-reason { white-space: nowrap; }
+  /* p3.56: name row = ellipsizing text + non-shrinking badges, so "↑53" survives a long name on a 141px column */
+  .pc-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .pc-name .pc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-name .pc-new-badge, .pc-name .pc-upd-badge { flex-shrink: 0; margin-left: 0; }
   .tr-new { font-size: 9px; font-weight: 600; color: #4ade80; margin-left: 4px; vertical-align: 1px; letter-spacing: 0.03em; }
 /* p3.13: geo structure-chip hint (design_geo_ux_v1.md Rev 2, G5) */
 .geo-hint { margin: 6px 0 2px; padding: 7px 10px; background: rgba(80,160,255,.08); border: 1px solid rgba(80,160,255,.25); border-radius: 10px; font-size: 13px; line-height: 1.5; }
@@ -8600,9 +8607,9 @@ function renderPlaylists() {
       var playWins = sortKey === 'activity' && lastTs && lastTs >= updTs;
       if (playWins) meta += ' \u00b7 <span class="pc-reason">\u25b6 played ' + fmtWhen(new Date(lastTs)) + '</span>';
       else if (updTs) {
-        var tail = '';
-        if (lastTs && sincePlay > 0) tail = ' \u00b7 ' + sincePlay + ' new since you played';
-        else if (!lastTs && (p.added_30d || 0) > 0 && !isGhost) tail = ' \u00b7 ' + p.added_30d + ' added this month';
+        var tail = '';   // long form on desktop; phones get the badge (played case) or a short "+34 this month"
+        if (lastTs && sincePlay > 0) tail = '<span class="pc-tail-long"> \u00b7 ' + sincePlay + ' new since you played</span>';
+        else if (!lastTs && (p.added_30d || 0) > 0 && !isGhost) tail = '<span class="pc-tail-long"> \u00b7 ' + p.added_30d + ' added this month</span><span class="pc-tail-short"> \u00b7 +' + p.added_30d + ' this month</span>';
         meta += ' \u00b7 <span class="pc-reason">\u2191 updated ' + fmtWhen(new Date(updTs)) + '</span>' + tail;
       }
     }
@@ -8622,7 +8629,7 @@ function renderPlaylists() {
     // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
     card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + (isBlocked ? ' title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play."' : '') + '>';
     card += artHtml;
-    card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) +
+    card += '<div class="pc-info"><div class="pc-name"><span class="pc-name-text">' + esc(p.name) + '</span>' +
       ((sortKey === 'recent' || sortKey === 'activity') && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + updBadge + '</div>'; // p3.03 item 3 (+ p3.56 ↑ new badge)
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div>';
     card += '</div>';
