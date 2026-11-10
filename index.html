@@ -1150,6 +1150,28 @@
     border-radius: 8px; background: rgba(240,185,64,0.12); color: #f0b940;
     border: 1px solid rgba(240,185,64,0.3); margin-left: 4px; vertical-align: 1px;
   }
+  /* p3.56 (design_playlist_recency_v1.md §3–4): "↑ 53 new" — tracks added to a playlist AFTER you last
+     played it (server field added_since_play). The one cue that says "worth reopening". Phones (≤480,
+     info column ~120px) get the short form "↑53". Track rows added since that play carry a tiny `new`. */
+  .pc-upd-badge {
+    display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px;
+    border-radius: 8px; background: rgba(74,222,128,0.12); color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.3); margin-left: 4px; vertical-align: 1px; white-space: nowrap;
+  }
+  .pc-upd-badge .pc-upd-short { display: none; }
+  .pc-tail-short { display: none; }
+  @media (max-width: 480px) {
+    .pc-upd-badge .pc-upd-long { display: none; }
+    .pc-upd-badge .pc-upd-short { display: inline; }
+    .pc-tail-long { display: none; }      /* phones: the ↑53 badge already carries the count — keep meta to 2 lines */
+    .pc-tail-short { display: inline; }
+  }
+  .pc-reason { white-space: nowrap; }
+  /* p3.56: name row = ellipsizing text + non-shrinking badges, so "↑53" survives a long name on a 141px column */
+  .pc-name { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .pc-name .pc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pc-name .pc-new-badge, .pc-name .pc-upd-badge { flex-shrink: 0; margin-left: 0; }
+  .tr-new { font-size: 9px; font-weight: 600; color: #4ade80; margin-left: 4px; vertical-align: 1px; letter-spacing: 0.03em; }
 /* p3.13: geo structure-chip hint (design_geo_ux_v1.md Rev 2, G5) */
 .geo-hint { margin: 6px 0 2px; padding: 7px 10px; background: rgba(80,160,255,.08); border: 1px solid rgba(80,160,255,.25); border-radius: 10px; font-size: 13px; line-height: 1.5; }
 .geo-hint b { font-weight: 600; }
@@ -1433,8 +1455,10 @@ body.house-roaming .shortcut-card { opacity: .4; }
   <div id="tab-playlists" hidden>
     <div class="playlist-controls">
       <input type="search" class="playlist-search" id="pl-search" placeholder="Search playlists…" oninput="renderPlaylists()">
-      <select class="sort-select" id="pl-sort" onchange="renderPlaylists()">
-        <option value="recent" selected>Recently Listened</option>
+      <select class="sort-select" id="pl-sort" onchange="plSortChanged()">
+        <option value="activity" selected>Recent activity</option><!-- p3.56: max(played, updated) — design_playlist_recency_v1.md -->
+        <option value="recent">Recently Listened</option>
+        <option value="updated">Recently Updated</option>
         <option value="alpha">A–Z</option>
         <option value="created">Created Date</option>
       </select>
@@ -1460,7 +1484,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.55';
+const PAGE_VERSION = 'p3.56';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -8465,8 +8489,13 @@ function renderPlaylists() {
     computePlaylistLastListened();
   }
 
+  // p3.56: the sort choice persists (ll_pl_sort); first render applies it to the <select>.
+  if (sortEl && !_plSortInit) {
+    _plSortInit = true;
+    try { var savedSort = localStorage.getItem('ll_pl_sort'); if (savedSort && sortEl.querySelector('option[value="' + savedSort + '"]')) sortEl.value = savedSort; } catch(e) {}
+  }
   const q = (searchEl ? searchEl.value : '').toLowerCase();
-  const sortKey = sortEl ? sortEl.value : 'recent'; // p2.46: recency is the default sort
+  const sortKey = sortEl ? sortEl.value : 'activity'; // p3.56: "Recent activity" = max(played, updated) is the default; p2.46's Recently Listened stays in the menu
 
   // p2.46: recency = max(server last_played from track-level join, client context-play signal)
   function plLastAny(p) {
@@ -8474,13 +8503,19 @@ function renderPlaylists() {
     var s = p.last_played || '';
     return s > c ? s : c;
   }
+  // p3.56: "updated" = newest added_at in the playlist (server last_modified; nightly playlist sweep keeps it
+  // ≤1 night old for known playlists). Activity = whichever of played / updated is newer.
+  function plUpdTs(p) { return p.last_modified || ''; }
+  function plActivityTs(p) { var a = plLastAny(p), u = plUpdTs(p); return u > a ? u : a; }
 
   // p3.03 item 3: ✨ New — never-played playlists created/edited within the last 7 days
   // (locked decision 2026-08-07: 7, not 14) float to the very top under Recently Listened,
   // newest first. The nightly builder creates one playlist every morning; without this they
   // sorted dead last. Older never-played playlists keep sinking to the bottom as before,
   // and once played a playlist re-enters normal recency ordering (badge gone).
-  function plNewTs(p) { var c = p.created_approx || '', m = p.last_modified || ''; return m > c ? m : c; }
+  // p3.56: "new" means CREATED recently — created_approx first, last_modified only when creation is unknown.
+  // (Was max(created, modified): a 2021 playlist someone edited on Thursday floated as ✨ New.)
+  function plNewTs(p) { return p.created_approx || p.last_modified || ''; }
   function plIsNew(p) {
     if (plLastAny(p)) return false;
     var ts = plNewTs(p);
@@ -8493,6 +8528,20 @@ function renderPlaylists() {
 
   filtered.sort(function(a, b) {
     if (sortKey === 'alpha') return a.name.localeCompare(b.name);
+    if (sortKey === 'activity') { // p3.56: what moved most recently, played or edited — no ✨ float, the date already places new builds honestly
+      var aA = plActivityTs(a), bA = plActivityTs(b);
+      if (aA && !bA) return -1;
+      if (!aA && bA) return 1;
+      if (aA !== bA) return bA.localeCompare(aA);
+      return a.name.localeCompare(b.name);
+    }
+    if (sortKey === 'updated') { // p3.56: pure edit recency; never-edited (API-blocked editorial) sink, then by last play
+      var aU = plUpdTs(a), bU = plUpdTs(b);
+      if (aU && !bU) return -1;
+      if (!aU && bU) return 1;
+      if (aU !== bU) return bU.localeCompare(aU);
+      return plLastAny(b).localeCompare(plLastAny(a));
+    }
     if (sortKey === 'recent') {
       var aN = plIsNew(a), bN = plIsNew(b); // p3.03: ✨ New float — see plIsNew above
       if (aN !== bN) return aN ? -1 : 1;
@@ -8549,6 +8598,25 @@ function renderPlaylists() {
     if (lastTs && sortKey === 'recent') {
       meta += ' \u00b7 last played ' + fmtRelative(new Date(lastTs));
     }
+    // p3.56: the reason this card sits where it does (design_playlist_recency_v1.md §2).
+    //   activity sort → "▶ played Sat" when the play is the newer event, else "↑ updated Thu · 53 new since you
+    //   played" (played before) / "↑ updated Thu · 12 added this month" (never played). updated sort → "↑ updated …".
+    var updTs = plUpdTs(p);
+    var sincePlay = (p.added_since_play != null) ? Number(p.added_since_play) : null;
+    if (sortKey === 'activity' || sortKey === 'updated') {
+      var playWins = sortKey === 'activity' && lastTs && lastTs >= updTs;
+      if (playWins) meta += ' \u00b7 <span class="pc-reason">\u25b6 played ' + fmtWhen(new Date(lastTs)) + '</span>';
+      else if (updTs) {
+        var tail = '';   // long form on desktop; phones get the badge (played case) or a short "+34 this month"
+        if (lastTs && sincePlay > 0) tail = '<span class="pc-tail-long"> \u00b7 ' + sincePlay + ' new since you played</span>';
+        else if (!lastTs && (p.added_30d || 0) > 0 && !isGhost) tail = '<span class="pc-tail-long"> \u00b7 ' + p.added_30d + ' added this month</span><span class="pc-tail-short"> \u00b7 +' + p.added_30d + ' this month</span>';
+        meta += ' \u00b7 <span class="pc-reason">\u2191 updated ' + fmtWhen(new Date(updTs)) + '</span>' + tail;
+      }
+    }
+    // badge: tracks added after your last play — shown under every sort (it is state, not ordering)
+    var updBadge = (lastTs && sincePlay > 0 && !isGhost)
+      ? ' <span class="pc-upd-badge" title="' + sincePlay + ' track' + (sincePlay === 1 ? '' : 's') + ' added since you last played this (' + fmtWhen(new Date(lastTs)) + ')"><span class="pc-upd-long">\u2191 ' + sincePlay + ' new</span><span class="pc-upd-short">\u2191' + sincePlay + '</span></span>'
+      : '';
     var ownerBadge = isShared ? ' <span class="pc-owner-badge">' + esc(p.owner) + '</span>' : '';
     if (p.account === 'teenbloods') ownerBadge += ' <span class="pc-owner-badge" title="teenbloods account">🏝 TB</span>'; // p2.46: account badge
     if (isPO && !isBlocked) ownerBadge += ' <span class="pc-po-badge" title="You\u2019ve played this public playlist but don\u2019t follow it">\u25b8 played only</span>'; // p2.72 (p2.86: skip on blocked — compact)
@@ -8561,8 +8629,8 @@ function renderPlaylists() {
     // p2.72: unfetched played-only cards have no synced track list — header doesn't expand (p2.78: isGhost, not isPO)
     card += '<div class="pc-header"' + (isGhost ? '' : ' onclick="togglePlCard(\'' + p.id + '\')"') + (isGhost ? ' style="cursor:default"' : '') + (isBlocked ? ' title="Spotify removed API access to its own editorial and algorithmic playlists in late 2024. Tracks still appear in your history as they play."' : '') + '>';
     card += artHtml;
-    card += '<div class="pc-info"><div class="pc-name">' + esc(p.name) +
-      (sortKey === 'recent' && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + '</div>'; // p3.03 item 3
+    card += '<div class="pc-info"><div class="pc-name"><span class="pc-name-text">' + esc(p.name) + '</span>' +
+      ((sortKey === 'recent' || sortKey === 'activity') && plIsNew(p) ? ' <span class="pc-new-badge">✨ New</span>' : '') + updBadge + '</div>'; // p3.03 item 3 (+ p3.56 ↑ new badge)
     card += '<div class="pc-meta">' + meta + ownerBadge + '</div>';
     card += '</div>';
     // p3.46: line 3 = chips + one sentence ('' when nothing to say); blocked cards stay compact.
@@ -8622,6 +8690,8 @@ function renderPlaylists() {
         if (t.added_at) {
           var ad = new Date(t.added_at);
           if (!isNaN(ad) && ad.getFullYear() > 1971) addedStr = ' \u00b7 <span style="opacity:0.55" title="Added to playlist">+' + ad.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + '</span>';
+          // p3.56: added after your last play of this playlist → tiny `new` (same rule as the ↑ badge, per row)
+          if (lastTs && !isNaN(ad) && t.added_at > lastTs) addedStr += '<span class="tr-new" title="Added since you last played this playlist">new</span>';
         }
         card += '<div class="tr-detail">' + esc(artistStr) + ' \u00b7 ' + esc(t.album_name || '') + addedStr + '</div></div>';
         card += '<span class="tr-duration">' + fmtPlDur(t.duration_ms) + '</span>';
@@ -8642,6 +8712,27 @@ function renderPlaylists() {
   }
 
   el.innerHTML = parts.join('');
+}
+
+// p3.56: sort <select> change → persist + render
+var _plSortInit = false;
+function plSortChanged() {
+  var sortEl = document.getElementById('pl-sort');
+  try { if (sortEl) localStorage.setItem('ll_pl_sort', sortEl.value); } catch(e) {}
+  renderPlaylists();
+}
+// p3.56: compact "when" for card reasons — today · yesterday · Sat (≤6 days) · Nov 5 (this year) · Nov 2025
+function fmtWhen(d) {
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  var now = new Date();
+  var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var startThat = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  var days = Math.round((startToday - startThat) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
 
