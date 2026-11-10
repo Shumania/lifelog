@@ -8506,7 +8506,9 @@ function renderPlaylists() {
   // newest first. The nightly builder creates one playlist every morning; without this they
   // sorted dead last. Older never-played playlists keep sinking to the bottom as before,
   // and once played a playlist re-enters normal recency ordering (badge gone).
-  function plNewTs(p) { var c = p.created_approx || '', m = p.last_modified || ''; return m > c ? m : c; }
+  // p3.56: "new" means CREATED recently — created_approx first, last_modified only when creation is unknown.
+  // (Was max(created, modified): a 2021 playlist someone edited on Thursday floated as ✨ New.)
+  function plNewTs(p) { return p.created_approx || p.last_modified || ''; }
   function plIsNew(p) {
     if (plLastAny(p)) return false;
     var ts = plNewTs(p);
