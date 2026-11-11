@@ -1,6 +1,6 @@
 {
- "version": 1,
- "generated_at": "2026-11-09T22:43:57Z",
+ "version": 2,
+ "generated_at": "2026-11-11T01:44:30Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,9 +37,9 @@
   }
  },
  "counts": {
-  "cards": 150,
+  "cards": 151,
   "moods": {
-   "mellow": 57,
+   "mellow": 58,
    "upbeat": 43,
    "loud": 9,
    "heady": 26,
@@ -47,9 +47,9 @@
   },
   "genres": {
    "jazz": 32,
-   "rock_indie": 44,
+   "rock_indie": 45,
    "soul_rnb_hiphop": 32,
-   "folk_country_americana": 17,
+   "folk_country_americana": 18,
    "electronic": 24,
    "global": 18,
    "classical": 20,
@@ -1921,6 +1921,20 @@
     "ambient"
    ],
    "src": "backfill-v1"
+  },
+  "295": {
+   "g": [
+    "folk_country_americana",
+    "rock_indie"
+   ],
+   "m": "mellow",
+   "s": [
+    "psych-folk",
+    "free folk",
+    "new weird america",
+    "celtic harp"
+   ],
+   "src": "explore-run"
   }
  }
 }
