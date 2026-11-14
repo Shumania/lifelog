@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>LifeLog · Apple Music sign-in</title>
+<style>
+  body { font: 17px -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; background: #111; color: #eee; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #bbb; line-height: 1.4; }
+  button { font: inherit; padding: 14px 20px; border-radius: 10px; border: 0; background: #fc3c44; color: #fff; font-weight: 600; width: 100%; max-width: 420px; }
+  button:disabled { opacity: .5; }
+  #out { margin-top: 20px; display: none; }
+  textarea { width: 100%; max-width: 420px; height: 120px; font: 13px ui-monospace, monospace; background: #222; color: #9f9; border: 1px solid #444; border-radius: 8px; padding: 8px; }
+  #log { margin-top: 24px; font: 12px ui-monospace, monospace; color: #888; white-space: pre-wrap; }
+  .ok { color: #9f9; } .err { color: #f88; }
+</style>
+</head>
+<body>
+<h1>LifeLog · Apple Music sign-in</h1>
+<p>One-time step so LifeLog can create playlists in your Apple Music library. Tap the button, sign in with the Apple ID that has your Apple Music subscription, then copy the token and paste it back to Tasklet.</p>
+<p>This page expires <b id="exp">1:00 PM today (Seattle)</b> and will be removed afterwards.</p>
+<button id="go" disabled>Loading MusicKit…</button>
+<div id="out">
+  <p class="ok">Signed in. Copy this token and paste it in the Tasklet thread:</p>
+  <textarea id="tok" readonly></textarea><br>
+  <button id="copy" style="margin-top:10px;background:#333">Copy token</button>
+  <p id="meta"></p>
+</div>
+<div id="log"></div>
+<script>
+  const DEV_TOKEN = "eyJhbGciOiJFUzI1NiIsImtpZCI6Ijg1MzdQUVM5NDMifQ.eyJpc3MiOiJTOTRHSE5NQTNBIiwiaWF0IjoxNzk0Njc5MjExLCJleHAiOjE3OTQ2OTAwMTEsIm9yaWdpbiI6WyJodHRwczovL3NodW1hbmlhLmdpdGh1Yi5pbyJdfQ.i1rhcmpEy6FQthUzIW7vmR4GUMu2dSLOnIX2z_gN_Mao9c4ZP25mDor7VpozUZHGypNxFYjoiGP4RoMDjfLggg";
+  const logEl = document.getElementById('log');
+  function log(msg, cls) { const t = new Date().toISOString().slice(11, 19); logEl.innerHTML += `<div class="${cls || ''}">[${t}] ${msg}</div>`; console.log('[am-auth]', msg); }
+  window.addEventListener('error', e => log('window error: ' + (e.message || e), 'err'));
+  window.addEventListener('unhandledrejection', e => log('unhandled rejection: ' + (e.reason && (e.reason.message || e.reason)), 'err'));
+  log('page loaded; origin=' + location.origin + '; ua=' + navigator.userAgent.slice(0, 80));
+  document.addEventListener('musickitloaded', async () => {
+    log('musickitloaded fired; MusicKit v' + (window.MusicKit && MusicKit.version));
+    try {
+      await MusicKit.configure({ developerToken: DEV_TOKEN, app: { name: 'LifeLog', build: '1' } });
+      const mk = MusicKit.getInstance();
+      log('configured ok; isAuthorized=' + mk.isAuthorized + ' storefront=' + (mk.storefrontId || '?'), 'ok');
+      const go = document.getElementById('go');
+      go.disabled = false; go.textContent = mk.isAuthorized ? 'Already signed in — show token' : 'Sign in to Apple Music';
+      go.onclick = async () => {
+        go.disabled = true; go.textContent = 'Waiting for Apple…';
+        try {
+          log('calling authorize()');
+          const token = await mk.authorize();
+          log('authorize resolved; token length=' + (token ? token.length : 0), 'ok');
+          if (!token) throw new Error('authorize returned empty token');
+          document.getElementById('tok').value = token;
+          document.getElementById('meta').textContent = 'storefront: ' + (mk.storefrontId || '?') + ' · token length ' + token.length;
+          document.getElementById('out').style.display = 'block';
+          go.textContent = 'Signed in ✓';
+        } catch (e) {
+          log('authorize failed: ' + (e && (e.message || e)), 'err');
+          go.disabled = false; go.textContent = 'Try again';
+        }
+      };
+      document.getElementById('copy').onclick = async () => {
+        const v = document.getElementById('tok').value;
+        try { await navigator.clipboard.writeText(v); log('copied to clipboard', 'ok'); document.getElementById('copy').textContent = 'Copied ✓'; }
+        catch (e) { log('clipboard failed (' + e.message + ') — select the text and copy manually', 'err'); document.getElementById('tok').select(); }
+      };
+    } catch (e) {
+      log('configure failed: ' + (e && (e.message || e)), 'err');
+      document.getElementById('go').textContent = 'MusicKit failed to configure — tell Tasklet';
+    }
+  });
+  setTimeout(() => { if (!window.MusicKit) log('MusicKit JS has not loaded after 8s (CDN blocked?)', 'err'); }, 8000);
+</script>
+<script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" async></script>
+</body>
+</html>
