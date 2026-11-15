@@ -1,160 +1,27 @@
 {
- "picked_at": "2026-11-08T11:39:58.704Z",
- "pick_date": "2026-11-08",
- "work_key": "BWV772-801",
- "work": "Two- and Three-Part Inventions & Sinfonias",
- "performer": "Glenn Gould",
- "album": "Bach: The Two and Three Part Inventions, BWV 772-801",
- "spotify_album_uri": "spotify:album:42SxOjm6223yaSs0vH9Um6",
- "instrumentation": "piano",
- "approx_minutes": 48,
- "reason": "last heard 32d ago · avoided chamber",
+ "picked_at": "2026-11-15T12:11:53.771Z",
+ "pick_date": "2026-11-15",
+ "work_key": "BWV996-998",
+ "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
+ "performer": "Sean Shibe",
+ "album": "Bach",
+ "spotify_album_uri": "spotify:album:3Yshelig3Piv2hwbsD72lo",
+ "instrumentation": "lute_guitar",
+ "approx_minutes": 62,
+ "reason": "last heard 21d ago",
  "fallback": {
-  "work_key": "ARR-WTC-CONSORT-I",
-  "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
-  "performer": "Phantasm",
-  "album": "Bach: The Well-Tempered Consort – I",
-  "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA"
+  "work_key": "ARR-OLAFSSON",
+  "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
+  "performer": "Víkingur Ólafsson",
+  "album": "Johann Sebastian Bach",
+  "spotify_album_uri": "spotify:album:55XdhiY6nd3iij8msqiagR"
  },
- "week_start": "2026-11-08",
- "week_end": "2026-11-15",
+ "week_start": "2026-11-15",
+ "week_end": "2026-11-22",
  "week_days": 8,
  "week": [
   {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-08",
-   "work_key": "BWV772-801",
-   "work": "Two- and Three-Part Inventions & Sinfonias",
-   "performer": "Glenn Gould",
-   "album": "Bach: The Two and Three Part Inventions, BWV 772-801",
-   "spotify_album_uri": "spotify:album:42SxOjm6223yaSs0vH9Um6",
-   "instrumentation": "piano",
-   "approx_minutes": 48,
-   "reason": "last heard 32d ago · avoided chamber",
-   "fallback": {
-    "work_key": "ARR-WTC-CONSORT-I",
-    "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
-    "performer": "Phantasm",
-    "album": "Bach: The Well-Tempered Consort – I",
-    "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-09",
-   "work_key": "ARR-WTC-CONSORT-I",
-   "work": "The Well-Tempered Consort I (WTC preludes & fugues arr. viol consort)",
-   "performer": "Phantasm",
-   "album": "Bach: The Well-Tempered Consort – I",
-   "spotify_album_uri": "spotify:album:5z2Hm1b46gfkiuPyARwmNA",
-   "instrumentation": "viol_consort",
-   "approx_minutes": 70,
-   "reason": "last heard 25d ago · avoided piano",
-   "fallback": {
-    "work_key": "BWV525-530",
-    "work": "Six Trio Sonatas (chamber arrangement)",
-    "performer": "London Baroque",
-    "album": "Bach, J.S.: Trio Sonatas, BWV 525-530",
-    "spotify_album_uri": "spotify:album:23BryN671pRG2CRHHhXORG"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-10",
-   "work_key": "BWV812-815",
-   "work": "French Suites Nos. 1-4",
-   "performer": "Glenn Gould",
-   "album": "Bach: The French Suites Nos. 1-4, BWV 812-815 (Gould Remastered)",
-   "spotify_album_uri": "spotify:album:20ethwi62B10TqVmmpurNh",
-   "instrumentation": "piano",
-   "approx_minutes": 47,
-   "reason": "last heard 45d ago · avoided viol_consort",
-   "fallback": {
-    "work_key": "BWV525-530",
-    "work": "Six Trio Sonatas (chamber arrangement)",
-    "performer": "London Baroque",
-    "album": "Bach, J.S.: Trio Sonatas, BWV 525-530",
-    "spotify_album_uri": "spotify:album:23BryN671pRG2CRHHhXORG"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-11",
-   "work_key": "BWV525-530",
-   "work": "Six Trio Sonatas (chamber arrangement)",
-   "performer": "London Baroque",
-   "album": "Bach, J.S.: Trio Sonatas, BWV 525-530",
-   "spotify_album_uri": "spotify:album:23BryN671pRG2CRHHhXORG",
-   "instrumentation": "chamber",
-   "approx_minutes": 80,
-   "reason": "last heard 31d ago · avoided piano",
-   "fallback": {
-    "work_key": "ARR-ALIO-MODO",
-    "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
-    "performer": "Fretwork",
-    "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
-    "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-12",
-   "work_key": "BWV971+972-987sel",
-   "work": "Italian Concerto & Italian concerto transcriptions (solo keyboard)",
-   "performer": "Alexandre Tharaud",
-   "album": "Bach: Concertos Italiens",
-   "spotify_album_uri": "spotify:album:1jFNj8WHVogxoL0ZgYhfOU",
-   "instrumentation": "piano",
-   "approx_minutes": 70,
-   "reason": "last heard 31d ago · avoided chamber",
-   "fallback": {
-    "work_key": "ARR-ALIO-MODO",
-    "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
-    "performer": "Fretwork",
-    "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
-    "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-13",
-   "work_key": "BWV1004-1006",
-   "work": "Violin Partitas Nos. 2 & 3, Sonata No. 3",
-   "performer": "Hilary Hahn",
-   "album": "Hilary Hahn Plays Bach",
-   "spotify_album_uri": "spotify:album:2GLJLkriVbdfDi5W5e3LJM",
-   "instrumentation": "violin",
-   "approx_minutes": 72,
-   "reason": "last heard 21d ago · avoided piano",
-   "fallback": {
-    "work_key": "BWV1079",
-    "work": "Musical Offering",
-    "performer": "Ricercar Consort",
-    "album": "Bach, J.S.: Musical Offering",
-    "spotify_album_uri": "spotify:album:1x4ZMf6zu9vpHwAZyTkoGB"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
-   "pick_date": "2026-11-14",
-   "work_key": "ARR-ALIO-MODO",
-   "work": "Alio modo: Passacaglia & other keyboard works arr. viols",
-   "performer": "Fretwork",
-   "album": "J.S. Bach: Alio modo - \"Passacaglia\" & Other Keyboard Works",
-   "spotify_album_uri": "spotify:album:7sBbqkboJbgo0O7Tr9hYzY",
-   "instrumentation": "viol_consort",
-   "approx_minutes": 65,
-   "reason": "last heard 25d ago",
-   "fallback": {
-    "work_key": "BWV825-830",
-    "work": "Six Partitas",
-    "performer": "Schaghajegh Nosrati",
-    "album": "Bach: Partitas, BWV 825-830",
-    "spotify_album_uri": "spotify:album:7G4SER0hlDv7APJrgIuYEh"
-   }
-  },
-  {
-   "picked_at": "2026-11-08T11:39:58.704Z",
+   "picked_at": "2026-11-15T12:11:53.771Z",
    "pick_date": "2026-11-15",
    "work_key": "BWV996-998",
    "work": "Lute Suites BWV 996 & 997; Prelude, Fugue & Allegro BWV 998 (guitar)",
@@ -164,6 +31,139 @@
    "instrumentation": "lute_guitar",
    "approx_minutes": 62,
    "reason": "last heard 21d ago",
+   "fallback": {
+    "work_key": "ARR-OLAFSSON",
+    "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
+    "performer": "Víkingur Ólafsson",
+    "album": "Johann Sebastian Bach",
+    "spotify_album_uri": "spotify:album:55XdhiY6nd3iij8msqiagR"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-16",
+   "work_key": "ARR-BACH-TRIOS",
+   "work": "Bach Trios (mandolin/bass/cello arrangements)",
+   "performer": "Yo-Yo Ma, Chris Thile & Edgar Meyer",
+   "album": "Bach Trios",
+   "spotify_album_uri": "spotify:album:5SbylfazVixJi7hahuuzvH",
+   "instrumentation": "chamber",
+   "approx_minutes": 72,
+   "reason": "last heard 29d ago",
+   "fallback": {
+    "work_key": "ARR-OLAFSSON",
+    "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
+    "performer": "Víkingur Ólafsson",
+    "album": "Johann Sebastian Bach",
+    "spotify_album_uri": "spotify:album:55XdhiY6nd3iij8msqiagR"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-17",
+   "work_key": "BWV1007-1012",
+   "work": "Six Cello Suites",
+   "performer": "Yo-Yo Ma",
+   "album": "Six Evolutions - Bach: Cello Suites",
+   "spotify_album_uri": "spotify:album:6XaCGjrIRFiS5D5IVg66vb",
+   "instrumentation": "cello",
+   "approx_minutes": 150,
+   "reason": "last heard 21d ago · avoided chamber",
+   "fallback": {
+    "work_key": "BWV816-817+831",
+    "work": "French Suites Nos. 5 & 6; Overture in the French Style",
+    "performer": "Glenn Gould",
+    "album": "Bach: The French Suites Nos. 5 & 6, BWV 816 & 817; Overture in the French Style, BWV 831",
+    "spotify_album_uri": "spotify:album:1mtWt3qH4K6QQgvDJMEUP1"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-18",
+   "work_key": "BWV825-830",
+   "work": "Six Partitas",
+   "performer": "Schaghajegh Nosrati",
+   "album": "Bach: Partitas, BWV 825-830",
+   "spotify_album_uri": "spotify:album:7G4SER0hlDv7APJrgIuYEh",
+   "instrumentation": "piano",
+   "approx_minutes": 150,
+   "reason": "last heard 32d ago",
+   "fallback": {
+    "work_key": "BWV1014-1019-vol2",
+    "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+    "performer": "Rachel Podger & Trevor Pinnock",
+    "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+    "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-19",
+   "work_key": "ARR-WTC-CONSORT-II",
+   "work": "The Well-Tempered Consort II",
+   "performer": "Phantasm",
+   "album": "J.S. Bach: The Well-Tempered Consort – II",
+   "spotify_album_uri": "spotify:album:0nyemZZyCYms3uqM4tZufg",
+   "instrumentation": "viol_consort",
+   "approx_minutes": 65,
+   "reason": "last heard 24d ago · avoided piano",
+   "fallback": {
+    "work_key": "BWV1027-1029",
+    "work": "Sonatas for Viola da gamba & Harpsichord",
+    "performer": "Jordi Savall & Ton Koopman",
+    "album": "Bach: Sonatas for Viola da gamba und Cembalo",
+    "spotify_album_uri": "spotify:album:3tLlsEPZy5PIxrvPJg6EgF"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-20",
+   "work_key": "ARR-MARIMBA-KUNIKO",
+   "work": "Solo works for marimba (cello suites & violin sonatas, arr.)",
+   "performer": "Kuniko",
+   "album": "J.S. Bach: Solo Works for Marimba",
+   "spotify_album_uri": "spotify:album:420JwWHv6c9rwa5IDRNHWy",
+   "instrumentation": "marimba_other",
+   "approx_minutes": 100,
+   "reason": "last heard 21d ago",
+   "fallback": {
+    "work_key": "BWV1014-1019-vol2",
+    "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+    "performer": "Rachel Podger & Trevor Pinnock",
+    "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+    "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-21",
+   "work_key": "BWV1014-1019-vol2",
+   "work": "Sonatas for Violin & Obbligato Harpsichord, Vol. 2 (remaining three)",
+   "performer": "Rachel Podger & Trevor Pinnock",
+   "album": "Bach: Sonatas for Violin and Obbligato Harpsichord, Vol. 2",
+   "spotify_album_uri": "spotify:album:7qksqw5O7ibzJJGuModlnn",
+   "instrumentation": "chamber",
+   "approx_minutes": 71,
+   "reason": "last heard 36d ago",
+   "fallback": {
+    "work_key": "ARR-OLAFSSON",
+    "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
+    "performer": "Víkingur Ólafsson",
+    "album": "Johann Sebastian Bach",
+    "spotify_album_uri": "spotify:album:55XdhiY6nd3iij8msqiagR"
+   }
+  },
+  {
+   "picked_at": "2026-11-15T12:11:53.771Z",
+   "pick_date": "2026-11-22",
+   "work_key": "BWV806-811",
+   "work": "English Suites",
+   "performer": "Masaaki Suzuki",
+   "album": "J.S. Bach: English Suites",
+   "spotify_album_uri": "spotify:album:4MD3pkefNWFJlKZWOvJrjb",
+   "instrumentation": "harpsichord",
+   "approx_minutes": 150,
+   "reason": "last heard 21d ago · avoided chamber",
    "fallback": {
     "work_key": "ARR-OLAFSSON",
     "work": "Víkingur Ólafsson Bach recital (short works & transcriptions)",
