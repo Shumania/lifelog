@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Katie Gregson-MacLeod)",
+  "description": "Updated weekly. (Photo: Snoh Aalegra)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000d72c74483336fb5eda39440a9534",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da843e5f5c784c5282b70fab6bea",
   "followers_total": 84760,
-  "tracks_total": 34,
+  "tracks_total": 27,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-11-06T14:32:21Z"
+  "last_modified": "2026-11-13T13:35:09Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -2158,5 +2158,17 @@
   "tracks_total": 25,
   "created_approx": "2026-11-01T19:20:16Z",
   "last_modified": "2026-11-01T19:20:16Z"
+ },
+ {
+  "id": "1fp9SPTcjUjGz8axgdRdhD",
+  "name": "Golden Apples — Nov 14",
+  "description": "American underground folk, 2004–2012 — the circle Devendra Banhart drew in Golden Apples of the Sun: Vetiver, Espers, CocoRosie, Antony, the elders they brought back (Vashti, Perhacs, Hurley, Jansch), and where the hush went next.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e02031c73667e732e3e208a6328ab67616d00001e02221488700ce99f86021ae887ab67616d00001e02bfd220c3d4d429cd449335b2ab67616d00001e02e07d465c85c2c21456366728",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-11-14T11:29:40Z",
+  "last_modified": "2026-11-14T11:29:40Z"
  }
 ]
