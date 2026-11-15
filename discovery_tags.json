@@ -1,6 +1,6 @@
 {
- "version": 2,
- "generated_at": "2026-11-11T01:44:30Z",
+ "version": 3,
+ "generated_at": "2026-11-15T20:49:58Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,21 +37,21 @@
   }
  },
  "counts": {
-  "cards": 151,
+  "cards": 152,
   "moods": {
    "mellow": 58,
-   "upbeat": 43,
+   "upbeat": 44,
    "loud": 9,
    "heady": 26,
    "atmospheric": 15
   },
   "genres": {
-   "jazz": 32,
+   "jazz": 33,
    "rock_indie": 45,
    "soul_rnb_hiphop": 32,
    "folk_country_americana": 18,
    "electronic": 24,
-   "global": 18,
+   "global": 19,
    "classical": 20,
    "pop": 8
   }
@@ -1933,6 +1933,20 @@
     "free folk",
     "new weird america",
     "celtic harp"
+   ],
+   "src": "explore-run"
+  },
+  "296": {
+   "g": [
+    "jazz",
+    "global"
+   ],
+   "m": "upbeat",
+   "s": [
+    "jazz fusion",
+    "city pop",
+    "jazz-funk",
+    "samba"
    ],
    "src": "explore-run"
   }
