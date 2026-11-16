@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.71.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.72.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -1259,12 +1259,15 @@ _CMD_RESULTS_MAX = 50  # v2.48: 20 -> 50 so command bursts survive until the deb
 _command_results = deque(maxlen=_CMD_RESULTS_MAX)
 _command_results_lock = threading.Lock()
 
-def record_command_result(action, success, message, cmd_ts=None, detail=None, queue_op=None):
+def record_command_result(action, success, message, cmd_ts=None, detail=None, queue_op=None, shortcut=None):
     """Append a structured command outcome to the ring buffer.
     v2.58 A7: queue_op (optional dict) carries coordinator / group_members /
     transport_state / queue_before / queue_after / pos_landed / converted_from
     for queue-affecting verbs, so heartbeat command_results are self-describing
-    about WHOSE queue was touched (silent verbs never POST a full result)."""
+    about WHOSE queue was touched (silent verbs never POST a full result).
+    v2.72: shortcut (optional dict) is the run_shortcut PARENT summary --
+    {shortcut_id,label,origin,steps[],rooms_played[],elapsed_s,stale_data} --
+    read by the webhook handler for its one-line '📱 Shortcuts app · …' report."""
     entry = {
         "action": action,
         "status": "ok" if success else "error",
@@ -1277,6 +1280,8 @@ def record_command_result(action, success, message, cmd_ts=None, detail=None, qu
         entry["detail"] = detail
     if queue_op:
         entry["queue_op"] = queue_op
+    if shortcut:
+        entry["shortcut"] = shortcut
     # v2.58 A4 FIX (lost clear_queue result, 2026-08-04 03:12Z): seq is assigned
     # AND the entry appended under ONE _delta_lock hold, so build_delta_fields
     # (which snapshots counters + deque under the same lock) can never observe a
@@ -4554,9 +4559,357 @@ def _queue_mutation_timeout(seconds=QUEUE_MUTATION_TIMEOUT_S):
 
 # v2.54: sync_rooms is now silent — its result travels over SSE only (see the
 # sync_rooms branch). It stays in NON_STATE_ACTIONS (no debounced heartbeat).
-SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue", "run_extract", "move_music"}
+SILENT_ACTIONS = {"volume_up", "volume_down", "set_volume", "volume", "resume", "play_resume", "next", "previous", "pause", "update_check", "get_logs", "flush", "toggle_mute", "cycle_repeat", "set_shuffle", "play_next", "add_to_queue", "play_radio", "play_album", "sync_rooms", "replace_queue", "truncate_queue", "run_extract", "move_music", "run_shortcut"}
 # v2.48: reads/meta actions that do NOT change playback state -> no debounced heartbeat
 NON_STATE_ACTIONS = {"update_check", "get_logs", "get_volume", "get_status", "flush", "restart", "sync_rooms", "run_extract"}
+
+# --- VOLUME CEILING (v2.72 hardening rider, design_shortcuts_app_v1.md §8) --------
+# More clients can now send commands (Apple Shortcuts on phone + Watch, Siri
+# path, the page, the agent). A fat-fingered or replayed "set_volume 100" must
+# not be able to blast a room: every commanded absolute/relative volume is
+# clamped to VOLUME_CEILING. Observed telemetry max in OUR rooms is 46 (Cap Hill
+# Kitchen) and the loudest room default is 39 (Main Lower Deck), so 70 never
+# touches legitimate use. Raising it is a release, by design (no override key:
+# an override key is exactly what a blunder would carry). Clamps are logged and
+# echoed in the result message so the sender sees the truth.
+VOLUME_CEILING = 70
+def _clamp_volume(v, room=""):
+    """Return (clamped_int, note). note is '' when nothing was clamped."""
+    try:
+        v = int(v)
+    except Exception:
+        v = 20
+    if v > VOLUME_CEILING:
+        log(f"[vol-ceiling v2.72] {room or '?'}: requested {v} clamped to {VOLUME_CEILING}")
+        return VOLUME_CEILING, f" (clamped from {v}; ceiling {VOLUME_CEILING})"
+    return max(0, v), ""
+
+# --- SHORTCUT ENGINE (v2.72, design_shortcuts_app_v1.md §3; Andrew OK 2026-11-15) ----
+# One expansion engine for Shortcuts-tab tiles, IN THE SERVICE. Every client --
+# Apple Shortcuts on phone/Watch (shortcuts_menu.json), the page (Phase 2), the
+# agent (send_cmd.ts --action run_shortcut) -- sends ONE command:
+#   {"action":"run_shortcut","shortcut_id":"daily-bach-shedarc","origin":"apple_shortcuts","cmd_ts":"..."}
+# and the engine expands the tile's declarative steps from the PUBLISHED
+# shortcuts.json exactly the way the page's runShortcut/_scExpandStep did
+# (index_v181.html p3.11-p3.47), then executes each step IN-PROCESS through
+# execute_command() -- same verbs, same code paths (_find_coordinator,
+# _setup_rooms, prov stamps, repeat default, SSE pushes); every child still
+# lands its own command_results entry, so the audit trail is unchanged.
+# WHY the move: a one-POST run has no browser flow to suspend (2026-10-06: iOS
+# backgrounded the page mid-tile -> 2 min 19 s gap between steps), and a new
+# tile / default / daily pick needs ZERO client edits (tap time = pure data).
+# Parity contract (design §3.3): resolvers each_room (live device cache, same
+# source as rooms_all), bach_pick / garage_pick (fresh fetch, honest-stale),
+# group_of (live groups), selection (rooms supplied by the client);
+# newest_playlist deliberately UNSUPPORTED (no tile uses it; fail loudly).
+# D10/D11 volume inheritance is identical to the page; D6 (Andrew 2026-11-15)
+# is the one upgrade: after a sync_rooms step the engine applies defaults to
+# EVERY room of the formed group, not just the play step's lead room.
+# Runs on a worker thread (precedent: update_check/restart) so the 6 s settle
+# sleeps never block the ntfy listener -- a volume tap mid-shortcut still runs
+# instantly. One shortcut at a time per machine (_sc_running, service twin of
+# the page's _scBusy); a second tap mid-run gets an immediate "still running"
+# error, nothing is queued. Rule 11 release: the marker clears when the worker
+# ends, and a marker older than _SC_RUN_TTL_S is treated as dead.
+# The PARENT result is recorded AT COMPLETION (not at accept) so the debounced
+# heartbeat carries the final truth: "3/3 ok . sync_rooms ... . replace_queue ...".
+_SHORTCUTS_URL   = "https://shumania.github.io/lifelog/shortcuts.json"
+_BACH_PICK_URL   = "https://shumania.github.io/lifelog/bach_pick.json"
+_GARAGE_PICK_URL = "https://shumania.github.io/lifelog/garage_pick.json"
+_SC_STALE_MAX_S  = 24 * 3600   # last-good shortcuts.json usable this long after a failed fetch
+_SC_RUN_TTL_S    = 180         # Rule 11: a 'running' marker older than this is dead (worker crashed hard)
+_SC_STEP_GAP_S   = 0.4         # page parity: 400 ms between sends
+_sc_last_good    = {"data": None, "at": 0.0}
+_sc_running      = None        # {"id","label","started_at"} while a worker runs
+_sc_lock         = threading.Lock()
+
+def _sc_fetch_shortcuts():
+    """Fresh fetch of shortcuts.json (6 s). Returns (data, stale). On failure
+    falls back to the last-good in-memory copy if < 24 h old (stale=True);
+    no usable copy -> (None, False)."""
+    try:
+        r = requests.get(_SHORTCUTS_URL, params={"t": int(time.time())}, timeout=6)
+        r.raise_for_status()
+        d = r.json()
+        if not isinstance(d, dict) or not isinstance(d.get("shortcuts"), list):
+            raise ValueError("shortcuts.json has no shortcuts[] list")
+        _sc_last_good["data"] = d
+        _sc_last_good["at"] = time.time()
+        return d, False
+    except Exception as e:
+        age = (time.time() - _sc_last_good["at"]) if _sc_last_good["data"] else None
+        if age is not None and age < _SC_STALE_MAX_S:
+            log(f"[run_shortcut] shortcuts.json fetch failed ({e}) -- using last-good copy from {int(age)}s ago (stale_data)")
+            return _sc_last_good["data"], True
+        log(f"[run_shortcut] shortcuts.json fetch failed ({e}) and no usable last-good copy")
+        return None, False
+
+def _sc_select_day_pick(file, label):
+    """Port of the page's _selectDayPick (p3.51): weekly pick files carry a
+    `week` array of per-day picks; use the latest entry whose pick_date <= today
+    (Seattle). A late/failed week leaves the last scheduled day playing --
+    honest-stale beats silence (Rule 27). No `week` = legacy single-pick file."""
+    if not isinstance(file, dict):
+        return file
+    week = file.get("week")
+    if not isinstance(week, list) or not week:
+        return file
+    try:
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+    except Exception:
+        today = datetime.now().strftime("%Y-%m-%d")
+    best = None
+    for p in week:
+        if not isinstance(p, dict) or not p.get("pick_date"):
+            continue
+        if p["pick_date"] <= today and (best is None or p["pick_date"] > best["pick_date"]):
+            best = p
+    if best is None:
+        best = week[0]
+    stale = ""
+    if str(best.get("pick_date", today)) < today:
+        stale = f" (STALE: last scheduled day {best.get('pick_date')}, no pick for {today})"
+    log(f"[run_shortcut] {label} week file {file.get('week_start','?')}->{file.get('week_end','?')} ({len(week)} days) -> today {today} uses {best.get('pick_date')}{stale}")
+    return best
+
+def _sc_fetch_pick(url, label):
+    """Fresh fetch of a weekly pick file at run time (page parity: a day-old
+    file still plays). Returns today's pick dict or None."""
+    try:
+        r = requests.get(url, params={"t": int(time.time())}, timeout=6)
+        r.raise_for_status()
+        return _sc_select_day_pick(r.json(), label)
+    except Exception as e:
+        log(f"[run_shortcut] {label} fetch failed: {e}")
+        return None
+
+def _sc_expand_step(step, cmd, devices):
+    """Port of _scExpandStep: one declarative step -> 1..N concrete payloads.
+    Pure data in, payloads out. ANY resolution failure RAISES (never sends)."""
+    s = json.loads(json.dumps(step))
+    resolve = s.pop("resolve", None)
+    s.pop("delay_after_ms", None)
+    if not resolve:
+        return [s]
+    known = ("each_room", "newest_playlist", "group_of", "bach_pick", "garage_pick", "selection")
+    unknown = [k for k in resolve if k not in known]
+    if unknown:
+        raise RuntimeError(f"unknown resolver(s): {', '.join(unknown)} -- engine needs a release")
+    if resolve.get("selection"):
+        # Client supplies the rooms (the page's chips / a wrist pick). rooms[0] is
+        # the primary; play_uri never regroups (B2), so a selection spanning two
+        # groups plays on the first room's live group.
+        rooms = cmd.get("rooms") or []
+        if isinstance(rooms, str):
+            rooms = [rooms]
+        rooms = [r for r in rooms if r]
+        if not rooms:
+            raise RuntimeError("selection tile needs rooms")
+        missing = [r for r in rooms if r not in devices]
+        if missing:
+            raise RuntimeError(f"selection rooms not found on this machine: {', '.join(missing)}")
+        s["rooms"] = rooms
+        s["room"] = rooms[0]
+        log(f"[run_shortcut] selection -> [{', '.join(rooms)}] (primary {rooms[0]})")
+    if resolve.get("each_room"):
+        # One send per room on this machine, from the LIVE device cache (the same
+        # keys the heartbeat publishes as rooms_all -- strictly fresher than the
+        # state file the page read).
+        rooms = sorted(devices.keys())
+        if not rooms:
+            raise RuntimeError("no rooms known on this machine (device cache empty)")
+        log(f"[run_shortcut] each_room -> {len(rooms)} rooms: {', '.join(rooms)}")
+        return [dict(s, room=rm) for rm in rooms]
+    if resolve.get("bach_pick"):
+        pick = _sc_fetch_pick(_BACH_PICK_URL, "bach_pick")
+        if not pick or not pick.get("spotify_album_uri"):
+            raise RuntimeError("bach_pick.json unavailable -- no pick to play")
+        s["uri"] = pick["spotify_album_uri"]
+        if not s.get("title"):
+            s["title"] = pick.get("work", "")
+        if not s.get("artist"):
+            s["artist"] = pick.get("performer", "")
+        s["_pick_label"] = f"{pick.get('work','?')} -- {pick.get('performer','?')}"
+        log(f"[run_shortcut] bach_pick({pick.get('pick_date')}) -> \"{pick.get('work')}\" -- {pick.get('performer')} ({s['uri']})")
+    if resolve.get("garage_pick"):
+        pick = _sc_fetch_pick(_GARAGE_PICK_URL, "garage_pick")
+        if not pick or not pick.get("playlist_uri"):
+            raise RuntimeError("garage_pick.json unavailable -- no mix to play")
+        s["uri"] = pick["playlist_uri"]
+        if not s.get("title"):
+            s["title"] = pick.get("name", "")
+        s["_pick_label"] = str(pick.get("name", "?"))
+        log(f"[run_shortcut] garage_pick({pick.get('pick_date')}) -> \"{pick.get('name')}\" ({s['uri']})")
+    if resolve.get("newest_playlist"):
+        raise RuntimeError("resolver newest_playlist unsupported in engine (no tile uses it; port on first need)")
+    if resolve.get("group_of"):
+        # Target room's FULL live group, coordinator first (never silently ungroup).
+        anchor = resolve["group_of"]
+        rooms = [anchor]
+        try:
+            for g in (_fresh_groups_snapshot(devices) or []):
+                if anchor in (g.get("members") or []):
+                    rooms = [g["coordinator"]] + [m for m in g["members"] if m != g["coordinator"]]
+                    break
+        except Exception as _ge:
+            log(f"[run_shortcut] group_of({anchor}) live lookup failed ({_ge}); using the room alone")
+        s["rooms"] = rooms
+        log(f"[run_shortcut] group_of({anchor}) -> [{', '.join(rooms)}]")
+    if s.get("action") == "replace_queue" and not s.get("room") and s.get("rooms"):
+        s["room"] = s["rooms"][0]
+    return [s]
+
+def _sc_child(payload, parent_cmd, sc_id):
+    """Run one expanded step in-process. Returns execute_command's result dict
+    (success/message) -- the child records its own command_results entry."""
+    p = dict(payload)
+    p.pop("_pick_label", None)
+    p["cmd_ts"] = parent_cmd.get("cmd_ts") or now_iso()   # Rule 22 lineage: children share the parent's stamp
+    p["shortcut_id"] = sc_id                                # provenance breadcrumb (page parity)
+    if parent_cmd.get("target_client_id"):                  # a targeted parent keeps its children on this machine
+        p["target_client_id"] = parent_cmd["target_client_id"]
+    r = execute_command(p, source=f"shortcut:{sc_id}")
+    if not isinstance(r, dict):
+        return {"success": False, "message": "no result (command skipped or not addressed to this machine)"}
+    return r
+
+def _sc_short_room(name):
+    return re.sub(r"^Main ", "", str(name))
+
+def _sc_worker(cmd, tile, data, stale):
+    """The run itself. Mirrors runShortcut step-for-step; stops at first failure;
+    records the PARENT command_results entry at completion; publishes SSE
+    shortcut_result; schedules the debounced heartbeat (the confirmation path
+    every tile already uses)."""
+    global _sc_running
+    sc_id   = tile.get("id", "?")
+    label   = tile.get("label", sc_id)
+    origin  = str(cmd.get("origin") or "unknown")[:40]
+    steps   = tile.get("steps") or []
+    t0      = time.time()
+    step_log, rooms_played, group_rooms = [], [], []
+    ok_steps = 0
+    status, fail_msg = "ok", ""
+    inherit = tile.get("inherit_volume") is not False
+    vol_defaults, vol_fallback = {}, 18
+    try:
+        d = (data or {}).get("defaults") or {}
+        vol_defaults = d.get("volume_by_room") or {}
+        vol_fallback = int(d.get("volume_fallback") or 18)
+    except Exception:
+        pass
+    # D10: rooms with an explicit set_volume step keep it (= deliberate override);
+    # an each_room volume loop covers everything.
+    explicit_vol_rooms, vol_covers_all = set(), False
+    for st0 in steps:
+        if st0.get("action") != "set_volume":
+            continue
+        if (st0.get("resolve") or {}).get("each_room"):
+            vol_covers_all = True
+        if st0.get("room"):
+            explicit_vol_rooms.add(st0["room"])
+    vol_injected = set()
+
+    def _inherit_for(rooms, why):
+        """D10/D11 + D6: set_volume(default) for each named room not yet handled."""
+        nonlocal ok_steps
+        for rm in rooms:
+            if not rm or vol_covers_all or rm in explicit_vol_rooms or rm in vol_injected:
+                continue
+            vol = vol_defaults.get(rm, vol_fallback)
+            src = "room default" if rm in vol_defaults else "fallback"
+            log(f"[run_shortcut] D10 inherit ({why}): set_volume {rm} -> {vol} ({src})")
+            r = _sc_child({"action": "set_volume", "room": rm, "volume": vol, "inherited_default": True}, cmd, sc_id)
+            step_log.append({"action": "set_volume", "status": "ok" if r.get("success") else "error", "message": r.get("message", "")})
+            if not r.get("success"):
+                raise RuntimeError(f"inherited set_volume -> {rm}: {r.get('message')}")
+            ok_steps += 1
+            vol_injected.add(rm)
+            time.sleep(_SC_STEP_GAP_S)
+
+    try:
+        log(f"[run_shortcut] ===== RUN \"{label}\" ({sc_id}) origin={origin} steps={len(steps)} file v{(data or {}).get('version','?')}{' STALE-FILE' if stale else ''}{' inherit_volume=false' if not inherit else ''} =====")
+        devices = current_devices_by_name
+        for i, step in enumerate(steps):
+            payloads = _sc_expand_step(step, cmd, devices)
+            log(f"[run_shortcut] step {i+1}/{len(steps)} ({step.get('action')}) -> {len(payloads)} send(s)")
+            for p in payloads:
+                act = str(p.get("action", ""))
+                is_play = act.startswith("play") or act == "replace_queue"
+                targets = p.get("rooms") or ([p["room"]] if p.get("room") else [])
+                if inherit and is_play:
+                    # D6: a preceding sync_rooms formed a group -> every member gets its
+                    # default, not only the lead room the play step names.
+                    _inherit_for(list(group_rooms) + [t for t in targets if t not in group_rooms], "play-class step")
+                r = _sc_child(p, cmd, sc_id)
+                pick = p.get("_pick_label")
+                msg = r.get("message", "")
+                step_log.append({"action": act, "status": "ok" if r.get("success") else "error", "message": msg})
+                log(f"[run_shortcut] step {i+1}/{len(steps)} {act}{' [' + pick + ']' if pick else ''} -> {'ok' if r.get('success') else 'ERROR'} ({msg})")
+                if not r.get("success"):
+                    raise RuntimeError(f"step {i+1}/{len(steps)} {act}: {msg}")
+                ok_steps += 1
+                if is_play:
+                    for rm in targets:
+                        if rm and rm not in rooms_played:
+                            rooms_played.append(rm)
+                if act == "sync_rooms":
+                    for rm in (p.get("rooms") or []):
+                        if rm and rm not in group_rooms:
+                            group_rooms.append(rm)
+                time.sleep(_SC_STEP_GAP_S)
+            delay = step.get("delay_after_ms")
+            if delay and i < len(steps) - 1:
+                log(f"[run_shortcut] waiting {int(delay)}ms before next step (settle)")
+                time.sleep(max(0, int(delay)) / 1000.0)
+    except Exception as e:
+        status, fail_msg = "error", str(e)[:300]
+
+    elapsed = round(time.time() - t0, 1)
+    # rooms_played = formed group (coordinator first, as the tile lists it) + play-step rooms
+    footprint = list(group_rooms) + [r for r in rooms_played if r not in group_rooms]
+    parts = []
+    for e in step_log:
+        parts.append(f"{e['action']} {'ok' if e['status']=='ok' else 'ERR'}")
+    summary = f"{ok_steps}/{ok_steps if status=='ok' else ok_steps+1} ok . " + " . ".join(parts) if parts else "0 steps"
+    if status == "ok":
+        message = f"\"{label}\" ok in {elapsed}s -> {' + '.join(_sc_short_room(r) for r in footprint) or 'no rooms'} . {summary}"
+        log(f"[run_shortcut] ===== DONE \"{label}\" {elapsed}s rooms_played={footprint} =====")
+    else:
+        message = f"\"{label}\" FAILED after {ok_steps} ok step(s) ({elapsed}s): {fail_msg}"
+        log(f"[run_shortcut] ===== FAILED \"{label}\": {fail_msg} =====")
+        post_error(f"run_shortcut {sc_id} failed: {fail_msg}", context=f"origin={origin} ok_steps={ok_steps} steps={json.dumps(step_log)[:300]}", module="shortcuts")
+    # Parent entry AT COMPLETION (ledger reconciles on cmd_ts + action='run_shortcut').
+    record_command_result(
+        action="run_shortcut", success=(status == "ok"), message=message, cmd_ts=cmd.get("cmd_ts"),
+        detail=sc_id,
+        shortcut={"shortcut_id": sc_id, "label": label, "origin": origin, "steps": step_log,
+                  "rooms_played": footprint, "elapsed_s": elapsed, "stale_data": bool(stale)},
+    )
+    try:
+        publish_ui_event("shortcut_result", {
+            "sc_id": sc_id, "sc_label": label, "sc_success": status == "ok", "sc_rooms_played": footprint,
+            "sc_message": message[:300], "sc_cmd_ts": cmd.get("cmd_ts", ""), "sc_origin": origin,
+        })
+        publish_ui_event("status_update", {})
+        if status != "ok":
+            publish_ui_event("command_error", {"cmd_action": "run_shortcut", "cmd_message": message[:200], "cmd_err_ts": cmd.get("cmd_ts") or now_iso()})
+    except Exception as _se:
+        log(f"[run_shortcut] SSE publish failed: {_se}")
+    try:
+        _schedule_debounced_heartbeat("run_shortcut")
+    except Exception as _de:
+        log(f"[run_shortcut] debounce-hb scheduling failed: {_de}")
+    with _sc_lock:
+        if _sc_running and _sc_running.get("id") == sc_id:
+            _sc_running = None
+
+def _sc_menu_ids(data):
+    try:
+        return [t.get("id") for t in (data or {}).get("shortcuts", []) if t.get("id")]
+    except Exception:
+        return []
 
 def execute_command(cmd, source="unknown"):
     action = cmd.get("action", "")
@@ -4565,7 +4918,7 @@ def execute_command(cmd, source="unknown"):
         return
 
     # Track command for diagnostics
-    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count, last_post_ts, current_devices_by_name
+    global _last_command_at, _last_command_action, _last_command_source, _commands_received_count, last_post_ts, current_devices_by_name, _sc_running
     _last_command_at = time.time()
     _last_command_action = action
     _last_command_source = source
@@ -4684,6 +5037,52 @@ def execute_command(cmd, source="unknown"):
             publish_ui_event("status_update", {})
             result["success"] = True
             result["message"] = "SSE push queued"
+
+        elif action == "run_shortcut":
+            # v2.72 SHORTCUT ENGINE (see the block above SILENT_ACTIONS). Validate
+            # synchronously (unknown id / wrong house / selection without rooms /
+            # busy) so those fail with a normal error result + post_error; a valid
+            # tile is handed to a worker thread and this call RETURNS EARLY -- the
+            # worker records the parent command_results entry AT COMPLETION so the
+            # heartbeat carries the final truth instead of an "accepted" stub.
+            sc_id = str(cmd.get("shortcut_id") or "").strip()
+            data, stale = _sc_fetch_shortcuts()
+            tile = None
+            if not sc_id:
+                result["message"] = "run_shortcut needs shortcut_id"
+            elif not data:
+                result["message"] = "shortcuts.json unavailable (fetch failed, no last-good copy)"
+            else:
+                tile = next((t for t in data.get("shortcuts", []) if t.get("id") == sc_id), None)
+                if not tile:
+                    result["message"] = f"unknown shortcut_id '{sc_id}' (file v{data.get('version','?')} has: {', '.join(_sc_menu_ids(data))})"
+                    tile = None
+                elif tile.get("target") != "selection" and tile.get("house") and tile.get("house") != house:
+                    result["message"] = f"tile '{sc_id}' belongs to {tile.get('house')}; this is {house}"
+                    tile = None
+                elif tile.get("target") == "selection" and not cmd.get("rooms"):
+                    result["message"] = f"selection tile '{sc_id}' needs rooms"
+                    tile = None
+            if tile is not None:
+                with _sc_lock:
+                    running = _sc_running
+                    if running and (time.time() - running.get("started_at", 0)) > _SC_RUN_TTL_S:
+                        log(f"[run_shortcut] stale running marker for '{running.get('id')}' ({int(time.time() - running.get('started_at', 0))}s) -- clearing (Rule 11)")
+                        running = None
+                    if running:
+                        result["message"] = f"\"{running.get('label')}\" still running (started {int(time.time() - running.get('started_at', 0))}s ago)"
+                        tile = None
+                    else:
+                        _sc_running = {"id": sc_id, "label": tile.get("label", sc_id), "started_at": time.time()}
+            if tile is None:
+                log(f"[run_shortcut] REJECTED: {result['message']}")
+                post_error(f"run_shortcut rejected: {result['message']}", context=f"origin={cmd.get('origin')} cmd_ts={cmd.get('cmd_ts')}", module="shortcuts")
+            else:
+                result["success"] = True
+                result["message"] = f"accepted \"{tile.get('label', sc_id)}\" ({len(tile.get('steps') or [])} steps) -- running on worker"
+                log(f"[run_shortcut] {result['message']} origin={cmd.get('origin')} cmd_ts={cmd.get('cmd_ts')}")
+                threading.Thread(target=_sc_worker, args=(dict(cmd), tile, data, stale), daemon=True, name=f"shortcut-{sc_id}").start()
+                return result  # early return: the worker records the parent entry at completion
 
         elif action == "run_extract":
             # v2.64: Data-service request (home-bridge/request-run-extract.md) —
@@ -6516,12 +6915,12 @@ def execute_command(cmd, source="unknown"):
 
         elif action in ("set_volume", "volume"):
             room   = cmd.get("room") or (cmd.get("rooms") or [None])[0]
-            volume = int(cmd.get("volume", 20))
+            volume, _clamp_note = _clamp_volume(cmd.get("volume", 20), room)  # v2.72 ceiling
             dev    = devices.get(room)
             if dev:
                 dev.volume = volume
                 result["success"] = True
-                result["message"] = f"Volume -> {volume} in {room}"
+                result["message"] = f"Volume -> {volume} in {room}{_clamp_note}"
             else:
                 result["message"] = f"Room '{room}' not found"
 
@@ -6534,9 +6933,9 @@ def execute_command(cmd, source="unknown"):
                 if dev:
                     if dev.mute:
                         dev.mute = False  # auto-unmute on volume up
-                    new_vol = min(100, dev.volume + step)
+                    new_vol, _cn = _clamp_volume(min(100, dev.volume + step), room)  # v2.72 ceiling
                     dev.volume = new_vol
-                    msgs.append(f"{room} -> {new_vol}")
+                    msgs.append(f"{room} -> {new_vol}{_cn}")
                 else:
                     msgs.append(f"'{room}' not found")
             result["success"] = bool(msgs)
@@ -7124,7 +7523,7 @@ def execute_command(cmd, source="unknown"):
     # then the next flush_buffer() overwrote PENDING_PATH -- permanent history loss.
     if is_silent:
         log(f"Command (silent): {result['message']}")
-        return
+        return result  # v2.72: the shortcut engine reads child outcomes in-process
 
     # Piggyback buffered history on this (non-silent) command result
     # v2.50: wire copy strips internal coalesce fields (_fp etc.); _pig_originals
@@ -7164,6 +7563,7 @@ def execute_command(cmd, source="unknown"):
         if _pig_originals:
             with pending_buffer_lock:
                 pending_buffer[:0] = _pig_originals
+    return result  # v2.72: in-process callers (shortcut engine) read the outcome
 
 # --- SONOS: GITHUB CMD FALLBACK (removed in v2.24) --------------------------
 # poll_commands() and _clear_github_cmd() removed. ntfy is sole command transport.
@@ -7188,6 +7588,7 @@ def ntfy_listener_thread():
     _BACKOFF_MIN_S, _BACKOFF_MAX_S = 2.0, 60.0
     _ntfy_backoff_s = 0.0
     log(f"ntfy listener: topic={ntfy_topic} [reconnect-backoff v2.69: {_BACKOFF_MIN_S:.0f}s->{_BACKOFF_MAX_S:.0f}s on short-lived streams, reset on keepalive/message]")
+    log(f"[run_shortcut v2.72] shortcut engine ready: verb run_shortcut (shortcuts.json fetched fresh per run, last-good fallback {_SC_STALE_MAX_S // 3600}h); volume ceiling {VOLUME_CEILING}")
     while True:
         # Use since=5m so commands sent during restart/reconnect gaps are caught.
         # In-memory dedup (_already_executed) prevents double-execution within same process.
