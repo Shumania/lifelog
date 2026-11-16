@@ -1,4 +1,4 @@
-# mind-power-sleep-diag-v2 (2026-11-16 08:15 PT): READ-ONLY. Mind only. Follow-up to diag-v1: (a) why Mind resumed FROM HIBERNATION on Nov 10 16:02 and today 07:34 (power-button / battery / sleep settings + Kernel-Power sleep reasons), (b) crash-dump + auto-reboot config (why the 07:28 BSOD needed a force restart), (c) display driver, (d) 7-day logon history (did Shumadmin auto sign-in work after the Nov 10/12 boots?). Modifies nothing. Never reads a password. Andrew OK'd troubleshooting reads 07:53 PT.
+# mind-power-sleep-diag-v2 (2026-11-16 08:15 PT, rev b 08:20 PT - em dash removed, ASCII only). READ-ONLY. Mind only. Follow-up to diag-v1: (a) why Mind resumed FROM HIBERNATION on Nov 10 16:02 and today 07:34 (power-button / battery / sleep settings + Kernel-Power sleep reasons), (b) crash-dump + auto-reboot config (why the 07:28 BSOD needed a force restart), (c) display driver, (d) 7-day logon history (did Shumadmin auto sign-in work after the Nov 10/12 boots?). Modifies nothing. Never reads a password. Andrew OK'd troubleshooting reads 07:53 PT.
 $ErrorActionPreference = "Continue"
 if ($env:COMPUTERNAME -ne "MIND") { exit 0 }   # SHUMAFRAME: silent no-op => service skips the webhook post
 $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -117,7 +117,7 @@ if (Budget "logon history") {
         $rows += ("  {0} 4767 UNLOCK  user={1} by={2}" -f $e.TimeCreated.ToString("MM-dd HH:mm:ss"), (ED $e "TargetUserName"), (ED $e "SubjectUserName"))
       }
     }
-    Write-Output ("  {0} relevant rows (of {1} fetched, cap 400) — newest first, max 60" -f $rows.Count, $ev.Count)
+    Write-Output ("  {0} relevant rows (of {1} fetched, cap 400) - newest first, max 60" -f $rows.Count, $ev.Count)
     $rows | Select-Object -First 60 | ForEach-Object { Write-Output $_ }
   } catch { Write-Output "  (logon history failed: $($_.Exception.Message))" }
 }
