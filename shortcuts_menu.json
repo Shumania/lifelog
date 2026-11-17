@@ -1,7 +1,7 @@
 {
   "menu_schema": 1,
-  "source_version": 21,
-  "generated_at": "2026-11-16T01:14:57Z",
+  "source_version": 22,
+  "generated_at": "2026-11-17T01:44:59Z",
   "note": "DERIVED by push_shortcuts.ts from shortcuts.json — never edit by hand. Consumed by the Apple Shortcuts \"LifeLog\" recipe (design_shortcuts_app_v1.md §5.1): Choose from List over `menu` shows the labels and returns {id, house, url}; POST {\"action\":\"run_shortcut\",\"shortcut_id\":id,\"origin\":\"apple_shortcuts\",\"cmd_ts\":<ISO now>} to url with the LifeLog bearer token. Selection tiles and hidden tiles are not listed.",
   "post_body_template": {
     "action": "run_shortcut",
@@ -22,6 +22,11 @@
     },
     "🌲 Vol 1% · all rooms": {
       "id": "vol1-vashon",
+      "house": "vashon",
+      "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
+    },
+    "🌲 Pause all rooms": {
+      "id": "pause-all-vashon",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
@@ -55,6 +60,11 @@
       "house": "caphill",
       "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
     },
+    "🏠 Pause all rooms": {
+      "id": "pause-all-caphill",
+      "house": "caphill",
+      "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
+    },
     "🏠 Bach · Main Floor": {
       "id": "daily-bach-caphill-main",
       "house": "caphill",
@@ -65,12 +75,14 @@
     "🌲 KCRW · Shed Arc": "kcrw-e24-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 KEXP · Deck + Sauna": "kexp-deck-sauna|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 Vol 1% · all rooms": "vol1-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "🌲 Pause all rooms": "pause-all-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 Garage Burn": "daily-garage-burn|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 Bach · Lower Deck": "daily-bach-lowerdeck|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 Bach · Shed Arc": "daily-bach-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🌲 Bach · Main Interior": "daily-bach-vashon-main|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "🏠 KCRW · Main Floor": "kcrw-e24-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
     "🏠 Vol 1% · all rooms": "vol1-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
+    "🏠 Pause all rooms": "pause-all-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
     "🏠 Bach · Main Floor": "daily-bach-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m"
   }
 }
