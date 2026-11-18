@@ -1,6 +1,6 @@
 {
- "version": 3,
- "generated_at": "2026-11-15T20:49:58Z",
+ "version": 4,
+ "generated_at": "2026-11-18T02:40:26Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,20 +37,20 @@
   }
  },
  "counts": {
-  "cards": 152,
+  "cards": 153,
   "moods": {
    "mellow": 58,
    "upbeat": 44,
    "loud": 9,
-   "heady": 26,
+   "heady": 27,
    "atmospheric": 15
   },
   "genres": {
-   "jazz": 33,
+   "jazz": 34,
    "rock_indie": 45,
    "soul_rnb_hiphop": 32,
    "folk_country_americana": 18,
-   "electronic": 24,
+   "electronic": 25,
    "global": 19,
    "classical": 20,
    "pop": 8
@@ -1947,6 +1947,20 @@
     "city pop",
     "jazz-funk",
     "samba"
+   ],
+   "src": "explore-run"
+  },
+  "297": {
+   "g": [
+    "jazz",
+    "electronic"
+   ],
+   "m": "heady",
+   "s": [
+    "experimental jazz",
+    "improvised music",
+    "collage jazz",
+    "ambient jazz"
    ],
    "src": "explore-run"
   }
