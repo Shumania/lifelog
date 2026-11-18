@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.73.0"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.73.1"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -4332,8 +4332,21 @@ def _fresh_groups_snapshot(devices):
 _RECON_SETTLE_CEILING_S = 5.0
 _RECON_SETTLE_POLL_S    = 0.25
 _RECON_UNJOIN_WAIT_S    = 2.0
+_RECON_DELEGATE_TIMEOUT_S = 15.0   # v2.73.1: DelegateGroupCoordinationTo answers only after
+                                   # the hand-off completes (T3 2026-11-18 22:33: 5-s reply
+                                   # timeout while Sonos DID move the music)
 _RECON_PLAYING_STATES   = ("PLAYING", "TRANSITIONING")
 _RECON_MARKER           = "[reconcile v2.73]"   # unique boot/log marker (Rule 24 §3)
+_RECON_DELEGATE_MARKER  = "[delegate v2.73.1]"  # unique v2.73.1 boot/log marker (Rule 24 §3)
+
+def _recon_long_timeout(seconds):
+    """Raise SoCo's global REQUEST_TIMEOUT for one slow-but-legitimate action. Reuses the
+    v2.52 queue-mutation context when the service defines it; no-op in the offline harness."""
+    f = globals().get("_queue_mutation_timeout")
+    if f is None:
+        from contextlib import nullcontext
+        return nullcontext()
+    return f(seconds)
 
 def _recon_clear_cache(dev):
     """Drop SoCo's shared 5-s ZoneGroupState cache so the next .group/.all_groups read
@@ -4693,24 +4706,71 @@ def reconcile(desired, primary_pref=None, audio="keep", cause="", devices=None, 
         xd = devices.get(delegate_from)
         o = _op("delegate", delegate_from, C); t = time.time()
         try:
-            xd.avTransport.DelegateGroupCoordinationTo([
-                ("InstanceID", 0), ("NewCoordinator", cd.uid), ("RejoinGroup", "0")])
+            with _recon_long_timeout(_RECON_DELEGATE_TIMEOUT_S):
+                xd.avTransport.DelegateGroupCoordinationTo([
+                    ("InstanceID", 0), ("NewCoordinator", cd.uid), ("RejoinGroup", "0")])
             _recon_clear_cache(xd)
             o["ok"] = True
             res["delegated_from"] = delegate_from
             _recon_migrate_coord_state(delegate_from, C)
         except Exception as e:
-            o["ok"] = False; o["err"] = str(e)[:160]; all_ok = False
-            res["warnings"].append(f"delegation {delegate_from}->{C} failed; falling back to fresh (C leaves)")
-            unjoin_self = True
-            to_add = [r for r in usable if r != C]
+            err = str(e)[:160]
+            took = time.time() - t
+            # v2.73.1: the reply is NOT the truth, the topology is. T3 (2026-11-18 22:33):
+            # the reply timed out at 5 s while Sonos completed the hand-off; the fresh
+            # fallback then unjoined the NEW coordinator and the music died in both rooms.
+            # A timed-out reply -> poll cache-cleared reads for C as coordinator (ceiling
+            # 5 s). An immediate refusal (UPnP error) -> a 1-s poll (Sonos propagation
+            # lag), then fall back.
+            timed_out = ("timed out" in err.lower()) or (took >= 0.9 * _RECON_DELEGATE_TIMEOUT_S)
+            dl = time.time() + (_RECON_SETTLE_CEILING_S if timed_out else 1.0)
+            confirmed, polls = False, 0
+            while True:
+                polls += 1
+                try:
+                    gx = _recon_read_groups(cd)
+                    if C in gx and C not in gx.get(delegate_from, []):
+                        confirmed = True; break
+                except Exception as re_:
+                    res["warnings"].append(f"post-delegate read failed: {str(re_)[:80]}")
+                if time.time() >= dl:
+                    break
+                time.sleep(_RECON_SETTLE_POLL_S)
+            if confirmed:
+                o["ok"] = True; o["late"] = True
+                o["err"] = f"reply {'timed out' if timed_out else 'failed'} ({err[:60]}); confirmed by topology"
+                res["delegated_from"] = delegate_from
+                _recon_migrate_coord_state(delegate_from, C)
+                res["warnings"].append(f"delegation {delegate_from}->{C} reply {'timed out' if timed_out else 'failed'} "
+                                       f"after {took:.1f}s but took effect (confirmed on read {polls})")
+                log(f"{_RECON_DELEGATE_MARKER} {delegate_from}->{C}: reply lost ({err[:80]}) -- topology confirms the hand-off; no fallback")
+            else:
+                o["ok"] = False; o["err"] = err; all_ok = False
+                res["warnings"].append(f"delegation {delegate_from}->{C} refused ({err[:80]}); falling back to fresh (C leaves)")
+                unjoin_self = True
+                to_add = [r for r in usable if r != C]
         o["ms"] = int((time.time() - t) * 1000)
     if unjoin_self:
         o = _op("unjoin", C); t = time.time()
-        try:
-            cd.unjoin(); o["ok"] = True
-        except Exception as e:
-            o["ok"] = False; o["err"] = str(e)[:160]; all_ok = False
+        # v2.73.1 execution-time R3 guard: after a delegate attempt the pre-read is stale --
+        # if C coordinates anything now, unjoin() would stop its playback (the T3 shape).
+        guard_hit = False
+        if delegate_from:
+            try:
+                gx = _recon_read_groups(cd)
+                if C in gx:
+                    guard_hit = True
+                    o["ok"] = True; o["skipped"] = True
+                    o["err"] = f"R3(exec): '{C}' coordinates {gx[C]} now; unjoin skipped"
+                    res["warnings"].append(f"R3(exec): '{C}' is a coordinator after the delegate attempt; unjoin skipped")
+                    log(f"{_RECON_DELEGATE_MARKER} R3(exec) guard: '{C}' coordinates {gx[C]}; refusing unjoin")
+            except Exception as ge:
+                res["warnings"].append(f"R3(exec) read failed: {str(ge)[:80]}")
+        if not guard_hit:
+            try:
+                cd.unjoin(); o["ok"] = True
+            except Exception as e:
+                o["ok"] = False; o["err"] = str(e)[:160]; all_ok = False
         o["ms"] = int((time.time() - t) * 1000)
     if to_remove:
         def _do_unjoin(room, op):
@@ -8029,6 +8089,7 @@ def sonos_main_loop():
     log(f"Sonos polling every {POLL_INTERVAL}s (v2.24: single-discovery, snapshot-based)")
     log("[vol-reset] daily default-volume sweep armed (v2.66 D10, 04:00 America/Los_Angeles)")  # unique v2.66 boot marker (Rule 24 §3)
     log(f"{_RECON_MARKER} reconciler ready: one planner behind sync_rooms/play-now/move_music/tiles (audio keep|fresh, membership-verified settle <= {_RECON_SETTLE_CEILING_S:.0f}s, unjoin cap {_RECON_UNJOIN_WAIT_S:.0f}s); play-start verification on {len(_PLAY_VERIFY_ACTIONS)} verbs")  # unique v2.73 boot marker (Rule 24 §3)
+    log(f"{_RECON_DELEGATE_MARKER} delegate reply window {_RECON_DELEGATE_TIMEOUT_S:.0f}s; lost reply -> topology-confirmed hand-off (no fresh fallback); R3 exec-time guard before any coordinator unjoin")  # unique v2.73.1 boot marker (Rule 24 §3)
     log("Scanning for Sonos speakers...")
 
     first_run   = True

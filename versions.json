@@ -1,6 +1,6 @@
 {
   "extractor_version": "2.11",
-  "service_version": "2.73.0",
+  "service_version": "2.73.1",
   "clients": {
     "lifelog_mind": "2.71.0",
     "lifelog_shumaframe": "2.71.0"
