@@ -1,7 +1,7 @@
 {
   "menu_schema": 1,
   "source_version": 23,
-  "generated_at": "2026-11-18T22:23:06Z",
+  "generated_at": "2026-11-20T23:32:31Z",
   "note": "DERIVED by push_shortcuts.ts from shortcuts.json — never edit by hand. Consumed by the Apple Shortcuts \"LifeLog\" recipe (design_shortcuts_app_v1.md §5.1): Choose from List over `menu` shows the labels and returns {id, house, url}; POST {\"action\":\"run_shortcut\",\"shortcut_id\":id,\"origin\":\"apple_shortcuts\",\"cmd_ts\":<ISO now>} to url with the LifeLog bearer token. Selection tiles and hidden tiles are not listed.",
   "post_body_template": {
     "action": "run_shortcut",
@@ -10,79 +10,79 @@
     "cmd_ts": "<ISO 8601 now>"
   },
   "menu": {
-    "🌲 KCRW · Shed": {
+    "VASHON · KCRW · Shed": {
       "id": "kcrw-e24-shedarc",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 KEXP · Deck + Sauna": {
+    "VASHON · KEXP · Deck + Sauna": {
       "id": "kexp-deck-sauna",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Vol 1% · all rooms": {
+    "VASHON · Vol 1% · all rooms": {
       "id": "vol1-vashon",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Pause all rooms": {
+    "VASHON · Pause all rooms": {
       "id": "pause-all-vashon",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Garage Burn": {
+    "VASHON · Garage Burn": {
       "id": "daily-garage-burn",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Bach · Lower Deck": {
+    "VASHON · Bach · Lower Deck": {
       "id": "daily-bach-lowerdeck",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Bach · Shed": {
+    "VASHON · Bach · Shed": {
       "id": "daily-bach-shedarc",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🌲 Bach · Main Interior": {
+    "VASHON · Bach · Main Interior": {
       "id": "daily-bach-vashon-main",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
-    "🏠 KCRW · Main Floor": {
+    "CAP HILL · KCRW · Main Floor": {
       "id": "kcrw-e24-caphill-main",
       "house": "caphill",
       "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
     },
-    "🏠 Vol 1% · all rooms": {
+    "CAP HILL · Vol 1% · all rooms": {
       "id": "vol1-caphill",
       "house": "caphill",
       "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
     },
-    "🏠 Pause all rooms": {
+    "CAP HILL · Pause all rooms": {
       "id": "pause-all-caphill",
       "house": "caphill",
       "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
     },
-    "🏠 Bach · Main Floor": {
+    "CAP HILL · Bach · Main Floor": {
       "id": "daily-bach-caphill-main",
       "house": "caphill",
       "url": "https://ntfy.sh/lifelog-cmd-caphill-4x8m"
     }
   },
   "menu_flat": {
-    "🌲 KCRW · Shed": "kcrw-e24-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 KEXP · Deck + Sauna": "kexp-deck-sauna|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Vol 1% · all rooms": "vol1-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Pause all rooms": "pause-all-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Garage Burn": "daily-garage-burn|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Bach · Lower Deck": "daily-bach-lowerdeck|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Bach · Shed": "daily-bach-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🌲 Bach · Main Interior": "daily-bach-vashon-main|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
-    "🏠 KCRW · Main Floor": "kcrw-e24-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
-    "🏠 Vol 1% · all rooms": "vol1-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
-    "🏠 Pause all rooms": "pause-all-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
-    "🏠 Bach · Main Floor": "daily-bach-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m"
+    "VASHON · KCRW · Shed": "kcrw-e24-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · KEXP · Deck + Sauna": "kexp-deck-sauna|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Vol 1% · all rooms": "vol1-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Pause all rooms": "pause-all-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Garage Burn": "daily-garage-burn|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Bach · Lower Deck": "daily-bach-lowerdeck|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Bach · Shed": "daily-bach-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Bach · Main Interior": "daily-bach-vashon-main|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "CAP HILL · KCRW · Main Floor": "kcrw-e24-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
+    "CAP HILL · Vol 1% · all rooms": "vol1-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
+    "CAP HILL · Pause all rooms": "pause-all-caphill|https://ntfy.sh/lifelog-cmd-caphill-4x8m",
+    "CAP HILL · Bach · Main Floor": "daily-bach-caphill-main|https://ntfy.sh/lifelog-cmd-caphill-4x8m"
   }
 }
