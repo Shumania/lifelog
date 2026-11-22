@@ -638,14 +638,14 @@
  {
   "id": "5X8lN5fZSrLnXzFtDEUwb9",
   "name": "NPR Music's New Music Friday",
-  "description": "Updated weekly. (Photo: Snoh Aalegra)",
+  "description": "Updated weekly. (Photo: Lael Neale)",
   "owner": "NPR Music",
   "owner_id": "npr_music",
-  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da843e5f5c784c5282b70fab6bea",
+  "image_url": "https://image-cdn-fa.spotifycdn.com/image/ab67706c0000da84966854240a7c40d9ac820481",
   "followers_total": 84760,
-  "tracks_total": 27,
+  "tracks_total": 25,
   "created_approx": "2026-07-16T20:37:10Z",
-  "last_modified": "2026-11-13T13:35:09Z"
+  "last_modified": "2026-11-20T21:43:10Z"
  },
  {
   "id": "6uhZOJSX9fdJ4ltMK09K7T",
@@ -1493,11 +1493,11 @@
   "description": "",
   "owner": "Andrew Shuman",
   "owner_id": "shuzamin",
-  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0215ecd6926b2b357a546b02fcab67616d00001e027fc4b9bc194cf676554f8f76ab67616d00001e02af96e01c5fffd8c2183df057ab67616d00001e02e7c654cc662add74a197865c",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0208046179412e6e836de6e3deab67616d00001e021af6d89d7ccdb5d83fd7c2a8ab67616d00001e02b18a11a302d8bead0f45985cab67616d00001e02d8a2c79bb4e493c53c18c114",
   "followers_total": 0,
-  "tracks_total": 250,
+  "tracks_total": 259,
   "created_approx": "2017-03-02T17:08:59Z",
-  "last_modified": "2026-11-05T05:36:20Z"
+  "last_modified": "2026-11-20T17:25:17Z"
  },
  {
   "id": "7D7c2aH1Uv8NJslCssJdG8",
@@ -2170,5 +2170,29 @@
   "tracks_total": 22,
   "created_approx": "2026-11-14T11:29:40Z",
   "last_modified": "2026-11-14T11:29:40Z"
+ },
+ {
+  "id": "5m0DANIKZVRy4JLlJFBatV",
+  "name": "The New Standard — Nov 21",
+  "description": "Jazz, 1995–2025 — the alt-rock songbook played as standards: Nirvana, Radiohead, Björk, Pavement, Aphex Twin and Elliott Smith in the hands of Hancock, Mehldau, Moran, The Bad Plus and the generation that grew up on both.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e021a9e76c64201106bb2b13471ab67616d00001e023771106a385b1785abc7b30cab67616d00001e028ebd5f2e53d6a316e9659d4fab67616d00001e02a4c3e2ce4bb985d6c4a28f64",
+  "followers_total": 0,
+  "tracks_total": 20,
+  "created_approx": "2026-11-21T11:32:16Z",
+  "last_modified": "2026-11-21T11:32:16Z"
+ },
+ {
+  "id": "4tNbHYgkjNkanE7PvGsb9B",
+  "name": "Gut Strings II",
+  "description": "Early music on period instruments, the British revival&#x27;s other rooms: Hildegard to Arne, 1150–1760, through 21 ensembles the first Gut Strings didn&#x27;t reach — Gothic Voices, the Hilliard, Parrott&#x27;s Taverner Consort, Phantasm, Deller, Bream, I Fagiolini, the Avison Ensemble. Walked by the music this time, not the players. 22 works, nothing twice.",
+  "owner": "Andrew Shuman",
+  "owner_id": "shuzamin",
+  "image_url": "https://mosaic.scdn.co/640/ab67616d00001e0237b96bc7acf9bc7cd9add478ab67616d00001e028462b497bf976c6316435790ab67616d00001e02ac33beecb4bc0c8882a3ea3eab67616d00001e02fae0808f32b76275bc224fb0",
+  "followers_total": 0,
+  "tracks_total": 22,
+  "created_approx": "2026-11-17T17:29:41Z",
+  "last_modified": "2026-11-17T17:29:41Z"
  }
 ]
