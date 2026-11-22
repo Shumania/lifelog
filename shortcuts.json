@@ -1,6 +1,6 @@
 {
-  "version": 23,
-  "generated_at": "2026-11-18T22:20:09Z",
+  "version": 24,
+  "generated_at": "2026-11-22T16:08:08Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise. v17 (2026-10-03, p3.46): tiles with target:\"selection\" have no house/rooms — they play on the chips selected in the current house (resolve.selection → rooms = selectedRooms[house], room = rooms[0]; play_uri never regroups). inherit_volume:false skips the D10 default-volume injection (B1: leave levels as they are). v19 (2026-10-14): defaults.volume_by_room gains “Sara’s Office” = 12 (new Cap Hill speaker, quiet room; name carries a curly apostrophe U+2019 exactly as Sonos reports it).",
   "shortcuts": [
     {
@@ -289,7 +289,7 @@
       "icon": "🎼",
       "house": "vashon",
       "dynamic": "bach_pick",
-      "note": "Daily Bach for Vashon main-house interior (added 2026-08-31, Andrew). Bach ungroup-first pattern: sync_rooms pins topology to the Main Interior trio (Maury + Green Kitchen Move + Sonos Move, same cluster as geo structure mapping), then replace_queue today's pick on Maury (coordinator). Volumes inherit at tap time per D11 (all three currently volume_fallback=18). replace_queue resets shuffle OFF server-side (fresh intent). v18 (2026-10-04): label renamed from \"Main Living Room\" to \"Main Interior ×3\" — honest about the trio; steps unchanged.",
+      "note": "Daily Bach for Vashon main-house interior (added 2026-08-31, Andrew). Bach ungroup-first pattern: sync_rooms pins topology to the Main Interior trio (Maury + Green Kitchen Move + Sonos Move, same cluster as geo structure mapping), then replace_queue today's pick on Maury (coordinator). Volumes inherit at tap time per D11 (all three currently volume_fallback=18). replace_queue resets shuffle OFF server-side (fresh intent). v18 (2026-10-04): label renamed from \"Main Living Room\" to \"Main Interior ×3\" — honest about the trio; steps unchanged. v24 (2026-11-22, Andrew): explicit set_volume 9 on all three rooms (D10 deliberate override) — this tile no longer inherits the 18 fallback. Room defaults are unchanged, so other tiles, join-volume and the 4 AM idle reset still use 18 for these rooms.",
       "steps": [
         {
           "action": "sync_rooms",
@@ -300,6 +300,21 @@
           ],
           "delay_after_ms": 6000,
           "structure": "main_interior"
+        },
+        {
+          "action": "set_volume",
+          "room": "Main Living Room Maury",
+          "volume": 9
+        },
+        {
+          "action": "set_volume",
+          "room": "Main Kitchen Green Move 2",
+          "volume": 9
+        },
+        {
+          "action": "set_volume",
+          "room": "Sonos Move",
+          "volume": 9
         },
         {
           "action": "replace_queue",
@@ -361,7 +376,7 @@
       "Sara’s Office": 12
     }
   },
-  "updated_at": "2026-11-18T22:20:09Z",
+  "updated_at": "2026-11-22T16:08:08Z",
   "notes": {
     "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
     "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9).",
@@ -371,9 +386,10 @@
     "v20": "v20 (2026-11-05, Andrew): Parents Bedroom and Master Bathroom defaults 18 → 9 (\"too loud\"). Applies to Master Suite tiles, join-volume, play.ts --mode play, and the 4 AM idle sweep. Backlog: more volume-default automation (sweep exclusions, fresh-intent skip, retune signal).",
     "v21": "v21 (2026-11-15, Andrew OK D1-D6): shortcut engine moves into the service (v2.72.0 verb run_shortcut, design_shortcuts_app_v1.md). New optional per-tile keys: menu_label (short wrist label; falls back to label) and hidden:true (engine-only tile, excluded from shortcuts_menu.json — page support lands with the p3.57 thin-client release, so no hidden tile is published yet). push_shortcuts.ts now derives shortcuts_menu.json on every push: house-prefixed labels → {id, house, url}; selection tiles and hidden tiles excluded; Vashon first. Tile steps byte-identical to v20.",
     "v22": "v22 (2026-11-16, Andrew): new tiles pause-all-vashon / pause-all-caphill (\"Pause all rooms\", ⏸️) placed right after the vol1 tiles. Single step {action:\"pause\", resolve:{each_room:true}} — runs in both engines unchanged (page + service v2.72); no release. Built for the no-menu Apple Shortcuts wrappers (\"Pause Vashon\"); also listed in shortcuts_menu.json (12 items). Volumes and every other tile byte-identical to v21.",
-    "v23": "v23 (2026-11-18, grouping spec R9 + D2): `structures` block (named room sets); steps may carry \"structure\" (engine v2.73+ expands it; explicit rooms[] kept for the p3.56 page runner). Shed = Arc + Boombox as one unit: daily-bach-shedarc and kcrw-e24-shedarc now target the Shed structure (KCRW gained a sync_rooms step). Other regroup steps annotated with their structure; behaviour unchanged for them."
+    "v23": "v23 (2026-11-18, grouping spec R9 + D2): `structures` block (named room sets); steps may carry \"structure\" (engine v2.73+ expands it; explicit rooms[] kept for the p3.56 page runner). Shed = Arc + Boombox as one unit: daily-bach-shedarc and kcrw-e24-shedarc now target the Shed structure (KCRW gained a sync_rooms step). Other regroup steps annotated with their structure; behaviour unchanged for them.",
+    "v24": "v24 (2026-11-22, Andrew, after the Watch run at 8:00 AM): daily-bach-vashon-main (\"Daily Bach → Main Interior ×3\") plays at volume 9 — three explicit set_volume steps (Maury, Kitchen Green Move 2, Sonos Move) between sync_rooms and replace_queue. Explicit steps = D10 override in both engines (page runShortcut + service run_shortcut), so no release. defaults.volume_by_room and every other tile byte-identical to v23."
   },
-  "updated": "2026-11-18",
+  "updated": "2026-11-22",
   "structures": {
     "note": "v23 (grouping spec R9, D2 2026-11-18): named room sets a step may reference as \"structure\" instead of \"rooms\". The service engine (v2.73+) expands them from this file; tiles also keep an explicit rooms[] so the p3.56 page runner keeps working until p3.57 reads structures. Shed = Arc + Boombox is ONE unit; Lower Deck and Sauna Porch are distinct (deck_sauna is a tile-only pairing).",
     "vashon": {

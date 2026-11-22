@@ -1,7 +1,7 @@
 {
   "menu_schema": 1,
-  "source_version": 23,
-  "generated_at": "2026-11-20T23:32:31Z",
+  "source_version": 24,
+  "generated_at": "2026-11-22T16:08:20Z",
   "note": "DERIVED by push_shortcuts.ts from shortcuts.json — never edit by hand. Consumed by the Apple Shortcuts \"LifeLog\" recipe (design_shortcuts_app_v1.md §5.1): Choose from List over `menu` shows the labels and returns {id, house, url}; POST {\"action\":\"run_shortcut\",\"shortcut_id\":id,\"origin\":\"apple_shortcuts\",\"cmd_ts\":<ISO now>} to url with the LifeLog bearer token. Selection tiles and hidden tiles are not listed.",
   "post_body_template": {
     "action": "run_shortcut",
