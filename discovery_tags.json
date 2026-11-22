@@ -1,6 +1,6 @@
 {
- "version": 6,
- "generated_at": "2026-11-22T21:12:58Z",
+ "version": 7,
+ "generated_at": "2026-11-22T22:17:49Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,16 +37,16 @@
   }
  },
  "counts": {
-  "cards": 155,
+  "cards": 156,
   "moods": {
    "mellow": 58,
    "upbeat": 46,
    "loud": 9,
-   "heady": 27,
+   "heady": 28,
    "atmospheric": 15
   },
   "genres": {
-   "jazz": 35,
+   "jazz": 36,
    "rock_indie": 46,
    "soul_rnb_hiphop": 32,
    "folk_country_americana": 18,
@@ -1986,6 +1986,19 @@
     "jazz-funk",
     "boogaloo",
     "disco"
+   ],
+   "src": "explore-run"
+  },
+  "300": {
+   "g": [
+    "jazz"
+   ],
+   "m": "heady",
+   "s": [
+    "spiritual jazz",
+    "avant-garde jazz",
+    "free jazz",
+    "devotional"
    ],
    "src": "explore-run"
   }
