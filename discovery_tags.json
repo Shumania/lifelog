@@ -1,6 +1,6 @@
 {
- "version": 5,
- "generated_at": "2026-11-20T16:06:22Z",
+ "version": 6,
+ "generated_at": "2026-11-22T21:12:58Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,16 +37,16 @@
   }
  },
  "counts": {
-  "cards": 154,
+  "cards": 155,
   "moods": {
    "mellow": 58,
-   "upbeat": 45,
+   "upbeat": 46,
    "loud": 9,
    "heady": 27,
    "atmospheric": 15
   },
   "genres": {
-   "jazz": 34,
+   "jazz": 35,
    "rock_indie": 46,
    "soul_rnb_hiphop": 32,
    "folk_country_americana": 18,
@@ -1973,6 +1973,19 @@
     "post-punk",
     "new wave",
     "alternative rock"
+   ],
+   "src": "explore-run"
+  },
+  "299": {
+   "g": [
+    "jazz"
+   ],
+   "m": "upbeat",
+   "s": [
+    "soul jazz",
+    "jazz-funk",
+    "boogaloo",
+    "disco"
    ],
    "src": "explore-run"
   }
