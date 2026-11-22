@@ -1,7 +1,7 @@
 {
   "menu_schema": 1,
-  "source_version": 24,
-  "generated_at": "2026-11-22T16:08:20Z",
+  "source_version": 25,
+  "generated_at": "2026-11-22T22:07:45Z",
   "note": "DERIVED by push_shortcuts.ts from shortcuts.json — never edit by hand. Consumed by the Apple Shortcuts \"LifeLog\" recipe (design_shortcuts_app_v1.md §5.1): Choose from List over `menu` shows the labels and returns {id, house, url}; POST {\"action\":\"run_shortcut\",\"shortcut_id\":id,\"origin\":\"apple_shortcuts\",\"cmd_ts\":<ISO now>} to url with the LifeLog bearer token. Selection tiles and hidden tiles are not listed.",
   "post_body_template": {
     "action": "run_shortcut",
@@ -17,6 +17,11 @@
     },
     "VASHON · KEXP · Deck + Sauna": {
       "id": "kexp-deck-sauna",
+      "house": "vashon",
+      "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
+    },
+    "VASHON · Sigur Sauna": {
+      "id": "sigur-ros-radio-sauna",
       "house": "vashon",
       "url": "https://ntfy.sh/lifelog-cmd-vashon-9k3p"
     },
@@ -74,6 +79,7 @@
   "menu_flat": {
     "VASHON · KCRW · Shed": "kcrw-e24-shedarc|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "VASHON · KEXP · Deck + Sauna": "kexp-deck-sauna|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
+    "VASHON · Sigur Sauna": "sigur-ros-radio-sauna|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "VASHON · Vol 1% · all rooms": "vol1-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "VASHON · Pause all rooms": "pause-all-vashon|https://ntfy.sh/lifelog-cmd-vashon-9k3p",
     "VASHON · Garage Burn": "daily-garage-burn|https://ntfy.sh/lifelog-cmd-vashon-9k3p",

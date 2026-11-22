@@ -1,6 +1,6 @@
 {
-  "version": 24,
-  "generated_at": "2026-11-22T16:08:08Z",
+  "version": 25,
+  "generated_at": "2026-11-22T22:07:38Z",
   "note": "Authored by agent per design_shortcuts_v1.md. Every shortcut is DIRECT: page expands steps client-side (resolve objects) and sends via existing ntfy transport. No LLM at tap time. Convention (2026-08-11): play shortcuts set volume to 18 before playing, unless the shortcut specifies otherwise. v17 (2026-10-03, p3.46): tiles with target:\"selection\" have no house/rooms — they play on the chips selected in the current house (resolve.selection → rooms = selectedRooms[house], room = rooms[0]; play_uri never regroups). inherit_volume:false skips the D10 default-volume injection (B1: leave levels as they are). v19 (2026-10-14): defaults.volume_by_room gains “Sara’s Office” = 12 (new Cap Hill speaker, quiet room; name carries a curly apostrophe U+2019 exactly as Sonos reports it).",
   "shortcuts": [
     {
@@ -97,6 +97,36 @@
           "uri": "aac://https://kexp.streamguys1.com/kexp160.aac",
           "title": "KEXP 90.3 FM",
           "artist": "KEXP"
+        }
+      ]
+    },
+    {
+      "id": "sigur-ros-radio-sauna",
+      "label": "Sigur Sauna",
+      "menu_label": "Sigur Sauna",
+      "sub": "Sigur Rós Radio · Sauna Porch",
+      "icon": "📻",
+      "house": "vashon",
+      "note": "Sigur Rós Radio (Spotify artist radio) → Sauna Porch (added 2026-11-22, Andrew; his title \"Sigur Sauna\"). URI = the Spotify artist-radio container he already plays by hand on this speaker (history ids 34337-34340 on 2026-11-10, 166028 on 2026-11-16: spotify:artistRadio:6UUrUCIZtQeOf8tC0WuzRy, sid=12, sn=1); artist id verified against Spotify 2026-11-22. The play_uri step carries an explicit DIDL `meta` with the Spotify service token (SA_RINCON3079 = sid 12) and the #artistRadio class - without it SoCo sends TuneIn metadata and Sonos cannot open a Spotify station. Probe T1 2026-11-22T22:04:48Z on the test room (Second Bedroom, vol 12, agent_test) started in ~5 s with this exact uri+meta. Bach-pattern ungroup-first: sync_rooms pins topology to Sauna Porch alone (structure sauna; explicit rooms kept for the p3.56 page runner), then play_uri. No baked volume: Sauna Porch inherits its live default at tap time (D10/D11, currently 35). It is radio: Spotify picks the tracks and no queue is built.",
+      "steps": [
+        {
+          "action": "sync_rooms",
+          "rooms": [
+            "Sauna Porch"
+          ],
+          "delay_after_ms": 6000,
+          "structure": "sauna"
+        },
+        {
+          "action": "play_uri",
+          "rooms": [
+            "Sauna Porch"
+          ],
+          "room": "Sauna Porch",
+          "uri": "x-sonosapi-radio:spotify%3aartistRadio%3a6UUrUCIZtQeOf8tC0WuzRy?sid=12&flags=8300&sn=1",
+          "title": "Sigur Rós Radio",
+          "artist": "Spotify",
+          "meta": "<DIDL-Lite xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:upnp=\"urn:schemas-upnp-org:metadata-1-0/upnp/\" xmlns:r=\"urn:schemas-rinconnetworks-com:metadata-1-0/\" xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\"><item id=\"000c206cspotify%3aartistRadio%3a6UUrUCIZtQeOf8tC0WuzRy\" parentID=\"00052064spotify%3aartist%3a6UUrUCIZtQeOf8tC0WuzRy\" restricted=\"true\"><dc:title>Sigur Rós Radio</dc:title><upnp:class>object.item.audioItem.audioBroadcast.#artistRadio</upnp:class><desc id=\"cdudn\" nameSpace=\"urn:schemas-rinconnetworks-com:metadata-1-0/\">SA_RINCON3079_X_#Svc3079-0-Token</desc></item></DIDL-Lite>"
         }
       ]
     },
@@ -376,7 +406,7 @@
       "Sara’s Office": 12
     }
   },
-  "updated_at": "2026-11-22T16:08:08Z",
+  "updated_at": "2026-11-22T22:07:38Z",
   "notes": {
     "v10": "D10 (2026-08-22, Andrew): play shortcuts INHERIT defaults.volume_by_room at tap time (p3.24 runner injects set_volume before play-class steps lacking an explicit one). Explicit set_volume steps in a tile = deliberate override. All baked default-matching volume steps removed.",
     "v13": "daily-bach-caphill-main added: Daily Bach → Living Room + Dining Room + Kitchen (Cap Hill). Same bach_pick resolver as Vashon tiles; sync_rooms trio first; D11 tap-time volumes (9/9/9).",
@@ -387,7 +417,8 @@
     "v21": "v21 (2026-11-15, Andrew OK D1-D6): shortcut engine moves into the service (v2.72.0 verb run_shortcut, design_shortcuts_app_v1.md). New optional per-tile keys: menu_label (short wrist label; falls back to label) and hidden:true (engine-only tile, excluded from shortcuts_menu.json — page support lands with the p3.57 thin-client release, so no hidden tile is published yet). push_shortcuts.ts now derives shortcuts_menu.json on every push: house-prefixed labels → {id, house, url}; selection tiles and hidden tiles excluded; Vashon first. Tile steps byte-identical to v20.",
     "v22": "v22 (2026-11-16, Andrew): new tiles pause-all-vashon / pause-all-caphill (\"Pause all rooms\", ⏸️) placed right after the vol1 tiles. Single step {action:\"pause\", resolve:{each_room:true}} — runs in both engines unchanged (page + service v2.72); no release. Built for the no-menu Apple Shortcuts wrappers (\"Pause Vashon\"); also listed in shortcuts_menu.json (12 items). Volumes and every other tile byte-identical to v21.",
     "v23": "v23 (2026-11-18, grouping spec R9 + D2): `structures` block (named room sets); steps may carry \"structure\" (engine v2.73+ expands it; explicit rooms[] kept for the p3.56 page runner). Shed = Arc + Boombox as one unit: daily-bach-shedarc and kcrw-e24-shedarc now target the Shed structure (KCRW gained a sync_rooms step). Other regroup steps annotated with their structure; behaviour unchanged for them.",
-    "v24": "v24 (2026-11-22, Andrew, after the Watch run at 8:00 AM): daily-bach-vashon-main (\"Daily Bach → Main Interior ×3\") plays at volume 9 — three explicit set_volume steps (Maury, Kitchen Green Move 2, Sonos Move) between sync_rooms and replace_queue. Explicit steps = D10 override in both engines (page runShortcut + service run_shortcut), so no release. defaults.volume_by_room and every other tile byte-identical to v23."
+    "v24": "v24 (2026-11-22, Andrew, after the Watch run at 8:00 AM): daily-bach-vashon-main (\"Daily Bach → Main Interior ×3\") plays at volume 9 — three explicit set_volume steps (Maury, Kitchen Green Move 2, Sonos Move) between sync_rooms and replace_queue. Explicit steps = D10 override in both engines (page runShortcut + service run_shortcut), so no release. defaults.volume_by_room and every other tile byte-identical to v23.",
+    "v25": "v25 (2026-11-22, Andrew): new tile sigur-ros-radio-sauna (\"Sigur Sauna\", 📻) right after kexp-deck-sauna - Spotify artist radio for Sigur Rós on Sauna Porch. First tile whose play_uri step carries DIDL `meta` (Spotify service token; a Spotify station will not open on SoCo default TuneIn metadata). sync_rooms [Sauna Porch] first, then play_uri; volume inherits (35). Runs in both engines unchanged (page p3.56 + service v2.73): the step is passed through whole. Every other tile, defaults and structures byte-identical to v24."
   },
   "updated": "2026-11-22",
   "structures": {
