@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.73.1"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.73.2"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -8012,7 +8012,29 @@ def ntfy_listener_thread():
                     raise RuntimeError(f"HTTP {r.status_code} from ntfy: {(r.text or '')[:120]!r}")
                 _ntfy_connected = True
                 _ntfy_last_event_ts = time.time()
-                for line in r.iter_lines():
+                # [ntfy-stream v2.73.2] WHY chunk_size=1 (do not "optimise" this back to the default):
+                # r.iter_lines() reads the body in 512-byte blocks. While ntfy.sh framed this stream as
+                # HTTP/1.1 `Transfer-Encoding: chunked`, urllib3 handed each server chunk over as it arrived,
+                # so that default was invisible. Around 2026-11-21 02:47Z ntfy.sh began answering WITHOUT
+                # chunked framing (`Connection: close`), and urllib3 then blocks until a full 512 bytes are
+                # in hand. A command is ~300 B and a keepalive ~94 B every 45 s, so a command sat in the
+                # buffer for 0-4.5 min until enough keepalives piled up behind it (Mind 2026-11-22: Watch
+                # Bach tile 133 s late; ledger delays 67/172/264 s; Cap Hill get_logs 178 s) -- with health
+                # showing "connected ... [STALE]" and no read timeout, because bytes WERE still arriving.
+                # Reading 1 byte at a time surfaces each line the instant its newline lands, under either
+                # framing. Cost: this stream carries a few hundred bytes a minute, so byte-wise is free.
+                # The line below records how THIS connection is framed, so a relay change is visible in logs.
+                try:
+                    _raw = getattr(r, "raw", None)
+                    log(f"[ntfy-stream v2.73.2] connected in {time.time() - _t_conn:.1f}s: HTTP {r.status_code} "
+                        f"http_version={getattr(_raw, 'version', None)} "
+                        f"transfer-encoding={r.headers.get('Transfer-Encoding')!r} chunked={getattr(_raw, 'chunked', None)} "
+                        f"connection={r.headers.get('Connection')!r} content-encoding={r.headers.get('Content-Encoding')!r} "
+                        f"-- reading byte-wise (chunk_size=1) so each line surfaces the moment it arrives")
+                except Exception as _fe:
+                    # The probe is log-only; it must never cost us the connection.
+                    log(f"[ntfy-stream v2.73.2] connected (framing probe failed: {type(_fe).__name__}: {_fe}) -- reading byte-wise (chunk_size=1)")
+                for line in r.iter_lines(chunk_size=1):
                     # Track every stream event (keepalive or message) for health monitoring
                     _ntfy_last_event_ts = time.time()
                     if not line: continue
