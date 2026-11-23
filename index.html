@@ -1484,7 +1484,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.56';
+const PAGE_VERSION = 'p3.57';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -3250,10 +3250,22 @@ function _qsTruncVerb() {
 }
 
 let _lastNtfyTime = 0;
+// p3.57: a failed keepalive send is retried once as a plain send only this long after the tap.
+// Must stay well under the service's command dedup window (CMD_DEDUP_TTL_SECONDS = 360 s) so
+// the retry can never run a command twice, and short enough that music never starts "late".
+const _NTFY_KA_RETRY_MS = 120000;
 
-async function postNtfy(payload, houseOverride) {
+async function postNtfy(payload, houseOverride, opts) {
   // p3.11: optional houseOverride lets Shortcuts target a specific house regardless of the
   // page's current house selection. All existing callers pass one arg — behavior unchanged.
+  // p3.57: optional opts.keepalive — used ONLY by the one-send tile path (runShortcut); every
+  // other caller sends exactly as before. keepalive asks the browser to finish this request
+  // even if the page is hidden or unloaded right after the tap. It is UNTESTED on the iPhone
+  // home-screen app, and Safari has refused keepalive + cross-origin sends in some page-hide
+  // cases — so a REJECTED keepalive send is retried ONCE as a plain send, with the IDENTICAL
+  // body, and only while the tap is fresh (_NTFY_KA_RETRY_MS). Identical body = the service
+  // drops it if the first copy did arrive (md5 of the body, 360 s), so a tile can never run
+  // twice. Past the fresh window nothing is resent: a page waking up must not start music.
   const h = houseOverride || house;
   const topic = NTFY[h];
   if (!topic) { showToast('No ntfy topic for ' + h, true); return false; }
@@ -3268,8 +3280,26 @@ async function postNtfy(payload, houseOverride) {
   console.log('[postNtfy] → ' + topic + ' house=' + h + ' body=' + body.substring(0, 200));
   try {
     const hdrs = NTFY_TOKEN ? { 'Authorization': 'Bearer ' + NTFY_TOKEN } : {};
-    const r = await fetch(topic, { method: 'POST', body, headers: hdrs });
-    console.log('[postNtfy] ntfy status=' + r.status);
+    const _ka = !!(opts && opts.keepalive);
+    const _t0 = Date.now();
+    let r;
+    if (!_ka) {
+      r = await fetch(topic, { method: 'POST', body, headers: hdrs });
+    } else {
+      try {
+        r = await fetch(topic, { method: 'POST', body, headers: hdrs, keepalive: true });
+      } catch (e1) {
+        const _age = Date.now() - _t0;
+        if (_age > _NTFY_KA_RETRY_MS) {
+          console.error('[postNtfy] keepalive send FAILED ' + _age + 'ms after the tap (' + e1 + ') — too old to resend safely, NOT retried');
+          throw e1;
+        }
+        console.warn('[postNtfy] keepalive send failed after ' + _age + 'ms (' + e1 + ') — retrying ONCE as a plain send, identical body (the service drops a second copy)');
+        r = await fetch(topic, { method: 'POST', body, headers: hdrs });
+        console.log('[postNtfy] plain retry answered');
+      }
+    }
+    console.log('[postNtfy] ntfy status=' + r.status + (_ka ? ' (keepalive send, ' + (Date.now() - _t0) + 'ms)' : ''));
     showToast('→ ' + h + ' [' + r.status + ']');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     if (_QUEUE_VERBS.has(payload.action)) { // p2.93 catch-up + p3.01 freshness stamp
@@ -6322,9 +6352,21 @@ function connectSSE() {
       // p2.54: red error toast — a command failed on the client. Green send-toasts
       // only confirm delivery; this is the truth channel. Guards: skip ntfy replays
       // (>2 min old) and dedup by originating cmd_ts.
+      // p3.57: unified shortcuts — the engine's verdict for a tile THIS page sent (matched on
+      // our cmd_ts). It is state, not an event (Rule 27): applied once, at any age — live, late,
+      // or from the ?since=16m replay after the app was away. A failure that is ours is shown as
+      // the tile's own ✗ toast, so the generic red toast below is muted for that command.
+      let _scErrMine = false;
+      try {
+        if (events.includes('shortcut_result')) _scOnResult(msg, evtAge);
+        if (events.includes('command_error')) _scErrMine = _scOnError(msg);
+      } catch (e) { console.error('[shortcuts] verdict handler ERROR:', e); }
+
       if (events.includes('command_error') && evtAge < 120000) {
         const errKey = (msg.cmd_action || '') + '|' + (msg.cmd_err_ts || '');
-        if (errKey !== _lastCmdErrKey) {
+        if (_scErrMine) {
+          _lastCmdErrKey = errKey;   // p3.57: already reported by the tile's own toast
+        } else if (errKey !== _lastCmdErrKey) {
           _lastCmdErrKey = errKey;
           showToast('✗ ' + (msg.cmd_action || 'command') + ' failed: ' + (msg.cmd_message || 'unknown error'), true);
           console.error('[sse] command_error:', msg.cmd_action, msg.cmd_message);
@@ -7965,7 +8007,8 @@ async function loadShortcuts() {
     const r = await fetch(SHORTCUTS_URL + '?t=' + Date.now());
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    _shortcuts = (d && d.shortcuts) || [];
+    // p3.57: hidden:true tiles exist for the engine only (test tiles, design §4.1) — never rendered
+    _shortcuts = ((d && d.shortcuts) || []).filter(s => s && s.hidden !== true);
     // p3.19: D8 per-room volume defaults also feed geo "Start here?" accepts (geo_suggest D1)
     if (d && d.defaults) { _scVolByRoom = d.defaults.volume_by_room || {}; _scVolFallback = d.defaults.volume_fallback || 18; }
     console.log('[shortcuts] loaded ' + _shortcuts.length + ' shortcuts (file v' + (d && d.version) + ')');
@@ -8076,105 +8119,93 @@ function _scRefreshSelHeader(h) {
   document.querySelectorAll('.sc-sel-section .shortcut-card').forEach(c => c.classList.toggle('sc-disabled', !sum.rooms.length));
 }
 
-async function _scFetchState(h) {
-  const url = STATE_URLS[h];
-  if (!url) throw new Error('no state file URL for house ' + h);
-  const r = await fetch(url + '?t=' + Date.now());
-  if (!r.ok) throw new Error('state-' + h + '.json HTTP ' + r.status);
-  return await r.json();
+// ══════════════════════════════════════════════════════════════════════════════
+// p3.57: UNIFIED SHORTCUTS — a tile tap is ONE send
+// (design_shortcuts_app_v1.md §6; Andrew 2026-11-23: "let's move to unified shortcuts")
+// ══════════════════════════════════════════════════════════════════════════════
+// Until p3.56 THIS PAGE ran a tile: it expanded the steps itself and sent 2–5 commands
+// with 0.4 s pauses and a 6 s settle wait between them. iOS pauses a hidden web app, so
+// switching away mid-tile froze the remaining sends until the app was reopened — music
+// started minutes late (2026-10-06 2m19s · 11-02 97s · 11-23 5m22s; backlog
+// [tile-stall-evidence 2026-11-23]).
+// Now the tap sends ONE command and the house computer's engine (service v2.72+
+// run_shortcut — the same engine the Watch list drives) expands the tile from the
+// PUBLISHED shortcuts.json and runs every step itself: regroup, room volumes (D10/D11
+// inheritance + explicit overrides, D6 whole group), today's Bach/Garage pick, play.
+//   {action:'run_shortcut', shortcut_id, origin:'page', page_version, cmd_ts, rooms?}
+// `rooms` rides only on "On selected speakers" tiles (this house's chips, offline rooms
+// dropped) — the engine cannot see chips.
+// One send has no gap to freeze in, and it is marked keepalive so the browser may finish
+// it after the page is hidden (see postNtfy).
+// WHAT STAYS PAGE-SIDE (page truth, not engine truth): the Roaming gate, the selection
+// gates (p2.62 explicit selection + p3.32 stale confirm), the spinner, the toast and
+// chip-follow (D9). The ✓ and chip-follow now come from the ENGINE'S ANSWER — SSE
+// `shortcut_result`, matched on OUR cmd_ts — i.e. the rooms that actually played, not
+// the page's guess. Rule 27: the answer is state, so it is applied whenever it arrives
+// (live, late, or in the ?since=16m replay after the app was away) and exactly once.
+// RESOLVERS LIVE IN THE ENGINE ONLY (each_room / bach_pick / garage_pick / group_of /
+// selection / structure). push_shortcuts.ts refuses to publish a tile using a resolver
+// the engine does not know, so the page needs no parity check. Tile subs (today's pick
+// on the tile) keep their own display-only fetch above.
+let _scPending = null;                  // the ONE tile run this page is waiting on (shape: see runShortcut)
+let _scCheckTimer = null;
+let _scVisibleAt = Date.now();          // last time the page came to the foreground
+const _SC_CONFIRM_MS = 30000;           // no answer this long after the tap → honest "no confirmation yet"
+const _SC_RESUME_GRACE_MS = 6000;       // after a foreground / a slow failed send, let the SSE replay answer first
+const _SC_PENDING_TTL_MS = 16 * 60000;  // = the SSE replay window (?since=16m): an older tap can never be answered
+const _SC_PENDING_KEY = 'll_sc_pending';
+
+function _scPersistPending() {
+  try {
+    if (_scPending) localStorage.setItem(_SC_PENDING_KEY, JSON.stringify(_scPending));
+    else localStorage.removeItem(_SC_PENDING_KEY);
+  } catch (e) { console.log('[shortcuts] pending persist ERROR: ' + e); }
 }
 
-// Resolver library: expands one declarative step into 1..N concrete payloads.
-// Pure data in → payloads out. Any resolution failure THROWS (never sends).
-async function _scExpandStep(step, h) {
-  const s = JSON.parse(JSON.stringify(step));
-  const resolve = s.resolve;
-  delete s.resolve; delete s.delay_after_ms;
-  if (!resolve) return [s];
-
-  const known = ['each_room', 'newest_playlist', 'group_of', 'bach_pick', 'garage_pick', 'selection'];
-  const unknown = Object.keys(resolve).filter(k => !known.includes(k));
-  if (unknown.length) throw new Error('unknown resolver(s): ' + unknown.join(', ') + ' — update the app');
-
-  if (resolve.selection) {
-    // p3.46: "On selected speakers" — rooms = this house's chips, exactly as Playlists ▶ targets
-    // them (p2.62 explicit selection → filterOfflineRooms). rooms[0] is the primary: the service's
-    // play_uri goes through _find_coordinator, which plays on rooms[0]'s LIVE group and NEVER
-    // regroups — so a selection spanning two groups plays on the first room's group (B2, v1).
-    // runShortcut already ran the empty-selection and stale-selection (p3.32 D2) gates.
-    const selNow = selectedRooms[h] || [];
-    if (!selNow.length) throw new Error('select speakers first');
-    const rooms = filterOfflineRooms(selNow, h);
-    if (!rooms.length) throw new Error('all selected speakers are offline');
-    s.rooms = rooms; s.room = rooms[0];
-    console.log('[shortcuts] selection(' + h + ') → [' + rooms.join(', ') + '] (primary ' + rooms[0] + ')');
+// A page that iOS discarded while it was away loses its memory but not localStorage: restore
+// the unanswered tap so the SSE replay can still move the chips and show the ✓. A restored
+// record never spins a tile and never times out with a toast — it only waits to be matched.
+function _scRestorePending() {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem(_SC_PENDING_KEY) || 'null'); } catch (e) { rec = null; }
+  if (!rec || !rec.cmd_ts) { console.log('[shortcuts] no pending tap to restore'); return; }
+  const age = Date.now() - (rec.sentAt || 0);
+  if (rec.done || age > _SC_PENDING_TTL_MS) {
+    try { localStorage.removeItem(_SC_PENDING_KEY); } catch (e) {}
+    console.log('[shortcuts] pending tap dropped at load: ' + rec.id + ' (' + (rec.done ? 'already answered' : Math.round(age / 60000) + ' min old — past the replay window') + ')');
+    return;
   }
+  rec.restored = true;
+  _scPending = rec;
+  console.log('[shortcuts] pending tap restored at load: ' + rec.id + ' cmd_ts=' + rec.cmd_ts + ' (' + Math.round(age / 1000) + 's old) — waiting for its answer in the SSE replay');
+}
 
-  if (resolve.each_room) {
-    // One send per room in the house, from the LIVE state file (freshest truth).
-    const st = await _scFetchState(h);
-    const rooms = st.rooms_all || [];
-    if (!rooms.length) throw new Error('no rooms_all in state-' + h + '.json');
-    console.log('[shortcuts] each_room(' + h + ') → ' + rooms.length + ' rooms: ' + rooms.join(', '));
-    return rooms.map(rm => Object.assign({}, s, { room: rm }));
+// What the tile SAYS it will touch, read from its steps. Used only (a) to know a tile is
+// play-class (D9: only play-class tiles move chips — volume / pause loops never do) and (b) as
+// the chip target when no answer arrives. The engine's answer always wins when it comes.
+function _scDeclared(sc, selRooms) {
+  const group = [], play = [];
+  let playClass = false, kind = 'track';
+  for (const st of (sc.steps || [])) {
+    const a = String(st.action || '');
+    const res = st.resolve || {};
+    const isPlay = a.indexOf('play') === 0 || a === 'replace_queue';
+    let rooms = res.selection ? (selRooms || []) : (st.rooms || (st.room ? [st.room] : []));
+    if (!rooms.length && res.group_of) rooms = [res.group_of];
+    if (a === 'sync_rooms') for (const rm of rooms) if (rm && group.indexOf(rm) === -1) group.push(rm);
+    if (isPlay) {
+      playClass = true;
+      for (const rm of rooms) if (rm && play.indexOf(rm) === -1) play.push(rm);
+      // queue-strip wording (p3.03 item 4): what the play step inserts
+      const u = String(st.uri || '');
+      kind = (res.bach_pick || u.indexOf(':album:') !== -1) ? 'album'
+           : (res.garage_pick || u.indexOf(':playlist:') !== -1) ? 'playlist' : 'track';
+    }
   }
-
-  if (resolve.bach_pick) {
-    // 🎼 Daily Bach (p3.17): today's pre-picked canon recording from the nightly-
-    // published bach_pick.json. Force a FRESH fetch at tap time — a page left open
-    // across the nightly boundary must play today's pick, not the cached one.
-    // If the file is a day old (nightly missed), we still play it: honest-stale
-    // beats silence (Rule 27) and it's still a valid, cooldown-respecting pick.
-    const pick = await _bachFetchPick(true);
-    if (!pick || !pick.spotify_album_uri) throw new Error('bach_pick.json unavailable — no pick to play');
-    s.uri = pick.spotify_album_uri;
-    if (!s.title) s.title = pick.work;
-    if (!s.artist) s.artist = pick.performer;
-    console.log('[shortcuts] bach_pick(' + pick.pick_date + ') → "' + pick.work + '" — ' + pick.performer + ' (' + s.uri + ')');
-  }
-
-  if (resolve.garage_pick) {
-    // 🏋️ Daily Garage Burn (p3.23): today's rotation pick from nightly-published
-    // garage_pick.json. FRESH fetch at tap time (page open across nightly boundary
-    // must play today's mix). Day-old file still plays: honest-stale beats silence.
-    const pick = await _garageFetchPick(true);
-    if (!pick || !pick.playlist_uri) throw new Error('garage_pick.json unavailable — no mix to play');
-    s.uri = pick.playlist_uri;
-    if (!s.title) s.title = pick.name;
-    console.log('[shortcuts] garage_pick(' + pick.pick_date + ') → "' + pick.name + '" (' + s.uri + ')');
-  }
-
-  if (resolve.newest_playlist) {
-    // Newest playlist whose name matches the pattern (created_approx desc).
-    if (!_playlists.length) await loadPlaylistData();
-    if (!_playlists.length) throw new Error('playlists.json unavailable');
-    const re = new RegExp(resolve.newest_playlist, 'i');
-    const cand = _playlists.filter(p => re.test(p.name || ''))
-      .sort((a, b) => String(b.created_approx || '').localeCompare(String(a.created_approx || '')));
-    if (!cand.length) throw new Error('no playlist matching /' + resolve.newest_playlist + '/');
-    const p = cand[0];
-    s.uri = 'spotify:playlist:' + p.id;
-    if (!s.title) s.title = p.name;
-    console.log('[shortcuts] newest_playlist /' + resolve.newest_playlist + '/ → "' + p.name + '" (' + p.id + ', created ' + p.created_approx + ')');
-  }
-
-  if (resolve.group_of) {
-    // play.ts group-topology rule: default to the target room's FULL current
-    // group membership (coordinator first) so we never silently ungroup rooms.
-    const st = await _scFetchState(h);
-    const g = (st.groups || []).find(gr => (gr.members || []).includes(resolve.group_of));
-    const rooms = g ? [g.coordinator].concat((g.members || []).filter(m => m !== g.coordinator))
-                    : [resolve.group_of];
-    s.rooms = rooms;
-    console.log('[shortcuts] group_of(' + resolve.group_of + ') → [' + rooms.join(', ') + ']');
-  }
-
-  // p3.17: replace_queue transport expects a primary `room` alongside `rooms`
-  // (mirrors the sheet's payload shape at line ~4563). Resolved rooms are
-  // coordinator-first (group_of), so rooms[0] is the correct primary.
-  if (s.action === 'replace_queue' && !s.room && s.rooms && s.rooms.length) s.room = s.rooms[0];
-
-  return [s];
+  // p3.47 footprint: the formed group (coordinator first, as the tile lists it) ∪ play-step rooms
+  const rooms = group.slice();
+  for (const rm of play) if (rooms.indexOf(rm) === -1) rooms.push(rm);
+  return { playClass, rooms, kind };
 }
 
 async function runShortcut(id) {
@@ -8190,115 +8221,210 @@ async function runShortcut(id) {
   // before a play-class send: explicit selection (p2.62) and the stale-selection confirm (p3.32 D2).
   const isSel = sc.target === 'selection';
   const h = isSel ? house : sc.house;
+  let selRooms = null;
   if (isSel) {
     const selNow = selectedRooms[h] || [];
     if (!selNow.length) { showToast('Select speakers above first', true); return; }
     if (!_staleSelGate(h, selNow)) return;
+    // rooms[0] is the primary: the engine's play_uri plays on rooms[0]'s LIVE group and NEVER
+    // regroups — a selection spanning two groups plays on the first room's group (B2, v1).
+    selRooms = filterOfflineRooms(selNow, h);
+    if (!selRooms.length) { showToast('All selected speakers are offline', true); return; }
   }
+  const decl = _scDeclared(sc, selRooms);
+  const cmd_ts = new Date().toISOString();  // Rule 22: fresh on every tap — and the key the answer is matched on
+  const payload = { action: 'run_shortcut', shortcut_id: id, origin: 'page', page_version: PAGE_VERSION, cmd_ts: cmd_ts };
+  if (selRooms) payload.rooms = selRooms;
   _scBusy = id; renderShortcuts();
-  console.log('[shortcuts] ═══ RUN "' + sc.label + '" (' + id + ') house=' + h + (isSel ? ' [selection tile]' : '') + ' steps=' + (sc.steps || []).length + (sc.inherit_volume === false ? ' inherit_volume=false' : '') + ' ═══');
-  const _scPlayRooms = [];  // p3.12: rooms targeted by play-class steps → chips follow on success
-  const _scGroupRooms = []; // p3.47: rooms formed by sync_rooms steps → chips cover the WHOLE group on success
-  // p3.24 (D10): shortcuts INHERIT room default volumes at tap time. Any room targeted
-  // by a play-class step that has NO explicit set_volume step in the shortcut gets a
-  // set_volume(default) injected right before the play send. Explicit steps = override.
-  // Defaults come live from shortcuts.json defaults.volume_by_room (single source of
-  // truth — same table play.ts and join-volume read), so a defaults change propagates
-  // to every tile instantly with zero tile edits.
-  const _scExplicitVolRooms = new Set();
-  let _scVolCoversAll = false;
-  for (const st0 of (sc.steps || [])) {
-    if (st0.action !== 'set_volume') continue;
-    if (st0.resolve && st0.resolve.each_room) _scVolCoversAll = true; // vol loops cover everything
-    if (st0.room) _scExplicitVolRooms.add(st0.room);
+  // Recorded BEFORE the send so the answer can be matched whenever it arrives — even if the
+  // page is suspended inside the request and the SSE replay beats the request's own result.
+  // selAtTap: the chip selection at the tap; chips only follow if it is still this (see
+  // _scFollowChips).
+  _scPending = { id: id, cmd_ts: cmd_ts, house: h, label: sc.label, isSel: isSel, playClass: decl.playClass,
+                 rooms: decl.rooms, kind: decl.kind, sentAt: Date.now(),
+                 selAtTap: JSON.stringify(selectedRooms[h] || []),
+                 done: false, gaveUp: false, sendFailed: false, failAt: 0 };
+  _scPersistPending();
+  console.log('[shortcuts] ═══ TAP "' + sc.label + '" (' + id + ') house=' + h +
+    (isSel ? ' [selection tile] rooms=[' + selRooms.join(', ') + ']' : '') +
+    ' → ONE run_shortcut send, cmd_ts=' + cmd_ts + ' · declared ' +
+    (decl.playClass ? 'play-class [' + decl.rooms.join(', ') + '] (' + decl.kind + ')' : 'not play-class (chips stay)') + ' ═══');
+  let ok = false;
+  try { ok = await postNtfy(payload, h, { keepalive: true }); }
+  catch (e) { console.error('[shortcuts] send threw:', e); ok = false; }
+  const p = _scPending;
+  if (!p || p.cmd_ts !== cmd_ts) { console.log('[shortcuts] send returned for a superseded tap (' + id + ') — ignored'); return; }
+  const took = Date.now() - p.sentAt;
+  // D9 (p3.12 / p3.13): a play tile is a statement of focus from the tap on — geo degrades to
+  // a hint. Queue strip (p2.93 / p3.01): the engine's play step replaces or starts the queue,
+  // so stamp the command and schedule the catch-up refetches exactly as the page's own
+  // replace_queue / play_uri sends did until p3.56. (Before the p.done check on purpose: a
+  // fast answer can beat the request's own result.)
+  if (ok && decl.playClass) {
+    _geoPlaySent = true;
+    if (typeof geoDismissHint === 'function') geoDismissHint('shortcut play');
+    try { _qMarkCmd(h, decl.kind); _queueScheduleCatchup(); } catch (e) { console.log('[shortcuts] queue catch-up ERROR: ' + e); }
   }
-  const _scVolInjected = new Set();
-  try {
-    for (let i = 0; i < (sc.steps || []).length; i++) {
-      const step = sc.steps[i];
-      const payloads = await _scExpandStep(step, h);
-      console.log('[shortcuts] step ' + (i + 1) + '/' + sc.steps.length + ' (' + step.action + ') → ' + payloads.length + ' send(s)');
-      for (const p of payloads) {
-        // p3.24 (D10): default-volume inheritance — see block above runShortcut's try.
-        // p3.46 (B1): tiles with inherit_volume:false (the "On selected speakers" tiles) skip it —
-        // they mean "where I am, as it is"; resetting a group you just tuned would be a surprise.
-        if (sc.inherit_volume !== false && (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue')) {
-          const targets = p.rooms || (p.room ? [p.room] : []);
-          for (const rm of targets) {
-            if (!rm || _scVolCoversAll || _scExplicitVolRooms.has(rm) || _scVolInjected.has(rm)) continue;
-            const defs = await _geoVolDefaults();
-            const vol = (defs[rm] != null) ? defs[rm] : _scVolFallback;
-            const vp = { action: 'set_volume', room: rm, volume: vol,
-                         cmd_ts: new Date().toISOString(), shortcut_id: id, inherited_default: true };
-            console.log('[shortcuts] D10 inherit: set_volume ' + rm + ' → ' + vol + (defs[rm] != null ? ' (room default)' : ' (fallback)'));
-            const vok = await postNtfy(vp, h);
-            if (!vok) throw new Error('send failed (inherited set_volume → ' + rm + ')');
-            _scVolInjected.add(rm);
-            await _scSleep(400);
-          }
-        }
-        p.cmd_ts = new Date().toISOString();  // Rule 22: fresh cmd_ts on every send
-        p.shortcut_id = id;                   // provenance breadcrumb in the command body
-        const ok = await postNtfy(p, h);
-        if (!ok) throw new Error('send failed (' + p.action + (p.room ? ' → ' + p.room : '') + ')');
-        // p3.12 (D9): play-class sends are a statement of focus — remember their rooms.
-        // Volume/regroup steps are NOT (vol-1% loops must never hijack selection).
-        // p3.17: replace_queue is play-class too (Daily Bach) — it starts playback,
-        // so it's a statement of focus just like play_next/play_uri (D9).
-        if (String(p.action).indexOf('play') === 0 || p.action === 'replace_queue') {
-          for (const rm of (p.rooms || (p.room ? [p.room] : []))) {
-            if (rm && _scPlayRooms.indexOf(rm) === -1) _scPlayRooms.push(rm);
-          }
-        }
-        // p3.47: a sync_rooms step is the tile's real footprint (coordinator first, as listed
-        // in shortcuts.json) — remembered so the chips can cover every room the tile grouped.
-        if (p.action === 'sync_rooms') {
-          for (const rm of (p.rooms || [])) {
-            if (rm && _scGroupRooms.indexOf(rm) === -1) _scGroupRooms.push(rm);
-          }
-        }
-        await _scSleep(400);                  // respect postNtfy's 300ms global throttle
-      }
-      if (step.delay_after_ms && i < sc.steps.length - 1) {
-        console.log('[shortcuts] waiting ' + step.delay_after_ms + 'ms before next step');
-        showToast('⏳ ' + Math.round(step.delay_after_ms / 1000) + 's — setting up…');
-        await _scSleep(step.delay_after_ms);
-      }
+  if (p.done) { console.log('[shortcuts] send returned after the answer was already applied (' + id + ', ok=' + ok + ', ' + took + 'ms)'); return; }
+  if (!ok) {
+    // The send failed as far as THIS page can tell. If it reached the house anyway (the page
+    // was suspended mid-request), the engine's answer still arrives and still wins — so the
+    // record stays matchable. A fast failure is reported now; a slow one (the page was almost
+    // certainly away) first gives the SSE replay a few seconds to prove the tile ran.
+    p.sendFailed = true; p.failAt = Date.now(); _scPersistPending();
+    if (took > 5000) {
+      console.warn('[shortcuts] send FAILED after ' + took + 'ms (page likely suspended mid-request) — waiting ' + (_SC_RESUME_GRACE_MS / 1000) + 's for an answer in the SSE replay before saying "not sent"');
+      _scArmCheck(_SC_RESUME_GRACE_MS);
+      return;
     }
-    // p3.12 (D9): a play shortcut resets this browser's chip selection to its target
-    // rooms — subsequent volume/pause taps aim where the music actually is
-    // (2026-08-14: stale Sauna Porch selection hijacked Garage volume presses).
-    if (_scPlayRooms.length) {
-      if (isSel) {
-        // p3.46: the target IS the selection — chips stay put; the tap is fresh intent (p3.27 clock).
-        _stampSelTouch(h);
-        console.log('[shortcuts] selection tile played on current chips → [' + _scPlayRooms.join(', ') + '] (' + h + '); selection unchanged');
-      } else {
-        // p3.47: fixed-target tiles select the FULL formed group, not just the play step's lead
-        // room. 2026-10-06 07:30 PT: Daily Bach (sync_rooms LR+DR+Kitchen → replace_queue Living
-        // Room) left the chips on Living Room alone, so transport ▲/▼ nudged one room of three.
-        // Target = sync_rooms rooms (group order) ∪ play-step rooms; tiles with no sync_rooms step
-        // (e.g. a single-room play_uri) fall through to the play rooms exactly as before.
-        const _scTarget = [..._scGroupRooms];
-        for (const rm of _scPlayRooms) if (_scTarget.indexOf(rm) === -1) _scTarget.push(rm);
-        selectedRooms[h] = _scTarget;
-        localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h]));
-        _stampSelTouch(h);  // p3.27: chip staleness clock
-        renderRooms(h);
-        console.log('[shortcuts] chips follow ' + (_scGroupRooms.length ? 'formed group' : 'play target') + ' → [' + _scTarget.join(', ') + '] (' + h + ')');
-      }
-      _geoPlaySent = true;  // p3.13: shortcut started a session → geo degrades to hint
-      if (typeof geoDismissHint === 'function') geoDismissHint('shortcut play');
-    }
-    console.log('[shortcuts] ═══ DONE "' + sc.label + '" ═══');
-    // p3.46: selection tiles name their rooms in the toast (there is no fixed target to infer from the label)
-    showToast('✓ ' + sc.label + (isSel && _scPlayRooms.length ? ' → ' + _scPlayRooms.map(r => r.replace(/^Main /, '')).join(', ') : ''));
-  } catch (e) {
-    console.error('[shortcuts] ═══ FAILED "' + sc.label + '":', e, '═══');
-    showToast('✗ ' + sc.label + ': ' + e.message, true);
+    _scGiveUp(p, took);
+    return;
   }
-  _scBusy = null; renderShortcuts();
+  showToast('⏳ ' + sc.label + ' — sent');
+  console.log('[shortcuts] sent OK in ' + took + 'ms — waiting up to ' + (_SC_CONFIRM_MS / 1000) + 's for shortcut_result (cmd_ts ' + cmd_ts + ')');
+  _scArmCheck(_SC_CONFIRM_MS - took);
 }
+
+function _scArmCheck(ms) {
+  clearTimeout(_scCheckTimer);
+  _scCheckTimer = setTimeout(_scPendingCheck, Math.max(50, ms));
+}
+
+// Wall-clock, not timer-count: a suspended page's timers fire late (or all at once) on resume.
+function _scPendingCheck() {
+  const p = _scPending;
+  if (!p || p.done || p.gaveUp || p.restored) return;
+  if (document.hidden) { console.log('[shortcuts] confirm check: page hidden — re-checking on foreground'); return; }
+  const now = Date.now(), age = now - p.sentAt;
+  // The answer may be sitting in the SSE replay: after a foreground, or after a slow failed
+  // send, wait the grace period from whichever happened last.
+  const graceFrom = Math.max(_scVisibleAt > p.sentAt ? _scVisibleAt : 0, p.failAt || 0);
+  const wait = Math.max(p.sendFailed ? 0 : _SC_CONFIRM_MS - age, graceFrom ? _SC_RESUME_GRACE_MS - (now - graceFrom) : 0);
+  if (wait > 0) { _scArmCheck(wait); return; }
+  _scGiveUp(p, age);
+}
+
+function _scGiveUp(p, age) {
+  p.gaveUp = true; clearTimeout(_scCheckTimer); _scPersistPending();
+  if (_scBusy === p.id) { _scBusy = null; renderShortcuts(); }
+  if (p.sendFailed) {
+    console.error('[shortcuts] ═══ NOT SENT "' + p.label + '" (' + p.id + ') — the send failed and no answer arrived; chips untouched ═══');
+    showToast('✗ ' + p.label + ': not sent — tap again', true);
+    return;
+  }
+  // Sent (HTTP 200) but unanswered: the engine very likely ran — the page just has no proof.
+  // Design §6 fallback: chips go to the tile's DECLARED rooms (what the page did until p3.56);
+  // a late answer may still refine them.
+  if (p.playClass && !p.isSel && p.rooms.length) _scFollowChips(p, p.rooms, 'declared rooms (no answer yet)');
+  if (age <= _SC_PENDING_TTL_MS) {
+    console.warn('[shortcuts] ═══ NO CONFIRMATION "' + p.label + '" (' + p.id + ') ' + Math.round(age / 1000) + 's after the tap — sent OK, cmd_ts ' + p.cmd_ts + ' ═══');
+    showToast('⏳ ' + p.label + ': no confirmation yet — check the speaker', true);
+  } else {
+    console.log('[shortcuts] tap "' + p.label + '" is ' + Math.round(age / 60000) + ' min old with no answer — past the replay window, closed quietly');
+  }
+}
+
+// D9 chip-follow, guarded: only while the selection is still what it was at the tap. An answer
+// can land several seconds after the tap (or minutes later, from the replay) — it must never
+// undo a chip choice made in between.
+function _scFollowChips(p, rooms, why) {
+  const h = p.house;
+  const cur = JSON.stringify(selectedRooms[h] || []);
+  const want = JSON.stringify(rooms);
+  if (cur === want) {
+    _stampSelTouch(h);  // p3.27: chip staleness clock — the tap is fresh intent
+    console.log('[shortcuts] chips already on [' + rooms.join(', ') + '] (' + h + ') — ' + why);
+    return true;
+  }
+  if (cur !== p.selAtTap) {
+    console.log('[shortcuts] chips NOT moved (' + h + '): the selection changed since the tap (' + p.selAtTap + ' → ' + cur + '); ' + why + ' = [' + rooms.join(', ') + ']');
+    return false;
+  }
+  // p3.12 (D9): a play shortcut resets this browser's chip selection to its target rooms —
+  // subsequent volume/pause taps aim where the music actually is (2026-08-14: stale Sauna
+  // Porch selection hijacked Garage volume presses). p3.47: the FULL formed group, not just
+  // the play step's lead room (2026-10-06: Daily Bach left chips on Living Room alone).
+  selectedRooms[h] = rooms.slice();
+  try { localStorage.setItem('ll_rooms_' + h, JSON.stringify(selectedRooms[h])); } catch (e) {}
+  _stampSelTouch(h);    // p3.27: chip staleness clock
+  renderRooms(h);
+  p.selAtTap = want;    // our own move — a later answer may still refine an untouched fallback
+  _scPersistPending();
+  console.log('[shortcuts] chips follow ' + why + ' → [' + rooms.join(', ') + '] (' + h + ')');
+  return true;
+}
+
+// Engine parent message: "Label" FAILED after N ok step(s) (6.4s): <cause> → keep the cause.
+function _scShortErr(m) {
+  return String(m || 'unknown error').replace(/^".*?" FAILED after \d+ ok step\(s\) \([\d.]+s\): /, '').slice(0, 140);
+}
+
+function _scFail(p, message, via) {
+  p.done = true; clearTimeout(_scCheckTimer); _scPersistPending();
+  if (_scBusy === p.id) { _scBusy = null; renderShortcuts(); }
+  console.error('[shortcuts] ═══ FAILED "' + p.label + '" (' + p.id + ', via ' + via + ', ' + (Math.round((Date.now() - p.sentAt) / 100) / 10) + 's after the tap): ' + String(message || 'unknown error') + ' ═══');
+  showToast('✗ ' + p.label + ': ' + _scShortErr(message), true);
+}
+
+// SSE `shortcut_result` (service _sc_worker, published AT COMPLETION): sc_id, sc_label,
+// sc_success, sc_rooms_played (formed group coordinator-first, then play-step rooms — empty
+// for volume / pause tiles), sc_message, sc_cmd_ts, sc_origin. Results for other clients' runs
+// (the Watch, the agent) are logged and ignored — chips are this browser's own aim.
+function _scOnResult(msg, evtAge) {
+  const ts = String(msg.sc_cmd_ts || '');
+  const p = _scPending;
+  if (!p || !ts || p.cmd_ts !== ts) {
+    console.log('[shortcuts] shortcut_result for another run — ignored: ' + (msg.sc_id || '?') + ' origin=' + (msg.sc_origin || '?') + ' cmd_ts=' + (ts || '—') + (p ? ' (this page waits on ' + p.cmd_ts + ')' : ' (this page is not waiting)'));
+    return false;
+  }
+  if (p.done) { console.log('[shortcuts] shortcut_result replay ignored (already applied): ' + p.id); return true; }
+  if (!msg.sc_success) { _scFail(p, msg.sc_message, 'shortcut_result'); return true; }
+  p.done = true; clearTimeout(_scCheckTimer); _scPersistPending();
+  if (_scBusy === p.id) { _scBusy = null; renderShortcuts(); }
+  const rooms = Array.isArray(msg.sc_rooms_played) ? msg.sc_rooms_played.filter(Boolean) : [];
+  console.log('[shortcuts] ═══ DONE "' + p.label + '" (' + p.id + ') — answer ' + (Math.round((Date.now() - p.sentAt) / 100) / 10) + 's after the tap' +
+    (evtAge > 15000 ? ' (event ' + Math.round(evtAge / 1000) + 's old — replay)' : '') +
+    (p.restored ? ' [restored tap]' : '') + (p.gaveUp ? ' [late: after "no confirmation"]' : '') + (p.sendFailed ? ' [the send had looked failed]' : '') +
+    ' rooms_played=[' + rooms.join(', ') + '] :: ' + String(msg.sc_message || '').slice(0, 200) + ' ═══');
+  if (p.playClass && rooms.length) {
+    if (p.isSel) {
+      // p3.46: the target IS the selection — chips stay put; the tap is fresh intent (p3.27 clock).
+      _stampSelTouch(p.house);
+      console.log('[shortcuts] selection tile played on current chips → [' + rooms.join(', ') + '] (' + p.house + '); selection unchanged');
+    } else {
+      _scFollowChips(p, rooms, 'rooms that played');
+    }
+  }
+  // p3.46: selection tiles name their rooms in the toast (there is no fixed target to infer from the label)
+  showToast('✓ ' + p.label + (p.isSel && rooms.length ? ' → ' + rooms.map(r => r.replace(/^Main /, '')).join(', ') : '') + (evtAge > 60000 ? ' · ' + fmtAge(evtAge) : ''));
+  return true;
+}
+
+// SSE `command_error` carrying OUR cmd_ts: either the engine refused the tile outright (busy /
+// wrong house / unknown id / no rooms — no shortcut_result follows), or one of its steps failed
+// (children share the parent's cmd_ts and the engine stops at the first failed step; its own
+// failed shortcut_result follows and is then a no-op). Either way it is this tile's verdict.
+// Returns true when the error belongs to this page's tile — the caller mutes the generic toast.
+function _scOnError(msg) {
+  const p = _scPending;
+  const ts = String(msg.cmd_err_ts || '');
+  if (!p || !ts || p.cmd_ts !== ts) return false;
+  if (!p.done) _scFail(p, msg.cmd_message, 'command_error:' + (msg.cmd_action || '?'));
+  return true;
+}
+
+// Back in the foreground with an unanswered tap: the existing visibilitychange handler has
+// just reconnected SSE (replay incoming) — give it a moment before concluding anything.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  _scVisibleAt = Date.now();
+  const p = _scPending;
+  if (p && !p.done && !p.gaveUp && !p.restored) {
+    console.log('[shortcuts] foreground with an unanswered tap (' + p.id + ', ' + Math.round((Date.now() - p.sentAt) / 1000) + 's old) — giving the SSE replay ' + (_SC_RESUME_GRACE_MS / 1000) + 's');
+    _scArmCheck(_SC_RESUME_GRACE_MS);
+  }
+});
+try { _scRestorePending(); } catch (e) { console.log('[shortcuts] pending restore ERROR: ' + e); }
 
 const PL_METADATA_URL = 'https://shumania.github.io/lifelog/playlists.json'; // p2.46: Phase 3 cutover — new-schema asset (both accounts, owned+followed, server recency)
 const PL_TRACKS_BASE  = 'https://shumania.github.io/lifelog/playlist_tracks/';
