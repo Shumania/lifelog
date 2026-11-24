@@ -656,6 +656,11 @@
   .toast.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
   .toast.action { pointer-events: auto; z-index: 300; } /* p3.52: tappable escape hatch; above the queue sheet (250) so its slide-out can't cover the link */
   .toast.action a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  /* p3.58: long action toasts (a found track, "Open Spotify") wrap inside the screen instead of
+     running off both edges (.toast is nowrap), and their link is a thumb-sized button on its own line. */
+  .toast.wrap { white-space: normal; width: max-content; max-width: min(calc(100vw - 24px), 560px); text-align: center; line-height: 1.4; }
+  .toast.action a.t-btn { display: inline-block; margin-top: 7px; padding: 6px 16px; border: 1px solid currentColor; border-radius: 8px; text-decoration: none; }
+  .toast.action.error { background: rgba(58,26,26,0.95); border-color: #f87171; color: #f87171; }
 
   /* Sonos hint card */
   .sonos-hint {
@@ -1192,6 +1197,15 @@ body.house-roaming [onclick^="playContext('play'"] { color: #1DB954 !important; 
 body.house-roaming [onclick^="playDiscovery('play'"]:not(.action-btn)::after,
 body.house-roaming [onclick^="directPlay('play'"]:not(.action-btn)::after,
 body.house-roaming [onclick^="playContext('play'"]:not(.action-btn)::after { content: '↗'; font-size: .75em; vertical-align: super; margin-left: 2px; opacity: .8; }
+/* p3.58 (roaming review row 4): a track with NO Spotify address shows a hollow, dim triangle in
+   Roaming (not a magnifier - that glyph is the Explore button). Tapping it looks the track up
+   and shows the match BEFORE anything opens. At home the same button stays the solid play
+   triangle (the speakers resolve it). Both glyphs are in the DOM; CSS picks. */
+.pf-find { display: none; }
+body.house-roaming [data-find="1"] { color: var(--text-dim) !important; }
+body.house-roaming [data-find="1"] .pf-play { display: none; }
+body.house-roaming [data-find="1"] .pf-find { display: inline; }
+body.house-roaming [data-find="1"]::after { content: none !important; }
 /* p3.26 (D6): shortcut tiles gray in roaming (guard toast in runShortcut explains) */
 body.house-roaming .shortcut-card { opacity: .4; }
 </style>
@@ -1484,7 +1498,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.57';
+const PAGE_VERSION = 'p3.58';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1788,13 +1802,21 @@ function dayKey(iso) {
   return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
 }
 
+function _toastClearTimers() {
+  // p3.58: ONE toast owns the slot. Before this, an earlier toast's hide timer kept running and
+  // could hide a later toast early - including an action toast with a link in it ("Searching…"
+  // at t=0 would hide the found-track toast 2.5 s later). Both toast functions call this first.
+  clearTimeout(showToast._tm); clearTimeout(showToast._tm2);
+  if (typeof _showToastHtml === 'function') { clearTimeout(_showToastHtml._tm); clearTimeout(_showToastHtml._tm2); }
+}
 function showToast(msg, isError) {
   const t = document.getElementById('toast');
+  _toastClearTimers();
   t.textContent = msg;
   t.className = 'toast' + (isError ? ' error' : '');
   t.style.display = 'block';
   requestAnimationFrame(() => { t.style.opacity = '1'; });
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.style.display = 'none', 400); }, 2500);
+  showToast._tm = setTimeout(() => { t.style.opacity = '0'; showToast._tm2 = setTimeout(() => t.style.display = 'none', 400); }, 2500);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3351,7 +3373,12 @@ async function spotifyCmd(action) {
       case 'next': await spotifyApi('POST', '/me/player/next' + dp); break;
       case 'prev': await spotifyApi('POST', '/me/player/previous' + dp); break;
       case 'volume_up': case 'volume_down': {
-        const cur = spotifyDevices.find(d => d.is_active)?.volume_percent || 50;
+        // p3.58 (review row 10): only where the device accepts volume commands, and never
+        // from a guessed level (was "|| 50": an unreadable level, or a real 0, became 50).
+        const _vd = _roamVolDevice();
+        if (!_vd || _vd.supports_volume !== true) { console.log('[roaming p3.58] volume refused: ' + (_vd ? _vd.name + ' supports_volume=' + _vd.supports_volume : 'no live device')); showToast('Volume is set on the device itself', true); return; }
+        if (_vd.volume_percent == null) { console.log('[roaming p3.58] volume refused: ' + _vd.name + ' did not report a level'); showToast('Spotify did not report the current volume', true); return; }
+        const cur = _vd.volume_percent;
         const vol = Math.max(0, Math.min(100, cur + (action === 'volume_up' ? 5 : -5))); // p2.50: ±5 (was ±10)
         await spotifyApi('PUT', '/me/player/volume?volume_percent=' + vol + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
         showToast((action === 'volume_up' ? '🔊' : '🔉') + ' Volume ' + vol + '%');
@@ -3359,14 +3386,19 @@ async function spotifyCmd(action) {
       }
       case 'toggle_mute': {
         // Spotify doesn't have native mute — toggle between current vol and 0
-        const active = spotifyDevices.find(d => d.is_active);
-        const curVol = active?.volume_percent ?? 50;
+        // p3.58 (review row 10): same device/level guard as volume; toast says what happened.
+        const active = _roamVolDevice();
+        if (!active || active.supports_volume !== true) { console.log('[roaming p3.58] mute refused: ' + (active ? active.name + ' supports_volume=' + active.supports_volume : 'no live device')); showToast('Volume is set on the device itself', true); return; }
+        if (active.volume_percent == null) { console.log('[roaming p3.58] mute refused: ' + active.name + ' did not report a level'); showToast('Spotify did not report the current volume', true); return; }
+        const curVol = active.volume_percent;
         if (curVol > 0) {
           window._spotifyPreMuteVol = curVol;
           await spotifyApi('PUT', '/me/player/volume?volume_percent=0' + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+          showToast('🔇 Muted');
         } else {
           const restore = window._spotifyPreMuteVol || 50;
           await spotifyApi('PUT', '/me/player/volume?volume_percent=' + restore + (spotifySelectedDeviceId ? '&device_id=' + spotifySelectedDeviceId : ''));
+          showToast('🔊 Volume ' + restore + '%');
         }
         break;
       }
@@ -3381,10 +3413,14 @@ async function spotifyCmd(action) {
           btn.textContent = next === 'track' ? '🔂' : next === 'context' ? '🔁' : '➖';
           btn.classList.toggle('active', next !== 'off');
         }
+        showToast(next === 'track' ? '🔂 Repeating this track' : next === 'context' ? '🔁 Repeat on' : 'Repeat off'); // p3.58: was "✓ cycle_repeat"
         break;
       }
     }
-    if (!['volume_up','volume_down'].includes(action)) showToast('✓ ' + action);
+    // p3.58 (review item 7): say what happened in words - was the raw verb ("✓ cycle_repeat",
+    // "✓ toggle_mute"). Volume, mute and repeat toast inside their own case above.
+    const _spLabel = { play: '▶ Playing', pause: '⏸ Paused', next: '⏭ Next track', prev: '⏮ Previous track' }[action];
+    if (_spLabel) showToast(_spLabel);
     setTimeout(fetchSpotifyNowPlaying, 500);
   } catch(e) {
     if (_roamingNoDevice(e)) return; // p3.03 item 5
@@ -3409,8 +3445,11 @@ function deviceIcon(type) {
 function _roamingNoDevice(e) {
   const m = ((e && e.message) || '').toLowerCase();
   if (!m.includes('no active device') && !m.includes('device not found')) return false;
-  showToast('📵 Spotify can\'t see your phone — open the Spotify app, then tap ▶ again.', true);
-  console.log('[roaming p3.03] no active device — refetching device list for the retry');
+  // p3.58 (review row 8): the toast was a dead end - it said "open the Spotify app" with no way
+  // to do it. open.spotify.com/ is in Spotify's own app-link list (checked 2026-11-24), so the
+  // button should land in the app; UNTESTED on the iPhone as of this release.
+  _showToastHtml('📵 Spotify can\'t see your phone. Open it, then come back and tap again.<br>' + _roamLinkHtml(SPOTIFY_OPEN_URL, 'Open Spotify ↗'), 10000, 'wrap error');
+  console.log('[roaming p3.03] no active device — refetching device list for the retry (p3.58: toast carries an Open Spotify link → ' + SPOTIFY_OPEN_URL + ')');
   fetchSpotifyDevices(); // one-shot refetch so the retry can target the woken device
   return true;
 }
@@ -3442,6 +3481,13 @@ function parseMediaRef(uri) {
   if (m) return { service: 'spotify', kind: m[1], id: m[2] };
   m = s.match(/open\.spotify\.com\/(track|album|playlist|artist|episode|show)\/([A-Za-z0-9]+)/);
   if (m) return { service: 'spotify', kind: m[1], id: m[2] };
+  // p3.58 (roaming review row 5): the speaker's wrapped form of a Spotify address, as carried by
+  // the newest History rows before they are processed -
+  //   x-sonos-spotify:spotify%3atrack%3a<ID>?sid=12&flags=…      (tracks)
+  //   x-rincon-cpcontainer:1006206cspotify%3aplaylist%3a<ID>?…   (albums / playlists)
+  // Only these two prefixes; radio (x-sonosapi-*) and x-sonos-vli stay unresolvable on purpose.
+  m = s.match(/^x-(?:sonos-spotify|rincon-cpcontainer):.*?spotify%3a(track|album|playlist|artist|episode|show)%3a([A-Za-z0-9]{22})(?![A-Za-z0-9])/i);
+  if (m) return { service: 'spotify', kind: m[1].toLowerCase(), id: m[2] };
   return null;
 }
 
@@ -3502,14 +3548,15 @@ function _setDesktopLinkMode(m) {
   try { localStorage.setItem(LL_DESKTOP_LINK_KEY, m); } catch (e) {}
   console.log('[deeplink p3.52] desktop link mode → ' + m + ' (remembered in this browser only)');
 }
-function _showToastHtml(html, ms) {
+function _showToastHtml(html, ms, extraCls) {
+  // p3.58: optional extraCls ('wrap', 'wrap error') - existing two-argument callers unchanged.
   const t = document.getElementById('toast');
+  _toastClearTimers();
   t.innerHTML = html;
-  t.className = 'toast action';
+  t.className = 'toast action' + (extraCls ? ' ' + extraCls : '');
   t.style.display = 'block';
   requestAnimationFrame(() => { t.style.opacity = '1'; });
-  clearTimeout(_showToastHtml._tm);
-  _showToastHtml._tm = setTimeout(() => { t.style.opacity = '0'; setTimeout(() => { t.style.display = 'none'; t.className = 'toast'; }, 400); }, ms || 6000);
+  _showToastHtml._tm = setTimeout(() => { t.style.opacity = '0'; _showToastHtml._tm2 = setTimeout(() => { t.style.display = 'none'; t.className = 'toast'; }, 400); }, ms || 6000);
 }
 function _navToService(dl) {
   if (_houseIsMobile()) { window.location.href = dl.url; return 'mobile-nav'; }
@@ -3538,6 +3585,89 @@ function openInService(url) {
   const dl = deepLinkFor(url);
   if (!dl) { console.log('[deeplink] open-in-service: unparseable ref, raw same-window nav'); window.location.href = url; return; }
   console.log('[deeplink] open-in-service path: ' + _navToService(dl));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// p3.58 — ROAMING FIXES (review 2026-11-24 §3A). Everything here is roaming-only or
+// additive; the Sonos (home) send paths are not touched.
+// ══════════════════════════════════════════════════════════════════════════════
+const SPOTIFY_OPEN_URL = 'https://open.spotify.com/';
+function _spotifySearchUrl(q) { return 'https://open.spotify.com/search/' + encodeURIComponent(q).replace(/'/g, '%27'); }
+
+// A link inside an action toast. On phones it is a REAL anchor tap in the same window - the
+// A-row path that reached the Spotify app from Safari and the home-screen app on Aug 23
+// (F6/F7). On desktop a content link goes through the p3.52 hand-off and anything else
+// (search, bare "open Spotify") opens a new window, so the installed app frame never gets
+// trapped on a Spotify page.
+function _roamLinkHtml(url, text) {
+  return '<a class="t-btn" href="' + esc(url) + '" onclick="return _roamAnchorTap(event,this.href)">' + esc(text) + '</a>';
+}
+function _roamAnchorTap(ev, url) {
+  if (_houseIsMobile()) { console.log('[roam-link] phone: real anchor tap, same-window nav → ' + url); return true; }
+  ev.preventDefault();
+  const dl = deepLinkFor(url);
+  if (dl) { console.log('[roam-link] desktop content link → ' + _navToService(dl)); return false; }
+  const w = window.open(url, '_blank');
+  if (w) { try { w.opener = null; } catch (e) {} }
+  console.log('[roam-link] desktop non-content link → new window ' + (w ? 'opened' : 'BLOCKED (pop-up blocker?)') + ': ' + url);
+  return false;
+}
+
+// Row 4: does a track row have a Spotify address roaming can open directly?
+function _needsFind(uri, trackId, sonosUri) {
+  if (trackId) return false;
+  const r = parseMediaRef(uri) || parseMediaRef(sonosUri);
+  return !(r && r.service === 'spotify');
+}
+function _findAttr(uri, trackId, sonosUri) { return _needsFind(uri, trackId, sonosUri) ? ' data-find="1"' : ''; }
+function _playGlyph(uri, trackId, sonosUri) { return _needsFind(uri, trackId, sonosUri) ? '<span class="pf-play">▶</span><span class="pf-find">▷</span>' : '▶'; }
+
+// Row 4: choose among Spotify search results and say honestly how good the match is.
+// "exact" needs BOTH the title (letters and digits only, case and accents ignored - so a
+// "(Live)" or "- Remastered" suffix is NOT exact) and one of the artists to agree.
+function _normStrict(s) { return String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim(); }
+function _normLoose(s) { return _normStrict(String(s || '').replace(/\s*[\(\[][^\)\]]*[\)\]]/g, ' ').replace(/\s+-\s+.*$/, ' ')); }
+function _pickTrackMatch(items, info) {
+  if (!items || !items.length) return null;
+  const wt = _normStrict(info.title), wl = _normLoose(info.title), wa = _normStrict(info.artist);
+  let best = null;
+  items.forEach((t, i) => {
+    if (!t || !t.id) return;
+    const tt = _normStrict(t.name), tl = _normLoose(t.name);
+    const titleExact = !!wt && tt === wt, titleLoose = !!wl && tl === wl;
+    const artistHit = !!wa && (t.artists || []).some(a => { const n = _normStrict(a && a.name); return !!n && (wa === n || (' ' + wa + ' ').includes(' ' + n + ' ')); });
+    const score = (titleExact ? 4 : titleLoose ? 2 : 0) + (artistHit ? 3 : 0);
+    if (!best || score > best.score) best = { track: t, score, rank: i + 1, n: items.length, exact: titleExact && artistHit, titleOk: titleExact || titleLoose };
+  });
+  return best;
+}
+function _matchLine(t) {
+  const artists = (t.artists || []).map(a => a.name).filter(Boolean).join(', ');
+  const alb = (t.album && t.album.name) || '';
+  return { artists, alb, html: '<b>' + esc(t.name) + '</b>' + (artists ? ' — ' + esc(artists) : '') + (alb ? ' · ' + esc(alb) : '') };
+}
+function _roamShowMatch(f, info) {
+  const t = f.track, ml = _matchLine(t), url = 'https://open.spotify.com/track/' + t.id;
+  console.log('[roam-find] ' + (f.exact ? 'exact' : 'CLOSEST, not exact') + ' match for "' + (info.title || '') + '" / "' + (info.artist || '') + '" → "' + t.name + '" / "' + ml.artists + '" / "' + ml.alb + '" (result ' + f.rank + ' of ' + f.n + ', score ' + f.score + ') ' + url);
+  _showToastHtml((f.exact ? '🔍 Found on Spotify: ' : '🔍 Closest on Spotify, check it: ') + ml.html + '<br>' + _roamLinkHtml(url, 'Open in Spotify ↗'), 15000, 'wrap');
+}
+
+// Row 10: Spotify volume only makes sense where the target device accepts it (phones report
+// supports_volume:false - their volume is the hardware buttons).
+function _roamVolDevice() {
+  return spotifyDevices.find(x => x.id === spotifySelectedDeviceId && !x._stale) || spotifyDevices.find(x => x.is_active && !x._stale) || null;
+}
+function _roamVolUi() {
+  const g = document.querySelector('#panel-roaming .volume-group');
+  if (!g) { console.log('[roaming p3.58] _roamVolUi: no volume group in the roaming panel?'); return; }
+  const d = hasSpotifyAuth() ? _roamVolDevice() : null;
+  const ok = !!(d && d.supports_volume === true);
+  const want = ok ? '' : 'none';
+  if (g.style.display !== want || !_roamVolUi._seen) {
+    _roamVolUi._seen = true;
+    g.style.display = want; // .volume-group is display:flex, so the hidden attribute would not hide it
+    console.log('[roaming p3.58] volume/mute ' + (ok ? 'SHOWN' : 'HIDDEN') + ' — ' + (d ? d.name + ' (' + d.type + ') supports_volume=' + d.supports_volume : 'no live Spotify device'));
+  }
 }
 
 async function fetchSpotifyDevices() {
@@ -3634,8 +3764,10 @@ function renderSpotifyDevices() {
   if (!el) return;
   if (!hasSpotifyAuth()) {
     el.innerHTML = '<button class="spotify-connect-btn" onclick="spotifyAuth()">🎵 Connect with Spotify</button><p style="font-size:11px;color:var(--text-dim);margin-top:8px;text-align:center;">Authenticates directly with Spotify</p>';
+    _roamVolUi(); // p3.58: not signed in → no volume controls
     return;
   }
+  _roamVolUi(); // p3.58: volume/mute follow the live device's supports_volume on every device render
   let html = '<div class="device-list">';
   if (spotifyDevices.length === 0) {
     html += '<p style="font-size:12px;color:var(--text-dim);padding:8px 0;">No devices found. Open Spotify on a device.</p>';
@@ -4690,7 +4822,7 @@ function renderShazamItem(item) {
       </div>
     </div>
     <div class="hi-actions">
-      <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
+      <button class="action-btn"${_findAttr(item.uri, item.track_id, '')} onclick="directPlay('play','${playData}')" title="Play">${_playGlyph(item.uri, item.track_id, '')}</button>
       <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
       ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', 'shazam')}
       ${exploreButton(item.artist, exploreData)}
@@ -4756,7 +4888,7 @@ function renderHistory() {
         </div>
       </div>
       <div class="hi-actions">
-        <button class="action-btn" onclick="directPlay('play','${playData}')" title="Play">▶</button>
+        <button class="action-btn"${_findAttr(item.uri, item.track_id, item.sonos_uri)} onclick="directPlay('play','${playData}')" title="Play">${_playGlyph(item.uri, item.track_id, item.sonos_uri)}</button>
         <button class="action-btn" onclick="directPlay('queue','${playData}')" title="Queue">+</button>
         ${likeButton('track', item.track_id || item.uri, item.title, item.artist, 'history', item.source || item.service || '')}
         ${exploreButton(item.artist, exploreData)}
@@ -5603,17 +5735,65 @@ async function directPlay(action, encodedData, sheetOpts) {
   }
 
   // --- ROAMING PATH (Spotify Connect) ---
-  // For Roaming, need a Spotify URI — search if we don't have one
+  // p3.58 (roaming review row 5): roaming needs a PLAIN Spotify address. The newest History rows
+  // from a home speaker carry the speaker's wrapped form (x-sonos-spotify:spotify%3atrack%3a…),
+  // which the deep link could not parse and Spotify's queue does not accept - unwrap it. Any
+  // other address (Qobuz or Apple Music on a speaker) is no use to Spotify: treat the row as
+  // having no Spotify link and look the track up instead.
+  if (uri) {
+    const _ref = parseMediaRef(uri);
+    if (_ref && _ref.service === 'spotify') {
+      const _plain = 'spotify:' + _ref.kind + ':' + _ref.id;
+      if (_plain !== uri) console.log('[directPlay p3.58] roaming: unwrapped ' + String(uri).slice(0, 70) + ' → ' + _plain);
+      uri = _plain;
+    } else {
+      console.log('[directPlay p3.58] roaming: not a Spotify address, treating as no link:', String(uri).slice(0, 70));
+      uri = '';
+    }
+  }
+  if (!uri && info.track_id) { uri = String(info.track_id).startsWith('spotify:') ? info.track_id : ('spotify:track:' + info.track_id); console.log('[directPlay p3.58] roaming: using resolved track_id →', uri); }
+  if (!uri && info.sonos_uri) {
+    const _sref = parseMediaRef(info.sonos_uri);
+    if (_sref && _sref.service === 'spotify') { uri = 'spotify:' + _sref.kind + ':' + _sref.id; console.log('[directPlay p3.58] roaming: unwrapped sonos_uri →', uri); }
+  }
+  // p3.58 (row 4): no Spotify address → look it up. ▶ no longer opens the first hit silently:
+  // it shows the match and the tap on its link opens it. ＋ still queues in one tap but names
+  // what it queued. Not signed in → a Spotify search link (was a dead-end "Connect Spotify first").
+  let _found = null;
   if (!uri) {
+    const q = [info.artist, info.title].filter(Boolean).join(' ');
+    if (!q) { console.log('[roam-find] row has neither artist nor title - nothing to search'); showToast('No track info to search', true); return; }
     const token = await getSpotifyToken();
-    if (!token) { showToast('Connect Spotify first', true); return; } // p2.43 minor: stale "Open Controller" copy
-    showToast('Searching...');
+    if (!token) {
+      console.log('[roam-find] this page is not signed in to Spotify → ' + (action === 'queue' ? 'queue needs sign-in' : 'offering a Spotify search link') + ' for: ' + q);
+      if (action === 'queue') { showToast('Connect Spotify first', true); return; }
+      _showToastHtml('🔍 Not signed in to Spotify here, so I can\'t look this up.<br>' + _roamLinkHtml(_spotifySearchUrl(q), 'Search in Spotify ↗'), 12000, 'wrap');
+      return;
+    }
+    showToast('Searching…');
+    let _items = [];
     try {
-      const q = [info.artist, info.title].filter(Boolean).join(' ');
-      const r = await spotifyApi('GET', '/search?type=track&limit=1&q=' + encodeURIComponent(q));
-      uri = r?.tracks?.items?.[0]?.uri;
-      if (!uri) { showToast('Not found on Spotify', true); return; }
-    } catch(e) { showToast('Search failed', true); return; }
+      const r = await spotifyApi('GET', '/search?type=track&limit=5&q=' + encodeURIComponent(q));
+      _items = (r && r.tracks && r.tracks.items) || [];
+    } catch(e) {
+      console.log('[roam-find] Spotify search failed:', e && e.message);
+      if (action === 'queue') { showToast('Search failed', true); return; }
+      _showToastHtml('✗ Spotify search failed.<br>' + _roamLinkHtml(_spotifySearchUrl(q), 'Search in Spotify ↗'), 12000, 'wrap error');
+      return;
+    }
+    _found = _pickTrackMatch(_items, info);
+    if (!_found) {
+      console.log('[roam-find] no results for: ' + q);
+      if (action === 'queue') { showToast('Not found on Spotify', true); return; }
+      _showToastHtml('🔍 Nothing on Spotify for that.<br>' + _roamLinkHtml(_spotifySearchUrl(q), 'Search in Spotify ↗'), 12000, 'wrap error');
+      return;
+    }
+    if (action !== 'queue') { _roamShowMatch(_found, info); return; }
+    // ＋ acts without a confirm step, so it only queues a result whose TITLE agrees (a different
+    // version is named in the toast; a different song is never queued).
+    if (!_found.titleOk) { console.log('[roam-find] queue refused: best result "' + _found.track.name + '" does not match the title "' + (info.title || '') + '"'); showToast('No matching track on Spotify, nothing queued', true); return; }
+    uri = _found.track.uri;
+    console.log('[roam-find] queueing ' + (_found.exact ? 'exact' : 'CLOSEST, not exact') + ' match: "' + _found.track.name + '" (' + uri + ') for "' + (info.title || '') + '"');
   }
   // p3.26 (D1/D2/D9): roaming PLAY verbs deep-link into the Spotify app (tracks
   // autoplay — true one-tap, F2). Queue verbs stay API-backed (D3): the deep link
@@ -5625,7 +5805,9 @@ async function directPlay(action, encodedData, sheetOpts) {
   try {
     if (action === 'queue') {
       await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + dp);
-      showToast('✓ Queued: ' + (info.title || ''));
+      // p3.58 (row 4): when the address came from a search, name what was actually queued
+      if (_found) { const _ml = _matchLine(_found.track); showToast('✓ Queued' + (_found.exact ? ': ' : ' closest match: ') + _found.track.name + (_ml.artists ? ' — ' + _ml.artists : '')); }
+      else showToast('✓ Queued: ' + (info.title || ''));
     } else {
       await spotifyApi('POST', '/me/player/queue?uri=' + encodeURIComponent(uri) + dp);
       await new Promise(r => setTimeout(r, 300));
@@ -9466,7 +9648,7 @@ const SH = (() => {
     const playable = !!(t.track_id || (t.artist && t.artist !== 'Unknown artist' && t.title && t.title !== 'Unknown track'));
     if (!playable) return offBtns();
     const pd = encodeURIComponent(JSON.stringify({ uri: '', sonos_uri: '', track_id: t.track_id || '', title: t.title || '', artist: t.artist === 'Unknown artist' ? '' : (t.artist || ''), album: t.album || '', service: t.source || '' })).replace(/'/g, '%27');
-    return `<button class="sh-pill" onclick="event.stopPropagation();directPlay('play','${pd}')" title="Play">▶</button><button class="sh-pill" onclick="event.stopPropagation();directPlay('queue','${pd}')" title="Queue">＋</button>`;
+    return `<button class="sh-pill"${_findAttr('', t.track_id, '')} onclick="event.stopPropagation();directPlay('play','${pd}')" title="Play">${_playGlyph('', t.track_id, '')}</button><button class="sh-pill" onclick="event.stopPropagation();directPlay('queue','${pd}')" title="Queue">＋</button>`;
   }
   function trackBtns(t) {
     const like = likeButton('track', t.track_id || '', t.title, t.artist, 'sessions', t.source || '');
