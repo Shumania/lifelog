@@ -1197,10 +1197,12 @@ body.house-roaming [onclick^="playContext('play'"] { color: #1DB954 !important; 
 body.house-roaming [onclick^="playDiscovery('play'"]:not(.action-btn)::after,
 body.house-roaming [onclick^="directPlay('play'"]:not(.action-btn)::after,
 body.house-roaming [onclick^="playContext('play'"]:not(.action-btn)::after { content: '↗'; font-size: .75em; vertical-align: super; margin-left: 2px; opacity: .8; }
-/* p3.58 (roaming review row 4): a track with NO Spotify address shows a magnifier in Roaming -
-   tapping it looks the track up and shows the match BEFORE anything opens. At home the same
-   button stays a play triangle (the speakers resolve it). Both glyphs are in the DOM; CSS picks. */
+/* p3.58 (roaming review row 4): a track with NO Spotify address shows a hollow, dim triangle in
+   Roaming (not a magnifier - that glyph is the Explore button). Tapping it looks the track up
+   and shows the match BEFORE anything opens. At home the same button stays the solid play
+   triangle (the speakers resolve it). Both glyphs are in the DOM; CSS picks. */
 .pf-find { display: none; }
+body.house-roaming [data-find="1"] { color: var(--text-dim) !important; }
 body.house-roaming [data-find="1"] .pf-play { display: none; }
 body.house-roaming [data-find="1"] .pf-find { display: inline; }
 body.house-roaming [data-find="1"]::after { content: none !important; }
@@ -3618,7 +3620,7 @@ function _needsFind(uri, trackId, sonosUri) {
   return !(r && r.service === 'spotify');
 }
 function _findAttr(uri, trackId, sonosUri) { return _needsFind(uri, trackId, sonosUri) ? ' data-find="1"' : ''; }
-function _playGlyph(uri, trackId, sonosUri) { return _needsFind(uri, trackId, sonosUri) ? '<span class="pf-play">▶</span><span class="pf-find">🔍</span>' : '▶'; }
+function _playGlyph(uri, trackId, sonosUri) { return _needsFind(uri, trackId, sonosUri) ? '<span class="pf-play">▶</span><span class="pf-find">▷</span>' : '▶'; }
 
 // Row 4: choose among Spotify search results and say honestly how good the match is.
 // "exact" needs BOTH the title (letters and digits only, case and accents ignored - so a
@@ -3635,7 +3637,7 @@ function _pickTrackMatch(items, info) {
     const titleExact = !!wt && tt === wt, titleLoose = !!wl && tl === wl;
     const artistHit = !!wa && (t.artists || []).some(a => { const n = _normStrict(a && a.name); return !!n && (wa === n || (' ' + wa + ' ').includes(' ' + n + ' ')); });
     const score = (titleExact ? 4 : titleLoose ? 2 : 0) + (artistHit ? 3 : 0);
-    if (!best || score > best.score) best = { track: t, score, rank: i + 1, n: items.length, exact: titleExact && artistHit };
+    if (!best || score > best.score) best = { track: t, score, rank: i + 1, n: items.length, exact: titleExact && artistHit, titleOk: titleExact || titleLoose };
   });
   return best;
 }
@@ -5787,6 +5789,9 @@ async function directPlay(action, encodedData, sheetOpts) {
       return;
     }
     if (action !== 'queue') { _roamShowMatch(_found, info); return; }
+    // ＋ acts without a confirm step, so it only queues a result whose TITLE agrees (a different
+    // version is named in the toast; a different song is never queued).
+    if (!_found.titleOk) { console.log('[roam-find] queue refused: best result "' + _found.track.name + '" does not match the title "' + (info.title || '') + '"'); showToast('No matching track on Spotify, nothing queued', true); return; }
     uri = _found.track.uri;
     console.log('[roam-find] queueing ' + (_found.exact ? 'exact' : 'CLOSEST, not exact') + ' match: "' + _found.track.name + '" (' + uri + ') for "' + (info.title || '') + '"');
   }
