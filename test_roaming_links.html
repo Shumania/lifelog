@@ -31,13 +31,13 @@
   button.go.js { background: #2a1836; color: #f0abfc; border-color: #6b3a86; }
   audio { width: 100%; margin: 2px 0 4px; }
   .q { font-size: .8rem; color: #999; margin: 12px 0 6px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { background: #222; color: #ddd; border: 1px solid #3a3a3a; border-radius: 18px; padding: 8px 12px; font-size: .86rem; cursor: pointer; font-family: inherit; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: #222; color: #ddd; border: 1px solid #3a3a3a; border-radius: 22px; padding: 8px 14px; min-height: 44px; font-size: .9rem; cursor: pointer; font-family: inherit; text-align: left; }
   .chip.on { background: #1f6f3a; border-color: #2ea043; color: #fff; font-weight: 700; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(17,17,17,.96); border-top: 1px solid #333;
          padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px); display: flex; gap: 8px; align-items: center; }
   .bar .n { font-size: .82rem; color: #aaa; flex: 1; }
-  .bar button { background: #1ed760; color: #000; border: none; border-radius: 10px; padding: 11px 14px; font-weight: 800; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .bar button { background: #1ed760; color: #000; border: none; border-radius: 10px; padding: 11px 14px; min-height: 44px; font-weight: 800; font-size: .92rem; cursor: pointer; font-family: inherit; }
   .bar button.alt { background: #333; color: #eee; }
   textarea { width: 100%; min-height: 70px; background: #1b1b1b; color: #eee; border: 1px solid #333; border-radius: 10px; padding: 10px; font-size: .9rem; font-family: inherit; }
   pre#out { white-space: pre-wrap; word-break: break-word; background: #0b0b0b; border: 1px solid #333; border-radius: 10px; padding: 10px; font-size: .78rem; color: #9ae6b4; }
@@ -48,7 +48,7 @@
 <body>
 <h1>Roaming link test</h1>
 <div id="ctx" class="ctx browser">checking where this is running…</div>
-<p class="lead">Tap a green button, see what happens, come back here and tap the answer that fits. Answers are saved as you go.
+<p class="lead">Tap the big button in each card, see what happens, come back here and tap the answer that fits. Answers are saved as you go.
 About 10 minutes. Have Spotify signed in on this phone. When you're done, tap <b>Send results</b> at the bottom.</p>
 
 <div id="list"></div>
@@ -60,7 +60,7 @@ About 10 minutes. Have Spotify signed in on this phone. When you're done, tap <b
 <pre id="out"></pre>
 <div id="msg"></div>
 
-<footer>LINKTEST v2.0 · 2026-11-24 · this page sends nothing to any speaker and nothing to anyone until you tap Send results or Copy.</footer>
+<footer>LINKTEST v2.1 · 2026-11-24 · this page sends nothing to any speaker and nothing to anyone until you tap Send results or Copy.</footer>
 
 <div class="bar">
   <div class="n" id="count"></div>
