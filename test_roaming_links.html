@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Link Test">
+<meta name="robots" content="noindex">
+<title>Roaming link test</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #111; color: #eee; margin: 0;
+         padding: calc(env(safe-area-inset-top, 0px) + 16px) 14px calc(env(safe-area-inset-bottom, 0px) + 90px); line-height: 1.4; }
+  h1 { font-size: 1.2rem; margin: 0 0 4px; }
+  p.lead { font-size: .9rem; color: #bbb; margin: 6px 0 12px; }
+  .ctx { padding: 10px 12px; border-radius: 10px; margin: 10px 0 6px; font-weight: 600; font-size: .9rem; }
+  .ctx.browser { background: #1e3a5f; }
+  .ctx.standalone { background: #14532d; }
+  h2 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #7dd3fc; margin: 26px 0 8px; }
+  .card { background: #1b1b1b; border: 1px solid #2c2c2c; border-radius: 12px; padding: 12px; margin: 10px 0; scroll-margin-top: 12px; }
+  .card.done { border-color: #1f6f3a; }
+  .card.flash { box-shadow: 0 0 0 2px #facc15; }
+  .hd { display: flex; gap: 8px; align-items: baseline; }
+  .id { font-weight: 800; color: #fff; min-width: 2.2em; }
+  .ttl { font-weight: 700; font-size: .98rem; }
+  .watch { font-size: .84rem; color: #aaa; margin: 4px 0 10px; }
+  a.go, button.go { display: block; width: 100%; text-align: center; background: #14361f; color: #1ed760; border: 1px solid #1f6f3a;
+         border-radius: 10px; padding: 13px 12px; font-size: 1rem; font-weight: 700; text-decoration: none; cursor: pointer; font-family: inherit; }
+  button.go.js { background: #2a1836; color: #f0abfc; border-color: #6b3a86; }
+  audio { width: 100%; margin: 2px 0 4px; }
+  .q { font-size: .8rem; color: #999; margin: 12px 0 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: #222; color: #ddd; border: 1px solid #3a3a3a; border-radius: 18px; padding: 8px 12px; font-size: .86rem; cursor: pointer; font-family: inherit; }
+  .chip.on { background: #1f6f3a; border-color: #2ea043; color: #fff; font-weight: 700; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(17,17,17,.96); border-top: 1px solid #333;
+         padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px); display: flex; gap: 8px; align-items: center; }
+  .bar .n { font-size: .82rem; color: #aaa; flex: 1; }
+  .bar button { background: #1ed760; color: #000; border: none; border-radius: 10px; padding: 11px 14px; font-weight: 800; font-size: .92rem; cursor: pointer; font-family: inherit; }
+  .bar button.alt { background: #333; color: #eee; }
+  textarea { width: 100%; min-height: 70px; background: #1b1b1b; color: #eee; border: 1px solid #333; border-radius: 10px; padding: 10px; font-size: .9rem; font-family: inherit; }
+  pre#out { white-space: pre-wrap; word-break: break-word; background: #0b0b0b; border: 1px solid #333; border-radius: 10px; padding: 10px; font-size: .78rem; color: #9ae6b4; }
+  footer { margin-top: 22px; font-size: .74rem; color: #777; }
+  #msg { font-size: .82rem; color: #facc15; min-height: 1.2em; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>Roaming link test</h1>
+<div id="ctx" class="ctx browser">checking where this is running…</div>
+<p class="lead">Tap a green button, see what happens, come back here and tap the answer that fits. Answers are saved as you go.
+About 10 minutes. Have Spotify signed in on this phone. When you're done, tap <b>Send results</b> at the bottom.</p>
+
+<div id="list"></div>
+
+<h2>Anything else you noticed</h2>
+<textarea id="notes" placeholder="Optional"></textarea>
+
+<h2>Your results</h2>
+<pre id="out"></pre>
+<div id="msg"></div>
+
+<footer>LINKTEST v2.0 · 2026-11-24 · this page sends nothing to any speaker and nothing to anyone until you tap Send results or Copy.</footer>
+
+<div class="bar">
+  <div class="n" id="count"></div>
+  <button class="alt" onclick="copyResults()">Copy</button>
+  <button onclick="sendResults()">Send results</button>
+</div>
+
+<script>
+// ---- the links -----------------------------------------------------------------------------
+var SP = 'https://open.spotify.com/';
+var PL = '3leDIwZdhyh587n7IKe92V';            // Desert Psych Morning — Nov 23 (own playlist, 50 tracks)
+var PL_T1 = '5bPxFmZnHmyUTBH3k1kYQr';         // its track 1: Mango Season — BALTHVS
+var ALB = '0JBT8Sw5eGWC86DCrobOfY';           // Recomposed by Max Richter: Vivaldi, The Four Seasons
+var ALB_T1 = '2jFzey7g0OhAqGjMLZZIgJ';        // its track 1: Spring 0
+var MIX = '37i9dQZF1EIfjzgnbx4yqL';           // Focus Studying Mix (made by Spotify)
+var MIX_T = '1xeCkQqQSs9Q2IICcVgZvE';         // Valtari — Sigur Rós, last played from that mix on Oct 26
+var SPOTIFY_ANS = [['played', 'Spotify opened and it started playing'], ['page', 'Spotify opened, nothing started'], ['web', 'A web page opened instead'], ['nothing', 'Nothing happened']];
+var FROM_ANS = function (what) { return [['yes', 'Yes, from ' + what], ['no', 'No, from somewhere else'], ['skip', "Couldn't tell"]]; };
+var GROUPS = [
+  { h: 'A · Re-check of August', items: [
+    { id: 'A1', ttl: 'One track', watch: 'Shadow 5 by Max Richter. In August this opened Spotify and started playing.',
+      url: SP + 'track/3dCqI9IdhqWSkfXLNjEefx', label: 'Open track', ans: SPOTIFY_ANS },
+    { id: 'A2', ttl: 'One track, the way the app\u2019s \u25B6 opens it', watch: 'Same track, opened by script instead of a plain link.',
+      url: SP + 'track/3dCqI9IdhqWSkfXLNjEefx', label: 'Open track (script)', js: true, ans: SPOTIFY_ANS },
+    { id: 'A3', ttl: 'A playlist', watch: 'Desert Psych Morning. In August a playlist link opened the playlist but did not start it.',
+      url: SP + 'playlist/' + PL, label: 'Open playlist', ans: SPOTIFY_ANS }
+  ] },
+  { h: 'B · Could a playlist or album start in one tap?', items: [
+    { id: 'B1', ttl: 'First track, inside your playlist', watch: 'Mango Season by BALTHVS, opened as part of Desert Psych Morning. If it plays, open Spotify\u2019s now-playing screen and read the top line (\u201CPlaying from\u2026\u201D).',
+      url: SP + 'track/' + PL_T1 + '?context=' + encodeURIComponent('spotify:playlist:' + PL), label: 'Open track in playlist', ans: SPOTIFY_ANS,
+      q2: 'Did Spotify show it as playing from the playlist Desert Psych Morning?', ans2: FROM_ANS('the playlist') },
+    { id: 'B2', ttl: 'First track, inside an album', watch: 'Spring 0 from Recomposed by Max Richter, opened as part of the album. Same check: the top line of the now-playing screen.',
+      url: SP + 'track/' + ALB_T1 + '?context=' + encodeURIComponent('spotify:album:' + ALB), label: 'Open track in album', ans: SPOTIFY_ANS,
+      q2: 'Did Spotify show it as playing from the album Recomposed?', ans2: FROM_ANS('the album') },
+    { id: 'B3', ttl: 'A track inside Spotify\u2019s Focus Studying Mix', watch: 'Valtari by Sigur R\u00F3s, which you last played from that mix on Oct 26. Same check: the top line of the now-playing screen.',
+      url: SP + 'track/' + MIX_T + '?context=' + encodeURIComponent('spotify:playlist:' + MIX), label: 'Open track in mix', ans: SPOTIFY_ANS,
+      q2: 'Did Spotify show it as playing from Focus Studying Mix?', ans2: FROM_ANS('the mix') }
+  ] },
+  { h: 'C · Two links the new page release uses', items: [
+    { id: 'C1', ttl: 'Just open Spotify', watch: 'Should open the Spotify app without changing what is playing.',
+      url: SP, label: 'Open Spotify', ans: [['app-same', 'Spotify opened, music unchanged'], ['app-changed', 'Spotify opened and changed the music'], ['web', 'A web page opened instead'], ['nothing', 'Nothing happened']] },
+    { id: 'C2', ttl: 'Search Spotify', watch: 'Should open Spotify on search results for \u201CBrian Eno 2/2\u201D.',
+      url: SP + 'search/' + encodeURIComponent('Brian Eno 2/2'), label: 'Search in Spotify', ans: [['results', 'Spotify opened on the search results'], ['app-other', 'Spotify opened somewhere else'], ['web', 'A web page opened instead'], ['nothing', 'Nothing happened']] }
+  ] },
+  { h: 'D · Other services', items: [
+    { id: 'D1', ttl: 'Qobuz track', watch: '\u201CControl\u201D by Maki Asakawa. I have not been able to check this link form, so any result is useful.',
+      url: 'https://open.qobuz.com/track/190360013', label: 'Open in Qobuz', ans: [['played', 'Qobuz opened and it started playing'], ['page', 'Qobuz opened, nothing started'], ['web', 'A web page opened instead'], ['nothing', 'Nothing happened'], ['noapp', 'Qobuz isn\u2019t on this phone']] },
+    { id: 'D2', ttl: 'Apple Music copy of a playlist', watch: 'The Apple Music copy of Desert Psych Morning. I have not been able to check this link form either.',
+      url: 'https://music.apple.com/library/playlist/p.3VKWEJDiAQpo9', label: 'Open in Apple Music', ans: [['played', 'Music opened and it started playing'], ['page', 'Music opened on the playlist, nothing started'], ['app-other', 'Music opened somewhere else'], ['web', 'A web page opened instead'], ['nothing', 'Nothing happened']] },
+    { id: 'D3', ttl: 'KEXP, played by this page', watch: 'Press play below. Once you hear it, lock the phone for about 20 seconds.',
+      audio: 'https://kexp.streamguys1.com/kexp160.aac', ans: [['locked-ok', 'Plays, and kept playing while locked'], ['locked-stop', 'Plays, but stopped when locked'], ['noplay', 'Would not play']] }
+  ] }
+];
+
+// ---- state (per browser; Safari and the home-screen app keep separate copies) ---------------
+var KEY = 'll_linktest_v2';
+var S = { a: {}, a2: {}, tapped: {}, last: null, notes: '' };
+try { var raw = localStorage.getItem(KEY); if (raw) { var p = JSON.parse(raw); for (var k in p) S[k] = p[k]; } } catch (e) { console.log('[linktest] could not read saved answers:', e); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { console.log('[linktest] could not save:', e); } }
+var STANDALONE = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function allItems() { var o = []; GROUPS.forEach(function (g) { g.items.forEach(function (i) { o.push(i); }); }); return o; }
+
+function render() {
+  var h = '';
+  GROUPS.forEach(function (g) {
+    h += '<h2>' + esc(g.h) + '</h2>';
+    g.items.forEach(function (it) {
+      var done = !!S.a[it.id];
+      h += '<div class="card' + (done ? ' done' : '') + '" id="card-' + it.id + '">';
+      h += '<div class="hd"><span class="id">' + it.id + '</span><span class="ttl">' + esc(it.ttl) + '</span></div>';
+      h += '<div class="watch">' + esc(it.watch) + '</div>';
+      if (it.audio) h += '<audio controls preload="none" src="' + esc(it.audio) + '"></audio>';
+      else if (it.js) h += '<button class="go js" onclick="tap(\'' + it.id + '\');window.location.href=\'' + esc(it.url) + '\'">' + esc(it.label) + ' \u2197</button>';
+      else h += '<a class="go" href="' + esc(it.url) + '" onclick="tap(\'' + it.id + '\')">' + esc(it.label) + ' \u2197</a>';
+      h += '<div class="q">What happened?</div><div class="chips">';
+      it.ans.forEach(function (a) { h += '<button class="chip' + (S.a[it.id] === a[0] ? ' on' : '') + '" onclick="answer(\'' + it.id + '\',\'' + a[0] + '\')">' + esc(a[1]) + '</button>'; });
+      h += '</div>';
+      if (it.ans2) {
+        h += '<div class="q">' + esc(it.q2) + '</div><div class="chips">';
+        it.ans2.forEach(function (a) { h += '<button class="chip' + (S.a2[it.id] === a[0] ? ' on' : '') + '" onclick="answer2(\'' + it.id + '\',\'' + a[0] + '\')">' + esc(a[1]) + '</button>'; });
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+  });
+  document.getElementById('list').innerHTML = h;
+  var n = allItems().length, d = allItems().filter(function (i) { return S.a[i.id]; }).length;
+  document.getElementById('count').textContent = d + ' of ' + n + ' answered';
+  document.getElementById('out').textContent = resultsText();
+}
+function tap(id) { S.tapped[id] = new Date().toISOString(); S.last = id; save(); console.log('[linktest] tapped', id); }
+function answer(id, v) { S.a[id] = (S.a[id] === v ? undefined : v); if (!S.a[id]) delete S.a[id]; save(); render(); }
+function answer2(id, v) { S.a2[id] = (S.a2[id] === v ? undefined : v); if (!S.a2[id]) delete S.a2[id]; save(); render(); }
+function resultsText() {
+  var parts = allItems().map(function (i) { return i.id + '=' + (S.a[i.id] || '-') + (i.ans2 ? '/' + (S.a2[i.id] || '-') : ''); });
+  var where = STANDALONE ? 'home-screen app' : 'Safari tab';
+  var ua = navigator.userAgent.match(/OS (\d+[_\d]*) like Mac/); var ios = ua ? 'iOS ' + ua[1].replace(/_/g, '.') : 'not an iPhone?';
+  var t = 'LifeLog link test v2 \u00B7 ' + where + ' \u00B7 ' + ios + ' \u00B7 ' + new Date().toISOString().slice(0, 16) + 'Z\n' + parts.join(' ');
+  var notes = (document.getElementById('notes') && document.getElementById('notes').value || S.notes || '').trim();
+  if (notes) t += '\nNotes: ' + notes;
+  return t;
+}
+function msg(m) { document.getElementById('msg').textContent = m; }
+function copyResults() {
+  var t = resultsText();
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { msg('Copied. Paste it to me in Tasklet or in a text.'); }, function (e) { console.log('[linktest] copy failed', e); msg('Could not copy. Select the green text above and copy it by hand.'); });
+  else msg('Copy is not available here. Select the green text above and copy it by hand.');
+}
+function sendResults() {
+  var t = resultsText();
+  if (navigator.share) navigator.share({ text: t }).then(function () { msg('Shared.'); }, function (e) { console.log('[linktest] share dismissed or failed', e); msg('Share was cancelled. Copy works too.'); });
+  else copyResults();
+}
+
+(function init() {
+  var el = document.getElementById('ctx');
+  el.textContent = STANDALONE ? 'Running as a home-screen app. Answers here are kept separately from Safari.' : 'Running in a browser tab.';
+  el.className = 'ctx ' + (STANDALONE ? 'standalone' : 'browser');
+  var nt = document.getElementById('notes'); nt.value = S.notes || '';
+  nt.addEventListener('input', function () { S.notes = nt.value; save(); document.getElementById('out').textContent = resultsText(); });
+  render();
+  // coming back from Spotify: jump to the card that was just tapped if it has no answer yet
+  function back() {
+    if (document.visibilityState !== 'visible' || !S.last || S.a[S.last]) return;
+    var c = document.getElementById('card-' + S.last); if (!c) return;
+    c.scrollIntoView({ block: 'start' }); c.classList.add('flash'); setTimeout(function () { c.classList.remove('flash'); }, 2500);
+  }
+  document.addEventListener('visibilitychange', back); window.addEventListener('pageshow', back);
+  console.log('[linktest] v2.0 ready; standalone =', STANDALONE, '; items =', allItems().length);
+})();
+</script>
+</body>
+</html>
