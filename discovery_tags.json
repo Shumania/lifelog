@@ -1,6 +1,6 @@
 {
- "version": 8,
- "generated_at": "2026-11-25T18:22:41Z",
+ "version": 9,
+ "generated_at": "2026-11-25T18:42:36Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,9 +37,9 @@
   }
  },
  "counts": {
-  "cards": 157,
+  "cards": 158,
   "moods": {
-   "mellow": 59,
+   "mellow": 60,
    "upbeat": 46,
    "loud": 9,
    "heady": 28,
@@ -47,10 +47,10 @@
   },
   "genres": {
    "jazz": 36,
-   "rock_indie": 46,
+   "rock_indie": 47,
    "soul_rnb_hiphop": 32,
    "folk_country_americana": 19,
-   "electronic": 25,
+   "electronic": 26,
    "global": 19,
    "classical": 20,
    "pop": 8
@@ -2012,6 +2012,20 @@
     "old-time",
     "indie folk",
     "bluegrass"
+   ],
+   "src": "explore-run"
+  },
+  "302": {
+   "g": [
+    "electronic",
+    "rock_indie"
+   ],
+   "m": "mellow",
+   "s": [
+    "chillwave",
+    "synth-pop",
+    "psych-funk",
+    "ambient"
    ],
    "src": "explore-run"
   }
