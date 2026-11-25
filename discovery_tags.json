@@ -1,6 +1,6 @@
 {
- "version": 7,
- "generated_at": "2026-11-22T22:17:49Z",
+ "version": 8,
+ "generated_at": "2026-11-25T18:22:41Z",
  "note": "Discovery Browse v1 tags — vocabulary locked 2026-11-09; corrections by chat land as src=andrew and always win. Explored-month comes from the card timestamp (not stored here).",
  "vocab": {
   "genres": {
@@ -37,9 +37,9 @@
   }
  },
  "counts": {
-  "cards": 156,
+  "cards": 157,
   "moods": {
-   "mellow": 58,
+   "mellow": 59,
    "upbeat": 46,
    "loud": 9,
    "heady": 28,
@@ -49,7 +49,7 @@
    "jazz": 36,
    "rock_indie": 46,
    "soul_rnb_hiphop": 32,
-   "folk_country_americana": 18,
+   "folk_country_americana": 19,
    "electronic": 25,
    "global": 19,
    "classical": 20,
@@ -1999,6 +1999,19 @@
     "avant-garde jazz",
     "free jazz",
     "devotional"
+   ],
+   "src": "explore-run"
+  },
+  "301": {
+   "g": [
+    "folk_country_americana"
+   ],
+   "m": "mellow",
+   "s": [
+    "clawhammer banjo",
+    "old-time",
+    "indie folk",
+    "bluegrass"
    ],
    "src": "explore-run"
   }
