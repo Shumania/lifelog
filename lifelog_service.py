@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.73.3"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.74.0"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -144,6 +144,14 @@ OFFLINE_RECHECK_SECS       = 300
 BATCH_SIZE                 = 20    # flush buffer when this many tracks queued
 BATCH_TRAILING_SECS        = 1800  # flush 30 min after last track was added
 BUFFER_MAX_AGE_SECS        = 1800  # v2.48.5: flush when OLDEST buffered track is 30 min old (checked in heartbeat_thread). Guarantees plays reach the server within ~30 min even during long continuous sessions (fixes Roaming-label race with the Spotify backstop poll)
+# v2.74 [idle-skip] / [hold] -- the why is in the block above flush_buffer().
+IDLE_KEEPALIVE_SKIP             = True       # False = POST every pure-idle 4-h keepalive again (pre-v2.74 behaviour)
+IDLE_KEEPALIVE_SEND_HOUR        = 7          # Seattle hour whose pure-idle keepalive is always POSTed (daily path proof)
+IDLE_KEEPALIVE_MAX_SILENCE_SECS = 26 * 3600  # ...and one is POSTed whenever no post has been delivered for this long
+HOLD_MAX_ITEMS_PER_POST         = 40         # 2x BATCH_SIZE: a normal flush never splits; a backlog drains in chunks
+HOLD_MAX_BUFFER                 = 2000       # plays held in memory + pending_history.json; older overflow -> pending_history_overflow.jsonl
+HOLD_RETRY_STEPS_S              = (60, 120, 300, 900, 1800, 3600)  # wait after the 1st, 2nd, ... consecutive rejection; the last step repeats
+HOLD_BACKOFF_REASONS            = ("max-age", "count", "heartbeat-fallback", "debounce-post-command", "quiet-hours-entry")  # automatic flush triggers that respect the wait
 STATE_PUSH_DEBOUNCE_S      = 5     # debounce window for state.json push
 STATE_RING_MAX             = 30    # max items in state file ring buffer
 
@@ -273,6 +281,11 @@ last_track_added_ts      = 0.0  # updated when a track is added to buffer
 last_post_ts             = 0.0  # updated whenever any POST succeeds
 pending_buffer           = []   # tracks waiting to be flushed
 pending_buffer_lock      = threading.Lock()
+# v2.74 [hold]/[idle-skip]: shared delivery state. ONE dict, mutated in place (no `global` needed).
+#   streak / since / next_try / last_status -- consecutive non-2xx answers to a POST that carried plays
+#   last_ok  -- time of the last 2xx answer from the webhook; stamped in _delta_commit(), which every 2xx site calls
+#   spilled  -- plays moved to pending_history_overflow.jsonl since this boot
+_hold = {"streak": 0, "since": 0.0, "next_try": 0.0, "last_status": None, "last_ok": 0.0, "spilled": 0}
 PENDING_PATH             = INSTALL_DIR / "pending_history.json"
 STATE_RING_PATH          = INSTALL_DIR / "state_ring_buffer.json"
 # v2.44: persist executed command hashes across restarts so ntfy's since=5m
@@ -1044,7 +1057,7 @@ def _build_state_payload():
     # a fleet update mid-session without waiting for a queued heartbeat.
     _boot_iso = (datetime.fromtimestamp(_service_start_ts, tz=timezone.utc)
                  .strftime("%Y-%m-%dT%H:%M:%SZ")) if _service_start_ts else None
-    return {
+    _sp = {
         "house": house,
         "version": SERVICE_VERSION,
         "boot_time": _boot_iso,
@@ -1066,6 +1079,25 @@ def _build_state_payload():
         # fresh install. The raw IP is NEVER published -- see _net_fp_refresh().
         "net": {"fp": _net_fp["fp"], "ts": _net_fp["ts"]},
     }
+    # v2.74 [hold]: `delivery` is published ONLY while the webhook is rejecting posts
+    # that carry plays (absent otherwise, so the normal file is byte-for-byte what
+    # v2.73 wrote). This file goes straight to GitHub, so it is the one channel that
+    # still works when the webhook address itself is dead: the agent can read "N
+    # plays held since T, last answer HTTP 404" without any event arriving.
+    try:
+        if _hold["streak"] > 0:
+            with pending_buffer_lock:
+                _held_n = len(pending_buffer)
+            _sp["delivery"] = {
+                "held": _held_n,
+                "rejections": _hold["streak"],
+                "since": _hold_iso(_hold["since"]),
+                "last_status": _hold["last_status"],
+                "spilled": _hold["spilled"],
+            }
+    except Exception:
+        pass
+    return _sp
 
 def _do_state_push():
     """Push state-{house}.json to GitHub. Two API calls: GET SHA + PUT content."""
@@ -1387,6 +1419,16 @@ def _delta_commit(snap):
     """Advance delivered high-water marks after a successful (2xx) POST.
     Monotonic (max) so out-of-order commits can never move marks backward."""
     global _log_delivered, _err_delivered, _cmd_delivered
+    # v2.74: all five 2xx sites (keepalive, flush, flush-cmd result, command result,
+    # ready heartbeat) call this and nothing else does, so it is the one place that
+    # knows "the webhook just accepted a post". Stamp it for the idle-skip safety
+    # net, and end any hold wait early -- the address works, so the next automatic
+    # flush may try at once instead of sitting out the rest of a retry step.
+    try:
+        _hold["last_ok"] = time.time()
+        _hold["next_try"] = 0.0
+    except Exception:
+        pass
     if not snap:
         return
     try:
@@ -2295,7 +2337,12 @@ def heartbeat_fields(boot=False):
 # v2.49: the v2.48 pure-idle trimming state is gone — delta delivery makes every
 # idle payload near-empty by construction. hb_light survives as a flag only.
 
-def _send_heartbeat():
+def _send_heartbeat(idle_keepalive=False):
+    """POST one standalone heartbeat. Returns "sent" | "skipped" | "failed".
+    v2.74 [idle-skip]: idle_keepalive=True is passed ONLY by the 4-h keepalive in
+    _heartbeat_thread_inner(); then a pure-idle payload is not POSTed unless
+    _idle_keepalive_decision() says so. Every other caller (the debounced state
+    heartbeat) posts exactly as before."""
     sse_relay = build_sse_relay_payload()
     payload = {"type": "heartbeat"}
     fields = heartbeat_fields()
@@ -2308,6 +2355,28 @@ def _send_heartbeat():
             log("* Heartbeat: pure-idle (delta payload near-empty)")
     except Exception as _le:
         log(f"* Heartbeat: light-flag check failed ({_le}) -- sending anyway")
+    # v2.74 [idle-skip]: the test below is the old webhook filter, clause for clause,
+    # evaluated on the very payload that would have been POSTed: hb_light, nothing
+    # playing, no now-playing tracks, no undelivered error lines, no undelivered
+    # command results, not a boot heartbeat. (The Seattle-hour clause lives in
+    # _idle_keepalive_decision.) Nothing is committed on a skip, so undelivered log
+    # lines simply ride on the next real POST.
+    if idle_keepalive:
+        try:
+            _pure_idle = (fields.get("hb_light") is True
+                          and not (fields.get("rooms_playing") or [])
+                          and not fields.get("now_playing_tracks")
+                          and not fields.get("recent_errors")
+                          and not fields.get("command_results")
+                          and not (fields.get("delta") or {}).get("boot_full_logs"))
+            if _pure_idle:
+                _post, _why = _idle_keepalive_decision()
+                if not _post:
+                    log(f"[idle-skip v2.74] pure-idle keepalive NOT posted ({_why}) -- nothing to report; next look in {HEARTBEAT_FALLBACK_SECS // 3600}h")
+                    return "skipped"
+                log(f"[idle-skip v2.74] pure-idle keepalive posted ({_why})")
+        except Exception as _ie:
+            log(f"[idle-skip v2.74] skip check raised ({_ie}) -- sending anyway")
     payload.update(fields)
     if sse_relay:
         payload["sse_relay"] = sse_relay
@@ -2316,8 +2385,11 @@ def _send_heartbeat():
         log(f"* Heartbeat (standalone) -> HTTP {r.status_code}")
         if 200 <= r.status_code < 300:
             _delta_commit(snap)  # v2.49: mark piggyback delivered
+            return "sent"
+        return "failed"
     except Exception as e:
         log(f"Heartbeat failed: {e}")
+        return "failed"
 
 # --- BUFFER FLUSH ------------------------------------------------------------
 # --- NTFY UI PUSH (real-time browser SSE) — v1.70 bundled architecture ------
@@ -2618,57 +2690,263 @@ def build_sse_relay_payload():
     payload["topic"] = ntfy_ui_topic
     return payload
 
+# --- v2.74: IDLE-KEEPALIVE SKIP + HOLD-ON-REJECT ------------------------------
+# [idle-skip v2.74] WHY: a pure-idle 4-h keepalive carries nothing the agent needs
+# (machine liveness is read from the 15-min ntfy status snapshots by the nightly
+# fleet check), yet every POST that reaches the webhook starts an agent run (~250
+# credits each, measured Oct 28 - Nov 24). From 2026-10-27 a platform-side webhook
+# filter dropped them. On 2026-11-24 that filter "exceeded evaluation timeout"
+# and the platform deleted the WHOLE automation: every POST answered 404 until
+# v2.73.3 repointed the fleet. v2.74 makes the same decision here, at the source,
+# so the automation carries no filter at all.
+# RULE: a one-to-one port of the old filter. Skip only when the payload is the
+# standalone keepalive AND hb_light AND nothing is playing AND there are no
+# undelivered errors / command results AND it is not a boot heartbeat AND the
+# Seattle hour is not IDLE_KEEPALIVE_SEND_HOUR. The 07:xx keepalive still goes out:
+# it is the daily proof that the webhook path works (nightly WEBHOOK-PATH alert).
+# SAFETY NET (level-triggered, Rule 27): if no post at all has been delivered for
+# IDLE_KEEPALIVE_MAX_SILENCE_SECS -- the PC slept through hour 7, say -- the next
+# keepalive is posted whatever the hour. Any doubt => post (fail-open).
+# RELEASE (Rule 11): the skip ends by the clock (hour 7), by silence (26 h), and
+# the moment anything real is pending (the payload is then no longer pure-idle).
+#
+# [hold v2.74] WHY: before v2.74 a play left the buffer as soon as the webhook gave
+# ANY HTTP answer. A 404 (the 2026-11-24 dead address), a 429 or a 5xx therefore
+# dropped it for good -- only a network exception put it back. Now a play leaves
+# the buffer ONLY on a 2xx answer. Both exits are covered: flush_buffer() and the
+# command-result piggyback in execute_command(); both end in _hold_settle().
+#   * Rejected (non-2xx): plays go back to the FRONT of the buffer (oldest first)
+#     and the whole buffer is re-saved to pending_history.json. The ingest on the
+#     agent side is idempotent, so a resend can never double-count (Rule 27.4).
+#   * Retry: the automatic flush triggers wait out HOLD_RETRY_STEPS_S (60 s ...
+#     hourly) instead of re-posting every minute; explicit flushes (pre-update,
+#     pre-restart, crash-recovery, the Sync button) always try. Any 2xx from the
+#     webhook ends the wait at once (_delta_commit).
+#   * Network exceptions keep their pre-v2.74 cadence (retry about every minute):
+#     no wait is armed for them, on purpose -- that path has worked for months.
+#   * Backlog: at most HOLD_MAX_ITEMS_PER_POST plays per POST, oldest first, so a
+#     recovered address is fed batches the agent's handler is used to.
+#   * Bound: more than HOLD_MAX_BUFFER held plays => the oldest overflow is
+#     APPENDED to pending_history_overflow.jsonl (the service never deletes it).
+#     Nothing is thrown away; that file needs a manual recovery.
+#   * Flag: every rejection logs a FAIL line (-> error ring -> the next delivered
+#     post), and state-{house}.json carries `delivery` while a streak is open.
+# KNOWN LIMIT (not new): a deterministic 4xx on one batch would block the plays
+# behind it; they stay held and flagged until a fix ships -- never dropped.
+def _hold_iso(ts):
+    try:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if ts else None
+    except Exception:
+        return None
+
+def _idle_keepalive_decision():
+    """(post?, why) for a pure-idle 4-h keepalive. Never raises; any doubt -> post."""
+    try:
+        if not IDLE_KEEPALIVE_SKIP:
+            return True, "skip switched off"
+        _h = seattle_hour()
+        if _h == IDLE_KEEPALIVE_SEND_HOUR:
+            return True, f"daily path-proof tick, Seattle hour {_h:02d}"
+        _ok = _hold.get("last_ok") or 0
+        if not _ok:
+            return True, "no post delivered yet since this start"
+        _silent = time.time() - _ok
+        if _silent >= IDLE_KEEPALIVE_MAX_SILENCE_SECS:
+            return True, f"no post delivered for {int(_silent // 3600)}h (safety net {IDLE_KEEPALIVE_MAX_SILENCE_SECS // 3600}h)"
+        return False, f"Seattle hour {_h:02d}, last delivered post {int(_silent // 60)} min ago"
+    except Exception as _e:
+        return True, f"decision raised ({_e}) -- fail-open"
+
+def _hold_defer_secs(reason):
+    """Seconds an AUTOMATIC flush must still wait after a rejection (0 = go). Never raises."""
+    try:
+        if _hold["streak"] <= 0 or reason not in HOLD_BACKOFF_REASONS:
+            return 0
+        return max(0, _hold["next_try"] - time.time())
+    except Exception:
+        return 0
+
+def _hold_persist():
+    """Rewrite pending_history.json with exactly what is buffered now (remove it when
+    empty). v2.48 rule kept: never blind-unlink -- a play added during a POST survives."""
+    try:
+        with pending_buffer_lock:
+            _buf = list(pending_buffer)
+        if _buf:
+            PENDING_PATH.write_text(json.dumps(_buf), encoding="utf-8")
+        else:
+            PENDING_PATH.unlink(missing_ok=True)
+    except Exception as _pe:
+        try: log(f"[buffer] WARNING: buffer persist failed: {_pe}")
+        except Exception: pass
+
+def _hold_enforce_cap():
+    """Bound the held backlog (Rule 11). Overflow is moved to disk, never deleted."""
+    try:
+        with pending_buffer_lock:
+            _over = len(pending_buffer) - HOLD_MAX_BUFFER
+            if _over <= 0:
+                return
+            _spill = list(pending_buffer[:_over])
+            del pending_buffer[:_over]
+        _opath = INSTALL_DIR / "pending_history_overflow.jsonl"
+        try:
+            with open(_opath, "a", encoding="utf-8") as _of:
+                for _it in _spill:
+                    _of.write(json.dumps(_it) + "\n")
+            _hold["spilled"] += len(_spill)
+            log(f"[hold v2.74] FAIL: more than {HOLD_MAX_BUFFER} plays held -- moved the {len(_spill)} oldest to {_opath.name} (kept on disk, {_hold['spilled']} there since this start; needs a manual recovery)")
+        except Exception as _we:
+            with pending_buffer_lock:
+                pending_buffer[:0] = _spill  # could not write them out -> keep them in memory
+            log(f"[hold v2.74] FAIL: overflow file write did not complete ({_we}) -- all plays stay in memory")
+    except Exception as _e:
+        try: log(f"[hold v2.74] FAIL: buffer cap check raised: {_e}")
+        except Exception: pass
+
+def _hold_note_reject(status, where, n_items, body=""):
+    """Count a non-2xx answer to a POST that carried plays; arm the next retry step."""
+    try:
+        _now = time.time()
+        _hold["streak"] += 1
+        _first = _hold["streak"] == 1
+        if _first:
+            _hold["since"] = _now
+        _hold["last_status"] = status
+        _step = HOLD_RETRY_STEPS_S[min(_hold["streak"] - 1, len(HOLD_RETRY_STEPS_S) - 1)]
+        _hold["next_try"] = _now + _step
+        with pending_buffer_lock:
+            _held = len(pending_buffer)
+        log(f"[hold v2.74] FAIL: webhook answered HTTP {status} to {where} -- NOT delivered; {n_items} play(s) put back, {_held} held (saved to disk). Rejection #{_hold['streak']} since {_hold_iso(_hold['since'])}; automatic retry in {_step}s. Answer: {str(body)[:120]!r}")
+        if _first:
+            schedule_state_push()  # publish the `delivery` flag -- the webhook itself may be dead
+    except Exception as _e:
+        try: log(f"[hold v2.74] FAIL: rejection bookkeeping raised (plays are already back in the buffer): {_e}")
+        except Exception: pass
+
+def _hold_note_delivered(where):
+    """A POST that carried plays got a 2xx: close any open rejection streak."""
+    try:
+        if _hold["streak"] <= 0:
+            return
+        _n, _since = _hold["streak"], _hold["since"]
+        _hold["streak"] = 0
+        _hold["since"] = 0.0
+        _hold["next_try"] = 0.0
+        _hold["last_status"] = None
+        with pending_buffer_lock:
+            _left = len(pending_buffer)
+        log(f"[hold v2.74] delivery RESTORED by {where} after {_n} rejected attempt(s) over {int((time.time() - _since) // 60)} min; {_left} play(s) still buffered (they follow, at most {HOLD_MAX_ITEMS_PER_POST} per post)")
+        schedule_state_push()  # clear the published `delivery` flag
+    except Exception as _e:
+        try: log(f"[hold v2.74] streak close raised: {_e}")
+        except Exception: pass
+
+def _hold_settle(items, delivered, where, status=None, err=None, body=""):
+    """The ONE exit for both paths that take plays out of pending_buffer
+    (flush_buffer and the command-result piggyback). Never raises.
+      delivered            -> re-save the buffer file (whatever is buffered now), close any streak
+      rejected (non-2xx)   -> plays back to the front, cap, re-save, count the rejection
+      exception (err set)  -> plays back to the front, cap, re-save; NO retry wait (pre-v2.74 cadence)"""
+    if delivered:
+        _hold_persist()
+        _hold_note_delivered(where)
+        return
+    try:
+        with pending_buffer_lock:
+            pending_buffer[:0] = items  # prepend back, oldest first (items keep their internal _fields)
+    except Exception as _re:
+        try: log(f"[hold v2.74] FAIL: could not put {len(items)} play(s) back into the buffer: {_re} (they are still in {PENDING_PATH.name} from the pre-POST save)")
+        except Exception: pass
+        return
+    _hold_enforce_cap()
+    _hold_persist()
+    if err is None:
+        _hold_note_reject(status, where, len(items), body)
+
+def _hold_piggyback_ok(n_buffered, action=""):
+    """May a command result carry the buffered plays? Called UNDER pending_buffer_lock
+    (must not take it). No while the webhook is rejecting posts, and no while a backlog
+    is larger than one post -- flush_buffer() owns both (retry steps, chunks)."""
+    try:
+        if _hold["streak"] > 0:
+            log(f"[hold v2.74] piggyback skipped for '{action}': the webhook is rejecting posts -- {n_buffered} play(s) stay buffered for the flush retry")
+            return False
+        if n_buffered > HOLD_MAX_ITEMS_PER_POST:
+            log(f"[hold v2.74] piggyback skipped for '{action}': {n_buffered} buffered is more than {HOLD_MAX_ITEMS_PER_POST} per post -- the flush path drains the backlog in chunks")
+            return False
+        return True
+    except Exception:
+        return True
+
 def flush_buffer(reason=""):
+    """POST buffered plays to the webhook. Returns "empty" | "ok" | "rejected" |
+    "error" | "deferred" (new in v2.74; older callers ignore the value).
+    v2.74 [hold]: plays leave the buffer ONLY on a 2xx answer -- see the block above."""
     global last_post_ts
+    if _hold_defer_secs(reason) > 0:
+        return "deferred"  # a rejection's retry step is still running; explicit reasons never land here
     with pending_buffer_lock:
         if not pending_buffer:
-            return
-        items = list(pending_buffer)
-        pending_buffer.clear()
+            return "empty"
+        # v2.74: oldest HOLD_MAX_ITEMS_PER_POST only. In normal running the buffer never
+        # exceeds BATCH_SIZE, so this takes everything, exactly as before.
+        items = list(pending_buffer[:HOLD_MAX_ITEMS_PER_POST])
+        del pending_buffer[:len(items)]
+        _waiting = list(pending_buffer)
 
-    # Persist to disk before POSTing (crash safety)
+    # Persist to disk before POSTing (crash safety). v2.74: the file holds the
+    # in-flight chunk AND whatever is still waiting behind it.
     try:
-        PENDING_PATH.write_text(json.dumps(items), encoding="utf-8")
+        PENDING_PATH.write_text(json.dumps(items + _waiting), encoding="utf-8")
     except Exception as e:
         log(f"Warning: couldn't persist buffer: {e}")
+    if _waiting:
+        log(f"[hold v2.74] backlog: posting the oldest {len(items)} of {len(items) + len(_waiting)} buffered play(s) [{reason}]; the rest follow on the next flush")
 
-    sse_relay = build_sse_relay_payload()
-    _hb = heartbeat_fields()
-    _snap = _hb.pop("_delta_snap", None)  # v2.49: never ship the snapshot
-    # v2.50: strip internal coalesce bookkeeping fields from the wire copy
-    # (the persisted buffer file KEEPS them so a crash-restore can still coalesce).
-    wire_items = [{k: v for k, v in it.items() if not k.startswith("_")} for it in items]
-    payload = {
-        "type":      "sonos_history_batch",
-        "format":    2,   # v2.50 room-factored items (rooms lists, roomless dedup keys)
-        "flush_reason": reason or "unknown",
-        "house":     house,
-        "items":     wire_items,
-        "heartbeat": _hb,
-    }
-    if sse_relay:
-        payload["sse_relay"] = sse_relay
+    _status, _err, _body, _snap = None, None, "", None
     try:
+        sse_relay = build_sse_relay_payload()
+        _hb = heartbeat_fields()
+        _snap = _hb.pop("_delta_snap", None)  # v2.49: never ship the snapshot
+        # v2.50: strip internal coalesce bookkeeping fields from the wire copy
+        # (the persisted buffer file KEEPS them so a crash-restore can still coalesce).
+        wire_items = [{k: v for k, v in it.items() if not k.startswith("_")} for it in items]
+        payload = {
+            "type":      "sonos_history_batch",
+            "format":    2,   # v2.50 room-factored items (rooms lists, roomless dedup keys)
+            "flush_reason": reason or "unknown",
+            "house":     house,
+            "items":     wire_items,
+            "heartbeat": _hb,
+        }
+        if sse_relay:
+            payload["sse_relay"] = sse_relay
         r = requests.post(WEBHOOK, json=payload, timeout=20)
-        _room_plays = sum(len(it.get("rooms") or [1]) for it in items)
-        log(f"[OK] Flushed {len(items)} play(s) ({_room_plays} room-plays, format 2) [{reason}] -> HTTP {r.status_code}")
-        if 200 <= r.status_code < 300:
-            _delta_commit(_snap)  # v2.49: mark piggyback delivered
-        last_post_ts = time.time()
-        # v2.48: don't blind-unlink -- a track added during the POST window would
-        # vanish from disk. Rewrite the file with whatever is currently buffered.
-        try:
-            with pending_buffer_lock:
-                _leftover = list(pending_buffer)
-            if _leftover:
-                PENDING_PATH.write_text(json.dumps(_leftover), encoding="utf-8")
-            else:
-                PENDING_PATH.unlink(missing_ok=True)
-        except: pass
+        _status = r.status_code
+        try: _body = (r.text or "")[:120]
+        except Exception: _body = ""
     except Exception as e:
-        log(f"[FAIL] Flush failed [{reason}]: {e} -- restoring {len(items)} item(s) to buffer")
-        with pending_buffer_lock:
-            pending_buffer[:0] = items  # prepend back
+        _err = e
+    _delivered = _status is not None and 200 <= _status < 300
+    try:
+        if _err is not None:
+            log(f"[FAIL] Flush failed [{reason}]: {_err} -- restoring {len(items)} item(s) to buffer")
+        elif _delivered:
+            _room_plays = sum(len(it.get("rooms") or [1]) for it in items)
+            log(f"[OK] Flushed {len(items)} play(s) ({_room_plays} room-plays, format 2) [{reason}] -> HTTP {_status}")
+            _delta_commit(_snap)  # v2.49: mark piggyback delivered
+        if _status is not None:
+            last_post_ts = time.time()  # any HTTP answer restarts the keepalive clock (as before v2.74)
+    except Exception as _be:
+        try: log(f"[hold v2.74] FAIL: flush bookkeeping raised (the plays are not affected): {_be}")
+        except Exception: pass
+    # v2.74 [hold]: single exit. 2xx -> the buffer file is rewritten with whatever is
+    # buffered now (a play added during the POST survives; v2.48 rule). Anything else
+    # -> the plays go back to the front of the buffer and to disk; a non-2xx answer
+    # also arms the retry step and logs the FAIL line.
+    _hold_settle(items, _delivered, f"flush [{reason}]", status=_status, err=_err, body=_body)
+    return "ok" if _delivered else ("error" if _err is not None else "rejected")
 
 # --- DEBOUNCED STATE HEARTBEAT (v2.48) ---------------------------------------
 # After ANY state-changing command (silent or not), schedule ONE heartbeat POST
@@ -2752,7 +3030,9 @@ def _heartbeat_thread_inner():
         try:
             with pending_buffer_lock:
                 _oldest_ts = pending_buffer[0].get("_buffered_at", 0) if pending_buffer else None
-            if _oldest_ts and (time.time() - _oldest_ts) >= BUFFER_MAX_AGE_SECS:
+            # v2.74 [hold]: while a rejection's retry step is running, stay quiet here (no
+            # per-minute "max-buffer-age flush" line, no POST); the step itself is the retry.
+            if _oldest_ts and (time.time() - _oldest_ts) >= BUFFER_MAX_AGE_SECS and _hold_defer_secs("max-age") <= 0:
                 log(f"* Heartbeat: max-buffer-age flush (oldest item {int((time.time()-_oldest_ts)//60)} min old)")
                 flush_buffer(reason="max-age")
                 last_post_ts = time.time()
@@ -2794,9 +3074,15 @@ def _heartbeat_thread_inner():
         with pending_buffer_lock:
             has_pending = len(pending_buffer) > 0
         if has_pending:
-            flush_buffer(reason="heartbeat-fallback")
+            # v2.74 [hold]: a flush that a retry step is holding back must not re-fire
+            # this fallback every minute -- restart the keepalive clock instead.
+            if flush_buffer(reason="heartbeat-fallback") == "deferred":
+                last_post_ts = time.time()
         else:
-            _send_heartbeat()
+            # v2.74 [idle-skip]: the ONLY caller that passes idle_keepalive=True. A
+            # skipped keepalive restarts the 4-h clock exactly as a posted one does,
+            # so the cadence (and the 07:xx tick) is what it was under the old filter.
+            _send_heartbeat(idle_keepalive=True)
             last_post_ts = time.time()
         log(f"* Heartbeat: fallback fired (idle {int(since_last//60)} min) -- next check in 60s")
 
@@ -7938,7 +8224,9 @@ def execute_command(cmd, source="unknown"):
     # keeps them for buffer-restore on POST failure so crash-coalesce still works.
     _pig_originals = None
     with pending_buffer_lock:
-        if pending_buffer:
+        # v2.74 [hold]: no piggyback while the webhook is rejecting posts or while a
+        # backlog is larger than one post -- flush_buffer() owns those cases.
+        if pending_buffer and _hold_piggyback_ok(len(pending_buffer), action):
             log(f"[buffer] piggyback drain: {len(pending_buffer)} pending item(s) attached to '{action}' result")
             _pig_originals = list(pending_buffer)
             result["pending_history"] = [{k: v for k, v in it.items() if not k.startswith("_")} for it in _pig_originals]
@@ -7958,19 +8246,28 @@ def execute_command(cmd, source="unknown"):
     try:
         r = requests.post(WEBHOOK, json=result, timeout=15)
         log(f"Command result -> HTTP {r.status_code}: {result['message']}")
-        if 200 <= r.status_code < 300:
+        _cr_ok = 200 <= r.status_code < 300
+        if _cr_ok:
             _delta_commit(_cr_snap)  # v2.49: mark piggyback delivered
         last_post_ts = time.time()
-        if result.get("pending_history"):
-            try: PENDING_PATH.unlink(missing_ok=True)
-            except: pass
+        if _pig_originals:
+            # v2.74 [hold]: piggybacked plays count as delivered ONLY on 2xx. Before
+            # v2.74 this removed pending_history.json on ANY answer, so a 404/5xx
+            # dropped them (the 2026-11-24 class). _hold_settle() puts them back and
+            # re-saves the buffer; on 2xx it rewrites the file with whatever is
+            # buffered now (no blind unlink -- a play added during the POST survives).
+            try: _pig_body = (r.text or "")[:120]
+            except Exception: _pig_body = ""
+            _hold_settle(_pig_originals, _cr_ok, f"'{action}' result", status=r.status_code, body=_pig_body)
+            _pig_originals = None  # settled -- the except below must not put them back twice
     except Exception as e:
         log(f"Failed to post command result: {e}")
         # Restore piggybacked history to buffer on failure (v2.50: restore the
-        # ORIGINALS with internal coalesce fields, not the stripped wire copies)
+        # ORIGINALS with internal coalesce fields, not the stripped wire copies).
+        # v2.74: via _hold_settle so the buffer file is re-saved too (no retry wait
+        # for exceptions -- pre-v2.74 cadence).
         if _pig_originals:
-            with pending_buffer_lock:
-                pending_buffer[:0] = _pig_originals
+            _hold_settle(_pig_originals, False, f"'{action}' result", err=e)
     return result  # v2.72: in-process callers (shortcut engine) read the outcome
 
 # --- SONOS: GITHUB CMD FALLBACK (removed in v2.24) --------------------------
@@ -8344,6 +8641,9 @@ def main():
     # holds the replacement trigger's address. This line is the release marker
     # (Rule 24: proof the new code is running, not just the version number).
     log("[hookup v2.73.3] Sonos event address repointed 2026-11-24 (WEBHOOK ends ..." + WEBHOOK[-4:] + ")")
+    # v2.74 release markers (Rule 24). Wording keeps clear of the error-ring keywords.
+    log(f"[idle-skip v2.74] pure-idle 4-h keepalives stay home (posted only in Seattle hour {IDLE_KEEPALIVE_SEND_HOUR:02d}, or after {IDLE_KEEPALIVE_MAX_SILENCE_SECS // 3600}h without a delivered post); skip={IDLE_KEEPALIVE_SKIP} -- the webhook needs no filter")
+    log(f"[hold v2.74] plays leave the buffer only on a 2xx answer; otherwise kept (memory + disk) and retried at {'/'.join(str(x) for x in HOLD_RETRY_STEPS_S)}s; at most {HOLD_MAX_ITEMS_PER_POST} plays per post; buffer cap {HOLD_MAX_BUFFER}")
 
     # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
