@@ -61,7 +61,7 @@ import requests
 # The VERSION file is the SINGLE SOURCE OF TRUTH for the service version number.
 # The same file on GitHub is fetched during update checks — no versions.json needed.
 # On update, both lifelog_service.py AND VERSION are downloaded together.
-_FALLBACK_VERSION = "2.73.2"  # Only used if VERSION file is missing (bootstrap)
+_FALLBACK_VERSION = "2.73.3"  # Only used if VERSION file is missing (bootstrap)
 
 def _read_version():
     """Read version from VERSION file next to this script."""
@@ -82,7 +82,7 @@ SERVICE_VERSION = "2.34"  # Legacy anchor — v2.33 updater regex parses this li
 SERVICE_VERSION = _read_version()  # Real version from VERSION file (overwrites anchor above)
 _mutex_handle   = None   # set in main(); released in self_update_check() before handoff
 INSTALL_DIR     = Path(r"C:\ProgramData\LifeLog")
-WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=be22b43febe39260b284d21672db539f"
+WEBHOOK         = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=03932bf7572a59368f19c26d754cbf73"
 DEV_WEBHOOK     = "https://webhooks.tasklet.ai/v1/public/webhook/a_1gkkvt5afqwmjxbqmr6e?token=274d4d1300bd821d855e04e51a748cb5"
 GITHUB_OWNER    = "Shumania"
 GITHUB_REPO     = "lifelog"
@@ -8339,6 +8339,11 @@ def main():
     global _service_start_ts
     _service_start_ts = time.time()
     log(f"LifeLog Unified Service v{SERVICE_VERSION} starting")
+    # v2.73.3: the platform deleted the old Sonos-event webhook on 2026-11-24 (its
+    # CEL filter timed out) and the old address answered 404. WEBHOOK above now
+    # holds the replacement trigger's address. This line is the release marker
+    # (Rule 24: proof the new code is running, not just the version number).
+    log("[hookup v2.73.3] Sonos event address repointed 2026-11-24 (WEBHOOK ends ..." + WEBHOOK[-4:] + ")")
 
     # -- Self-update rollback detection ----------------------------------------
     # Two-phase flag: self_update_check() writes "update_in_progress".
