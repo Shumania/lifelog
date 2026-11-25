@@ -333,6 +333,22 @@
     font-size: 11px; color: #f87171; background: none; border: none;
     cursor: pointer; padding: 4px 0; margin-top: 8px;
   }
+  /* p3.59: which Spotify account this page is signed in to (Roaming panel). Dim when it is the
+     main account - and hidden on phones, where colour means "something to act on" (p3.41 rule);
+     amber, on every screen, when it is not. */
+  .roam-acct { font-size: 11px; color: var(--text-dim); margin: 2px 0 8px; }
+  .roam-acct.warn {
+    font-size: 12.5px; line-height: 1.4; color: #fbbf24; background: rgba(245,158,11,0.10);
+    border: 1px solid rgba(245,158,11,0.40); border-radius: 10px; padding: 10px 12px; margin: 4px 0 10px;
+    overflow-wrap: anywhere;
+  }
+  .roam-acct.warn b { color: #fde68a; }
+  .roam-acct-btn {
+    display: block; width: 100%; margin-top: 10px; min-height: 44px; padding: 8px 10px;
+    background: rgba(245,158,11,0.16); color: #fde68a; border: 1px solid rgba(245,158,11,0.55);
+    border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  @media (max-width: 480px) { .roam-acct.ok { display: none; } }
 
   /* ========== BOTTOM SECTION ========== */
   .bottom-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -1498,7 +1514,7 @@ body.house-roaming .shortcut-card { opacity: .4; }
 // ══════════════════════════════════════════════════════════════════════════════
 // CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const PAGE_VERSION = 'p3.58';
+const PAGE_VERSION = 'p3.59';
 const NTFY_TOKEN = 'tk_lo3wjmt4yxkznzt4m3wxhfhspb93t';
 const NTFY = {
   caphill: 'https://ntfy.sh/lifelog-cmd-caphill-4x8m',
@@ -1655,6 +1671,24 @@ let _spotifyNpPollTimer = null;
 let _deviceCache = {};
 let _lastKnownPhone = null;
 try { const lp = localStorage.getItem('ll_last_phone'); if (lp) _lastKnownPhone = JSON.parse(lp); } catch(e) {}
+// p3.59 state (functions live in the "p3.59 - ROAMING" block further down).
+// Account: {id, name, at} once Spotify has answered GET /me; null = unknown, and unknown is never
+// shown as a warning. The stored copy only paints the line instantly; every page load re-asks.
+var SP_MAIN_ACCOUNT_ID = 'shuzamin'; // the master listening record (Andrew 2026-11-24)
+var LS_SP_ACCT = 'll_sp_account';
+var _spAccount = null, _spAccountAt = 0, _spAccountBusy = false;
+try { var _spAcct0 = JSON.parse(localStorage.getItem(LS_SP_ACCT) || 'null'); if (_spAcct0 && _spAcct0.id) _spAccount = _spAcct0; } catch (e) { console.log('[roam-acct] stored account unreadable: ' + e); }
+// First tracks: playlist id -> track id (from playlists.json `first_track`, also kept on this device
+// so a cold start can one-tap at once) and album id -> track id (album_first_tracks.json, in memory).
+var ROAM_PL_URL = 'https://shumania.github.io/lifelog/playlists.json';
+var ROAM_ALBUM_FT_URL = 'https://shumania.github.io/lifelog/album_first_tracks.json';
+var LS_ROAM_PLFT = 'll_roam_pl_first';
+var _ROAM_ID22 = /^[A-Za-z0-9]{22}$/;
+var _roamFT = { pl: {}, plN: 0, plAt: 0, plSrc: 'nothing loaded yet', alb: null, albN: 0, albAt: 0, albGen: '', busy: false };
+try {
+  var _plft0 = JSON.parse(localStorage.getItem(LS_ROAM_PLFT) || 'null');
+  if (_plft0 && _plft0.m) { _roamFT.pl = _plft0.m; _roamFT.plN = Object.keys(_plft0.m).length; _roamFT.plSrc = 'saved on this device ' + new Date(_plft0.at || 0).toISOString(); }
+} catch (e) { console.log('[one-tap] saved playlist first-track map unreadable: ' + e); }
 
 // Init selected rooms from localStorage
 ['caphill','vashon'].forEach(h => {
@@ -1839,7 +1873,7 @@ function base64urlEncode(buf) {
 // gain scopes after issue, so on mismatch we wipe stored tokens to force a clean
 // one-tap reconnect (Connect button reappears in Roaming).
 const SP_SCOPES_VER = '2'; // v2 adds user-read-currently-playing (fallback endpoint for dev-mode /me/player breakage)
-async function spotifyAuth() {
+async function spotifyAuth(opts) {
   const verifier = generateRandomString(64);
   const challenge = base64urlEncode(await sha256(verifier));
   localStorage.setItem('spotify_pkce_verifier', verifier);
@@ -1852,6 +1886,9 @@ async function spotifyAuth() {
     code_challenge: challenge,
     state: 'roaming_auth'
   });
+  // p3.59: "sign in again" from the account warning asks Spotify to show its approval screen
+  // (it names the signed-in account and offers "Not you?") instead of silently re-approving.
+  if (opts && opts.showDialog) { params.set('show_dialog', 'true'); console.log('[roam-acct] Spotify sign-in restarted with show_dialog=true'); }
   window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
 }
 
@@ -1882,6 +1919,7 @@ async function handleSpotifyCallback() {
       localStorage.setItem('spotify_refresh_token', d.refresh_token);
       localStorage.setItem('spotify_token_expiry', String(Date.now() + d.expires_in * 1000));
       localStorage.setItem('ll_sp_scopes_ver', SP_SCOPES_VER);  // p3.00
+      _roamAcctReset('new Spotify sign-in'); // p3.59: forget the previous account; setHouse('roaming') below re-asks
       localStorage.removeItem('spotify_pkce_verifier');
       history.replaceState(history.state || {}, '', window.location.pathname + window.location.hash);  // p2.77: keep tab hash
       setHouse('roaming');
@@ -1992,6 +2030,7 @@ function setHouse(h, isUserClick) {
   if (h === 'roaming') {
     renderRoamingPanel();
     startSpotifyPolling();
+    _roamOnEnter('roaming selected'); // p3.59: first-track lists for one-tap ▶ + which Spotify account
   } else {
     stopSpotifyPolling();
     renderRooms(h);
@@ -3448,7 +3487,10 @@ function _roamingNoDevice(e) {
   // p3.58 (review row 8): the toast was a dead end - it said "open the Spotify app" with no way
   // to do it. open.spotify.com/ is in Spotify's own app-link list (checked 2026-11-24), so the
   // button should land in the app; UNTESTED on the iPhone as of this release.
-  _showToastHtml('📵 Spotify can\'t see your phone. Open it, then come back and tap again.<br>' + _roamLinkHtml(SPOTIFY_OPEN_URL, 'Open Spotify ↗'), 10000, 'wrap error');
+  // p3.59: say WHICH account could not see it - the page and the Spotify app sign in separately,
+  // and an app on another account looks exactly like a sleeping phone from here.
+  const _acctTxt = _spAccount ? ' on the <b>' + esc(_spAccount.id) + '</b> account' : '';
+  _showToastHtml('📵 Spotify can\'t see your phone' + _acctTxt + '. Open it, then come back and tap again.<br>' + _roamLinkHtml(SPOTIFY_OPEN_URL, 'Open Spotify ↗'), 10000, 'wrap error');
   console.log('[roaming p3.03] no active device — refetching device list for the retry (p3.58: toast carries an Open Spotify link → ' + SPOTIFY_OPEN_URL + ')');
   fetchSpotifyDevices(); // one-shot refetch so the retry can target the woken device
   return true;
@@ -3504,10 +3546,27 @@ function deepLinkFor(uriOrRef) {
 // link fired), false when the caller should fall through to its existing path
 // (not roaming, or URI unresolvable to a known service). VERY verbose on both
 // outcomes — this runs outside any try/catch (standing rule: silent failures).
-function roamingDeepLink(uri, label) {
+function roamingDeepLink(uri, label, opts) {
   if (house !== 'roaming') return false; // D9: selector is ALL we read
   const dl = deepLinkFor(uri);
   if (!dl) { console.log('[deeplink] roaming but URI unresolvable → falling through to API path:', String(uri).slice(0, 80)); return false; }
+  // p3.59: ▶ on a playlist or album opens its FIRST TRACK inside it - that starts playing and
+  // carries on in order (phone test B1, 2026-11-24), where the playlist/album link itself only
+  // opens the page. Decided by _roamOneTap; every "no" keeps the old page link and logs why.
+  // opts.oneTap === false = the caller is a queue (＋) button: untouched (decision 3 pending).
+  let _twoTapWhy = '';
+  if (dl.ref.kind === 'playlist' || dl.ref.kind === 'album') {
+    const ot = _roamOneTap(dl.ref, opts, _houseIsMobile());
+    if (ot.ok) {
+      console.log('[one-tap] roaming ' + dl.ref.kind + ' ' + dl.ref.id + ' → first track ' + ot.trackId + ' opened inside it: ' + ot.url + (label ? '  (' + label + ')' : ''));
+      showToast('▶ Starting in ' + dl.svc + ': ' + (label || dl.ref.kind));
+      const navDl = { url: ot.url, svc: dl.svc, tint: dl.tint, ref: dl.ref };
+      setTimeout(() => { console.log('[one-tap] nav path: ' + _navToService(navDl)); }, 0); // same scripted same-window nav as a track ▶
+      return true;
+    }
+    _twoTapWhy = ot.why;
+    console.log('[one-tap] roaming ' + dl.ref.kind + ' ' + dl.ref.id + ' opens its page instead (start it there): ' + ot.why);
+  }
   console.log('[deeplink] roaming ' + dl.ref.kind + ' → ' + dl.url + (label ? '  (' + label + ')' : ''));
   let wait = 0;
   if (dl.ref.kind !== 'track') {
@@ -3519,6 +3578,10 @@ function roamingDeepLink(uri, label) {
         localStorage.setItem('ll_deeplink_hint', '1');
         showToast('↗ Opening in ' + dl.svc + ' — tap ▶ there to start it');
         wait = 1400;
+      } else if (_twoTapWhy && _houseIsMobile() && !(opts && opts.oneTap === false)) {
+        // p3.59: now that most ▶ taps start the music, say so when this one will not (no delay;
+        // the line is still on screen when you come back from Spotify).
+        showToast('↗ Opened in ' + dl.svc + ' — tap ▶ there to start it');
       }
     } catch (e) {}
   }
@@ -3585,6 +3648,130 @@ function openInService(url) {
   const dl = deepLinkFor(url);
   if (!dl) { console.log('[deeplink] open-in-service: unparseable ref, raw same-window nav'); window.location.href = url; return; }
   console.log('[deeplink] open-in-service path: ' + _navToService(dl));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// p3.59 — ROAMING: one-tap ▶ for playlists and albums + which Spotify account this page is on
+// (Andrew 2026-11-24 16:11). Roaming-only; the Sonos (home) send paths are not touched.
+//
+// ONE-TAP. A playlist/album link only OPENS it in the Spotify app; a TRACK link plays. A track
+// link that names its playlist -
+//     https://open.spotify.com/track/{first track}?context=spotify%3Aplaylist%3A{playlist}
+// - plays that track AS PART OF the playlist and carries on to track 2 (phone test B1,
+// 2026-11-24: Spotify's own record showed both tracks with the playlist as their context).
+// The first track must be known AT TAP TIME: a lookup between the tap and the navigation risks
+// iOS no longer treating the navigation as the tap's own (then the link may open a web page
+// instead of the app - untested, so not relied on). Hence two published lists, loaded when
+// Roaming is entered and on every foreground:
+//   playlists.json            `first_track` per playlist (scripts/lib/playlists_json.ts)
+//   album_first_tracks.json   album id → first track id (scripts/publish_album_first_tracks.ts)
+// NOT one-tap, on purpose: Spotify-made playlists (ids starting 37i9dQ - test B3: Spotify
+// ignores the playlist part and plays the track's album), anything missing from the lists,
+// desktop browsers (the link form is only verified on the iPhone), and the ＋ buttons.
+// Those keep the old behaviour: the playlist/album page opens, one more tap there.
+// ══════════════════════════════════════════════════════════════════════════════
+function _roamFTFromPlaylists(list, src) {
+  const m = {}; let n = 0;
+  (list || []).forEach(p => { if (p && p.id && _ROAM_ID22.test(String(p.first_track || ''))) { m[p.id] = p.first_track; n++; } });
+  if (!n) { console.log('[one-tap] ' + src + ': the playlist data carries no first_track fields (older data file?) — keeping the ' + _roamFT.plN + ' already known (' + _roamFT.plSrc + ')'); return; }
+  _roamFT.pl = m; _roamFT.plN = n; _roamFT.plAt = Date.now(); _roamFT.plSrc = src;
+  try { localStorage.setItem(LS_ROAM_PLFT, JSON.stringify({ at: Date.now(), m: m })); } catch (e) { console.log('[one-tap] could not keep the playlist list on this device: ' + e); }
+  console.log('[one-tap] playlists: first track known for ' + n + ' of ' + (list || []).length + ' (' + src + ')');
+}
+// Level-triggered (Rule 27): each load replaces the whole list; a failed load keeps the last one.
+// Re-arms by age (Rule 11): playlists after 30 min, albums after 6 h.
+async function _roamLoadFirstTracks(why) {
+  if (_roamFT.busy) { console.log('[one-tap] load (' + why + ') skipped: one is already running'); return; }
+  const now = Date.now();
+  const needPl = now - _roamFT.plAt > 30 * 60000, needAlb = !_roamFT.alb || now - _roamFT.albAt > 6 * 3600000;
+  if (!needPl && !needAlb) return;
+  _roamFT.busy = true;
+  try {
+    if (needPl) {
+      try {
+        const r = await fetch(ROAM_PL_URL + '?t=' + (Date.now() >> 16));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        _roamFTFromPlaylists(d.playlists || d, 'playlists.json, ' + why);
+      } catch (e) { console.log('[one-tap] playlist list load FAILED (' + why + '): ' + (e && e.message) + ' — keeping ' + _roamFT.plN + ' known (' + _roamFT.plSrc + ')'); }
+    }
+    if (needAlb) {
+      try {
+        const r2 = await fetch(ROAM_ALBUM_FT_URL + '?t=' + Math.floor(Date.now() / 21600000));
+        if (!r2.ok) throw new Error('HTTP ' + r2.status);
+        const d2 = await r2.json();
+        if (!d2 || !d2.albums || typeof d2.albums !== 'object') throw new Error('file has no albums object');
+        _roamFT.alb = d2.albums; _roamFT.albN = Object.keys(d2.albums).length; _roamFT.albAt = Date.now(); _roamFT.albGen = d2.generated_at || '';
+        console.log('[one-tap] albums: first track known for ' + _roamFT.albN + ' (file made ' + (_roamFT.albGen || 'unknown') + ', ' + why + ')');
+      } catch (e) { console.log('[one-tap] album list load FAILED (' + why + '): ' + (e && e.message) + ' — ' + (_roamFT.alb ? 'keeping ' + _roamFT.albN + ' known' : 'albums open their page until it loads')); }
+    }
+  } finally { _roamFT.busy = false; }
+}
+function _roamFirstTrack(ref) {
+  if (!ref) return null;
+  const t = ref.kind === 'playlist' ? _roamFT.pl[ref.id] : ref.kind === 'album' ? (_roamFT.alb && _roamFT.alb[ref.id]) : null;
+  return _ROAM_ID22.test(String(t || '')) ? t : null;
+}
+// How should a roaming ▶ on this playlist/album open? Pure - no navigation, no side effects.
+function _roamOneTap(ref, opts, isMobile) {
+  if (!ref || (ref.kind !== 'playlist' && ref.kind !== 'album')) return { ok: false, why: 'not a playlist or album' };
+  if (opts && opts.oneTap === false) return { ok: false, why: 'queue (＋) button — unchanged, decision pending' };
+  if (!isMobile) return { ok: false, why: 'desktop browser — unchanged (the one-tap link is only verified on the iPhone)' };
+  if (ref.kind === 'playlist' && /^37i9dQ/.test(ref.id)) return { ok: false, why: 'Spotify-made playlist — Spotify ignores the playlist part of the link (phone test B3)' };
+  const t = _roamFirstTrack(ref);
+  if (!t) return { ok: false, why: ref.kind === 'playlist' ? 'no first track on file for this playlist (' + _roamFT.plN + ' playlists known; ' + _roamFT.plSrc + ')' : (_roamFT.alb ? 'no first track on file for this album (' + _roamFT.albN + ' albums known)' : 'the album list has not loaded yet') };
+  return { ok: true, trackId: t, url: 'https://open.spotify.com/track/' + t + '?context=' + encodeURIComponent('spotify:' + ref.kind + ':' + ref.id) };
+}
+
+// ACCOUNT. The page and the Spotify app sign in separately and nothing showed which account the
+// page was on (2026-11-24: the phone's app turned out to be on teenbloods). GET /me needs no extra
+// permission for id + display name. Asked on entering Roaming / foreground, at most every 6 h.
+function _roamAcctReset(why) {
+  _spAccount = null; _spAccountAt = 0;
+  try { localStorage.removeItem(LS_SP_ACCT); } catch (e) {}
+  console.log('[roam-acct] forgotten (' + why + ')');
+}
+async function _roamFetchAccount(why) {
+  let rt = null; try { rt = localStorage.getItem('spotify_refresh_token'); } catch (e) {}
+  if (!rt) { if (_spAccount) _roamAcctReset('no Spotify sign-in on this page'); console.log('[roam-acct] (' + why + ') not signed in to Spotify here — nothing to check'); return; }
+  if (_spAccountBusy) return;
+  if (_spAccountAt && Date.now() - _spAccountAt < 6 * 3600000) return; // confirmed recently
+  _spAccountBusy = true;
+  const _known = () => (_spAccount ? 'still showing the last answer: ' + _spAccount.id : 'unknown, so no account line is shown');
+  try {
+    const me = await spotifyApi('GET', '/me');
+    if (me && me.id) {
+      const prev = _spAccount && _spAccount.id;
+      _spAccount = { id: String(me.id), name: String(me.display_name || me.id), at: Date.now() };
+      _spAccountAt = Date.now();
+      try { localStorage.setItem(LS_SP_ACCT, JSON.stringify(_spAccount)); } catch (e) {}
+      console.log('[roam-acct] (' + why + ') this page is signed in to Spotify as "' + _spAccount.id + '"' + (_spAccount.name !== _spAccount.id ? ' (' + _spAccount.name + ')' : '')
+        + ' — ' + (_spAccount.id === SP_MAIN_ACCOUNT_ID ? 'the main account' : 'NOT the main account (' + SP_MAIN_ACCOUNT_ID + ') → warning shown') + (prev && prev !== _spAccount.id ? ' [was ' + prev + ']' : ''));
+      if (house === 'roaming') renderSpotifyDevices();
+    } else {
+      console.log('[roam-acct] (' + why + ') Spotify did not return an account (reply: ' + JSON.stringify(me === undefined ? null : me).slice(0, 120) + ') — ' + _known());
+    }
+  } catch (e) {
+    console.log('[roam-acct] (' + why + ') lookup FAILED: ' + (e && e.message) + ' — ' + _known());
+  } finally { _spAccountBusy = false; }
+}
+function _roamAcctHtml() {
+  if (!_spAccount) return ''; // unknown: say nothing rather than guess
+  const who = '<b>' + esc(_spAccount.id) + '</b>' + (_spAccount.name && _spAccount.name !== _spAccount.id ? ' (' + esc(_spAccount.name) + ')' : '');
+  if (_spAccount.id === SP_MAIN_ACCOUNT_ID) return '<div class="roam-acct ok" id="roam-acct">Spotify account: ' + esc(_spAccount.id) + '</div>';
+  return '<div class="roam-acct warn" id="roam-acct">⚠ This page is signed in to Spotify as ' + who + ', not <b>' + esc(SP_MAIN_ACCOUNT_ID) + '</b>. Now playing and the buttons here follow that account.'
+    + '<button class="roam-acct-btn" onclick="_roamSwitchAccount()">Sign in as ' + esc(SP_MAIN_ACCOUNT_ID) + '</button></div>';
+}
+function _roamSwitchAccount() {
+  console.log('[roam-acct] switch requested (page is on "' + (_spAccount && _spAccount.id) + '")');
+  if (!confirm('Sign this page in to Spotify again?\n\nSpotify will show which account it is about to use. If that is not ' + SP_MAIN_ACCOUNT_ID + ', tap "Not you?" there and sign in as ' + SP_MAIN_ACCOUNT_ID + '.')) { console.log('[roam-acct] switch cancelled'); return; }
+  spotifyAuth({ showDialog: true }); // the current sign-in stays in place until the new one completes
+}
+function _roamOnEnter(why) {
+  try {
+    _roamLoadFirstTracks(why).catch(e => console.log('[one-tap] load ERROR (' + why + '): ' + e));
+    _roamFetchAccount(why).catch(e => console.log('[roam-acct] ERROR (' + why + '): ' + e));
+  } catch (e) { console.log('[roaming p3.59] on-enter ERROR (' + why + '): ' + e); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3768,7 +3955,7 @@ function renderSpotifyDevices() {
     return;
   }
   _roamVolUi(); // p3.58: volume/mute follow the live device's supports_volume on every device render
-  let html = '<div class="device-list">';
+  let html = _roamAcctHtml() + '<div class="device-list">'; // p3.59: account line above the devices
   if (spotifyDevices.length === 0) {
     html += '<p style="font-size:12px;color:var(--text-dim);padding:8px 0;">No devices found. Open Spotify on a device.</p>';
   } else {
@@ -3810,6 +3997,7 @@ async function selectSpotifyDevice(id) {
 function disconnectSpotify() {
   ['spotify_access_token','spotify_refresh_token','spotify_token_expiry','spotify_pkce_verifier'].forEach(k => localStorage.removeItem(k));
   spotifyDevices = []; spotifySelectedDeviceId = null; spotifyNowPlaying = null;
+  _roamAcctReset('Spotify disconnected'); // p3.59
   stopSpotifyPolling();
   renderRoamingPanel();
   showToast('Spotify disconnected');
@@ -6218,7 +6406,9 @@ async function playContext(action, encodedData, sheetOpts) {
   // p3.26 (D1/D2/D9): roaming containers deep-link into the Spotify app — album/
   // playlist pages open there (navigate, one ▶ tap — F3/F5). Editorial 🚫
   // playlists included: the API 403s them, the deep link opens them fine (F5).
-  if (roamingDeepLink(contextUri, label)) return;
+  // p3.59: this funnel deep-links for ▶ AND ＋ (review 3A item 2). Only ▶ may use the one-tap
+  // link - it starts playback; ＋ keeps opening the page until decision 3 is made.
+  if (roamingDeepLink(contextUri, label, { oneTap: action !== 'queue' })) return;
   if (!hasSpotifyAuth()) { showToast('Connect Spotify first', true); return; }
   await _ensureDeviceAwake();
   const dpQ = spotifySelectedDeviceId ? '?device_id=' + spotifySelectedDeviceId : '';
@@ -7696,6 +7886,7 @@ document.addEventListener('visibilitychange', () => {
     ['caphill','vashon'].forEach(h => { _chipExpiryDone[h] = false; _chipExpirySweep(h); });
     loadData(false);  // v1.65: refresh data-head.json on page foreground (mobile Safari kills setInterval)
     if (house === 'roaming' && hasSpotifyAuth()) { fetchSpotifyDevices(); fetchSpotifyNowPlaying(); }
+    if (house === 'roaming') _roamOnEnter('foreground'); // p3.59: age-gated refresh of first-track lists + account
     // p3.25: house pick first (may switch the view), then structure chip (Vashon-only)
     houseMaybeRun('foreground').then(() => geoMaybeRun('foreground'));
   }
@@ -8644,6 +8835,7 @@ async function loadPlaylistData() {
     const ownerCounts = {};
     for (const p of _playlists) { if (p.owner_id) ownerCounts[p.owner_id] = (ownerCounts[p.owner_id] || 0) + 1; }
     _plAccountOwnerId = Object.keys(ownerCounts).sort((a, b) => ownerCounts[b] - ownerCounts[a])[0] || null;
+    try { _roamFTFromPlaylists(_playlists, 'Playlists tab load'); } catch (e) { console.log('[one-tap] playlist list from the tab load ERROR: ' + e); } // p3.59
     computePlaylistLastListened();
     renderPlaylists();
     _plDeriveMissingDates(); // p3.03 item 3: fire-and-forget — re-renders when dates land
